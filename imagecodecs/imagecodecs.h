@@ -12,6 +12,8 @@
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #define HAVE_SSIZE_T 1
+#else
+#include <sys/types.h>
 #endif
 #endif
 
@@ -73,6 +75,18 @@ ssize_t icd_packints_decode(
     const int numbits);
 
 
+ssize_t icd_packbits_size(
+    const uint8_t *src,
+    const ssize_t srcsize);
+
+
+ssize_t icd_packbits_decode(
+    const uint8_t *src,
+    const ssize_t srcsize,
+    uint8_t *dst,
+    const ssize_t dstsize);
+
+
 ssize_t icd_packbits_encode(
     const uint8_t *src,
     const ssize_t srcsize,
@@ -125,18 +139,6 @@ ssize_t icd_floatpred(
     const ssize_t samples,
     const char byteorder,
     const int decode);
-
-
-ssize_t icd_packbits_size(
-    const uint8_t *src,
-    const ssize_t srcsize);
-
-
-ssize_t icd_packbits_decode(
-    const uint8_t *src,
-    const ssize_t srcsize,
-    uint8_t *dst,
-    const ssize_t dstsize);
 
 
 ssize_t icd_bitorder(
