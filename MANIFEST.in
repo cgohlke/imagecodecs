@@ -6,10 +6,16 @@ include imagecodecs/_imagecodecs.pyx
 include imagecodecs/_jpeg12.pyx
 include imagecodecs/imagecodecs.c
 include imagecodecs/imagecodecs.h
+include imagecodecs/jpeg_0xc3.cpp
+include imagecodecs/jpeg_0xc3.h
+
+include imagecodecs/licenses/*
 
 include tests/*.py
+include tests/*.txt
 include tests/*.bin
 include tests/*.png
+include tests/*.jpg
 include tests/*.jxr
 include tests/*.j2k
 include tests/*.jp2
