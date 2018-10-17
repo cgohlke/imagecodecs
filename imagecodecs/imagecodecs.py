@@ -41,10 +41,12 @@ extension using pure Python and 3rd party extensions.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.10
+:Version: 2018.10.17
 
 Revisions
 ---------
+2018.10.17
+    Add dummy jpeg0xc3 codec.
 2018.10.10
     Add dummy png codec.
     Improve delta codecs.
@@ -60,7 +62,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.10.py'
+__version__ = '2018.10.17.py'
 
 import sys
 import struct
@@ -656,6 +658,18 @@ def jpeg12_decode(*args, **kwargs):
 @notimplemented
 def jpeg12_encode(*args, **kwargs):
     """Encode JPEG 12-bit."""
+    pass
+
+
+@notimplemented
+def jpeg0xc3_decode(*args, **kwargs):
+    """Decode JPEG SOF=0xC3."""
+    pass
+
+
+@notimplemented
+def jpeg0xc3_encode(*args, **kwargs):
+    """Encode JPEG SOF=0xC3."""
     pass
 
 
