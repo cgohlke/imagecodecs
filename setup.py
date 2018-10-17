@@ -1,27 +1,29 @@
 # -*- coding: utf-8 -*-
 # imagecodecs/setup.py
 
-from setuptools import setup, Extension
-from Cython.Distutils import build_ext
+"""Imagecodecs package setuptools script."""
 
 import sys
-import os
 import re
 import warnings
 
 import numpy
 
-buildnumber = ''  # '.post0'
+from setuptools import setup, Extension
+from Cython.Distutils import build_ext
+
+buildnumber = ''  # 'post0'
 
 with open('imagecodecs/_imagecodecs.pyx') as fh:
     code = fh.read()
 
 version = re.search("__version__ = '(.*?)'", code).groups()[0]
-description = re.search('"""(.*)\.\n', code).groups()[0]
+version += ('.' + buildnumber) if buildnumber else ''
+description = re.search('"""(.*)\.[\r\n?|\n]', code).groups()[0]
 readme = re.search('[\r\n?|\n]{2}"""(.*)"""[\r\n?|\n]{2}__version__', code,
-                   re.MULTILINE| re.DOTALL).groups()[0]
+                   re.MULTILINE | re.DOTALL).groups()[0]
 license = re.search('(# Copyright.*?[\r\n?|\n])[\r\n?|\n]+""', code,
-                    re.MULTILINE| re.DOTALL).groups()[0]
+                    re.MULTILINE | re.DOTALL).groups()[0]
 
 readme = '\n'.join([description, '=' * len(description)]
                    + readme.splitlines()[1:])
@@ -33,27 +35,46 @@ if 'sdist' in sys.argv:
     with open('README.rst', 'w') as fh:
         fh.write(readme)
 
+if sys.platform == 'win32':
+    libraries = ['zlib', 'lz4', 'lzf', 'webp', 'png', 'jxrlib', 'jpeg',
+                 'zstd_static', 'lzma-static', 'libbz2', 'openjp2']
+    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1)]
+    libraries_jpeg12 = ['jpeg12']
+
+else:
+    # TODO: find standard library names and compiler options
+    libraries = ['m', 'z', 'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'lzf',
+                 'png', 'webp', 'jxrglue', 'jpegxr']
+    define_macros = []
+    libraries_jpeg12 = []
+
+
 ext_modules = [
     Extension(
         'imagecodecs._imagecodecs',
-        ['imagecodecs/_imagecodecs.pyx', 'imagecodecs/imagecodecs.c'],
+        ['imagecodecs/_imagecodecs.pyx',
+         'imagecodecs/imagecodecs.c',
+         'imagecodecs/jpeg_0xc3.cpp'],
         include_dirs=[numpy.get_include(), 'imagecodecs'],
-        libraries=['zlib', 'lz4', 'lzf', 'webp', 'png', 'jxrlib', 'jpeg',
-                   'zstd_static', 'lzma-static', 'libbz2', 'openjp2'],
-        extra_compile_args=['/DWIN32', '/DLZMA_API_STATIC', '/DOPJ_STATIC'],
-        ),
-    Extension(
-        'imagecodecs._jpeg12',
-        ['imagecodecs/_jpeg12.pyx'],
-        include_dirs=[numpy.get_include(), 'imagecodecs'],
-        libraries=['jpeg12'],
-        extra_compile_args=['/DBITS_IN_JSAMPLE=12'],
-        ),
+        libraries=libraries,
+        define_macros=define_macros
+        )
 ]
+
+if libraries_jpeg12:
+    ext_modules += [
+        Extension(
+            'imagecodecs._jpeg12',
+            ['imagecodecs/_jpeg12.pyx'],
+            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            libraries=libraries_jpeg12,
+            define_macros=[('BITS_IN_JSAMPLE', 12)],
+        )
+    ]
 
 setup_args = dict(
     name='imagecodecs',
-    version=version + buildnumber,
+    version=version,
     description=description,
     long_description=readme,
     author='Christoph Gohlke',
@@ -63,6 +84,7 @@ setup_args = dict(
     install_requires=['numpy>=1.14'],
     tests_require=['pytest', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
+    package_data={'imagecodecs': ['licenses/*']},
     license='BSD',
     zip_safe=False,
     platforms=['any'],
@@ -91,9 +113,16 @@ try:
     setup(ext_modules=ext_modules,
           cmdclass={'build_ext': build_ext},
           **setup_args)
-except Exception as e:
+except BaseException as e:
+    sep = '\n\n%s\n\n' % ('*' * 80)
     warnings.warn(str(e))
-    warnings.warn(
-        'The _imagecodecs Cython extension module was not built.\n'
-        'Using a fallback module with limited functionality and performance.')
+    warnings.warn("""
+
+*******************************************************************
+
+The _imagecodecs Cython extension module was not built.
+Using a fallback module with limited functionality and performance.
+
+*******************************************************************
+        """)
     setup(**setup_args)
