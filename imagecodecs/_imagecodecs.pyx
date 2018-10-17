@@ -36,14 +36,14 @@
 
 """Image transformation, compression, and decompression codecs.
 
-The imagecodecs package provides various block-oriented, in-memory
-buffer transformation, compression, and decompression functions
-for use in the tiffile, czifile, and other Python imaging modules.
+The imagecodecs package provides block-oriented, in-memory buffer
+transformation, compression, and decompression functions
+for use in the tifffile, czifile, and other Python scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG, JPEG 12-bit, JPEG 2000,
-JPEG XR, PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-and Bitorder reversal.
+ZStandard, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
+JPEG SOF=0xC3, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta, XOR Delta,
+Floating Point Predictor, and Bitorder reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -51,7 +51,7 @@ and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.10
+:Version: 2018.10.17
 
 Requirements
 ------------
@@ -59,16 +59,16 @@ Requirements
 * `Numpy 1.14 <https://www.numpy.org>`_
 * `Cython 0.28 <http://cython.org/>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib/>`_
-* `lz4 1.8.2 <https://github.com/lz4/lz4/>`_
-* `zstd 1.3.5 <https://github.com/facebook/zstd/>`_
+* `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
+* `zstd 1.3.6 <https://github.com/facebook/zstd/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
-* `xz lzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
+* `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
 * `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
-* `jxrlib 0.2.0 <https://github.com/glencoesoftware/jxrlib/>`_
+* `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
   with `patch <https://www.lfd.uci.edu/~gohlke/code/
   jxrlib_CreateDecoderFromBytes.diff.html>`_
 * A Python distutils compatible C compiler
@@ -102,22 +102,24 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.17
+    Add JPEG SOF=0xC3 decoder via jpeg_0xc3.cpp.
 2018.10.10
-    Add PNG codecs.
+    Add PNG codecs via libpng.
     Add option to specify output colorspace in JPEG decoder.
     Fix Delta codec for floating point numbers.
     Fix XOR Delta codecs.
 2018.9.30
-    Add LZF codecs.
+    Add LZF codecs via liblzf.
 2018.9.22
-    Add WebP codecs.
+    Add WebP codecs vial libwebp.
 2018.8.29
     Pass 396 tests.
     Add PackBits encoder.
 2018.8.22
     Add link library version information.
     Add option to specify size of LZW buffer.
-    Add JPEG 2000 decoder.
+    Add JPEG 2000 decoder via openjpeg.
     Add XOR Delta codec.
 2018.8.16
     Link to libjpeg-turbo.
@@ -125,11 +127,11 @@ Revisions
 2018.8.10
     Initial alpha release.
     Add LZW, PackBits, PackInts and FloatPred decoders from tifffile.c module.
-    Add JPEG and JXR decoders from czifile.pyx module.
+    Add JPEG and JPEG XR decoders from czifile.pyx module.
 
 """
 
-__version__ = '2018.10.10'
+__version__ = '2018.10.17'
 
 import numpy
 
@@ -2408,7 +2410,8 @@ cdef void png_read_data_fn(png_structp png_ptr,
     if size > memstream.size - memstream.offset:
         # size = memstream.size - memstream.offset
         with gil:
-            raise RuntimeError('PNG input stream too small %i' % memstream.size)
+            raise RuntimeError(
+                'PNG input stream too small %i' % memstream.size)
     memcpy(dst, &(memstream.data[memstream.offset]), size)
     memstream.offset += size
 
@@ -2676,7 +2679,7 @@ def png_encode(data, level=None, out=None):
     return out
 
 
-# WebP ##################################################################
+# WebP ########################################################################
 
 cdef extern from 'webp/decode.h':
 
@@ -3120,7 +3123,7 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
 # due to header and link conflicts with JPEG 8-bit.
 
 try:
-    from ._jpeg12 import jpeg12_decode, jpeg12_encode
+    from ._jpeg12 import jpeg12_decode, jpeg12_encode, Jpeg12Error
 except ImportError:
 
     def jpeg12_decode(*args, **kwargs):
@@ -3132,6 +3135,116 @@ except ImportError:
         raise NotImplementedError('jpeg12_encode')
 
 
+# JPEG SOF=0xC3 ###############################################################
+
+# The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
+# described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
+# The format is identified by a Start of Frame (SOF) code 0xC3.
+
+cdef extern from 'jpeg_0xc3.h':
+    int JPEG_0XC3_OK
+    int JPEG_0XC3_INVALID_OUTPUT
+    int JPEG_0XC3_INVALID_SIGNATURE
+    int JPEG_0XC3_INVALID_HEADER_TAG
+    int JPEG_0XC3_SEGMENT_GT_IMAGE
+    int JPEG_0XC3_INVALID_ITU_T81
+    int JPEG_0XC3_INVALID_BIT_DEPTH
+    int JPEG_0XC3_TABLE_CORRUPTED
+    int JPEG_0XC3_TABLE_SIZE_CORRUPTED
+    int JPEG_0XC3_INVALID_RESTART_SEGMENTS
+    int JPEG_0XC3_NO_TABLE
+
+    int jpeg_0x3c_decode(unsigned char *lRawRA,
+                         ssize_t lRawSz,
+                         unsigned char *lImgRA8,
+                         ssize_t lImgSz,
+                         int *dimX,
+                         int *dimY,
+                         int *bits,
+                         int *frames) nogil
+
+
+class Jpeg0xc3Error(RuntimeError):
+    """JPEG SOF=0xC3 Exceptions."""
+    def __init__(self, err):
+        msg = {
+            JPEG_0XC3_INVALID_OUTPUT: 'output array is too small',
+            JPEG_0XC3_INVALID_SIGNATURE: 'JPEG signature 0xFFD8FF not found',
+            JPEG_0XC3_INVALID_HEADER_TAG: 'header tag must begin with 0xFF',
+            JPEG_0XC3_SEGMENT_GT_IMAGE: 'segment larger than image',
+            JPEG_0XC3_INVALID_ITU_T81: 'not a lossless JPEG ITU-T81 image '
+                                       '(SoF must be 0xC3)',
+            JPEG_0XC3_INVALID_BIT_DEPTH: 'scalar data must be 1..16 bit, '
+                                         'RGB data must be 8-bit',
+            JPEG_0XC3_TABLE_CORRUPTED: 'Huffman table corrupted',
+            JPEG_0XC3_TABLE_SIZE_CORRUPTED: 'Huffman size array corrupted',
+            JPEG_0XC3_INVALID_RESTART_SEGMENTS: 'unsupported Restart Segments',
+            JPEG_0XC3_NO_TABLE: 'no Huffman tables',
+            }.get(err, 'unknown error % i' % err)
+        msg = "jpeg_0x3c_decode returned '%s'" % msg
+        RuntimeError.__init__(self, msg)
+
+
+def jpeg0xc3_encode(*args, **kwargs):
+    """Not implemented."""
+    # TODO: JPEG SOF=0xC3 encoding
+    raise NotImplementedError('jpeg0xc3_encode')
+
+
+def jpeg0xc3_decode(data, out=None):
+    """Decode JPEG SOF=0xC3 image to numpy array.
+
+    Beware, the input data is modified!
+
+    RGB images are returned as non-contiguous arrays as samples are decoded
+    into separate frames first (RRGGBB).
+
+    """
+    cdef:
+        numpy.ndarray dst
+        const uint8_t[::1] src = data
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        int dimX, dimY, bits, frames, ret
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    with nogil:
+        ret = jpeg_0x3c_decode(<unsigned char *>&src[0], srcsize,
+                               NULL, 0, &dimX, &dimY, &bits, &frames)
+
+    if ret != JPEG_0XC3_OK:
+        raise Jpeg0xc3Error(ret)
+
+    if frames > 1:
+        shape = frames, dimY, dimX
+    else:
+        shape = dimY, dimX
+
+    if bits > 8:
+        dtype =  numpy.uint16
+    else:
+        dtype = numpy.uint8
+
+    out = _create_array(out, shape, dtype)
+    dst = out
+    dstsize = dst.size * dst.itemsize
+
+    with nogil:
+        ret = jpeg_0x3c_decode(<unsigned char *>&src[0], srcsize,
+                               <unsigned char *>dst.data, dstsize,
+                               &dimX, &dimY, &bits, &frames)
+
+    if ret != JPEG_0XC3_OK:
+        raise Jpeg0xc3Error(ret)
+
+    if frames > 1:
+        out = numpy.moveaxis(out, 0, -1)
+
+    return out
+
+
 # JPEG Wrapper ################################################################
 
 def jpeg_decode(data, bitspersample, tables=None, colorspace=None,
@@ -3139,10 +3252,15 @@ def jpeg_decode(data, bitspersample, tables=None, colorspace=None,
     """Decode JPEG.
 
     """
-    if bitspersample == 8:
-        return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
-    if bitspersample == 12:
-        return jpeg12_decode(data, tables, colorspace, outcolorspace, out)
+    try:
+        if bitspersample == 8:
+            return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
+        if bitspersample == 12:
+            return jpeg12_decode(data, tables, colorspace, outcolorspace, out)
+    except (Jpeg8Error, Jpeg12Error) as exception:
+        if 'SOF type' not in str(exception):
+            raise exception
+        return jpeg0xc3_decode(data, out)
     raise NotImplementedError('JPEG %i-bit not supported' % bitspersample)
 
 
@@ -3635,6 +3753,8 @@ def j2k_decode(data, verbose=0, out=None):
 # TODO: Integer Resize
 # TODO: Dtype conversion
 # TODO: Scale Offset
-# TODO: CCITT and JBIG
+# TODO: CCITT and JBIG; JBIG-KIT is GPL
+# TODO: JPEG-LS; libjpeg is GPL
 # TODO: SZIP via libaec
+# TODO: TIFF via libtiff
 # TODO: BMP
