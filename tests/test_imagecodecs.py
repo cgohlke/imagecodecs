@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.10
+:Version: 2018.10.17
 
 """
 
@@ -646,6 +646,35 @@ def test_jpeg12_decode(output):
 
     assert numpy.max(numpy.abs(WORDSIMG.astype('int32') -
                                decoded.astype('int32'))) < 2
+
+
+@pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('fname', ['8_ls.jpg', '16_ls.jpg'])
+def test_jpeg0xc3(fname, output):
+    from imagecodecs import jpeg0xc3_decode as decode
+
+    shape = 535, 800
+    if fname == '8_ls.jpg':
+        dtype = 'uint8'
+        value = 75
+    elif fname == '16_ls.jpg':
+        dtype = 'uint16'
+        value = 19275
+
+    data = readfile(fname)
+
+    if output == 'new':
+        decoded = decode(data)
+    elif output == 'out':
+        decoded = numpy.empty(shape, dtype)
+        decode(data, out=decoded)
+    elif output == 'bytearray':
+        decoded = bytearray(535 * 800 * numpy.dtype(dtype).itemsize)
+        decoded = decode(data, out=decoded)
+
+    assert decoded.shape == shape
+    assert decoded.dtype == dtype
+    assert decoded[500, 600] == value
 
 
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
