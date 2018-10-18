@@ -51,7 +51,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.17
+:Version: 2018.10.18
 
 Requirements
 ------------
@@ -83,6 +83,13 @@ Works on little-endian platforms only.
 
 Python 2.7 and 3.4 are deprecated.
 
+Refer to the imagecodecs/licenses folder for 3rd party library licenses.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+This software contains a modified version of `jpg_0XC3.cpp
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
+
 Other Python packages providing imaging or compression codecs:
 
 * `numcodecs <https://github.com/zarr-developers/numcodecs>`_
@@ -102,8 +109,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.18
+    Improve jpeg_decode wrapper.
 2018.10.17
-    Add JPEG SOF=0xC3 decoder via jpeg_0xc3.cpp.
+    Add JPEG SOF=0xC3 decoder based on jpg_0XC3.cpp.
 2018.10.10
     Add PNG codecs via libpng.
     Add option to specify output colorspace in JPEG decoder.
@@ -131,7 +140,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.17'
+__version__ = '2018.10.18'
 
 import numpy
 
@@ -276,6 +285,7 @@ def version(astype=str):
         ('jpeg_turbo', '%i.%i.%i' % (int(jpeg_turbo_version[:1]),
                                      int(jpeg_turbo_version[2:3]),
                                      int(jpeg_turbo_version[4:5]))),
+        ('jpeg_0cx3', JPEG_0XC3_VERSION.decode('utf-8')),
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
         )
@@ -3142,6 +3152,7 @@ except ImportError:
 # The format is identified by a Start of Frame (SOF) code 0xC3.
 
 cdef extern from 'jpeg_0xc3.h':
+    char* JPEG_0XC3_VERSION
     int JPEG_0XC3_OK
     int JPEG_0XC3_INVALID_OUTPUT
     int JPEG_0XC3_INVALID_SIGNATURE
@@ -3247,20 +3258,32 @@ def jpeg0xc3_decode(data, out=None):
 
 # JPEG Wrapper ################################################################
 
-def jpeg_decode(data, bitspersample, tables=None, colorspace=None,
+def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
                 outcolorspace=None, out=None):
     """Decode JPEG.
 
     """
+    if bitspersample is None:
+        try:
+            return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
+        except Jpeg8Error as exception:
+            msg = str(exception)
+            if 'SOF type' in msg:
+                return jpeg0xc3_decode(data, out)
+            if 'Unsupported JPEG data precision' in msg:
+                return jpeg12_decode(data, tables, colorspace, outcolorspace,
+                                     out)
+            raise exception
     try:
         if bitspersample == 8:
             return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
         if bitspersample == 12:
             return jpeg12_decode(data, tables, colorspace, outcolorspace, out)
-    except (Jpeg8Error, Jpeg12Error) as exception:
-        if 'SOF type' not in str(exception):
-            raise exception
         return jpeg0xc3_decode(data, out)
+    except (Jpeg8Error, Jpeg12Error) as exception:
+        if 'SOF type' in str(exception):
+            return jpeg0xc3_decode(data, out)
+        raise exception
     raise NotImplementedError('JPEG %i-bit not supported' % bitspersample)
 
 
@@ -3751,7 +3774,7 @@ def j2k_decode(data, verbose=0, out=None):
 
 # TODO: Chroma Subsampling
 # TODO: Integer Resize
-# TODO: Dtype conversion
+# TODO: Dtype conversion/quantizations
 # TODO: Scale Offset
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
 # TODO: JPEG-LS; libjpeg is GPL
