@@ -66,6 +66,8 @@ typedef SSIZE_T ssize_t;
 #endif
 
 
+#define JPEG_0XC3_VERSION "2018.10.18"
+
 #define JPEG_0XC3_OK 0
 #define JPEG_0XC3_INVALID_OUTPUT -1
 #define JPEG_0XC3_INVALID_SIGNATURE -2
