@@ -85,7 +85,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 #include <stddef.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "jpeg_0xc3.h"
@@ -442,6 +441,7 @@ int jpeg_0x3c_decode(
     // NEXT: Huffman decoding
     if (lnHufTables < 1) {
         // Decoding error: no Huffman tables
+        // TODO: use external Huffman tables?
         return JPEG_0XC3_NO_TABLE;
     }
 
