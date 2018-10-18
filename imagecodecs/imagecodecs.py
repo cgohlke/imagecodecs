@@ -33,7 +33,7 @@
 """Image transformation, compression, and decompression codecs.
 
 This module implements limited functionality of the imagecodec Cython
-extension using pure Python and 3rd party extensions.
+extension using pure Python and 3rd party packages.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -41,10 +41,12 @@ extension using pure Python and 3rd party extensions.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.17
+:Version: 2018.10.18
 
 Revisions
 ---------
+2018.10.18
+    Use Pillow for decoding jpeg, png, j2k, and webp.
 2018.10.17
     Add dummy jpeg0xc3 codec.
 2018.10.10
@@ -62,13 +64,16 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.17.py'
+__version__ = '2018.10.18.py'
 
 import sys
 import struct
 import warnings
 import functools
 import zlib
+import io
+
+import numpy
 
 try:
     import lzma
@@ -99,7 +104,10 @@ try:
 except ImportError:
     lzf = None
 
-import numpy
+try:
+    import PIL
+except ImportError:
+    PIL = None
 
 
 def notimplemented(arg=False):
@@ -622,13 +630,20 @@ def lz4_decode(data, header=False, out=None):
     return lz4.block.decompress(data, uncompressed_size=outsize)
 
 
-def jpeg_decode(data, bitspersample, tables=None, colorspace=None, out=None):
+@notimplemented(PIL)
+def pil_decode(data, out=None):
+    """Decode image data using PIL."""
+    return numpy.asarray(PIL.Image.open(io.BytesIO(data)))
+
+
+@notimplemented(PIL)
+def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
+                outcolorspace=None, out=None):
     """Decode JPEG."""
-    if bitspersample == 8:
-        return jpeg8_decode(data, tables, colorspace, out)
-    if bitspersample == 12:
-        return jpeg12_decode(data, tables, colorspace, out)
-    raise NotImplementedError('JPEG %i-bit not supported' % bitspersample)
+    if tables or colorspace or outcolorspace:
+        raise NotImplementedError(
+            'JPEG tables, colorspace, and outcolorspace otions not supported')
+    return pil_decode(data)
 
 
 @notimplemented
@@ -637,10 +652,14 @@ def jpeg_encode(*args, **kwargs):
     pass
 
 
-@notimplemented
-def jpeg8_decode(*args, **kwargs):
+@notimplemented(PIL)
+def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
+                 out=None):
     """Decode JPEG 8-bit."""
-    pass
+    if tables or colorspace or outcolorspace:
+        raise NotImplementedError(
+            'JPEG tables, colorspace, and outcolorspace otions not supported')
+    return pil_decode(data)
 
 
 @notimplemented
@@ -673,10 +692,10 @@ def jpeg0xc3_encode(*args, **kwargs):
     pass
 
 
-@notimplemented
-def j2k_decode(*args, **kwargs):
+@notimplemented(PIL)
+def j2k_decode(data, verbose=0, out=None):
     """Decode JPEG 2000."""
-    pass
+    return pil_decode(data)
 
 
 @notimplemented
@@ -697,10 +716,10 @@ def jxr_encode(*args, **kwargs):
     pass
 
 
-@notimplemented
-def webp_decode(*args, **kwargs):
+@notimplemented(PIL)
+def webp_decode(data, out=None):
     """Decode WebP."""
-    pass
+    return pil_decode(data)
 
 
 @notimplemented
@@ -709,10 +728,10 @@ def webp_encode(*args, **kwargs):
     pass
 
 
-@notimplemented
-def png_decode(*args, **kwargs):
+@notimplemented(PIL)
+def png_decode(data, out=None):
     """Decode PNG."""
-    pass
+    return pil_decode(data)
 
 
 @notimplemented
