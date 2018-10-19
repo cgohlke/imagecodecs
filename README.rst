@@ -16,7 +16,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.17
+:Version: 2018.10.18
 
 Requirements
 ------------
@@ -48,6 +48,13 @@ Works on little-endian platforms only.
 
 Python 2.7 and 3.4 are deprecated.
 
+Refer to the imagecodecs/licenses folder for 3rd party library licenses.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+This software contains a modified version of `jpg_0XC3.cpp
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
+
 Other Python packages providing imaging or compression codecs:
 
 * `numcodecs <https://github.com/zarr-developers/numcodecs>`_
@@ -67,8 +74,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.18
+    Improve jpeg_decode wrapper.
 2018.10.17
-    Add JPEG SOF=0xC3 decoder via jpeg_0xc3.cpp.
+    Add JPEG SOF=0xC3 decoder based on jpg_0XC3.cpp.
 2018.10.10
     Add PNG codecs via libpng.
     Add option to specify output colorspace in JPEG decoder.
