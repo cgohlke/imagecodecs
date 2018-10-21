@@ -60,26 +60,27 @@ Copyright (c) 2018, Christoph Gohlke. All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above copyright
-  notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimer in the
-  documentation and/or other materials provided with the distribution.
-* Neither the name of the copyright holders nor the names of any
-  contributors may be used to endorse or promote products derived
-  from this software without specific prior written permission.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
@@ -332,7 +333,7 @@ int jpeg_0x3c_decode(
                 uint8_t DHTnLi = readByte(lRawRA, &lRawPos, lRawSz);
                 // we need to increment the input file position,
                 // but we do not care what the value is
-                #pragma unused(DHTnLi)
+                // #pragma unused(DHTnLi)
                 DHTnLi = 0;
                 for (int lInc = 1; lInc <= 16; lInc++) {
                     l[lFrameCount].DHTliRA[lInc] = readByte(lRawRA, &lRawPos,
@@ -415,18 +416,18 @@ int jpeg_0x3c_decode(
                     // component identifier 1=Y,2=Cb,3=Cr,4=I,5=Q
                     btS1 = readByte(lRawRA, &lRawPos, lRawSz);
                     // dummy value used to increment file position
-                    #pragma unused(btS1)
+                    // #pragma unused(btS1)
                     // horizontal and vertical sampling factors
                     btS2 = readByte(lRawRA, &lRawPos, lRawSz);
                     // dummy value used to increment file position
-                    #pragma unused(btS2)
+                    // #pragma unused(btS2)
                 }
             }
             // predictor selection B.3
             SOSss = readByte(lRawRA, &lRawPos, lRawSz);
             SOSse = readByte(lRawRA, &lRawPos, lRawSz);
             // dummy value used to increment file position
-            #pragma unused(SOSse)
+            // #pragma unused(SOSse)
             // lower 4bits= pointtransform
             SOSahal = readByte(lRawRA, &lRawPos, lRawSz);
             SOSpttrans = SOSahal & 16;
