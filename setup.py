@@ -17,12 +17,12 @@ buildnumber = ''  # 'post0'
 with open('imagecodecs/_imagecodecs.pyx') as fh:
     code = fh.read()
 
-version = re.search("__version__ = '(.*?)'", code).groups()[0]
+version = re.search(r"__version__ = '(.*?)'", code).groups()[0]
 version += ('.' + buildnumber) if buildnumber else ''
-description = re.search('"""(.*)\.[\r\n?|\n]', code).groups()[0]
-readme = re.search('[\r\n?|\n]{2}"""(.*)"""[\r\n?|\n]{2}__version__', code,
+description = re.search(r'"""(.*)\.[\r\n?|\n]', code).groups()[0]
+readme = re.search(r'[\r\n?|\n]{2}"""(.*)"""[\r\n?|\n]{2}__version__', code,
                    re.MULTILINE | re.DOTALL).groups()[0]
-license = re.search('(# Copyright.*?[\r\n?|\n])[\r\n?|\n]+""', code,
+license = re.search(r'(# Copyright.*?[\r\n?|\n])[\r\n?|\n]+""', code,
                     re.MULTILINE | re.DOTALL).groups()[0]
 
 readme = '\n'.join([description, '=' * len(description)]
@@ -34,31 +34,59 @@ if 'sdist' in sys.argv:
         fh.write(license)
     with open('README.rst', 'w') as fh:
         fh.write(readme)
+    numpy_required = '1.11.3'
+else:
+    numpy_required = numpy.__version__
 
-if sys.platform == 'win32':
-    libraries = ['zlib', 'lz4', 'lzf', 'webp', 'png', 'jxrlib', 'jpeg',
+
+sources = [
+    'imagecodecs/imagecodecs.c',
+    'imagecodecs/jpeg_0xc3.cpp',
+    'imagecodecs/_imagecodecs.pyx',
+]
+
+include_dirs = [
+    numpy.get_include(),
+    'imagecodecs',
+]
+
+try:
+    # run in Windows development environment?
+    import _inclib  # noqa
+    libraries = ['zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf',
                  'zstd_static', 'lzma-static', 'libbz2', 'openjp2']
     define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
 
-else:
-    # TODO: find standard library names and compiler options
-    libraries = ['m', 'z', 'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'lzf',
-                 'png', 'webp', 'jxrglue', 'jpegxr']
+except ImportError:
+    # this works with Ubuntu 18.04 WSL
+    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp',
+                 'openjp2', 'jxrglue', 'jpegxr', 'z']
+    include_dirs.extend(
+        ['/usr/include/jxrlib',
+         '/usr/include/openjpeg-2.3'])
     define_macros = []
+    if sys.platform == 'win32':
+        define_macros.append(('WIN32', 1))
+    else:
+        libraries.append('m')
     libraries_jpeg12 = []
+
+
+if 'lzf' not in libraries and 'liblzf' not in libraries:
+    # use liblzf sources from sdist
+    sources.extend(['liblzf-3.6/lzf_c.c', 'liblzf-3.6/lzf_d.c'])
+    include_dirs.append('liblzf-3.6')
 
 
 ext_modules = [
     Extension(
         'imagecodecs._imagecodecs',
-        ['imagecodecs/imagecodecs.c',
-         'imagecodecs/jpeg_0xc3.cpp',
-         'imagecodecs/_imagecodecs.pyx'],
-        include_dirs=[numpy.get_include(), 'imagecodecs'],
+        sources,
+        include_dirs=include_dirs,
         libraries=libraries,
-        define_macros=define_macros
-        )
+        define_macros=define_macros,
+    )
 ]
 
 if libraries_jpeg12:
@@ -81,7 +109,7 @@ setup_args = dict(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=1.14'],
+    install_requires=['numpy>=%s' % numpy_required],
     tests_require=['pytest', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
