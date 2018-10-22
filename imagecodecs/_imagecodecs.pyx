@@ -13,19 +13,21 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright
-#   notice, this list of conditions and the following disclaimer.
-# * Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-# * Neither the name of the copyright holders nor the names of any
-#   contributors may be used to endorse or promote products derived
-#   from this software without specific prior written permission.
+# * Redistributions of source code must retain the above copyright notice,
+#   this list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
 # LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
 # CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
 # SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
@@ -36,7 +38,7 @@
 
 """Image transformation, compression, and decompression codecs.
 
-The imagecodecs package provides block-oriented, in-memory buffer
+Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other Python scientific imaging modules.
 
@@ -51,7 +53,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.18
+:Version: 2018.10.21
 
 Requirements
 ------------
@@ -63,14 +65,12 @@ Requirements
 * `zstd 1.3.6 <https://github.com/facebook/zstd/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
+* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
 * `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
-* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
-* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_
+* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
-  with `patch <https://www.lfd.uci.edu/~gohlke/code/
-  jxrlib_CreateDecoderFromBytes.diff.html>`_
 * A Python distutils compatible C compiler
 
 Notes
@@ -87,7 +87,7 @@ Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
-This software contains a modified version of `jpg_0XC3.cpp
+This software includes a modified version of `jpg_0XC3.cpp
 <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
 
 Other Python packages providing imaging or compression codecs:
@@ -109,6 +109,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.21
+    Builds on Ubuntu 18.04 WSL.
+    Include liblzf in srcdist.
+    Do not require CreateDecoderFromBytes patch to jxrlib.
 2018.10.18
     Improve jpeg_decode wrapper.
 2018.10.17
@@ -121,7 +125,7 @@ Revisions
 2018.9.30
     Add LZF codecs via liblzf.
 2018.9.22
-    Add WebP codecs vial libwebp.
+    Add WebP codecs via libwebp.
 2018.8.29
     Pass 396 tests.
     Add PackBits encoder.
@@ -140,7 +144,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.18'
+__version__ = '2018.10.21'
 
 import numpy
 
@@ -268,6 +272,8 @@ def version(astype=str):
     jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
     versions = (
         ('imagecodecs', __version__),
+        ('numpy', numpy.__version__),
+        ('cython', cython.__version__),
         ('icd', ICD_VERSION.decode('utf-8')),
         ('zlib', '%i.%i.%i' % (ZLIB_VER_MAJOR, ZLIB_VER_MINOR,
                                ZLIB_VER_REVISION)),
@@ -486,8 +492,8 @@ cdef _xor(data, int axis, out, int decode):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = numpy.PyArray_ITER_DATA(srciter)
                 dstptr = numpy.PyArray_ITER_DATA(dstiter)
-                ret = icd_xor(srcptr, srcsize, srcstride,
-                              dstptr, dstsize, dststride,
+                ret = icd_xor(<void *>srcptr, srcsize, srcstride,
+                              <void *>dstptr, dstsize, dststride,
                               itemsize, decode)
                 if ret < 0:
                     break
@@ -517,8 +523,8 @@ cdef _xor(data, int axis, out, int decode):
     itemsize = 1
 
     with nogil:
-        ret = icd_xor(&src[0], srcsize, srcstride,
-                      &dst[0], dstsize, dststride,
+        ret = icd_xor(<void *>&src[0], srcsize, srcstride,
+                      <void *>&dst[0], dstsize, dststride,
                       itemsize, decode)
     if ret < 0:
         raise IcdError('icd_xor', ret)
@@ -697,9 +703,9 @@ def bitorder_decode(data, out=None):
                 srcsize = data.size * itemsize
                 srcstride = itemsize
                 with nogil:
-                    icd_bitorder(srcptr, srcsize, srcstride,
+                    icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
                                  itemsize,
-                                 dstptr, dstsize, dststride)
+                                 <uint8_t *>dstptr, dstsize, dststride)
                 return data
 
             srciter = numpy.PyArray_IterAllButAxis(data, &axis);
@@ -708,9 +714,9 @@ def bitorder_decode(data, out=None):
             with nogil:
                 while numpy.PyArray_ITER_NOTDONE(srciter):
                     srcptr = <uint8_t *>numpy.PyArray_ITER_DATA(srciter)
-                    icd_bitorder(srcptr, srcsize, srcstride,
+                    icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
                                  itemsize,
-                                 dstptr, dstsize, dststride)
+                                 <uint8_t *>dstptr, dstsize, dststride)
                     numpy.PyArray_ITER_NEXT(srciter)
             return data
 
@@ -731,9 +737,9 @@ def bitorder_decode(data, out=None):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = <uint8_t *>numpy.PyArray_ITER_DATA(srciter)
                 dstptr = <uint8_t *>numpy.PyArray_ITER_DATA(dstiter)
-                icd_bitorder(srcptr, srcsize, srcstride,
+                icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
                              itemsize,
-                             dstptr, dstsize, dststride)
+                             <uint8_t *>dstptr, dstsize, dststride)
                 numpy.PyArray_ITER_NEXT(srciter)
                 numpy.PyArray_ITER_NEXT(dstiter)
         return out
@@ -744,7 +750,8 @@ def bitorder_decode(data, out=None):
     if data is out:
         # in-place
         with nogil:
-            icd_bitorder(&src[0], srcsize, 1, 1, &src[0], srcsize, 1)
+            icd_bitorder(<uint8_t *>&src[0], srcsize, 1, 1,
+                         <uint8_t *>&src[0], srcsize, 1)
         return data
 
     if out is None:
@@ -752,7 +759,8 @@ def bitorder_decode(data, out=None):
     dst = out
     dstsize = dst.size
     with nogil:
-        icd_bitorder(&src[0], srcsize, 1, 1, &dst[0], dstsize, 1)
+        icd_bitorder(<uint8_t *>&src[0], srcsize, 1, 1,
+                     <uint8_t *>&dst[0], dstsize, 1)
     return out
 
 
@@ -826,7 +834,8 @@ def packbits_encode(data, level=None, out=None):
         with nogil:
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
-                ret = icd_packbits_encode(srcptr, srcsize, dstptr, dstsize)
+                ret = icd_packbits_encode(srcptr, srcsize,
+                                          <uint8_t *>dstptr, dstsize)
                 if ret < 0:
                     break
                 dstptr = dstptr + ret
@@ -840,7 +849,8 @@ def packbits_encode(data, level=None, out=None):
         src = _parse_input(data)
         srcsize = src.size
         with nogil:
-            ret = icd_packbits_encode(&src[0], srcsize, &dst[0], dstsize)
+            ret = icd_packbits_encode(&src[0], srcsize,
+                                      <uint8_t *>&dst[0], dstsize)
 
     if ret < 0:
         raise IcdError('icd_packbits_encode', ret)
@@ -880,7 +890,8 @@ def packbits_decode(data, out=None):
     dstsize = dst.size
 
     with nogil:
-        ret = icd_packbits_decode(&src[0], srcsize, &dst[0], dstsize)
+        ret = icd_packbits_decode(&src[0], srcsize,
+                                  <uint8_t *>&dst[0], dstsize)
     if ret < 0:
         raise IcdError('icd_packbits_decode', ret)
 
@@ -1046,7 +1057,8 @@ def lzw_decode(data, buffersize=0, out=None):
         dstsize = dst.size
 
         with nogil:
-            ret = icd_lzw_decode(handle, &src[0], srcsize, &dst[0], dstsize)
+            ret = icd_lzw_decode(handle, &src[0], srcsize,
+                                 <uint8_t *>&dst[0], dstsize)
         if ret < 0:
             raise IcdError('icd_lzw_decode', ret)
     finally:
@@ -1137,7 +1149,8 @@ def zlib_encode(data, level=None, out=None):
     srclen = <unsigned long>srcsize
 
     with nogil:
-        ret = compress2(&dst[0], &dstlen, &src[0], srclen, compresslevel)
+        ret = compress2(<Bytef *>&dst[0], &dstlen,
+                        &src[0], srclen, compresslevel)
     if ret != Z_OK:
         raise ZlibError('compress2', ret)
 
@@ -1180,7 +1193,7 @@ def zlib_decode(data, out=None):
     srclen = <unsigned long>srcsize
 
     with nogil:
-        ret = uncompress2(&dst[0], &dstlen, &src[0], &srclen)
+        ret = uncompress2(<Bytef *>&dst[0], &dstlen, &src[0], &srclen)
     if ret != Z_OK:
         raise ZlibError('uncompress2', ret)
 
@@ -2054,6 +2067,11 @@ cdef extern from 'windowsmediaphoto.h':
     ctypedef unsigned char U8
     ctypedef unsigned int U32
 
+    cdef struct WMPStream:
+        pass
+
+    ERR CreateWS_Memory(WMPStream** ppWS, void* pv, size_t cb) nogil
+
 
 cdef extern from 'guiddef.h':
     ctypedef struct GUID:
@@ -2066,6 +2084,7 @@ cdef extern from 'JXRGlue.h':
     int WMP_SDK_VERSION
     int PK_SDK_VERSION
 
+    ctypedef U32 PKIID
     ctypedef GUID PKPixelFormatGUID
 
     GUID GUID_PKPixelFormat8bppGray
@@ -2080,13 +2099,16 @@ cdef extern from 'JXRGlue.h':
     GUID GUID_PKPixelFormat64bppRGBA
     GUID GUID_PKPixelFormat128bppRGBAFloat
 
+    ctypedef void(*initialize_ptr)(PKImageDecode*, WMPStream*) nogil
+
+    ctypedef struct PKImageDecode:
+        int fStreamOwner
+        initialize_ptr Initialize
+
     ctypedef struct PKFactory:
         pass
 
     ctypedef struct PKCodecFactory:
-        pass
-
-    ctypedef struct PKImageDecode:
         pass
 
     ctypedef struct PKImageEncode:
@@ -2100,15 +2122,12 @@ cdef extern from 'JXRGlue.h':
 
     ERR PKCreateCodecFactory(PKCodecFactory**, U32) nogil
     ERR PKCreateCodecFactory_Release(PKCodecFactory**) nogil
+    ERR PKCodecFactory_CreateCodec(const PKIID* iid, void** ppv) nogil
     ERR PKCodecFactory_CreateFormatConverter(PKFormatConverter**) nogil
     ERR PKImageDecode_GetSize(PKImageDecode*, I32*, I32*) nogil
     ERR PKImageDecode_Release(PKImageDecode**) nogil
     ERR PKImageDecode_GetPixelFormat(PKImageDecode*, PKPixelFormatGUID*) nogil
     ERR PKFormatConverter_Release(PKFormatConverter**) nogil
-
-    ERR PKCodecFactory_CreateDecoderFromBytes(void*,
-                                              size_t,
-                                              PKImageDecode**) nogil
 
     ERR PKFormatConverter_Initialize(PKFormatConverter*,
                                      PKImageDecode*,
@@ -2124,6 +2143,8 @@ cdef extern from 'JXRGlue.h':
                                   const PKRect*,
                                   U8*,
                                   U32) nogil
+
+    ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
 
 
 class WmpError(RuntimeError):
@@ -2156,6 +2177,37 @@ class WmpError(RuntimeError):
         RuntimeError.__init__(self, msg)
 
 
+cdef ERR PKCodecFactory_CreateDecoderFromBytes(
+    void* bytes,
+    size_t len,
+    PKImageDecode** ppDecoder) nogil:
+    """ """
+    cdef:
+        ERR err
+        char *pExt = NULL
+        const PKIID* pIID = NULL
+        WMPStream* pStream = NULL
+        PKImageDecode* pDecoder = NULL
+
+    # get decode PKIID
+    err = GetImageDecodeIID('.jxr', &pIID)
+    if err != WMP_errSuccess:
+        return err
+    # create stream
+    CreateWS_Memory(&pStream, bytes, len)
+    if err != WMP_errSuccess:
+        return err
+    # create decoder
+    err = PKCodecFactory_CreateCodec(pIID, <void **>ppDecoder)
+    if err != WMP_errSuccess:
+        return err
+    # attach stream to decoder
+    pDecoder = ppDecoder[0]
+    pDecoder.Initialize(pDecoder, pStream)
+    pDecoder.fStreamOwner = 1
+    return WMP_errSuccess
+
+
 def jxr_encode(*args, **kwargs):
     """Not implemented."""
     # TODO: JXR encoding
@@ -2183,7 +2235,7 @@ def jxr_decode(data, out=None):
         raise ValueError('cannot decode in-place')
 
     try:
-        err = PKCodecFactory_CreateDecoderFromBytes(&src[0], src.size,
+        err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0], src.size,
                                                     &decoder)
         if err:
             raise WmpError('PKCodecFactory_CreateDecoderFromBytes', err)
@@ -3284,7 +3336,6 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
         if 'SOF type' in str(exception):
             return jpeg0xc3_decode(data, out)
         raise exception
-    raise NotImplementedError('JPEG %i-bit not supported' % bitspersample)
 
 
 def jpeg_encode(*args, **kwargs):
@@ -3773,7 +3824,7 @@ def j2k_decode(data, verbose=0, out=None):
 ###############################################################################
 
 # TODO: Chroma Subsampling
-# TODO: Integer Resize
+# TODO: Integer resize; magic kernel
 # TODO: Dtype conversion/quantizations
 # TODO: Scale Offset
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
@@ -3781,3 +3832,4 @@ def j2k_decode(data, verbose=0, out=None):
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: BMP
+# TODO: blosc
