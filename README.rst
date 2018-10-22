@@ -1,7 +1,7 @@
 Image transformation, compression, and decompression codecs
 ===========================================================
 
-The imagecodecs package provides block-oriented, in-memory buffer
+Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other Python scientific imaging modules.
 
@@ -16,7 +16,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.18
+:Version: 2018.10.21
 
 Requirements
 ------------
@@ -28,14 +28,12 @@ Requirements
 * `zstd 1.3.6 <https://github.com/facebook/zstd/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
+* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
 * `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
-* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
-* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_
+* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
-  with `patch <https://www.lfd.uci.edu/~gohlke/code/
-  jxrlib_CreateDecoderFromBytes.diff.html>`_
 * A Python distutils compatible C compiler
 
 Notes
@@ -52,7 +50,7 @@ Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
-This software contains a modified version of `jpg_0XC3.cpp
+This software includes a modified version of `jpg_0XC3.cpp
 <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
 
 Other Python packages providing imaging or compression codecs:
@@ -74,6 +72,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.21
+    Builds on Ubuntu 18.04 WSL.
+    Include liblzf in srcdist.
+    Do not require CreateDecoderFromBytes patch to jxrlib.
 2018.10.18
     Improve jpeg_decode wrapper.
 2018.10.17
@@ -86,7 +88,7 @@ Revisions
 2018.9.30
     Add LZF codecs via liblzf.
 2018.9.22
-    Add WebP codecs vial libwebp.
+    Add WebP codecs via libwebp.
 2018.8.29
     Pass 396 tests.
     Add PackBits encoder.
