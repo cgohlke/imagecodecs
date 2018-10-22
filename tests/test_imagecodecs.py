@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.18
+:Version: 2018.10.21
 
 """
 
@@ -61,6 +61,11 @@ try:
     from imagecodecs import _imagecodecs  # noqa
 except ImportError:
     pytest.exit('the _imagecodec Cython extension module could not be found')
+
+try:
+    from imagecodecs import _jpeg12
+except ImportError:
+    _jpeg12 = None
 
 
 def test_version():
@@ -233,12 +238,12 @@ def test_delta(output, kind, codec, func):
         from imagecodecs import delta_encode as encode
         from imagecodecs import delta_decode as decode
         from imagecodecs.imagecodecs import delta_encode as encode_py
-        from imagecodecs.imagecodecs import delta_decode as decode_py
+        # from imagecodecs.imagecodecs import delta_decode as decode_py
     elif func == 'xor':
         from imagecodecs import xor_encode as encode
         from imagecodecs import xor_decode as decode
         from imagecodecs.imagecodecs import xor_encode as encode_py
-        from imagecodecs.imagecodecs import xor_decode as decode_py
+        # from imagecodecs.imagecodecs import xor_decode as decode_py
 
     bytetype = bytearray
     if kind == 'b':
@@ -628,6 +633,7 @@ def test_jpeg8_decode(output):
     assert_array_equal(BYTESIMG, decoded)
 
 
+@pytest.mark.skipif(_jpeg12 is None, reason='_jpeg12 module missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpeg12_decode(output):
     from imagecodecs import jpeg12_decode as decode
