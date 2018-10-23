@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.21
+:Version: 2018.10.22
 
 """
 
@@ -55,7 +55,7 @@ from numpy.testing import assert_array_equal, assert_allclose
 import imagecodecs
 import imagecodecs.imagecodecs as imagecodecs_py
 
-from imagecodecs.imagecodecs import lzma, zlib, bz2, zstd, lz4, lzf
+from imagecodecs.imagecodecs import lzma, zlib, bz2, zstd, lz4, lzf, blosc
 
 try:
     from imagecodecs import _imagecodecs  # noqa
@@ -425,11 +425,28 @@ def test_floatpred(planar, endian, output, codec):
                     assert_array_equal(out, encoded)
 
 
+@pytest.mark.parametrize('numthreads', [1, 6])
+@pytest.mark.parametrize('level', [None, 1])
+@pytest.mark.parametrize('shuffle', ['noshuffle', 'shuffle', 'bitshuffle'])
+@pytest.mark.parametrize('compressor', ['blosclz', 'lz4', 'lz4hc', 'snappy',
+                                        'zlib', 'zstd'])
+def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
+    from imagecodecs import blosc_encode as encode
+    from imagecodecs import blosc_decode as decode
+    data = numpy.random.randint(255, size=2021, dtype='uint8').tostring()
+    encoded = encode(data, level=level, compressor=compressor,
+                     shuffle=shuffle, numthreads=numthreads)
+    decoded = decode(encoded, numthreads=numthreads)
+    assert data == decoded
+
+
 @pytest.mark.parametrize('output', ['new', 'out', 'size', 'excess', 'trunc'])
 @pytest.mark.parametrize('length', [0, 2, 31*33*3])
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
 @pytest.mark.parametrize('module', [
     'zlib', 'bz2',
+    pytest.param('blosc', marks=pytest.mark.skipif(blosc is None,
+                                                   reason='import blosc')),
     pytest.param('lzma', marks=pytest.mark.skipif(lzma is None,
                                                   reason='import lzma')),
     pytest.param('zstd', marks=pytest.mark.skipif(zstd is None,
@@ -446,7 +463,12 @@ def test_compressors(module, codec, output, length):
     else:
         data = b''
 
-    if module == 'zlib':
+    if module == 'blosc':
+        from imagecodecs import blosc_encode as encode
+        from imagecodecs import blosc_decode as decode
+        level = 9
+        encoded = blosc.compress(data, clevel=level)
+    elif module == 'zlib':
         from imagecodecs import zlib_encode as encode
         from imagecodecs import zlib_decode as decode
         level = 5
@@ -507,6 +529,8 @@ def test_compressors(module, codec, output, length):
         elif output == 'out':
             if module == 'zstd':
                 out = bytearray(max(size, 64))
+            elif module == 'blosc':
+                out = bytearray(max(size, 17))  # bug in blosc ?
             elif module == 'lzf':
                 out = bytearray(size + 1)  # bug in liblzf ?
             else:
@@ -517,8 +541,12 @@ def test_compressors(module, codec, output, length):
         elif output == 'excess':
             out = bytearray(size + 1021)
             ret = encode(data, level, out=out)
-            assert encoded == out[:size]
-            assert encoded == ret
+            if module == 'blosc':
+                # pytest.skip("blosc output depends on output size")
+                assert data == decode(ret)
+            else:
+                assert ret == out[:size]
+                assert encoded == ret
         elif output == 'trunc':
             size = max(0, size - 1)
             out = bytearray(size)
@@ -546,7 +574,8 @@ def test_compressors(module, codec, output, length):
         elif output == 'trunc':
             size = max(0, size - 1)
             out = bytearray(size)
-            if length > 0 and module in ('zlib', 'zstd', 'lzf', 'lz4', 'lz4h'):
+            if length > 0 and module in ('zlib', 'zstd', 'lzf', 'lz4', 'lz4h',
+                                         'blosc'):
                 with pytest.raises(RuntimeError):
                     decode(encoded, out=out)
             else:
