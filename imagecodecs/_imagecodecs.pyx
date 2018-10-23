@@ -43,7 +43,7 @@ transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other Python scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
+ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
 JPEG SOF=0xC3, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta, XOR Delta,
 Floating Point Predictor, and Bitorder reversal.
 
@@ -53,7 +53,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.21
+:Version: 2018.10.22
 
 Requirements
 ------------
@@ -62,7 +62,8 @@ Requirements
 * `Cython 0.28 <http://cython.org/>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib/>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
-* `zstd 1.3.6 <https://github.com/facebook/zstd/>`_
+* `zstd 1.3.7 <https://github.com/facebook/zstd/>`_
+* `blosc 1.14.4 <https://github.com/Blosc/c-blosc/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
@@ -109,6 +110,8 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.22
+    Add Blosc codecs via libblosc.
 2018.10.21
     Builds on Ubuntu 18.04 WSL.
     Include liblzf in srcdist.
@@ -144,7 +147,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.21'
+__version__ = '2018.10.22'
 
 import numpy
 
@@ -283,6 +286,7 @@ def version(astype=str):
                                ZSTD_VERSION_RELEASE)),
         ('lz4', '%i.%i.%i' % (LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR,
                               LZ4_VERSION_RELEASE)),
+        ('blosc', BLOSC_VERSION_STRING.decode('utf-8')),
         ('bz2', str(BZ2_bzlibVersion().decode('utf-8')).split(',')[0]),
         ('lzf', hex(LZF_VERSION)),
         ('png', PNG_LIBPNG_VER_STRING.decode('utf-8')),
@@ -337,7 +341,7 @@ cdef _delta(data, int axis, out, int decode):
         ssize_t dstsize
         ssize_t srcstride
         ssize_t dststride
-        ssize_t ret
+        ssize_t ret = 0
         void* srcptr = NULL
         void* dstptr = NULL
         numpy.flatiter srciter
@@ -455,7 +459,7 @@ cdef _xor(data, int axis, out, int decode):
         ssize_t dstsize
         ssize_t srcstride
         ssize_t dststride
-        ssize_t ret
+        ssize_t ret = 0
         void* srcptr = NULL
         void* dstptr = NULL
         numpy.flatiter srciter
@@ -579,7 +583,7 @@ cdef _floatpred(data, int axis, out, int decode):
         ssize_t dststride
         ssize_t itemsize
         ssize_t samples
-        ssize_t ret
+        ssize_t ret = 0
         char byteorder
 
     if not isinstance(data, numpy.ndarray) or data.dtype.kind != 'f':
@@ -796,7 +800,7 @@ def packbits_encode(data, level=None, out=None):
         const uint8_t* dstptr
         ssize_t srcsize
         ssize_t dstsize
-        ssize_t ret,
+        ssize_t ret = 0
         bint isarray = False
         int axis = 0
 
@@ -871,7 +875,7 @@ def packbits_decode(data, out=None):
         const uint8_t[::1] dst
         ssize_t srcsize = src.size
         ssize_t dstsize
-        ssize_t ret
+        ssize_t ret = 0
 
     out, dstsize, out_given, out_type = _parse_output(out)
 
@@ -933,7 +937,8 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         ssize_t dstsize = 0
         ssize_t bytesize
         ssize_t itemsize
-        ssize_t skipbits, i, ret
+        ssize_t skipbits, i
+        ssize_t ret = 0
 
     if numbits < 1 or (numbits > 32 and numbits != 64):
         raise ValueError('numbits out of range')
@@ -1033,7 +1038,7 @@ def lzw_decode(data, buffersize=0, out=None):
         const uint8_t[::1] dst
         ssize_t srcsize = src.size
         ssize_t dstsize
-        ssize_t ret
+        ssize_t ret = 0
         icd_lzw_handle_t *handle = NULL
 
     out, dstsize, out_given, out_type = _parse_output(out)
@@ -1125,7 +1130,7 @@ def zlib_encode(data, level=None, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         unsigned long srclen, dstlen
-        int ret
+        int ret = Z_OK
         int compresslevel = _default_level(level, 6, 0, 9)
 
     out, dstsize, out_given, out_type = _parse_output(out)
@@ -1263,7 +1268,7 @@ def zstd_encode(data, level=None, out=None):
         size_t srcsize = src.size
         size_t dstsize
         ssize_t dstlen
-        size_t ret
+        size_t ret = 0
         char* errmsg
         int compresslevel = _default_level(level, 5, 1, 22)
 
@@ -1376,7 +1381,7 @@ def lz4_encode(data, level=None, header=False, out=None):
         int srcsize = src.size
         int dstsize
         int offset = 4 if header else 0
-        int ret
+        int ret = 0
         uint8_t *pdst
         int acceleration = _default_level(level, 1, 1, 1000)
 
@@ -1432,7 +1437,7 @@ def lz4_decode(data, header=False, out=None):
         int srcsize = <int>src.size
         int dstsize
         int offset = 4 if header else 0
-        int ret
+        int ret = 0
 
     if src.size > 2**31:
         raise ValueError('data too large')
@@ -1497,7 +1502,7 @@ def lzf_encode(data, level=None, header=False, out=None):
         const uint8_t[::1] dst
         int srcsize = <int>src.size
         int dstsize
-        unsigned int ret
+        unsigned int ret = 0
         uint8_t *pdst
         int offset = 4 if header else 0
 
@@ -1553,7 +1558,7 @@ def lzf_decode(data, header=False, out=None):
         const uint8_t[::1] dst
         int dstsize
         int srcsize = <unsigned int>src.size
-        unsigned int ret
+        unsigned int ret = 0
         int offset = 4 if header else 0
 
     if src.size > 2**31:
@@ -1716,7 +1721,7 @@ class LzmaError(RuntimeError):
 def _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
     """Return size of decompressed LZMA data."""
     cdef:
-        lzma_ret ret
+        lzma_ret ret = LZMA_OK
         lzma_index *index
         lzma_stream_flags options
         lzma_vli usize = 0
@@ -1754,7 +1759,7 @@ def lzma_decode(data, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen
-        lzma_ret ret
+        lzma_ret ret = LZMA_OK
         lzma_stream strm
 
     out, dstsize, out_given, out_type = _parse_output(out)
@@ -1806,7 +1811,7 @@ def lzma_encode(data, level=None, out=None):
         ssize_t dstlen
         uint32_t preset = _default_level(level, 6, 0, 9)
         lzma_stream strm
-        lzma_ret ret
+        lzma_ret ret = LZMA_OK
 
     out, dstsize, out_given, out_type = _parse_output(out)
 
@@ -1931,7 +1936,7 @@ def bz2_encode(data, level=None, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen = 0
-        int ret
+        int ret = BZ_OK
         bz_stream strm
         int compresslevel = _default_level(level, 9, 1, 9)
 
@@ -1992,7 +1997,7 @@ def bz2_decode(data, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen = 0
-        int ret
+        int ret = BZ_OK
         bz_stream strm
 
     out, dstsize, out_given, out_type = _parse_output(out)
@@ -2035,6 +2040,147 @@ def bz2_decode(data, out=None):
 
     if dstlen < dstsize:
         out = memoryview(out)[:dstlen] if out_given else out[:dstlen]
+
+    return out
+
+
+# Blosc ################################################################
+
+cdef extern from 'blosc.h':
+    char* BLOSC_VERSION_STRING
+
+    int BLOSC_MAX_OVERHEAD
+    int BLOSC_NOSHUFFLE
+    int BLOSC_SHUFFLE
+    int BLOSC_BITSHUFFLE
+
+    int blosc_compress_ctx(int clevel,
+                           int doshuffle,
+                           size_t typesize,
+                           size_t nbytes,
+                           const void* src,
+                           void* dest,
+                           size_t destsize,
+                           const char* compressor,
+                           size_t blocksize,
+                           int numinternalthreads) nogil
+
+    int blosc_decompress_ctx(const void *src,
+                             void *dest,
+                             size_t destsize,
+                             int numinternalthreads) nogil
+
+    void blosc_cbuffer_sizes(const void *cbuffer,
+                             size_t *nbytes,
+                             size_t *cbytes,
+                             size_t *blocksize) nogil
+
+    int blosc_get_blocksize() nogil
+
+
+def blosc_decode(data, numthreads=1, out=None):
+    """Decode Blosc.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst
+        ssize_t dstsize
+        ssize_t srcsize = <unsigned int>src.size
+        size_t nbytes, cbytes, blocksize
+        int numinternalthreads = numthreads
+        int ret = 0
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            blosc_cbuffer_sizes(<const void *>&src[0],
+                                &nbytes, &cbytes, &blocksize)
+            if nbytes == 0 and blocksize == 0:
+                raise RuntimeError('invalid blosc data')
+            dstsize = <ssize_t>nbytes
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    with nogil:
+        ret = blosc_decompress_ctx(<const void *>&src[0], <void *>&dst[0],
+                                   dstsize, numinternalthreads)
+    if ret < 0:
+        raise RuntimeError('blosc_decompress_ctx returned %i' % ret)
+
+    if ret < dstsize:
+        out = memoryview(out)[:ret] if out_given else out[:ret]
+
+    return out
+
+
+def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
+                 blocksize=0, shuffle=None, numthreads=1, out=None):
+    """Encode Blosc.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _parse_input(data)
+        const uint8_t[::1] dst
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        size_t blocksize_ = blocksize
+        size_t typesize_ = typesize
+        char* compressor_ = NULL
+        int clevel = _default_level(level, 9, 0, 9)
+        int doshuffle = BLOSC_SHUFFLE
+        int numinternalthreads = numthreads
+        int ret = 0
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    compressor = compressor.encode('utf-8')
+    compressor_ = compressor
+
+    if shuffle is not None:
+        if shuffle == 'noshuffle' or shuffle == BLOSC_NOSHUFFLE:
+            doshuffle = BLOSC_NOSHUFFLE
+        elif shuffle == 'bitshuffle' or shuffle == BLOSC_BITSHUFFLE:
+            doshuffle = BLOSC_BITSHUFFLE
+        else:
+            doshuffle = BLOSC_SHUFFLE
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = srcsize + BLOSC_MAX_OVERHEAD
+        if dstsize < 17:
+            dstsize = 17
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    with nogil:
+        ret = blosc_compress_ctx(clevel, doshuffle, typesize_,
+                                 <size_t>srcsize, <const void *>&src[0],
+                                 <void *>&dst[0], <size_t>dstsize,
+                                 <const char*>compressor_, blocksize_,
+                                 numinternalthreads)
+    if ret <= 0:
+        raise RuntimeError('blosc_compress_ctx returned %i' % ret)
+
+    if ret < dstsize:
+        out = memoryview(out)[:ret] if out_given else out[:ret]
 
     return out
 
@@ -2474,7 +2620,7 @@ cdef void png_read_data_fn(png_structp png_ptr,
         with gil:
             raise RuntimeError(
                 'PNG input stream too small %i' % memstream.size)
-    memcpy(dst, &(memstream.data[memstream.offset]), size)
+    memcpy(<void*>dst, <const void*>&(memstream.data[memstream.offset]), size)
     memstream.offset += size
 
 
@@ -2492,7 +2638,7 @@ cdef void png_write_data_fn(png_structp png_ptr,
         with gil:
             raise RuntimeError(
                 'PNG output stream too small %i' % memstream.size)
-    memcpy(&(memstream.data[memstream.offset]), src, size)
+    memcpy(<void*>&(memstream.data[memstream.offset]), <const void*>src, size)
     memstream.offset += size
 
 
@@ -2521,7 +2667,7 @@ def png_decode(data, out=None):
         png_memstream_t memstream
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
-        png_uint_32 ret
+        png_uint_32 ret = 0
         png_uint_32 width = 0
         png_uint_32 height = 0
         png_uint_32 row
@@ -2859,7 +3005,7 @@ def webp_encode(data, level=None, out=None):
         uint8_t* srcptr = &src[0, 0, 0]
         uint8_t* output
         ssize_t dstsize
-        size_t ret
+        size_t ret = 0
         int width, height, stride
         float quality_factor = _default_level(level, 75.0, -1.0, 100.0)
         int lossless = quality_factor < 0.0
@@ -2882,16 +3028,18 @@ def webp_encode(data, level=None, out=None):
         if lossless:
             if rgba:
                 ret = WebPEncodeLosslessRGBA(
-                    srcptr, width, height, stride, &output)
+                    <const uint8_t*>srcptr, width, height, stride, &output)
             else:
                 ret = WebPEncodeLosslessRGB(
-                    srcptr, width, height, stride, &output)
+                    <const uint8_t*>srcptr, width, height, stride, &output)
         elif rgba:
             ret = WebPEncodeRGBA(
-                srcptr, width, height, stride, quality_factor, &output)
+                <const uint8_t*>srcptr, width, height, stride, quality_factor,
+                &output)
         else:
             ret = WebPEncodeRGB(
-                srcptr, width, height, stride, quality_factor, &output)
+                <const uint8_t*>srcptr, width, height, stride, quality_factor,
+                &output)
 
     if ret <= 0:
         raise RuntimeError('WebPEncode returned 0')
@@ -2915,8 +3063,8 @@ def webp_encode(data, level=None, out=None):
         raise ValueError('output too small')
 
     with nogil:
-        memcpy(&dst[0], output, ret)
-        WebPFree(<void*> output)
+        memcpy(<void*>&dst[0], <const void*>output, ret)
+        WebPFree(<void*>output)
 
     if ret < <size_t>dstsize:
         out = memoryview(out)[:ret] if out_given else out[:ret]
@@ -2936,7 +3084,7 @@ def webp_decode(data, out=None):
         int output_stride
         size_t data_size
         WebPBitstreamFeatures features
-        int ret
+        int ret = VP8_STATUS_OK
         uint8_t* pout
 
     if data is out:
@@ -3231,18 +3379,26 @@ class Jpeg0xc3Error(RuntimeError):
     """JPEG SOF=0xC3 Exceptions."""
     def __init__(self, err):
         msg = {
-            JPEG_0XC3_INVALID_OUTPUT: 'output array is too small',
-            JPEG_0XC3_INVALID_SIGNATURE: 'JPEG signature 0xFFD8FF not found',
-            JPEG_0XC3_INVALID_HEADER_TAG: 'header tag must begin with 0xFF',
-            JPEG_0XC3_SEGMENT_GT_IMAGE: 'segment larger than image',
-            JPEG_0XC3_INVALID_ITU_T81: 'not a lossless JPEG ITU-T81 image '
-                                       '(SoF must be 0xC3)',
-            JPEG_0XC3_INVALID_BIT_DEPTH: 'scalar data must be 1..16 bit, '
-                                         'RGB data must be 8-bit',
-            JPEG_0XC3_TABLE_CORRUPTED: 'Huffman table corrupted',
-            JPEG_0XC3_TABLE_SIZE_CORRUPTED: 'Huffman size array corrupted',
-            JPEG_0XC3_INVALID_RESTART_SEGMENTS: 'unsupported Restart Segments',
-            JPEG_0XC3_NO_TABLE: 'no Huffman tables',
+            JPEG_0XC3_INVALID_OUTPUT:
+                'output array is too small',
+            JPEG_0XC3_INVALID_SIGNATURE:
+                'JPEG signature 0xFFD8FF not found',
+            JPEG_0XC3_INVALID_HEADER_TAG:
+                'header tag must begin with 0xFF',
+            JPEG_0XC3_SEGMENT_GT_IMAGE:
+                'segment larger than image',
+            JPEG_0XC3_INVALID_ITU_T81:
+                'not a lossless JPEG ITU-T81 image (SoF must be 0xC3)',
+            JPEG_0XC3_INVALID_BIT_DEPTH:
+                'scalar data must be 1..16 bit, RGB data must be 8-bit',
+            JPEG_0XC3_TABLE_CORRUPTED:
+                'Huffman table corrupted',
+            JPEG_0XC3_TABLE_SIZE_CORRUPTED:
+                'Huffman size array corrupted',
+            JPEG_0XC3_INVALID_RESTART_SEGMENTS:
+                'unsupported Restart Segments',
+            JPEG_0XC3_NO_TABLE:
+                'no Huffman tables',
             }.get(err, 'unknown error % i' % err)
         msg = "jpeg_0x3c_decode returned '%s'" % msg
         RuntimeError.__init__(self, msg)
@@ -3268,7 +3424,8 @@ def jpeg0xc3_decode(data, out=None):
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
         ssize_t dstsize
-        int dimX, dimY, bits, frames, ret
+        int dimX, dimY, bits, frames
+        int ret = JPEG_0XC3_OK
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -3534,7 +3691,7 @@ cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
         return <OPJ_SIZE_T>-1
     if size > memstream.size - memstream.offset:
         count = memstream.size - memstream.offset
-    memcpy(dst, &(memstream.data[memstream.offset]), count)
+    memcpy(<void*>dst, <const void*>&(memstream.data[memstream.offset]), count)
     memstream.offset += count
     return count
 
@@ -3548,7 +3705,7 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
         return <OPJ_SIZE_T>-1
     if size > memstream.size - memstream.offset:
         count = memstream.size - memstream.offset
-    memcpy(&(memstream.data[memstream.offset]), dst, count)
+    memcpy(<void*>&(memstream.data[memstream.offset]), <const void*>dst, count)
     memstream.offset += count
     return count
 
@@ -3646,7 +3803,7 @@ def j2k_decode(data, verbose=0, out=None):
         opj_stream_t* stream = NULL
         opj_image_comp_t* comp = NULL
         opj_dparameters_t parameters
-        OPJ_BOOL ret
+        OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
         OPJ_UINT32 signed, prec, width, height, samples
         ssize_t i, j
@@ -3823,6 +3980,7 @@ def j2k_decode(data, verbose=0, out=None):
 
 ###############################################################################
 
+# TODO: add option not to release GIL
 # TODO: Chroma Subsampling
 # TODO: Integer resize; magic kernel
 # TODO: Dtype conversion/quantizations
@@ -3832,4 +3990,3 @@ def j2k_decode(data, verbose=0, out=None):
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: BMP
-# TODO: blosc
