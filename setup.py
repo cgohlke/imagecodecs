@@ -53,14 +53,15 @@ include_dirs = [
 try:
     # run in Windows development environment?
     import _inclib  # noqa
-    libraries = ['zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf',
-                 'zstd_static', 'lzma-static', 'libbz2', 'openjp2']
+    libraries = [
+        'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
+        'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2']
     define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
 
 except ImportError:
     # this works with Ubuntu 18.04 WSL
-    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp',
+    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
                  'openjp2', 'jxrglue', 'jpegxr', 'z']
     include_dirs.extend(
         ['/usr/include/jxrlib',
@@ -110,7 +111,7 @@ setup_args = dict(
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
     install_requires=['numpy>=%s' % numpy_required],
-    tests_require=['pytest', 'zstd', 'lz4', 'python-lzf'],
+    tests_require=['pytest', 'blosc', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     license='BSD',
