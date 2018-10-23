@@ -43,10 +43,13 @@ extension using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.21
+:Version: 2018.10.22
 
 Revisions
 ---------
+2018.10.22
+    Add blosc codec based in blosc package.
+    Fix FutureWarning with numpy 1.15.
 2018.10.18
     Use Pillow for decoding jpeg, png, j2k, and webp.
 2018.10.17
@@ -106,6 +109,11 @@ try:
     import lzf
 except ImportError:
     lzf = None
+
+try:
+    import blosc
+except ImportError:
+    blosc = None
 
 try:
     import PIL
@@ -186,7 +194,7 @@ def delta_encode(data, axis=-1, out=None):
     diff = numpy.diff(data, axis=axis)
     key = [slice(None)] * data.ndim
     key[axis] = 0
-    diff = numpy.insert(diff, 0, data[key], axis=axis)
+    diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
 
     if dtype.kind == 'f':
         return diff.view(dtype)
@@ -223,6 +231,10 @@ def xor_encode(data, axis=-1, out=None):
     key0[axis] = slice(1, None, None)
     key1 = [slice(None)] * data.ndim
     key1[axis] = slice(0, -1, None)
+
+    key = tuple(key)
+    key0 = tuple(key0)
+    key1 = tuple(key1)
 
     xor = numpy.bitwise_xor(data[key0], data[key1])
     xor = numpy.insert(xor, 0, data[key], axis=axis)
@@ -578,6 +590,24 @@ def bz2_encode(data, level=9, out=None):
 def bz2_decode(data, out=None):
     """Decompress BZ2."""
     return bz2.decompress(data)
+
+
+@notimplemented(blosc)
+def blosc_encode(data, level=None, compressor='blosclz', numthreads=1,
+                 typesize=8, blocksize=0, shuffle=None, out=None):
+    """Compress Blosc."""
+    if shuffle is None:
+        shuffle = blosc.SHUFFLE
+    if level is None:
+        level = 9
+    return blosc.compress(data, typesize=typesize, clevel=level,
+                          shuffle=shuffle, cname=compressor)
+
+
+@notimplemented(blosc)
+def blosc_decode(data, out=None):
+    """Decompress Blosc."""
+    return blosc.decompress(data)
 
 
 @notimplemented(lzma)
