@@ -6,7 +6,7 @@ transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other Python scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
+ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
 JPEG SOF=0xC3, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta, XOR Delta,
 Floating Point Predictor, and Bitorder reversal.
 
@@ -16,7 +16,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.21
+:Version: 2018.10.22
 
 Requirements
 ------------
@@ -25,7 +25,8 @@ Requirements
 * `Cython 0.28 <http://cython.org/>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib/>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
-* `zstd 1.3.6 <https://github.com/facebook/zstd/>`_
+* `zstd 1.3.7 <https://github.com/facebook/zstd/>`_
+* `blosc 1.14.4 <https://github.com/Blosc/c-blosc/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
@@ -72,6 +73,8 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.22
+    Add Blosc codecs via libblosc.
 2018.10.21
     Builds on Ubuntu 18.04 WSL.
     Include liblzf in srcdist.
