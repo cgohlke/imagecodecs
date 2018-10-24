@@ -4,6 +4,8 @@
 def pytest_report_header(config):
     try:
         import imagecodecs
-        return 'versions: ' + imagecodecs.version(str)
+        from imagecodecs import imagecodecs as imagecodecs_py
+        return 'versions C: %s\nversions Py: %s' % (
+            imagecodecs.version(str), imagecodecs_py.version(str))
     except Exception:
         pass
