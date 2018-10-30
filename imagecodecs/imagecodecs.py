@@ -35,7 +35,7 @@
 """Image transformation, compression, and decompression codecs.
 
 This module implements limited functionality of the imagecodec Cython
-extension using pure Python and 3rd party packages.
+extension module using pure Python and 3rd party packages.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -43,10 +43,13 @@ extension using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.22
+:Version: 2018.10.28
 
 Revisions
 ---------
+2018.10.28
+    Add dummy jpegls codec.
+    Rename jpeg0xc3 to jpegsof3.
 2018.10.22
     Add blosc codec based in blosc package.
     Fix FutureWarning with numpy 1.15.
@@ -69,7 +72,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.21.py'
+__version__ = '2018.10.28.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -156,6 +159,7 @@ def notimplemented(arg=False):
 def version(astype=str):
     """Return detailed version information."""
     versions = (('imagecodecs', __version__),
+                ('numpy', numpy.__version__),
                 ('zlib', zlib.ZLIB_VERSION))
     if lzma:
         versions += (('lzma', getattr(lzma, '__version__', sys.version[:5])),)
@@ -163,6 +167,10 @@ def version(astype=str):
         versions += (('zstd', zstd.version()),)
     if lz4:
         versions += (('lz4', lz4.VERSION),)
+    if blosc:
+        versions += (('blosc', blosc.__version__),)
+    if PIL:
+        versions += (('pil', PIL.PILLOW_VERSION),)
     if astype is str:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
     if astype is dict:
@@ -714,14 +722,26 @@ def jpeg12_encode(*args, **kwargs):
 
 
 @notimplemented
-def jpeg0xc3_decode(*args, **kwargs):
-    """Decode JPEG SOF=0xC3."""
+def jpegls_decode(*args, **kwargs):
+    """Decode JPEG LS."""
     pass
 
 
 @notimplemented
-def jpeg0xc3_encode(*args, **kwargs):
-    """Encode JPEG SOF=0xC3."""
+def jpegls_encode(*args, **kwargs):
+    """Encode JPEG LS."""
+    pass
+
+
+@notimplemented
+def jpegsof3_decode(*args, **kwargs):
+    """Decode JPEG SOF3."""
+    pass
+
+
+@notimplemented
+def jpegsof3_encode(*args, **kwargs):
+    """Encode JPEG SOF3."""
     pass
 
 
