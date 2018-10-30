@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.22
+:Version: 2018.10.28
 
 """
 
@@ -66,6 +66,12 @@ try:
     from imagecodecs import _jpeg12
 except ImportError:
     _jpeg12 = None
+
+
+try:
+    from imagecodecs import _jpegls
+except ImportError:
+    _jpegls = None
 
 
 def test_version():
@@ -684,15 +690,15 @@ def test_jpeg12_decode(output):
 
 
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
-@pytest.mark.parametrize('fname', ['8_ls.jpg', '16_ls.jpg'])
-def test_jpeg0xc3(fname, output):
-    from imagecodecs import jpeg0xc3_decode as decode
+@pytest.mark.parametrize('fname', ['gray8.sof3.jpg', 'gray16.sof3.jpg'])
+def test_jpegsof3(fname, output):
+    from imagecodecs import jpegsof3_decode as decode
 
     shape = 535, 800
-    if fname == '8_ls.jpg':
+    if fname == 'gray8.sof3.jpg':
         dtype = 'uint8'
         value = 75
-    elif fname == '16_ls.jpg':
+    elif fname == 'gray16.sof3.jpg':
         dtype = 'uint16'
         value = 19275
 
@@ -716,9 +722,9 @@ def test_jpeg0xc3(fname, output):
 def test_jxr_decode(output):
     from imagecodecs import jxr_decode as decode
 
-    image = readfile('sample.bin')
+    image = readfile('rgba32.jxr.bin')
     image = numpy.frombuffer(image, dtype='uint8').reshape(100, 100, -1)
-    data = readfile('sample.jxr')
+    data = readfile('rgba32.jxr')
 
     if output == 'new':
         decoded = decode(data)
@@ -735,7 +741,7 @@ def test_jxr_decode(output):
 def test_j2k(output):
     from imagecodecs import j2k_decode as decode
 
-    data = readfile('int8.j2k')
+    data = readfile('gray8.j2k')
     dtype = 'int8'
     shape = 256, 256
 
@@ -758,7 +764,7 @@ def test_j2k(output):
 def test_jp2(output):
     from imagecodecs import j2k_decode as decode
 
-    data = readfile('rgb.jp2')
+    data = readfile('rgb24.jp2')
     dtype = 'uint8'
     shape = 400, 400, 3
 
@@ -788,13 +794,14 @@ def test_j2k_ycbc():
         decode(data)
 
 
+@pytest.mark.skipif(_jpegls is None, reason='_jpegls module missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
-def test_webp_decode(output):
-    from imagecodecs import webp_decode as decode
+def test_jpegls_decode(output):
+    from imagecodecs import jpegls_decode as decode
 
-    data = readfile('rgba.webp')
+    data = readfile('rgba32.jls')
     dtype = 'uint8'
-    shape = 50, 50, 3
+    shape = 32, 31, 4
 
     if output == 'new':
         decoded = decode(data)
@@ -807,8 +814,31 @@ def test_webp_decode(output):
 
     assert decoded.dtype == dtype
     assert decoded.shape == shape
-    assert decoded[25, 25, 1] == 122
-    assert decoded[-1, -1, -1] == 43
+    assert decoded[25, 25, 1] == 97
+    assert decoded[-1, -1, -1] == 63
+
+
+@pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
+def test_webp_decode(output):
+    from imagecodecs import webp_decode as decode
+
+    data = readfile('rgba32.webp')
+    dtype = 'uint8'
+    shape = 32, 31, 4
+
+    if output == 'new':
+        decoded = decode(data)
+    elif output == 'out':
+        decoded = numpy.empty(shape, dtype)
+        decode(data, out=decoded)
+    elif output == 'bytearray':
+        decoded = bytearray(shape[0]*shape[1]*shape[2])
+        decoded = decode(data, out=decoded)
+
+    assert decoded.dtype == dtype
+    assert decoded.shape == shape
+    assert decoded[25, 25, 1] == 94  # lossy
+    assert decoded[-1, -1, -1] == 63
 
 
 @pytest.mark.parametrize('level', [None, 5, -1])
@@ -816,14 +846,22 @@ def test_webp_decode(output):
 @pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
 @pytest.mark.parametrize('input', ['rgb', 'rgba', 'view', 'gray', 'graya'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
-@pytest.mark.parametrize('codec', ['webp', 'png'])
+@pytest.mark.parametrize('codec', ['webp', 'png', 'jpegls'])
 def test_webpng(codec, dtype, input, enout, deout, level):
     """ """
-    if codec == 'webp':
+    if codec == 'jpegls':
+        if _jpegls is None:
+            pytest.skip('_jpegls module missing')
+        if input in ('view', 'graya') or deout == 'view':
+            pytest.skip("jpegls doesn't support these cases")
+        from imagecodecs import jpegls_decode as decode
+        from imagecodecs import jpegls_encode as encode
+
+    elif codec == 'webp':
         from imagecodecs import webp_decode as decode
         from imagecodecs import webp_encode as encode
         if dtype != 'uint8' or input.startswith('gray'):
-            pytest.skip("webp doesn't support dtype or grayscale")
+            pytest.skip("webp doesn't support these cases")
     elif codec == 'png':
         from imagecodecs import png_decode as decode
         from imagecodecs import png_encode as encode
@@ -878,6 +916,8 @@ def test_webpng(codec, dtype, input, enout, deout, level):
     if codec == 'webp' and (level != -1 or input == 'rgba'):
         # RGBA roundtip doesn't work for A=0
         assert_allclose(data, decoded, atol=255)
+    elif codec == 'jpegls' and level == 5:
+        assert_allclose(data, decoded, atol=6)
     else:
         assert_array_equal(data, decoded, verbose=True)
 
