@@ -41,7 +41,7 @@ else:
 
 sources = [
     'imagecodecs/imagecodecs.c',
-    'imagecodecs/jpeg_0xc3.cpp',
+    'imagecodecs/jpeg_sof3.cpp',
     'imagecodecs/_imagecodecs.pyx',
 ]
 
@@ -51,13 +51,19 @@ include_dirs = [
 ]
 
 try:
-    # run in Windows development environment?
+    # running in Windows development environment?
     import _inclib  # noqa
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
         'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2']
-    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1)]
+    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1),
+                     ('CHARLS_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
+    if sys.version_info < (3, 5):
+        # clarls-2.0 not compatible msvc 9 or 10
+        libraries_jpegls = []
+    else:
+        libraries_jpegls = ['charls']
 
 except ImportError:
     # this works with Ubuntu 18.04 WSL
@@ -68,10 +74,11 @@ except ImportError:
          '/usr/include/openjpeg-2.3'])
     define_macros = []
     if sys.platform == 'win32':
-        define_macros.append(('WIN32', 1))
+        define_macros.append(('WIN32', 1), ('CHARLS_STATIC', 1))
     else:
         libraries.append('m')
-    libraries_jpeg12 = []
+    libraries_jpeg12 = []  # 'jpeg12'
+    libraries_jpegls = []  # 'charls'
 
 
 if 'lzf' not in libraries and 'liblzf' not in libraries:
@@ -101,6 +108,18 @@ if libraries_jpeg12:
         )
     ]
 
+if libraries_jpegls:
+    ext_modules += [
+        Extension(
+            'imagecodecs._jpegls',
+            ['imagecodecs/_jpegls.pyx'],
+            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            libraries=libraries_jpegls,
+            define_macros=define_macros,
+        )
+    ]
+
+
 setup_args = dict(
     name='imagecodecs',
     version=version,
@@ -111,7 +130,7 @@ setup_args = dict(
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
     install_requires=['numpy>=%s' % numpy_required],
-    tests_require=['pytest', 'blosc', 'zstd', 'lz4', 'python-lzf'],
+    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     license='BSD',
