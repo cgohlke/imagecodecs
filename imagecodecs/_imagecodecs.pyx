@@ -44,8 +44,8 @@ for use in the tifffile, czifile, and other Python scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
-JPEG SOF=0xC3, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta, XOR Delta,
-Floating Point Predictor, and Bitorder reversal.
+JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta,
+XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -53,7 +53,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.22
+:Version: 2018.10.28
 
 Requirements
 ------------
@@ -70,6 +70,7 @@ Requirements
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
 * `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
 * `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
+* `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
 * A Python distutils compatible C compiler
@@ -110,6 +111,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.28
+    Rename jpeg0xc3 to jpegsof3.
+    Add JPEG LS codec via libcharls.
+    Fix missing alpha values in jxr_decode.
+    Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
     Add Blosc codecs via libblosc.
 2018.10.21
@@ -119,7 +125,7 @@ Revisions
 2018.10.18
     Improve jpeg_decode wrapper.
 2018.10.17
-    Add JPEG SOF=0xC3 decoder based on jpg_0XC3.cpp.
+    Add JPEG SOF3 decoder based on jpg_0XC3.cpp.
 2018.10.10
     Add PNG codecs via libpng.
     Add option to specify output colorspace in JPEG decoder.
@@ -147,7 +153,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.22'
+__version__ = '2018.10.28'
 
 import numpy
 
@@ -167,6 +173,9 @@ from libc.stdint cimport (int8_t, uint8_t, int16_t, uint16_t,
 cdef extern from 'Python.h':
     object PyByteArray_FromStringAndSize(const char *string, Py_ssize_t len)
 
+cdef extern from 'numpy/arrayobject.h':
+    int NPY_VERSION
+    int NPY_FEATURE_VERSION
 
 numpy.import_array()
 
@@ -176,15 +185,16 @@ numpy.import_array()
 cdef extern from 'imagecodecs.h':
     char* ICD_VERSION
     char ICD_BOC
-    int ICD_OK = 0
-    int ICD_ERROR = -1
-    int ICD_MEMORY_ERROR = -2
-    int ICD_RUNTIME_ERROR = -3
-    int ICD_NOTIMPLEMENTED_ERROR = -4
-    int ICD_VALUE_ERROR = -5
-    int ICD_LZW_INVALID = -10
-    int ICD_LZW_NOTIMPLEMENTED = -11
-    int ICD_LZW_BUFFER_INSUFFICIENT = -12
+    int ICD_OK
+    int ICD_ERROR
+    int ICD_MEMORY_ERROR
+    int ICD_RUNTIME_ERROR
+    int ICD_NOTIMPLEMENTED_ERROR
+    int ICD_VALUE_ERROR
+    int ICD_LZW_INVALID
+    int ICD_LZW_NOTIMPLEMENTED
+    int ICD_LZW_BUFFER_INSUFFICIENT
+
 
 class IcdError(RuntimeError):
     """Imagecodec Exceptions."""
@@ -275,7 +285,7 @@ def version(astype=str):
     jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
     versions = (
         ('imagecodecs', __version__),
-        ('numpy', numpy.__version__),
+        ('numpy', '0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)),
         ('cython', cython.__version__),
         ('icd', ICD_VERSION.decode('utf-8')),
         ('zlib', '%i.%i.%i' % (ZLIB_VER_MAJOR, ZLIB_VER_MINOR,
@@ -295,7 +305,8 @@ def version(astype=str):
         ('jpeg_turbo', '%i.%i.%i' % (int(jpeg_turbo_version[:1]),
                                      int(jpeg_turbo_version[2:3]),
                                      int(jpeg_turbo_version[4:5]))),
-        ('jpeg_0cx3', JPEG_0XC3_VERSION.decode('utf-8')),
+        ('jpeg_sof3', JPEG_SOF3_VERSION.decode('utf-8')),
+        ('charls', _CHARLS_VERSION),
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
         )
@@ -2213,6 +2224,9 @@ cdef extern from 'windowsmediaphoto.h':
     ctypedef unsigned char U8
     ctypedef unsigned int U32
 
+    ctypedef struct CWMIStrCodecParam:
+        U8 uAlphaMode
+
     cdef struct WMPStream:
         pass
 
@@ -2247,9 +2261,13 @@ cdef extern from 'JXRGlue.h':
 
     ctypedef void(*initialize_ptr)(PKImageDecode*, WMPStream*) nogil
 
+    ctypedef struct WMPstruct:
+        CWMIStrCodecParam wmiSCP
+
     ctypedef struct PKImageDecode:
         int fStreamOwner
         initialize_ptr Initialize
+        WMPstruct WMP
 
     ctypedef struct PKFactory:
         pass
@@ -2420,15 +2438,19 @@ def jxr_decode(data, out=None):
             dtype = numpy.uint8
             samples = 4
             pixel_format = GUID_PKPixelFormat32bppRGBA
+            decoder.WMP.wmiSCP.uAlphaMode = 2
         elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppRGBA):
             dtype = numpy.uint8
             samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
         elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat64bppRGBA):
             dtype = numpy.uint16
             samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
         elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBAFloat):
             dtype = numpy.float32
             samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
         else:
             raise ValueError('unknown pixel format')
 
@@ -2456,7 +2478,7 @@ def jxr_decode(data, out=None):
 
         # TODO: check alignment issues
         with nogil:
-            memset(<void *>dst.data, 0, dstsize)
+            memset(<void *>dst.data, 0, dstsize)  # TODO: still necessary?
             err = PKFormatConverter_Copy(converter, &rect, <U8*>dst.data,
                                          stride)
         if err:
@@ -3335,6 +3357,7 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
 try:
     from ._jpeg12 import jpeg12_decode, jpeg12_encode, Jpeg12Error
 except ImportError:
+    Jpeg12Error = RuntimeError
 
     def jpeg12_decode(*args, **kwargs):
         """Not implemented."""
@@ -3345,27 +3368,50 @@ except ImportError:
         raise NotImplementedError('jpeg12_encode')
 
 
-# JPEG SOF=0xC3 ###############################################################
+# JPEG LS #################################################################
+
+# JPEG-LS codecs are implemented in a separate extension module
+# because CharLS-2.x is not commonly available yet.
+# TODO: move implementation here once charls2 is available in Debian
+
+try:
+    from ._jpegls import (jpegls_decode, jpegls_encode, JpegLsError,
+                          _CHARLS_VERSION)
+except ImportError:
+    _CHARLS_VERSION = 'n/a'
+    JpegLsError = RuntimeError
+
+    def jpegls_decode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegls_decode')
+
+    def jpegls_encode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegls_encode')
+
+
+# JPEG SOF3 ###############################################################
 
 # The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
 # described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
 # The format is identified by a Start of Frame (SOF) code 0xC3.
 
-cdef extern from 'jpeg_0xc3.h':
-    char* JPEG_0XC3_VERSION
-    int JPEG_0XC3_OK
-    int JPEG_0XC3_INVALID_OUTPUT
-    int JPEG_0XC3_INVALID_SIGNATURE
-    int JPEG_0XC3_INVALID_HEADER_TAG
-    int JPEG_0XC3_SEGMENT_GT_IMAGE
-    int JPEG_0XC3_INVALID_ITU_T81
-    int JPEG_0XC3_INVALID_BIT_DEPTH
-    int JPEG_0XC3_TABLE_CORRUPTED
-    int JPEG_0XC3_TABLE_SIZE_CORRUPTED
-    int JPEG_0XC3_INVALID_RESTART_SEGMENTS
-    int JPEG_0XC3_NO_TABLE
+cdef extern from 'jpeg_sof3.h':
 
-    int jpeg_0x3c_decode(unsigned char *lRawRA,
+    char* JPEG_SOF3_VERSION
+    int JPEG_SOF3_OK
+    int JPEG_SOF3_INVALID_OUTPUT
+    int JPEG_SOF3_INVALID_SIGNATURE
+    int JPEG_SOF3_INVALID_HEADER_TAG
+    int JPEG_SOF3_SEGMENT_GT_IMAGE
+    int JPEG_SOF3_INVALID_ITU_T81
+    int JPEG_SOF3_INVALID_BIT_DEPTH
+    int JPEG_SOF3_TABLE_CORRUPTED
+    int JPEG_SOF3_TABLE_SIZE_CORRUPTED
+    int JPEG_SOF3_INVALID_RESTART_SEGMENTS
+    int JPEG_SOF3_NO_TABLE
+
+    int jpeg_sof3_decode(unsigned char *lRawRA,
                          ssize_t lRawSz,
                          unsigned char *lImgRA8,
                          ssize_t lImgSz,
@@ -3375,43 +3421,43 @@ cdef extern from 'jpeg_0xc3.h':
                          int *frames) nogil
 
 
-class Jpeg0xc3Error(RuntimeError):
-    """JPEG SOF=0xC3 Exceptions."""
+class JpegSof3Error(RuntimeError):
+    """JPEG SOF3 Exceptions."""
     def __init__(self, err):
         msg = {
-            JPEG_0XC3_INVALID_OUTPUT:
+            JPEG_SOF3_INVALID_OUTPUT:
                 'output array is too small',
-            JPEG_0XC3_INVALID_SIGNATURE:
+            JPEG_SOF3_INVALID_SIGNATURE:
                 'JPEG signature 0xFFD8FF not found',
-            JPEG_0XC3_INVALID_HEADER_TAG:
+            JPEG_SOF3_INVALID_HEADER_TAG:
                 'header tag must begin with 0xFF',
-            JPEG_0XC3_SEGMENT_GT_IMAGE:
+            JPEG_SOF3_SEGMENT_GT_IMAGE:
                 'segment larger than image',
-            JPEG_0XC3_INVALID_ITU_T81:
-                'not a lossless JPEG ITU-T81 image (SoF must be 0xC3)',
-            JPEG_0XC3_INVALID_BIT_DEPTH:
-                'scalar data must be 1..16 bit, RGB data must be 8-bit',
-            JPEG_0XC3_TABLE_CORRUPTED:
+            JPEG_SOF3_INVALID_ITU_T81:
+                'not a lossless (sequential) JPEG image (SoF must be 0xC3)',
+            JPEG_SOF3_INVALID_BIT_DEPTH:
+                'data must be 2..16 bit, 1..4 frames',
+            JPEG_SOF3_TABLE_CORRUPTED:
                 'Huffman table corrupted',
-            JPEG_0XC3_TABLE_SIZE_CORRUPTED:
+            JPEG_SOF3_TABLE_SIZE_CORRUPTED:
                 'Huffman size array corrupted',
-            JPEG_0XC3_INVALID_RESTART_SEGMENTS:
+            JPEG_SOF3_INVALID_RESTART_SEGMENTS:
                 'unsupported Restart Segments',
-            JPEG_0XC3_NO_TABLE:
+            JPEG_SOF3_NO_TABLE:
                 'no Huffman tables',
             }.get(err, 'unknown error % i' % err)
         msg = "jpeg_0x3c_decode returned '%s'" % msg
         RuntimeError.__init__(self, msg)
 
 
-def jpeg0xc3_encode(*args, **kwargs):
+def jpegsof3_encode(*args, **kwargs):
     """Not implemented."""
-    # TODO: JPEG SOF=0xC3 encoding
-    raise NotImplementedError('jpeg0xc3_encode')
+    # TODO: JPEG SOF3 encoding
+    raise NotImplementedError('jpegsof3_encode')
 
 
-def jpeg0xc3_decode(data, out=None):
-    """Decode JPEG SOF=0xC3 image to numpy array.
+def jpegsof3_decode(data, out=None):
+    """Decode JPEG SOF3 image to numpy array.
 
     Beware, the input data is modified!
 
@@ -3425,17 +3471,17 @@ def jpeg0xc3_decode(data, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         int dimX, dimY, bits, frames
-        int ret = JPEG_0XC3_OK
+        int ret = JPEG_SOF3_OK
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
     with nogil:
-        ret = jpeg_0x3c_decode(<unsigned char *>&src[0], srcsize,
+        ret = jpeg_sof3_decode(<unsigned char *>&src[0], srcsize,
                                NULL, 0, &dimX, &dimY, &bits, &frames)
 
-    if ret != JPEG_0XC3_OK:
-        raise Jpeg0xc3Error(ret)
+    if ret != JPEG_SOF3_OK:
+        raise JpegSof3Error(ret)
 
     if frames > 1:
         shape = frames, dimY, dimX
@@ -3452,12 +3498,12 @@ def jpeg0xc3_decode(data, out=None):
     dstsize = dst.size * dst.itemsize
 
     with nogil:
-        ret = jpeg_0x3c_decode(<unsigned char *>&src[0], srcsize,
+        ret = jpeg_sof3_decode(<unsigned char *>&src[0], srcsize,
                                <unsigned char *>dst.data, dstsize,
                                &dimX, &dimY, &bits, &frames)
 
-    if ret != JPEG_0XC3_OK:
-        raise Jpeg0xc3Error(ret)
+    if ret != JPEG_SOF3_OK:
+        raise JpegSof3Error(ret)
 
     if frames > 1:
         out = numpy.moveaxis(out, 0, -1)
@@ -3477,22 +3523,27 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
         except Jpeg8Error as exception:
             msg = str(exception)
-            if 'SOF type' in msg:
-                return jpeg0xc3_decode(data, out)
             if 'Unsupported JPEG data precision' in msg:
                 return jpeg12_decode(data, tables, colorspace, outcolorspace,
                                      out)
-            raise exception
+            if 'SOF type' in msg:
+                return jpegsof3_decode(data, out)
+            # Unsupported marker type
+            return jpegls_decode(data, out)
     try:
         if bitspersample == 8:
             return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
         if bitspersample == 12:
             return jpeg12_decode(data, tables, colorspace, outcolorspace, out)
-        return jpeg0xc3_decode(data, out)
+        try:
+            return jpegls_decode(data, out)
+        except Exception:
+            return jpegsof3_decode(data, out)
     except (Jpeg8Error, Jpeg12Error) as exception:
-        if 'SOF type' in str(exception):
-            return jpeg0xc3_decode(data, out)
-        raise exception
+        msg = str(exception)
+        if 'SOF type' in msg:
+            return jpegsof3_decode(data, out)
+        return jpegls_decode(data, out)
 
 
 def jpeg_encode(*args, **kwargs):
@@ -3986,7 +4037,6 @@ def j2k_decode(data, verbose=0, out=None):
 # TODO: Dtype conversion/quantizations
 # TODO: Scale Offset
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
-# TODO: JPEG-LS; libjpeg is GPL
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: BMP
