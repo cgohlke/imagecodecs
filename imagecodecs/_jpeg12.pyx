@@ -44,11 +44,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.5
+:Version: 2018.10.28
 
 """
 
-__version__ = '2018.10.5'
+__version__ = '2018.10.28'
 
 import numpy
 
@@ -62,6 +62,8 @@ from libc.string cimport memset
 
 numpy.import_array()
 
+
+# JPEG 12-bit #################################################################
 
 cdef extern from 'jpeglib.h':
     ctypedef void noreturn_t
@@ -267,7 +269,9 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
     return out
 
 
-cdef _create_array(out, shape, dtype):
+###############################################################################
+
+cdef _create_array(out, shape, dtype, strides=None):
     """Return numpy array of shape and dtype from output argument."""
     if out is None:
         out = numpy.empty(shape, dtype)
@@ -276,7 +280,11 @@ cdef _create_array(out, shape, dtype):
             raise ValueError('invalid output shape')
         if out.itemsize != numpy.dtype(dtype).itemsize:
             raise ValueError('invalid output dtype')
-        if not numpy.PyArray_ISCONTIGUOUS(out):
+        if strides is not None:
+            for i, j in zip(strides, out.strides):
+                if i is not None and i != j:
+                    raise ValueError('invalid output strides')
+        elif not numpy.PyArray_ISCONTIGUOUS(out):
             raise ValueError('output is not contiguous')
     else:
         dstsize = 1
