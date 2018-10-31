@@ -7,8 +7,8 @@ for use in the tifffile, czifile, and other Python scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
-JPEG SOF=0xC3, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta, XOR Delta,
-Floating Point Predictor, and Bitorder reversal.
+JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta,
+XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -16,7 +16,7 @@ Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.22
+:Version: 2018.10.28
 
 Requirements
 ------------
@@ -33,6 +33,7 @@ Requirements
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
 * `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
 * `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
+* `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
 * A Python distutils compatible C compiler
@@ -73,6 +74,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.28
+    Rename jpeg0xc3 to jpegsof3.
+    Add JPEG LS codec via libcharls.
+    Fix missing alpha values in jxr_decode.
+    Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
     Add Blosc codecs via libblosc.
 2018.10.21
@@ -82,7 +88,7 @@ Revisions
 2018.10.18
     Improve jpeg_decode wrapper.
 2018.10.17
-    Add JPEG SOF=0xC3 decoder based on jpg_0XC3.cpp.
+    Add JPEG SOF3 decoder based on jpg_0XC3.cpp.
 2018.10.10
     Add PNG codecs via libpng.
     Add option to specify output colorspace in JPEG decoder.
