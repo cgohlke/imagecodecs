@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.10.30
 
 """
 
@@ -846,17 +846,34 @@ def test_webp_decode(output):
 @pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
 @pytest.mark.parametrize('input', ['rgb', 'rgba', 'view', 'gray', 'graya'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
-@pytest.mark.parametrize('codec', ['webp', 'png', 'jpegls'])
-def test_webpng(codec, dtype, input, enout, deout, level):
+@pytest.mark.parametrize('codec', ['webp', 'png', 'jpeg8', 'jpeg12', 'jpegls'])
+def test_image_roundtrips(codec, dtype, input, enout, deout, level):
     """ """
-    if codec == 'jpegls':
+    if codec == 'jpeg8':
+        if input in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
+            pytest.skip("jpeg8 doesn't support these cases")
+        from imagecodecs import jpeg8_decode as decode
+        from imagecodecs import jpeg8_encode as encode
+        atol = 24
+        if level:
+            level += 95
+    elif codec == 'jpeg12':
+        if _jpeg12 is None:
+            pytest.skip('_jpeg12 module missing')
+        if input in ('view', 'graya') or deout == 'view' or dtype == 'uint8':
+            pytest.skip("jpeg12 doesn't support these cases")
+        from imagecodecs import jpeg12_decode as decode
+        from imagecodecs import jpeg12_encode as encode
+        atol = 24 * 16
+        if level:
+            level += 95
+    elif codec == 'jpegls':
         if _jpegls is None:
             pytest.skip('_jpegls module missing')
         if input in ('view', 'graya') or deout == 'view':
             pytest.skip("jpegls doesn't support these cases")
         from imagecodecs import jpegls_decode as decode
         from imagecodecs import jpegls_encode as encode
-
     elif codec == 'webp':
         from imagecodecs import webp_decode as decode
         from imagecodecs import webp_encode as encode
@@ -866,22 +883,13 @@ def test_webpng(codec, dtype, input, enout, deout, level):
         from imagecodecs import png_decode as decode
         from imagecodecs import png_encode as encode
     else:
-        raise ValueError()
-
-    shape = {
-        'gray': (32, 31, 1),
-        'graya': (32, 31, 2),
-        'rgb': (32, 31, 3),
-        'rgba': (32, 31, 4),
-        'view': (32, 31, 3)
-        }[input]
+        raise ValueError(codec)
 
     dtype = numpy.dtype(dtype)
     itemsize = dtype.itemsize
+    data = IMAGE_DATA[(input, itemsize)]
+    shape = data.shape
 
-    data = numpy.random.randint(0, 255*dtype.itemsize,
-                                size=shape[0]*shape[1]*shape[2],
-                                dtype=dtype).reshape(*shape)
     if input == 'view':
         temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
         temp[2:2+shape[0], 3:3+shape[1], :] = data
@@ -916,6 +924,8 @@ def test_webpng(codec, dtype, input, enout, deout, level):
     if codec == 'webp' and (level != -1 or input == 'rgba'):
         # RGBA roundtip doesn't work for A=0
         assert_allclose(data, decoded, atol=255)
+    elif codec in ('jpeg8', 'jpeg12'):
+        assert_allclose(data, decoded, atol=atol)
     elif codec == 'jpegls' and level == 5:
         assert_allclose(data, decoded, atol=6)
     else:
@@ -942,6 +952,19 @@ BYTES = readfile('bytes.bin')
 BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
 WORDSIMG = numpy.frombuffer(WORDS, 'uint16').reshape(36, 36, 3)
+IMAGE_DATA = {
+    ('gray', 1): imagecodecs.png_decode(readfile('gray8.png')).reshape(32, 31, 1),
+    ('graya', 1): imagecodecs.png_decode(readfile('graya16.png')),
+    ('rgb', 1): imagecodecs.png_decode(readfile('rgb24.png')),
+    ('rgba', 1): imagecodecs.png_decode(readfile('rgba32.png')),
+    ('view', 1): imagecodecs.png_decode(readfile('rgb24.png')),
+
+    ('gray', 2): imagecodecs.png_decode(readfile('gray16.png')).reshape(32, 31, 1) // 16,
+    ('graya', 2): imagecodecs.png_decode(readfile('graya32.png')) // 16,
+    ('rgb', 2): imagecodecs.png_decode(readfile('rgb48.png')) // 16,
+    ('rgba', 2): imagecodecs.png_decode(readfile('rgba64.png')) // 16,
+    ('view', 2): imagecodecs.png_decode(readfile('rgb48.png')) // 16,
+    }
 
 
 if __name__ == '__main__':
