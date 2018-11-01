@@ -43,10 +43,12 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.10.30
 
 Revisions
 ---------
+2018.10.30
+    Check signatures before calling pil_decode.
 2018.10.28
     Add dummy jpegls codec.
     Rename jpeg0xc3 to jpegsof3.
@@ -72,7 +74,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.28.py'
+__version__ = '2018.10.30.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -142,7 +144,7 @@ def notimplemented(arg=False):
     def wrapper(func):
         @functools.wraps(func)
         def notimplemented(*args, **kwargs):
-            raise NotImplementedError(func.__name__)
+            raise NotImplementedError('%s not implemented' % func.__name__)
         return notimplemented
 
     if callable(arg):
@@ -681,10 +683,8 @@ def pil_decode(data, out=None):
 def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
                 outcolorspace=None, out=None):
     """Decode JPEG."""
-    if tables or colorspace or outcolorspace:
-        raise NotImplementedError(
-            'JPEG tables, colorspace, and outcolorspace otions not supported')
-    return pil_decode(data)
+    jpeg8_decode(data, tables=tables, colorspace=colorspace,
+                 outcolorspace=outcolorspace, out=out)
 
 
 @notimplemented
@@ -697,6 +697,8 @@ def jpeg_encode(*args, **kwargs):
 def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
                  out=None):
     """Decode JPEG 8-bit."""
+    if data[:3] != b'\xff\xd8\xff':
+        raise ValueError('not a JPEG image')
     if tables or colorspace or outcolorspace:
         raise NotImplementedError(
             'JPEG tables, colorspace, and outcolorspace otions not supported')
@@ -748,6 +750,9 @@ def jpegsof3_encode(*args, **kwargs):
 @notimplemented(PIL)
 def j2k_decode(data, verbose=0, out=None):
     """Decode JPEG 2000."""
+    if (data[:4] != b'\xff\x4f\xff\x51' and data[:4] != b'\x0d\x0a\x87\x0a' and
+            data[:12] != b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'):
+        raise ValueError('not a JPEG 2000 image')
     return pil_decode(data)
 
 
@@ -772,6 +777,8 @@ def jxr_encode(*args, **kwargs):
 @notimplemented(PIL)
 def webp_decode(data, out=None):
     """Decode WebP."""
+    if data[:4] != b'RIFF' or data[8:12] != b'WEBP':
+        raise ValueError('not a WebP image')
     return pil_decode(data)
 
 
@@ -784,6 +791,8 @@ def webp_encode(*args, **kwargs):
 @notimplemented(PIL)
 def png_decode(data, out=None):
     """Decode PNG."""
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        raise ValueError('not a PNG image')
     return pil_decode(data)
 
 
