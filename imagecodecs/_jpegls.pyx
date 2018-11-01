@@ -50,7 +50,7 @@
 
 __version__ = '2018.10.28'
 
-_CHARLS_VERSION = "2.0.0"
+_CHARLS_VERSION = '2.0.0'
 
 import numpy
 
@@ -206,7 +206,7 @@ def jpegls_encode(data, level=None, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if not (data.dtype in ('uint8', 'uint16')
+    if not (data.dtype in (numpy.uint8, numpy.uint16)
             and data.ndim in (2, 3)
             and numpy.PyArray_ISCONTIGUOUS(data)):
         raise ValueError('invalid input shape, strides, or dtype')
