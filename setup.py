@@ -130,9 +130,12 @@ setup_args = dict(
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
     install_requires=['numpy>=%s' % numpy_required],
+    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2018.10.18']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
+    entry_points={'console_scripts': [
+        'imagecodecs=imagecodecs.__main__:main']},
     license='BSD',
     zip_safe=False,
     platforms=['any'],
