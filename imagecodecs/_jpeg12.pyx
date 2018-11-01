@@ -44,21 +44,26 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.10.30
 
 """
 
-__version__ = '2018.10.28'
+__version__ = '2018.10.30'
 
 import numpy
 
 cimport cython
 cimport numpy
 
+from cpython.bytes cimport PyBytes_FromStringAndSize
 from cython.operator cimport dereference as deref
+from libc.string cimport memset, memcpy
+from libc.stdlib cimport malloc, free
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
-from libc.stdint cimport uint8_t
-from libc.string cimport memset
+from libc.stdint cimport uint8_t, uint16_t
+
+cdef extern from 'Python.h':
+    object PyByteArray_FromStringAndSize(const char *string, Py_ssize_t len)
 
 numpy.import_array()
 
@@ -66,32 +71,50 @@ numpy.import_array()
 # JPEG 12-bit #################################################################
 
 cdef extern from 'jpeglib.h':
+    int JPEG_LIB_VERSION
+    int LIBJPEG_TURBO_VERSION_NUMBER
+
     ctypedef void noreturn_t
     ctypedef int boolean
+    ctypedef char JOCTET
     ctypedef unsigned int JDIMENSION
     ctypedef unsigned short JSAMPLE
     ctypedef JSAMPLE* JSAMPROW
     ctypedef JSAMPROW* JSAMPARRAY
 
     ctypedef enum J_COLOR_SPACE:
-        JCS_UNKNOWN,
-        JCS_GRAYSCALE,
-        JCS_RGB,
-        JCS_YCbCr,
-        JCS_CMYK,
+        JCS_UNKNOWN
+        JCS_GRAYSCALE
+        JCS_RGB
+        JCS_YCbCr
+        JCS_CMYK
         JCS_YCCK
+        JCS_EXT_RGB
+        JCS_EXT_RGBX
+        JCS_EXT_BGR
+        JCS_EXT_BGRX
+        JCS_EXT_XBGR
+        JCS_EXT_XRGB
+        JCS_EXT_RGBA
+        JCS_EXT_BGRA
+        JCS_EXT_ABGR
+        JCS_EXT_ARGB
+        JCS_RGB565
 
     ctypedef enum J_DITHER_MODE:
-        JDITHER_NONE,
-        JDITHER_ORDERED,
+        JDITHER_NONE
+        JDITHER_ORDERED
         JDITHER_FS
 
     ctypedef enum J_DCT_METHOD:
-        JDCT_ISLOW,
-        JDCT_IFAST,
+        JDCT_ISLOW
+        JDCT_IFAST
         JDCT_FLOAT
 
     struct jpeg_source_mgr:
+        pass
+
+    struct jpeg_destination_mgr:
         pass
 
     struct jpeg_error_mgr:
@@ -133,6 +156,27 @@ cdef extern from 'jpeglib.h':
         int data_precision
         double output_gamma
 
+    struct jpeg_compress_struct:
+        jpeg_error_mgr* err
+        void* client_data
+        jpeg_destination_mgr *dest
+        JDIMENSION image_width
+        JDIMENSION image_height
+        int input_components
+        J_COLOR_SPACE in_color_space
+        J_COLOR_SPACE jpeg_color_space
+        double input_gamma
+        int data_precision
+        int num_components
+        int smoothing_factor
+        JDIMENSION next_scanline
+        # JPEG_LIB_VERSION >= 70
+        # unsigned int scale_num
+        # unsigned int scale_denom
+        # JDIMENSION jpeg_width
+        # JDIMENSION jpeg_height
+        # boolean do_fancy_downsampling
+
     jpeg_error_mgr* jpeg_std_error(jpeg_error_mgr*) nogil
 
     void jpeg_create_decompress(jpeg_decompress_struct*) nogil
@@ -153,6 +197,26 @@ cdef extern from 'jpeglib.h':
                       unsigned char*,
                       unsigned long) nogil
 
+    void jpeg_mem_dest(jpeg_compress_struct*,
+                       unsigned char**,
+                       unsigned long*) nogil
+
+    void jpeg_create_compress(jpeg_compress_struct*) nogil
+
+    void jpeg_destroy_compress(jpeg_compress_struct*) nogil
+
+    void jpeg_set_defaults(jpeg_compress_struct*) nogil
+
+    void jpeg_set_quality(jpeg_compress_struct*, int, boolean) nogil
+
+    void jpeg_start_compress(jpeg_compress_struct*, boolean) nogil
+
+    void jpeg_finish_compress(jpeg_compress_struct* cinfo) nogil
+
+    JDIMENSION jpeg_write_scanlines(jpeg_compress_struct*,
+                                    JSAMPARRAY,
+                                    JDIMENSION) nogil
+
 
 ctypedef struct my_error_mgr:
     jpeg_error_mgr pub
@@ -168,19 +232,190 @@ cdef void my_output_message(jpeg_common_struct* cinfo):
     pass
 
 
+def _jcs_colorspace(colorspace):
+    """Return JCS colorspace value from user input."""
+    return {
+        'GRAY': JCS_GRAYSCALE,
+        'GRAYSCALE': JCS_GRAYSCALE,
+        'MINISWHITE': JCS_GRAYSCALE,
+        'MINISBLACK': JCS_GRAYSCALE,
+        'RGB': JCS_RGB,
+        'RGBA': JCS_EXT_RGBA,
+        'CMYK': JCS_CMYK,
+        'YCCK': JCS_YCCK,
+        'YCBCR': JCS_YCbCr,
+        'UNKNOWN': JCS_UNKNOWN,
+        None: JCS_UNKNOWN,
+        JCS_UNKNOWN: JCS_UNKNOWN,
+        JCS_GRAYSCALE: JCS_GRAYSCALE,
+        JCS_RGB: JCS_RGB,
+        JCS_YCbCr: JCS_YCbCr,
+        JCS_CMYK: JCS_CMYK,
+        JCS_YCCK: JCS_YCCK,
+        JCS_EXT_RGB: JCS_EXT_RGB,
+        JCS_EXT_RGBX: JCS_EXT_RGBX,
+        JCS_EXT_BGR: JCS_EXT_BGR,
+        JCS_EXT_BGRX: JCS_EXT_BGRX,
+        JCS_EXT_XBGR: JCS_EXT_XBGR,
+        JCS_EXT_XRGB: JCS_EXT_XRGB,
+        JCS_EXT_RGBA: JCS_EXT_RGBA,
+        JCS_EXT_BGRA: JCS_EXT_BGRA,
+        JCS_EXT_ABGR: JCS_EXT_ABGR,
+        JCS_EXT_ARGB: JCS_EXT_ARGB,
+        JCS_RGB565: JCS_RGB565,
+        }[colorspace]
+
+
+def _jcs_colorspace_samples(colorspace):
+    """Return expected number of samples in colorspace."""
+    three = (3,)
+    four = (4,)
+    return {
+        JCS_UNKNOWN: (1, 2, 3, 4),
+        JCS_GRAYSCALE: (1,),
+        JCS_RGB: three,
+        JCS_YCbCr: three,
+        JCS_CMYK: four,
+        JCS_YCCK: four,
+        JCS_EXT_RGB: three,
+        JCS_EXT_RGBX: four,
+        JCS_EXT_BGR: three,
+        JCS_EXT_BGRX: four,
+        JCS_EXT_XBGR: four,
+        JCS_EXT_XRGB: four,
+        JCS_EXT_RGBA: four,
+        JCS_EXT_BGRA: four,
+        JCS_EXT_ABGR: four,
+        JCS_EXT_ARGB: four,
+        JCS_RGB565: three,
+        }[colorspace]
+
+
 class Jpeg12Error(RuntimeError):
     """JPEG Exceptions."""
     pass
 
 
-def jpeg12_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JPEG 12-bit encoding
-    raise NotImplementedError('jpeg12_encode')
+def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
+                  out=None):
+    """Return JPEG 12-bit image from numpy array.
+
+    """
+    cdef:
+        numpy.ndarray src = data
+        const uint8_t[::1] dst
+        ssize_t dstsize
+        ssize_t srcsize = src.size * src.itemsize
+        ssize_t rowstride = src.strides[0]
+        int samples = <int>src.shape[2] if src.ndim == 3 else 1
+        int quality = _default_level(level, 90, 0, 100)
+        my_error_mgr err
+        jpeg_compress_struct cinfo
+        JSAMPROW rowpointer
+        J_COLOR_SPACE in_color_space = JCS_UNKNOWN
+        J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
+        unsigned long outsize = 0
+        unsigned char* outbuffer = NULL
+        char* msg
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if not (data.dtype == numpy.uint16
+            and data.ndim in (2, 3)
+            and data.size * data.itemsize < 2**31-1  # limit to 2 GB
+            and samples in (1, 3, 4)
+            and data.strides[data.ndim-1] == data.itemsize
+            and (data.ndim == 2 or data.strides[1] == samples*data.itemsize)):
+        raise ValueError('invalid input shape, strides, or dtype')
+
+    if not _check_12bit(data):
+        # values larger than 12-bit cause segfault
+        raise ValueError('all data values must be < 4096')
+
+    if colorspace is None:
+        if samples == 1:
+            in_color_space = JCS_GRAYSCALE
+        elif samples == 3:
+            in_color_space = JCS_RGB
+        elif samples == 4:
+            in_color_space = JCS_CMYK
+        else:
+            in_color_space = JCS_UNKNOWN
+    else:
+        in_color_space = _jcs_colorspace(colorspace)
+        if samples not in _jcs_colorspace_samples(in_color_space):
+            raise ValueError('invalid input shape')
+
+    jpeg_color_space = _jcs_colorspace(outcolorspace)
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None and dstsize > 0:
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    if out is not None:
+        dst = out
+        dstsize = dst.size * dst.itemsize
+        outsize = <unsigned long>dstsize
+        outbuffer = <unsigned char*>&dst[0]
+
+    with nogil:
+        cinfo.err = jpeg_std_error(&err.pub)
+        err.pub.error_exit = my_error_exit
+        err.pub.output_message = my_output_message
+
+        if setjmp(err.setjmp_buffer):
+            jpeg_destroy_compress(&cinfo)
+            msg = err.pub.jpeg_message_table[err.pub.msg_code]
+            with gil:
+                raise Jpeg12Error(msg.decode('utf-8'))
+
+        jpeg_create_compress(&cinfo)
+
+        cinfo.image_height = src.shape[0]
+        cinfo.image_width = src.shape[1]
+        cinfo.input_components = samples
+        if in_color_space != JCS_UNKNOWN:
+            cinfo.in_color_space = in_color_space
+        if jpeg_color_space != JCS_UNKNOWN:
+            cinfo.jpeg_color_space = jpeg_color_space
+
+        jpeg_set_defaults(&cinfo)
+        jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
+        jpeg_set_quality(&cinfo, quality, 1)
+        jpeg_start_compress(&cinfo, 1)
+
+        while cinfo.next_scanline < cinfo.image_height:
+            rowpointer = <JSAMPROW>(<char*>src.data
+                                    + cinfo.next_scanline * rowstride)
+            jpeg_write_scanlines(&cinfo, &rowpointer, 1)
+
+        jpeg_finish_compress(&cinfo)
+        jpeg_destroy_compress(&cinfo)
+
+    if out is None or outbuffer != <unsigned char*>&dst[0]:
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(<const char*>outbuffer,
+                                            <ssize_t>outsize)
+        else:
+            out = PyByteArray_FromStringAndSize(<const char*>outbuffer,
+                                                <ssize_t>outsize)
+        free(outbuffer)
+    elif outsize < dstsize:
+        if out_given:
+            out = memoryview(out)[:outsize]
+        else:
+            out = out[:outsize]
+
+    return out
 
 
 def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
-                  out=None):
+                 out=None):
     """Decode JPEG 12-bit image to numpy array.
 
     """
@@ -188,81 +423,83 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         numpy.ndarray dst
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
+        unsigned long tablesize = 0
+        ssize_t srcsize = src.size
         ssize_t dstsize
+        ssize_t rowstride
         int numlines
         my_error_mgr err
         jpeg_decompress_struct cinfo
-        JSAMPROW samples
+        JSAMPROW rowpointer
+        J_COLOR_SPACE jpeg_color_space
+        J_COLOR_SPACE out_color_space
+        char *msg
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    cinfo.err = jpeg_std_error(&err.pub)
-    err.pub.error_exit = my_error_exit
-    err.pub.output_message = my_output_message
-    if setjmp(err.setjmp_buffer):
-        jpeg_destroy_decompress(&cinfo)
-        raise Jpeg12Error(
-            err.pub.jpeg_message_table[err.pub.msg_code].decode('utf-8'))
+    if srcsize > 2**31-1:
+        # limit to 2 GB
+        raise ValueError('data too large')
 
-    jpeg_create_decompress(&cinfo)
-    cinfo.do_fancy_upsampling = True
+    jpeg_color_space = _jcs_colorspace(colorspace)
+    if outcolorspace is None:
+        out_color_space = jpeg_color_space
+    else:
+        out_color_space = _jcs_colorspace(outcolorspace)
 
     if tables is not None:
         tables_ = tables
-        jpeg_mem_src(&cinfo, &tables_[0], tables_.size)
-        jpeg_read_header(&cinfo, 0)
-
-    jpeg_mem_src(&cinfo, &src[0], src.size)
-    jpeg_read_header(&cinfo, 1)
-
-    if colorspace is None:
-        pass
-    elif colorspace == 'RGB':
-        cinfo.jpeg_color_space = JCS_RGB
-        cinfo.out_color_space = JCS_RGB
-    elif colorspace == 'YCBCR':
-        cinfo.jpeg_color_space = JCS_YCbCr
-        cinfo.out_color_space = JCS_YCbCr
-    elif colorspace in ('MINISBLACK', 'MINISWHITE', 'GRAYSCALE'):
-        cinfo.jpeg_color_space = JCS_GRAYSCALE
-        cinfo.out_color_space = JCS_GRAYSCALE
-    elif colorspace == 'CMYK':
-        cinfo.jpeg_color_space = JCS_CMYK
-        cinfo.out_color_space = JCS_CMYK
-    elif colorspace == 'YCCK':
-        cinfo.jpeg_color_space = JCS_YCCK
-        cinfo.out_color_space = JCS_YCCK
-
-    if outcolorspace is None:
-        pass
-    elif outcolorspace == 'RGB':
-        cinfo.out_color_space = JCS_RGB
-    elif outcolorspace == 'YCBCR':
-        cinfo.out_color_space = JCS_YCbCr
-    elif outcolorspace in ('MINISBLACK', 'MINISWHITE', 'GRAYSCALE'):
-        cinfo.out_color_space = JCS_GRAYSCALE
-    elif outcolorspace == 'CMYK':
-        cinfo.out_color_space = JCS_CMYK
-    elif outcolorspace == 'YCCK':
-        cinfo.out_color_space = JCS_YCCK
-
-    jpeg_start_decompress(&cinfo)
-
-    shape = cinfo.output_height, cinfo.output_width
-    if cinfo.output_components > 1:
-        shape += cinfo.output_components,
-
-    out = _create_array(out, shape, numpy.uint16)
-    dst = out
-    dstsize = dst.size * dst.itemsize
+        tablesize = tables_.size
 
     with nogil:
+
+        cinfo.err = jpeg_std_error(&err.pub)
+        err.pub.error_exit = my_error_exit
+        err.pub.output_message = my_output_message
+        if setjmp(err.setjmp_buffer):
+            jpeg_destroy_decompress(&cinfo)
+            msg = err.pub.jpeg_message_table[err.pub.msg_code]
+            with gil:
+                raise Jpeg12Error(msg.decode('utf-8'))
+
+        jpeg_create_decompress(&cinfo)
+        cinfo.do_fancy_upsampling = True
+
+        if tablesize > 0:
+            jpeg_mem_src(&cinfo, &tables_[0], tablesize)
+            jpeg_read_header(&cinfo, 0)
+
+        jpeg_mem_src(&cinfo, &src[0], <unsigned long>srcsize)
+        jpeg_read_header(&cinfo, 1)
+
+        if jpeg_color_space != JCS_UNKNOWN:
+            cinfo.jpeg_color_space = jpeg_color_space
+        if out_color_space != JCS_UNKNOWN:
+            cinfo.out_color_space = out_color_space
+
+        jpeg_start_decompress(&cinfo)
+
+        with gil:
+            # if (cinfo.output_components not in
+            #         _jcs_colorspace_samples(out_color_space)):
+            #     raise ValueError('invalid output shape')
+
+            shape = cinfo.output_height, cinfo.output_width
+            if cinfo.output_components > 1:
+                shape += cinfo.output_components,
+
+            out = _create_array(out, shape, numpy.uint16)  # TODO: allow stride
+            dst = out
+            dstsize = dst.size * dst.itemsize
+            rowstride = dst.strides[0] // dst.itemsize
+
         memset(<void *>dst.data, 0, dstsize)
-        samples = <JSAMPROW>dst.data
+        rowpointer = <JSAMPROW>dst.data
         while cinfo.output_scanline < cinfo.output_height:
-            numlines = jpeg_read_scanlines(&cinfo, <JSAMPARRAY> &samples, 1)
-            samples += numlines * cinfo.output_width * cinfo.output_components
+            jpeg_read_scanlines(&cinfo, &rowpointer, 1)
+            rowpointer += rowstride
+
         jpeg_finish_decompress(&cinfo)
         jpeg_destroy_decompress(&cinfo)
 
@@ -293,3 +530,62 @@ cdef _create_array(out, shape, dtype, strides=None):
         out = numpy.frombuffer(out, dtype, dstsize)
         out.shape = shape
     return out
+
+
+cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
+    """Return out, out_size, out_given, out_type from output argument."""
+    if out is None:
+        pass
+    elif out is bytes:
+        out = None
+        out_type = bytes
+    elif out is bytearray:
+        out = None
+        out_type = bytearray
+    elif isinstance(out, int):
+        out_size = out
+        out = None
+    else:
+        # out_size = len(out)
+        # out_type = type(out)
+        out_given = True
+    return out, out_size, out_given, out_type
+
+
+def _default_level(level, default, smallest, largest):
+    """Return compression level in range."""
+    if level is None:
+        level = default
+    if largest is not None:
+        level = min(level, largest)
+    if smallest is not None:
+        level = max(level, smallest)
+    return level
+
+
+def _check_12bit(data, uint16_t upper=4095):
+    """Return if all values are below 2^12."""
+    cdef:
+        numpy.flatiter srciter
+        uint8_t* srcptr = NULL
+        ssize_t srcsize = 0
+        ssize_t srcstride = 0
+        ssize_t i
+        int axis = -1
+        int ret = 1
+
+    srciter = numpy.PyArray_IterAllButAxis(data, &axis)
+    srcsize = data.shape[axis]
+    srcstride = data.strides[axis]
+
+    with nogil:
+        while numpy.PyArray_ITER_NOTDONE(srciter) and ret != 0:
+            srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
+            for i in range(srcsize):
+                if (<uint16_t*>srcptr)[0] > upper:
+                    ret = 0
+                    break
+                srcptr += srcstride
+            numpy.PyArray_ITER_NEXT(srciter)
+
+    return bool(ret)
