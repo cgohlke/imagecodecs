@@ -53,7 +53,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.10.30
 
 Requirements
 ------------
@@ -111,6 +111,9 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.30
+    Add JPEG 8-bit and 12-bit encoders.
+    Improve color space handling in JPEG codecs.
 2018.10.28
     Rename jpeg0xc3 to jpegsof3.
     Add JPEG LS codec via libcharls.
@@ -153,7 +156,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.28'
+__version__ = '2018.10.30'
 
 import numpy
 
@@ -377,8 +380,8 @@ cdef _delta(data, int axis, out, int decode):
         if axis > data.ndim:
             raise ValueError('invalid axis')
 
-        srciter = numpy.PyArray_IterAllButAxis(data, &axis);
-        dstiter = numpy.PyArray_IterAllButAxis(out, &axis);
+        srciter = numpy.PyArray_IterAllButAxis(data, &axis)
+        dstiter = numpy.PyArray_IterAllButAxis(out, &axis)
         srcsize = data.shape[axis]
         dstsize = out.shape[axis]
         srcstride = data.strides[axis]
@@ -494,8 +497,8 @@ cdef _xor(data, int axis, out, int decode):
         if axis > data.ndim:
             raise ValueError('invalid axis')
 
-        srciter = numpy.PyArray_IterAllButAxis(data, &axis);
-        dstiter = numpy.PyArray_IterAllButAxis(out, &axis);
+        srciter = numpy.PyArray_IterAllButAxis(data, &axis)
+        dstiter = numpy.PyArray_IterAllButAxis(out, &axis)
         srcsize = data.shape[axis]
         dstsize = out.shape[axis]
         srcstride = data.strides[axis]
@@ -723,7 +726,7 @@ def bitorder_decode(data, out=None):
                                  <uint8_t *>dstptr, dstsize, dststride)
                 return data
 
-            srciter = numpy.PyArray_IterAllButAxis(data, &axis);
+            srciter = numpy.PyArray_IterAllButAxis(data, &axis)
             srcsize = data.shape[axis] * itemsize
             srcstride = data.strides[axis]
             with nogil:
@@ -742,8 +745,8 @@ def bitorder_decode(data, out=None):
                 raise ValueError('output is not a numpy array')
             if data.shape != out.shape or itemsize != out.dtype.itemsize:
                 raise ValueError('output is not compatible with data array')
-        srciter = numpy.PyArray_IterAllButAxis(data, &axis);
-        dstiter = numpy.PyArray_IterAllButAxis(out, &axis);
+        srciter = numpy.PyArray_IterAllButAxis(data, &axis)
+        dstiter = numpy.PyArray_IterAllButAxis(out, &axis)
         srcsize = data.shape[axis] * itemsize
         dstsize = out.shape[axis] * itemsize
         srcstride = data.strides[axis]
@@ -1636,10 +1639,10 @@ cdef extern from 'lzma.h':
         LZMA_RESERVED_ENUM
 
     ctypedef enum lzma_check:
-        LZMA_CHECK_NONE = 0
-        LZMA_CHECK_CRC32 = 1
-        LZMA_CHECK_CRC64 = 4
-        LZMA_CHECK_SHA256 = 10
+        LZMA_CHECK_NONE
+        LZMA_CHECK_CRC32
+        LZMA_CHECK_CRC64
+        LZMA_CHECK_SHA256
 
     ctypedef struct lzma_stream:
         uint8_t *next_in
@@ -1662,24 +1665,24 @@ cdef extern from 'lzma.h':
         lzma_reserved_enum reserved_enum2
 
     ctypedef enum lzma_action:
-        LZMA_RUN,
-        LZMA_SYNC_FLUSH,
-        LZMA_FULL_FLUSH,
-        LZMA_FULL_BARRIER,
+        LZMA_RUN
+        LZMA_SYNC_FLUSH
+        LZMA_FULL_FLUSH
+        LZMA_FULL_BARRIER
         LZMA_FINISH
 
     ctypedef enum lzma_ret:
-        LZMA_OK,
-        LZMA_STREAM_END,
-        LZMA_NO_CHECK,
-        LZMA_UNSUPPORTED_CHECK,
-        LZMA_GET_CHECK,
-        LZMA_MEM_ERROR,
-        LZMA_MEMLIMIT_ERROR,
-        LZMA_FORMAT_ERROR,
-        LZMA_OPTIONS_ERROR,
-        LZMA_DATA_ERROR,
-        LZMA_BUF_ERROR,
+        LZMA_OK
+        LZMA_STREAM_END
+        LZMA_NO_CHECK
+        LZMA_UNSUPPORTED_CHECK
+        LZMA_GET_CHECK
+        LZMA_MEM_ERROR
+        LZMA_MEMLIMIT_ERROR
+        LZMA_FORMAT_ERROR
+        LZMA_OPTIONS_ERROR
+        LZMA_DATA_ERROR
+        LZMA_BUF_ERROR
         LZMA_PROG_ERROR
 
     lzma_ret lzma_easy_encoder(lzma_stream *strm,
@@ -2812,7 +2815,7 @@ def png_encode(data, level=None, out=None):
         png_uint_32 height = <png_uint_32>src.shape[0]
         png_uint_32 row
 
-    if not (data.dtype in ('uint8', 'uint16')
+    if not (data.dtype in (numpy.uint8, numpy.uint16)
             and data.ndim in (2, 3)
             and data.shape[0] < 2**31-1
             and data.shape[1] < 2**31-1
@@ -2914,13 +2917,13 @@ def png_encode(data, level=None, out=None):
 cdef extern from 'webp/decode.h':
 
     ctypedef enum VP8StatusCode:
-        VP8_STATUS_OK = 0,
-        VP8_STATUS_OUT_OF_MEMORY,
-        VP8_STATUS_INVALID_PARAM,
-        VP8_STATUS_BITSTREAM_ERROR,
-        VP8_STATUS_UNSUPPORTED_FEATURE,
-        VP8_STATUS_SUSPENDED,
-        VP8_STATUS_USER_ABORT,
+        VP8_STATUS_OK
+        VP8_STATUS_OUT_OF_MEMORY
+        VP8_STATUS_INVALID_PARAM
+        VP8_STATUS_BITSTREAM_ERROR
+        VP8_STATUS_UNSUPPORTED_FEATURE
+        VP8_STATUS_SUSPENDED
+        VP8_STATUS_USER_ABORT
         VP8_STATUS_NOT_ENOUGH_DATA
 
     ctypedef struct WebPBitstreamFeatures:
@@ -3040,7 +3043,7 @@ def webp_encode(data, level=None, out=None):
             and data.strides[2] == 1
             and data.strides[1] in (3, 4)
             and data.strides[0] >= data.strides[1] * data.strides[2]
-            and data.dtype == 'uint8'):
+            and data.dtype == numpy.uint8):
         raise ValueError('invalid input shape, strides, or dtype')
 
     height, width = data.shape[:2]
@@ -3153,30 +3156,45 @@ cdef extern from 'jpeglib.h':
 
     ctypedef void noreturn_t
     ctypedef int boolean
+    ctypedef char JOCTET
     ctypedef unsigned int JDIMENSION
-    ctypedef unsigned char JSAMPLE
+    ctypedef unsigned short JSAMPLE
     ctypedef JSAMPLE* JSAMPROW
     ctypedef JSAMPROW* JSAMPARRAY
 
     ctypedef enum J_COLOR_SPACE:
-        JCS_UNKNOWN,
-        JCS_GRAYSCALE,
-        JCS_RGB,
-        JCS_YCbCr,
-        JCS_CMYK,
+        JCS_UNKNOWN
+        JCS_GRAYSCALE
+        JCS_RGB
+        JCS_YCbCr
+        JCS_CMYK
         JCS_YCCK
+        JCS_EXT_RGB
+        JCS_EXT_RGBX
+        JCS_EXT_BGR
+        JCS_EXT_BGRX
+        JCS_EXT_XBGR
+        JCS_EXT_XRGB
+        JCS_EXT_RGBA
+        JCS_EXT_BGRA
+        JCS_EXT_ABGR
+        JCS_EXT_ARGB
+        JCS_RGB565
 
     ctypedef enum J_DITHER_MODE:
-        JDITHER_NONE,
-        JDITHER_ORDERED,
+        JDITHER_NONE
+        JDITHER_ORDERED
         JDITHER_FS
 
     ctypedef enum J_DCT_METHOD:
-        JDCT_ISLOW,
-        JDCT_IFAST,
+        JDCT_ISLOW
+        JDCT_IFAST
         JDCT_FLOAT
 
     struct jpeg_source_mgr:
+        pass
+
+    struct jpeg_destination_mgr:
         pass
 
     struct jpeg_error_mgr:
@@ -3218,11 +3236,37 @@ cdef extern from 'jpeglib.h':
         int data_precision
         double output_gamma
 
+    struct jpeg_compress_struct:
+        jpeg_error_mgr* err
+        void* client_data
+        jpeg_destination_mgr *dest
+        JDIMENSION image_width
+        JDIMENSION image_height
+        int input_components
+        J_COLOR_SPACE in_color_space
+        J_COLOR_SPACE jpeg_color_space
+        double input_gamma
+        int data_precision
+        int num_components
+        int smoothing_factor
+        JDIMENSION next_scanline
+        # JPEG_LIB_VERSION >= 70
+        # unsigned int scale_num
+        # unsigned int scale_denom
+        # JDIMENSION jpeg_width
+        # JDIMENSION jpeg_height
+        # boolean do_fancy_downsampling
+
     jpeg_error_mgr* jpeg_std_error(jpeg_error_mgr*) nogil
+
     void jpeg_create_decompress(jpeg_decompress_struct*) nogil
+
     void jpeg_destroy_decompress(jpeg_decompress_struct*) nogil
+
     int jpeg_read_header(jpeg_decompress_struct*, boolean) nogil
+
     boolean jpeg_start_decompress(jpeg_decompress_struct*) nogil
+
     boolean jpeg_finish_decompress(jpeg_decompress_struct*) nogil
 
     JDIMENSION jpeg_read_scanlines(jpeg_decompress_struct*,
@@ -3232,6 +3276,26 @@ cdef extern from 'jpeglib.h':
     void jpeg_mem_src(jpeg_decompress_struct*,
                       unsigned char*,
                       unsigned long) nogil
+
+    void jpeg_mem_dest(jpeg_compress_struct*,
+                       unsigned char**,
+                       unsigned long*) nogil
+
+    void jpeg_create_compress(jpeg_compress_struct*) nogil
+
+    void jpeg_destroy_compress(jpeg_compress_struct*) nogil
+
+    void jpeg_set_defaults(jpeg_compress_struct*) nogil
+
+    void jpeg_set_quality(jpeg_compress_struct*, int, boolean) nogil
+
+    void jpeg_start_compress(jpeg_compress_struct*, boolean) nogil
+
+    void jpeg_finish_compress(jpeg_compress_struct* cinfo) nogil
+
+    JDIMENSION jpeg_write_scanlines(jpeg_compress_struct*,
+                                    JSAMPARRAY,
+                                    JDIMENSION) nogil
 
 
 ctypedef struct my_error_mgr:
@@ -3248,15 +3312,183 @@ cdef void my_output_message(jpeg_common_struct* cinfo):
     pass
 
 
+def _jcs_colorspace(colorspace):
+    """Return JCS colorspace value from user input."""
+    return {
+        'GRAY': JCS_GRAYSCALE,
+        'GRAYSCALE': JCS_GRAYSCALE,
+        'MINISWHITE': JCS_GRAYSCALE,
+        'MINISBLACK': JCS_GRAYSCALE,
+        'RGB': JCS_RGB,
+        'RGBA': JCS_EXT_RGBA,
+        'CMYK': JCS_CMYK,
+        'YCCK': JCS_YCCK,
+        'YCBCR': JCS_YCbCr,
+        'UNKNOWN': JCS_UNKNOWN,
+        None: JCS_UNKNOWN,
+        JCS_UNKNOWN: JCS_UNKNOWN,
+        JCS_GRAYSCALE: JCS_GRAYSCALE,
+        JCS_RGB: JCS_RGB,
+        JCS_YCbCr: JCS_YCbCr,
+        JCS_CMYK: JCS_CMYK,
+        JCS_YCCK: JCS_YCCK,
+        JCS_EXT_RGB: JCS_EXT_RGB,
+        JCS_EXT_RGBX: JCS_EXT_RGBX,
+        JCS_EXT_BGR: JCS_EXT_BGR,
+        JCS_EXT_BGRX: JCS_EXT_BGRX,
+        JCS_EXT_XBGR: JCS_EXT_XBGR,
+        JCS_EXT_XRGB: JCS_EXT_XRGB,
+        JCS_EXT_RGBA: JCS_EXT_RGBA,
+        JCS_EXT_BGRA: JCS_EXT_BGRA,
+        JCS_EXT_ABGR: JCS_EXT_ABGR,
+        JCS_EXT_ARGB: JCS_EXT_ARGB,
+        JCS_RGB565: JCS_RGB565,
+        }[colorspace]
+
+
+def _jcs_colorspace_samples(colorspace):
+    """Return expected number of samples in colorspace."""
+    three = (3,)
+    four = (4,)
+    return {
+        JCS_UNKNOWN: (1, 2, 3, 4),
+        JCS_GRAYSCALE: (1,),
+        JCS_RGB: three,
+        JCS_YCbCr: three,
+        JCS_CMYK: four,
+        JCS_YCCK: four,
+        JCS_EXT_RGB: three,
+        JCS_EXT_RGBX: four,
+        JCS_EXT_BGR: three,
+        JCS_EXT_BGRX: four,
+        JCS_EXT_XBGR: four,
+        JCS_EXT_XRGB: four,
+        JCS_EXT_RGBA: four,
+        JCS_EXT_BGRA: four,
+        JCS_EXT_ABGR: four,
+        JCS_EXT_ARGB: four,
+        JCS_RGB565: three,
+        }[colorspace]
+
+
 class Jpeg8Error(RuntimeError):
     """JPEG Exceptions."""
     pass
 
 
-def jpeg8_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JPEG 8-bit encoding
-    raise NotImplementedError('jpeg8_encode')
+def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
+                 out=None):
+    """Return JPEG 8-bit image from numpy array.
+
+    """
+    cdef:
+        numpy.ndarray src = data
+        const uint8_t[::1] dst
+        ssize_t dstsize
+        ssize_t srcsize = src.size * src.itemsize
+        ssize_t rowstride = src.strides[0]
+        int samples = <int>src.shape[2] if src.ndim == 3 else 1
+        int quality = _default_level(level, 90, 0, 100)
+        my_error_mgr err
+        jpeg_compress_struct cinfo
+        JSAMPROW rowpointer
+        J_COLOR_SPACE in_color_space = JCS_UNKNOWN
+        J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
+        unsigned long outsize = 0
+        unsigned char* outbuffer = NULL
+        char* msg
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if not (data.dtype == numpy.uint8
+            and data.ndim in (2, 3)
+            and data.size * data.itemsize < 2**31-1  # limit to 2 GB
+            and samples in (1, 3, 4)
+            and data.strides[data.ndim-1] == data.itemsize
+            and (data.ndim == 2 or data.strides[1] == samples*data.itemsize)):
+        raise ValueError('invalid input shape, strides, or dtype')
+
+    if colorspace is None:
+        if samples == 1:
+            in_color_space = JCS_GRAYSCALE
+        elif samples == 3:
+            in_color_space = JCS_RGB
+        elif samples == 4:
+            in_color_space = JCS_CMYK
+        else:
+            in_color_space = JCS_UNKNOWN
+    else:
+        in_color_space = _jcs_colorspace(colorspace)
+        if samples not in _jcs_colorspace_samples(in_color_space):
+            raise ValueError('invalid input shape')
+
+    jpeg_color_space = _jcs_colorspace(outcolorspace)
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None and dstsize > 0:
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    if out is not None:
+        dst = out
+        dstsize = dst.size * dst.itemsize
+        outsize = <unsigned long>dstsize
+        outbuffer = <unsigned char*>&dst[0]
+
+    with nogil:
+        cinfo.err = jpeg_std_error(&err.pub)
+        err.pub.error_exit = my_error_exit
+        err.pub.output_message = my_output_message
+
+        if setjmp(err.setjmp_buffer):
+            jpeg_destroy_compress(&cinfo)
+            msg = err.pub.jpeg_message_table[err.pub.msg_code]
+            with gil:
+                raise Jpeg8Error(msg.decode('utf-8'))
+
+        jpeg_create_compress(&cinfo)
+
+        cinfo.image_height = src.shape[0]
+        cinfo.image_width = src.shape[1]
+        cinfo.input_components = samples
+
+        if in_color_space != JCS_UNKNOWN:
+            cinfo.in_color_space = in_color_space
+        if jpeg_color_space != JCS_UNKNOWN:
+            cinfo.jpeg_color_space = jpeg_color_space
+
+        jpeg_set_defaults(&cinfo)
+        jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
+        jpeg_set_quality(&cinfo, quality, 1)
+        jpeg_start_compress(&cinfo, 1)
+
+        while cinfo.next_scanline < cinfo.image_height:
+            rowpointer = <JSAMPROW>(<char*>src.data
+                                    + cinfo.next_scanline * rowstride)
+            jpeg_write_scanlines(&cinfo, &rowpointer, 1)
+
+        jpeg_finish_compress(&cinfo)
+        jpeg_destroy_compress(&cinfo)
+
+    if out is None or outbuffer != <unsigned char*>&dst[0]:
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(<const char*>outbuffer,
+                                            <ssize_t>outsize)
+        else:
+            out = PyByteArray_FromStringAndSize(<const char*>outbuffer,
+                                                <ssize_t>outsize)
+        free(outbuffer)
+    elif outsize < dstsize:
+        if out_given:
+            out = memoryview(out)[:outsize]
+        else:
+            out = out[:outsize]
+
+    return out
 
 
 def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
@@ -3268,81 +3500,83 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
         numpy.ndarray dst
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
+        unsigned long tablesize = 0
+        ssize_t srcsize = src.size
         ssize_t dstsize
+        ssize_t rowstride
         int numlines
         my_error_mgr err
         jpeg_decompress_struct cinfo
-        JSAMPROW samples
+        JSAMPROW rowpointer
+        J_COLOR_SPACE jpeg_color_space
+        J_COLOR_SPACE out_color_space
+        char *msg
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    cinfo.err = jpeg_std_error(&err.pub)
-    err.pub.error_exit = my_error_exit
-    err.pub.output_message = my_output_message
-    if setjmp(err.setjmp_buffer):
-        jpeg_destroy_decompress(&cinfo)
-        raise Jpeg8Error(
-            err.pub.jpeg_message_table[err.pub.msg_code].decode('utf-8'))
+    if srcsize > 2**31-1:
+        # limit to 2 GB
+        raise ValueError('data too large')
 
-    jpeg_create_decompress(&cinfo)
-    cinfo.do_fancy_upsampling = True
+    jpeg_color_space = _jcs_colorspace(colorspace)
+    if outcolorspace is None:
+        out_color_space = jpeg_color_space
+    else:
+        out_color_space = _jcs_colorspace(outcolorspace)
 
     if tables is not None:
         tables_ = tables
-        jpeg_mem_src(&cinfo, &tables_[0], tables_.size)
-        jpeg_read_header(&cinfo, 0)
-
-    jpeg_mem_src(&cinfo, &src[0], src.size)
-    jpeg_read_header(&cinfo, 1)
-
-    if colorspace is None:
-        pass
-    elif colorspace == 'RGB':
-        cinfo.jpeg_color_space = JCS_RGB
-        cinfo.out_color_space = JCS_RGB
-    elif colorspace == 'YCBCR':
-        cinfo.jpeg_color_space = JCS_YCbCr
-        cinfo.out_color_space = JCS_YCbCr
-    elif colorspace in ('MINISBLACK', 'MINISWHITE', 'GRAYSCALE'):
-        cinfo.jpeg_color_space = JCS_GRAYSCALE
-        cinfo.out_color_space = JCS_GRAYSCALE
-    elif colorspace == 'CMYK':
-        cinfo.jpeg_color_space = JCS_CMYK
-        cinfo.out_color_space = JCS_CMYK
-    elif colorspace == 'YCCK':
-        cinfo.jpeg_color_space = JCS_YCCK
-        cinfo.out_color_space = JCS_YCCK
-
-    if outcolorspace is None:
-        pass
-    elif outcolorspace == 'RGB':
-        cinfo.out_color_space = JCS_RGB
-    elif outcolorspace == 'YCBCR':
-        cinfo.out_color_space = JCS_YCbCr
-    elif outcolorspace in ('MINISBLACK', 'MINISWHITE', 'GRAYSCALE'):
-        cinfo.out_color_space = JCS_GRAYSCALE
-    elif outcolorspace == 'CMYK':
-        cinfo.out_color_space = JCS_CMYK
-    elif outcolorspace == 'YCCK':
-        cinfo.out_color_space = JCS_YCCK
-
-    jpeg_start_decompress(&cinfo)
-
-    shape = cinfo.output_height, cinfo.output_width
-    if cinfo.output_components > 1:
-        shape += cinfo.output_components,
-
-    out = _create_array(out, shape, numpy.uint8)
-    dst = out
-    dstsize = dst.size * dst.itemsize
+        tablesize = tables_.size
 
     with nogil:
+
+        cinfo.err = jpeg_std_error(&err.pub)
+        err.pub.error_exit = my_error_exit
+        err.pub.output_message = my_output_message
+        if setjmp(err.setjmp_buffer):
+            jpeg_destroy_decompress(&cinfo)
+            msg = err.pub.jpeg_message_table[err.pub.msg_code]
+            with gil:
+                raise Jpeg8Error(msg.decode('utf-8'))
+
+        jpeg_create_decompress(&cinfo)
+        cinfo.do_fancy_upsampling = True
+
+        if tablesize > 0:
+            jpeg_mem_src(&cinfo, &tables_[0], tablesize)
+            jpeg_read_header(&cinfo, 0)
+
+        jpeg_mem_src(&cinfo, &src[0], <unsigned long>srcsize)
+        jpeg_read_header(&cinfo, 1)
+
+        if jpeg_color_space != JCS_UNKNOWN:
+            cinfo.jpeg_color_space = jpeg_color_space
+        if out_color_space != JCS_UNKNOWN:
+            cinfo.out_color_space = out_color_space
+
+        jpeg_start_decompress(&cinfo)
+
+        with gil:
+            # if (cinfo.output_components not in
+            #         _jcs_colorspace_samples(out_color_space)):
+            #     raise ValueError('invalid output shape')
+
+            shape = cinfo.output_height, cinfo.output_width
+            if cinfo.output_components > 1:
+                shape += cinfo.output_components,
+
+            out = _create_array(out, shape, numpy.uint8)  # TODO: allow strides
+            dst = out
+            dstsize = dst.size * dst.itemsize
+            rowstride = dst.strides[0]
+
         memset(<void *>dst.data, 0, dstsize)
-        samples = <JSAMPROW>dst.data
+        rowpointer = <JSAMPROW>dst.data
         while cinfo.output_scanline < cinfo.output_height:
-            numlines = jpeg_read_scanlines(&cinfo, <JSAMPARRAY> &samples, 1)
-            samples += numlines * cinfo.output_width * cinfo.output_components
+            jpeg_read_scanlines(&cinfo, &rowpointer, 1)
+            rowpointer += rowstride
+
         jpeg_finish_decompress(&cinfo)
         jpeg_destroy_decompress(&cinfo)
 
@@ -3371,8 +3605,9 @@ except ImportError:
 # JPEG LS #################################################################
 
 # JPEG-LS codecs are implemented in a separate extension module
-# because CharLS-2.x is not commonly available yet.
-# TODO: move implementation here once charls2 is available in Debian
+#   because CharLS-2.x is not commonly available yet.
+# TODO: move implementation here once charls2 is available in Debian and
+#   Python 2.7 is dropped
 
 try:
     from ._jpegls import (jpegls_decode, jpegls_encode, JpegLsError,
@@ -3489,7 +3724,7 @@ def jpegsof3_decode(data, out=None):
         shape = dimY, dimX
 
     if bits > 8:
-        dtype =  numpy.uint16
+        dtype = numpy.uint16
     else:
         dtype = numpy.uint8
 
@@ -3546,10 +3781,18 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
         return jpegls_decode(data, out)
 
 
-def jpeg_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JPEG encoding
-    raise NotImplementedError('jpeg_encode')
+def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
+                out=None):
+    """Encode JPEG.
+
+    """
+    if data.dtype == numpy.uint8:
+        return jpeg8_encode(data, level=level, colorspace=colorspace,
+                            outcolorspace=outcolorspace, out=out)
+    if data.dtype == numpy.uint16:
+        return jpeg12_encode(data, level=level, colorspace=colorspace,
+                             outcolorspace=outcolorspace, out=out)
+    raise ValueError('invalid data dtype %s' % data.dtype)
 
 
 # JPEG 2000 ###################################################################
@@ -3575,21 +3818,21 @@ cdef extern from 'openjpeg.h':
     ctypedef size_t OPJ_SIZE_T
 
     ctypedef enum OPJ_CODEC_FORMAT:
-        OPJ_CODEC_UNKNOWN = -1
-        OPJ_CODEC_J2K = 0
-        OPJ_CODEC_JPT = 1
-        OPJ_CODEC_JP2 = 2
-        OPJ_CODEC_JPP = 3
-        OPJ_CODEC_JPX = 4
+        OPJ_CODEC_UNKNOWN
+        OPJ_CODEC_J2K
+        OPJ_CODEC_JPT
+        OPJ_CODEC_JP2
+        OPJ_CODEC_JPP
+        OPJ_CODEC_JPX
 
     ctypedef enum OPJ_COLOR_SPACE:
-        OPJ_CLRSPC_UNKNOWN = -1
-        OPJ_CLRSPC_UNSPECIFIED = 0
-        OPJ_CLRSPC_SRGB = 1
-        OPJ_CLRSPC_GRAY = 2
-        OPJ_CLRSPC_SYCC = 3
-        OPJ_CLRSPC_EYCC = 4
-        OPJ_CLRSPC_CMYK = 5
+        OPJ_CLRSPC_UNKNOWN
+        OPJ_CLRSPC_UNSPECIFIED
+        OPJ_CLRSPC_SRGB
+        OPJ_CLRSPC_GRAY
+        OPJ_CLRSPC_SYCC
+        OPJ_CLRSPC_EYCC
+        OPJ_CLRSPC_CMYK
 
     ctypedef struct opj_codec_t:
         pass
