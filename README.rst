@@ -16,7 +16,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.10.30
 
 Requirements
 ------------
@@ -74,6 +74,9 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.10.30
+    Add JPEG 8-bit and 12-bit encoders.
+    Improve color space handling in JPEG codecs.
 2018.10.28
     Rename jpeg0xc3 to jpegsof3.
     Add JPEG LS codec via libcharls.
