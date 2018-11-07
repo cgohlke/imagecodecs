@@ -44,11 +44,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.30
+:Version: 2018.11.6
 
 """
 
-__version__ = '2018.10.30'
+__version__ = '2018.11.6'
 
 import numpy
 
@@ -263,7 +263,7 @@ def _jcs_colorspace(colorspace):
         JCS_EXT_ABGR: JCS_EXT_ABGR,
         JCS_EXT_ARGB: JCS_EXT_ARGB,
         JCS_RGB565: JCS_RGB565,
-        }[colorspace]
+        }.get(colorspace, JCS_UNKNOWN)
 
 
 def _jcs_colorspace_samples(colorspace):
