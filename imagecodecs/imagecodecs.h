@@ -3,7 +3,7 @@
 #ifndef ICD_H
 #define ICD_H
 
-#define ICD_VERSION "2018.10.10"
+#define ICD_VERSION "2018.11.8"
 
 #include <stdint.h>
 
@@ -53,7 +53,8 @@ typedef SSIZE_T ssize_t;
 
 #define ICD_LZW_INVALID -10
 #define ICD_LZW_NOTIMPLEMENTED -11
-#define ICD_LZW_BUFFER_INSUFFICIENT -12
+#define ICD_LZW_BUFFER_TOO_SMALL -12
+#define ICD_LZW_TABLE_TOO_SMALL -13
 
 /* Function declarations */
 
