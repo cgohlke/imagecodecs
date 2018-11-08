@@ -983,7 +983,8 @@ return dstsize;
 
 /* Section 13: LZW Compression. TIFF Revision 6.0 Final. June 3, 1992 */
 
-#define LZW_TABLESIZE 4096
+/* LZW table size is 4098 + 1024 buffer for old style */
+#define LZW_TABLESIZE 5120
 #define LZW_BUFFERSIZE 1048576  /* 1 MB */
 #define LZW_CLEAR 256
 #define LZW_EOI 257
@@ -1053,7 +1054,8 @@ void icd_lzw_del(icd_lzw_handle_t *handle)
 }
 
 
-#define LZW_GET_NEXT_CODE \
+/* MSB: TIFF and PDF */
+#define LZW_GET_NEXT_CODE_MSB \
 {  \
     const uint8_t* bytes = (uint8_t*)((void*)(src + (bitcount >> 3)));  \
     code = (uint32_t) bytes[0];  \
@@ -1066,6 +1068,23 @@ void icd_lzw_del(icd_lzw_handle_t *handle)
     code <<= (uint32_t)(bitcount % 8);  \
     code &= mask;  \
     code >>= shr;  \
+    bitcount += bitw;  \
+}
+
+
+/* LSB: GIF and old-style TIFF LZW */
+#define LZW_GET_NEXT_CODE_LSB \
+{  \
+    const uint8_t* bytes = (uint8_t*)((void*)(src + (bitcount >> 3)));  \
+    code = 0;  \
+    if ((bitcount + 24) <= srcbitsize)  \
+        code = bytes[2];  \
+        code <<= 8;  \
+    code |= bytes[1];  \
+    code <<= 8;  \
+    code |= bytes[0];  \
+    code >>= (uint32_t)(bitcount % 8);  \
+    code &= mask;  \
     bitcount += bitw;  \
 }
 
@@ -1089,6 +1108,7 @@ ssize_t icd_lzw_size(
     ssize_t buffersize = 0;
     const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
     ssize_t i;
+    int msb = 1;  /* bit ordering of codes */
 
     if ((handle == NULL) || (src == NULL) || (srcsize < 2)) {
         return ICD_VALUE_ERROR;
@@ -1097,13 +1117,11 @@ ssize_t icd_lzw_size(
         return 0;
     }
 
-    if (*src == 0) {
-        /* TODO: old style LZW codes are written in reversed bit order */
-        /* cannot decompress old-style LZW */
-        return ICD_LZW_NOTIMPLEMENTED;
+    if ((*src == 0) && (*(src + 1) & 1)) {
+        msb = 0;
+        mask = 511;
     }
-
-    if ((*src != 128) || ((*(src + 1) & 128))) {
+    else if ((*src != 128) || ((*(src + 1) & 128))) {
         /* compressed string must begin with CLEAR code */
         return ICD_LZW_INVALID;
     }
@@ -1114,7 +1132,12 @@ ssize_t icd_lzw_size(
 
     while ((bitcount + bitw) <= srcbitsize) {
 
-        LZW_GET_NEXT_CODE
+        if (msb) {
+            LZW_GET_NEXT_CODE_MSB
+        }
+        else {
+            LZW_GET_NEXT_CODE_LSB
+        }        
 
         if (code == LZW_EOI) break;
 
@@ -1123,18 +1146,28 @@ ssize_t icd_lzw_size(
             table_size = 258;
             bitw = 9;
             shr = 23;
-            mask = 4286578688u;
+            
             if (buffersize > buffer_size)
                 buffer_size = buffersize;
             buffersize = 0;
 
-            do { LZW_GET_NEXT_CODE } while (code == LZW_CLEAR);
+            if (msb) {
+                mask = 4286578688u;
+                do { LZW_GET_NEXT_CODE_MSB } while (code == LZW_CLEAR);
+            }
+            else {
+                mask = 511;
+                do { LZW_GET_NEXT_CODE_LSB } while (code == LZW_CLEAR);
+            }
 
             if (code == LZW_EOI) break;
 
             dstsize++;
         }
         else {
+            if (table_size >= LZW_TABLESIZE) {
+                return ICD_LZW_TABLE_TOO_SMALL;
+            }
             if (code < table_size) {
                 /* code is in table */
                 dstsize += table[code].len;
@@ -1147,16 +1180,35 @@ ssize_t icd_lzw_size(
             table[table_size++].len = table[oldcode].len + 1;
 
             /* increase bit-width if necessary */
-            switch (table_size)
-            {
-            case 511:
-                bitw = 10; shr = 22; mask = 4290772992u;
-                break;
-            case 1023:
-                bitw = 11; shr = 21; mask = 4292870144u;
-                break;
-            case 2047:
-                bitw = 12; shr = 20; mask = 4293918720u;
+            if (msb) {
+                /* early change */
+                switch (table_size)
+                {
+                case 511:
+                    bitw = 10; shr = 22; mask = 4290772992u;
+                    break;
+                case 1023:
+                    bitw = 11; shr = 21; mask = 4292870144u;
+                    break;
+                case 2047:
+                    bitw = 12; shr = 20; mask = 4293918720u;
+                }
+            }
+            else {
+                /* late change */
+                switch (table_size)
+                {
+                case 512:
+                    bitw = 10; mask = 1023;
+                    break;
+                case 1024:
+                    bitw = 11; mask = 2047;
+                    break;
+                case 2048:
+                    bitw = 12; mask = 4095;
+                    break;
+                /* continue with 12-bit for table_size >= 4096 */
+                }
             }
         }
         oldcode = code;
@@ -1195,6 +1247,7 @@ ssize_t icd_lzw_decode(
     ssize_t remaining = dstsize;
     const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
     ssize_t i;
+    int msb = 1;  /* bit ordering of codes */
 
     if ((handle == NULL) ||
         (src == NULL) || (srcsize < 0) ||
@@ -1205,13 +1258,11 @@ ssize_t icd_lzw_decode(
         return 0;
     }
 
-    if (*src == 0) {
-        /* TODO: old style LZW codes are written in reversed bit order */
-        /* cannot decompress old-style LZW */
-        return ICD_LZW_NOTIMPLEMENTED;
-    }
-
-    if ((*src != 128) || ((*(src + 1) & 128))) {
+    if ((*src == 0) && (*(src + 1) & 1)) {
+        msb = 0;
+        mask = 511;
+    } 
+    else if ((*src != 128) || ((*(src + 1) & 128))) {
         /* compressed string must begin with CLEAR code */
         return ICD_LZW_INVALID;
     }
@@ -1229,7 +1280,12 @@ ssize_t icd_lzw_decode(
 
     while (((bitcount + bitw) <= srcbitsize) && (remaining > 0)) {
 
-        LZW_GET_NEXT_CODE
+        if (msb) {
+            LZW_GET_NEXT_CODE_MSB
+        }
+        else {
+            LZW_GET_NEXT_CODE_LSB
+        }
 
         if (code == LZW_EOI) break;
 
@@ -1238,27 +1294,37 @@ ssize_t icd_lzw_decode(
             table_size = 258;
             bitw = 9;
             shr = 23;
-            mask = 4286578688u;
+            
             buffer = handle->buffer;
             buffersize = handle->buffersize;
 
-            do { LZW_GET_NEXT_CODE } while (code == LZW_CLEAR);
+            if (msb) {
+                mask = 4286578688u;
+                do { LZW_GET_NEXT_CODE_MSB } while (code == LZW_CLEAR);
+            }
+            else {
+                mask = 511;
+                do { LZW_GET_NEXT_CODE_LSB } while (code == LZW_CLEAR);
+            }
 
             if (code == LZW_EOI) break;
 
-            if (--remaining <= 0) break;
+            if (--remaining < 0) break;
             *dst++ = code;
         }
         else {
+            if (table_size >= LZW_TABLESIZE) {
+                return ICD_LZW_TABLE_TOO_SMALL;
+            }
             if (code < table_size) {
                 /* code is in table */
                 buffersize -= table[oldcode].len + 1;
                 if (buffersize < 0) {
-                    return ICD_LZW_BUFFER_INSUFFICIENT;
+                    return ICD_LZW_BUFFER_TOO_SMALL;
                 }
                 /* decompressed.append(table[code]) */
                 if (code < 256) {
-                    if (--remaining <= 0) break;
+                    if (--remaining < 0) break;
                     *dst++ = code;
                 }
                 else {
@@ -1297,9 +1363,9 @@ ssize_t icd_lzw_decode(
                 /* table.append(outstring) */
                 table[table_size].buf = dst;
                 if (oldcode < 256) {
-                    if (--remaining <= 0) break;
+                    if (--remaining < 0) break;
                     *dst++ = oldcode;
-                    if (--remaining <= 0) break;
+                    if (--remaining < 0) break;
                     *dst++ = oldcode;
                 }
                 else {
@@ -1312,23 +1378,41 @@ ssize_t icd_lzw_decode(
                     for (i = 0; i < len; i++) {
                         *dst++ = *pstr++;
                     }
-                    if (--remaining <= 0) break;
+                    if (--remaining < 0) break;
                     *dst++ = table[oldcode].buf[0];
                 }
             }
             table[table_size++].len = table[oldcode].len + 1;
 
             /* increase bit-width if necessary */
-            switch (table_size)
-            {
-            case 511:
-                bitw = 10; shr = 22; mask = 4290772992u;
-                break;
-            case 1023:
-                bitw = 11; shr = 21; mask = 4292870144u;
-                break;
-            case 2047:
-                bitw = 12; shr = 20; mask = 4293918720u;
+            if (msb) {
+                /* early change */
+                switch (table_size)
+                {
+                case 511:
+                    bitw = 10; shr = 22; mask = 4290772992u;
+                    break;
+                case 1023:
+                    bitw = 11; shr = 21; mask = 4292870144u;
+                    break;
+                case 2047:
+                    bitw = 12; shr = 20; mask = 4293918720u;
+                }
+            }
+            else {
+                /* late change */
+                switch (table_size)
+                {
+                case 512:
+                    bitw = 10; mask = 1023;
+                    break;
+                case 1024:
+                    bitw = 11; mask = 2047;
+                    break;
+                case 2048:
+                    bitw = 12; mask = 4095;
+                    break;
+                }
             }
         }
         oldcode = code;
