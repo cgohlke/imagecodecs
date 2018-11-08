@@ -43,7 +43,7 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.30
+:Version: 2018.11.8
 
 Revisions
 ---------
@@ -74,7 +74,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.10.30.py'
+__version__ = '2018.11.8.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -213,6 +213,9 @@ def delta_encode(data, axis=-1, out=None):
 
 def delta_decode(data, axis=-1, out=None):
     """Decode Delta."""
+    if out is not None and not out.flags.writeable:
+        out = None
+
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
         return numpy.cumsum(data, axis=0, dtype='u1', out=out).tobytes()
@@ -415,8 +418,9 @@ def lzw_decode(encoded, buffersize=0, out=None):
 
     The strip must begin with a CLEAR code and end with an EOI code.
 
-    This implementation of the LZW decoding algorithm is described in (1) and
-    is not compatible with old style LZW compressed files like quad-lzw.tif.
+    This implementation of the LZW decoding algorithm is described in TIFF v6
+    and is not compatible with old style LZW compressed files like
+    quad-lzw.tif.
 
     >>> lzw_decode(b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
     ...            b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02')
