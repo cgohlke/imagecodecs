@@ -40,7 +40,7 @@
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions
-for use in the tifffile, czifile, and other Python scientific imaging modules.
+for use in the tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
@@ -53,7 +53,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.30
+:Version: 2018.11.8
 
 Requirements
 ------------
@@ -111,6 +111,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.11.8
+    Pass 1323 tests.
+    Decode LSB style LZW.
+    Fix last byte not written by LZW decoder (bug fix).
+    Permit unknown colorspaces in JPEC codecs (e.g. CFA used in TIFF).
 2018.10.30
     Add JPEG 8-bit and 12-bit encoders.
     Improve color space handling in JPEG codecs.
@@ -156,7 +161,7 @@ Revisions
 
 """
 
-__version__ = '2018.10.30'
+__version__ = '2018.11.8'
 
 import numpy
 
@@ -196,7 +201,8 @@ cdef extern from 'imagecodecs.h':
     int ICD_VALUE_ERROR
     int ICD_LZW_INVALID
     int ICD_LZW_NOTIMPLEMENTED
-    int ICD_LZW_BUFFER_INSUFFICIENT
+    int ICD_LZW_BUFFER_TOO_SMALL
+    int ICD_LZW_TABLE_TOO_SMALL
 
 
 class IcdError(RuntimeError):
@@ -212,7 +218,8 @@ class IcdError(RuntimeError):
             ICD_VALUE_ERROR: 'ICD_VALUE_ERROR',
             ICD_LZW_INVALID: 'ICD_LZW_INVALID',
             ICD_LZW_NOTIMPLEMENTED: 'ICD_LZW_NOTIMPLEMENTED',
-            ICD_LZW_BUFFER_INSUFFICIENT: 'ICD_LZW_BUFFER_INSUFFICIENT',
+            ICD_LZW_BUFFER_TOO_SMALL: 'ICD_LZW_BUFFER_TOO_SMALL',
+            ICD_LZW_TABLE_TOO_SMALL: 'ICD_LZW_TABLE_TOO_SMALL',
             }.get(err, 'unknown error % i' % err)
         msg = '%s returned %s' % (func, msg)
         RuntimeError.__init__(self, msg)
@@ -2199,303 +2206,6 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
     return out
 
 
-# JPEG XR #####################################################################
-
-cdef extern from 'windowsmediaphoto.h':
-    int WMP_errSuccess
-    int WMP_errFail
-    int WMP_errNotYetImplemented
-    int WMP_errAbstractMethod
-    int WMP_errOutOfMemory
-    int WMP_errFileIO
-    int WMP_errBufferOverflow
-    int WMP_errInvalidParameter
-    int WMP_errInvalidArgument
-    int WMP_errUnsupportedFormat
-    int WMP_errIncorrectCodecVersion
-    int WMP_errIndexNotFound
-    int WMP_errOutOfSequence
-    int WMP_errNotInitialized
-    int WMP_errMustBeMultipleOf16LinesUntilLastCall
-    int WMP_errPlanarAlphaBandedEncRequiresTempFile
-    int WMP_errAlphaModeCannotBeTranscoded
-    int WMP_errIncorrectCodecSubVersion
-
-    ctypedef long ERR
-    ctypedef int I32
-    ctypedef int PixelI
-    ctypedef unsigned char U8
-    ctypedef unsigned int U32
-
-    ctypedef struct CWMIStrCodecParam:
-        U8 uAlphaMode
-
-    cdef struct WMPStream:
-        pass
-
-    ERR CreateWS_Memory(WMPStream** ppWS, void* pv, size_t cb) nogil
-
-
-cdef extern from 'guiddef.h':
-    ctypedef struct GUID:
-        pass
-
-    int IsEqualGUID(GUID*, GUID*)
-
-
-cdef extern from 'JXRGlue.h':
-    int WMP_SDK_VERSION
-    int PK_SDK_VERSION
-
-    ctypedef U32 PKIID
-    ctypedef GUID PKPixelFormatGUID
-
-    GUID GUID_PKPixelFormat8bppGray
-    GUID GUID_PKPixelFormat16bppGray
-    GUID GUID_PKPixelFormat32bppGrayFloat
-    GUID GUID_PKPixelFormat24bppBGR
-    GUID GUID_PKPixelFormat24bppRGB
-    GUID GUID_PKPixelFormat48bppRGB
-    GUID GUID_PKPixelFormat128bppRGBFloat
-    GUID GUID_PKPixelFormat32bppRGBA
-    GUID GUID_PKPixelFormat32bppBGRA
-    GUID GUID_PKPixelFormat64bppRGBA
-    GUID GUID_PKPixelFormat128bppRGBAFloat
-
-    ctypedef void(*initialize_ptr)(PKImageDecode*, WMPStream*) nogil
-
-    ctypedef struct WMPstruct:
-        CWMIStrCodecParam wmiSCP
-
-    ctypedef struct PKImageDecode:
-        int fStreamOwner
-        initialize_ptr Initialize
-        WMPstruct WMP
-
-    ctypedef struct PKFactory:
-        pass
-
-    ctypedef struct PKCodecFactory:
-        pass
-
-    ctypedef struct PKImageEncode:
-        pass
-
-    ctypedef struct PKFormatConverter:
-        pass
-
-    ctypedef struct PKRect:
-        I32 X, Y, Width, Height
-
-    ERR PKCreateCodecFactory(PKCodecFactory**, U32) nogil
-    ERR PKCreateCodecFactory_Release(PKCodecFactory**) nogil
-    ERR PKCodecFactory_CreateCodec(const PKIID* iid, void** ppv) nogil
-    ERR PKCodecFactory_CreateFormatConverter(PKFormatConverter**) nogil
-    ERR PKImageDecode_GetSize(PKImageDecode*, I32*, I32*) nogil
-    ERR PKImageDecode_Release(PKImageDecode**) nogil
-    ERR PKImageDecode_GetPixelFormat(PKImageDecode*, PKPixelFormatGUID*) nogil
-    ERR PKFormatConverter_Release(PKFormatConverter**) nogil
-
-    ERR PKFormatConverter_Initialize(PKFormatConverter*,
-                                     PKImageDecode*,
-                                     char*,
-                                     PKPixelFormatGUID) nogil
-
-    ERR PKFormatConverter_Copy(PKFormatConverter*,
-                               const PKRect*,
-                               U8*,
-                               U32) nogil
-
-    ERR PKFormatConverter_Convert(PKFormatConverter*,
-                                  const PKRect*,
-                                  U8*,
-                                  U32) nogil
-
-    ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
-
-
-class WmpError(RuntimeError):
-    """WMP Exceptions."""
-    def __init__(self, func, err):
-        msg = {
-            WMP_errFail: 'WMP_errFail',
-            WMP_errNotYetImplemented: 'WMP_errNotYetImplemented',
-            WMP_errAbstractMethod: 'WMP_errAbstractMethod',
-            WMP_errOutOfMemory: 'WMP_errOutOfMemory',
-            WMP_errFileIO: 'WMP_errFileIO',
-            WMP_errBufferOverflow: 'WMP_errBufferOverflow',
-            WMP_errInvalidParameter: 'WMP_errInvalidParameter',
-            WMP_errInvalidArgument: 'WMP_errInvalidArgument',
-            WMP_errUnsupportedFormat: 'WMP_errUnsupportedFormat',
-            WMP_errIncorrectCodecVersion: 'WMP_errIncorrectCodecVersion',
-            WMP_errIndexNotFound: 'WMP_errIndexNotFound',
-            WMP_errOutOfSequence: 'WMP_errOutOfSequence',
-            WMP_errNotInitialized: 'WMP_errNotInitialized',
-            WMP_errAlphaModeCannotBeTranscoded:
-                'WMP_errAlphaModeCannotBeTranscoded',
-            WMP_errIncorrectCodecSubVersion:
-                'WMP_errIncorrectCodecSubVersion',
-            WMP_errMustBeMultipleOf16LinesUntilLastCall:
-                'WMP_errMustBeMultipleOf16LinesUntilLastCall',
-            WMP_errPlanarAlphaBandedEncRequiresTempFile:
-                'WMP_errPlanarAlphaBandedEncRequiresTempFile',
-            }.get(err, 'unknown error % i' % err)
-        msg = '%s returned %s' % (func, msg)
-        RuntimeError.__init__(self, msg)
-
-
-cdef ERR PKCodecFactory_CreateDecoderFromBytes(
-    void* bytes,
-    size_t len,
-    PKImageDecode** ppDecoder) nogil:
-    """ """
-    cdef:
-        ERR err
-        char *pExt = NULL
-        const PKIID* pIID = NULL
-        WMPStream* pStream = NULL
-        PKImageDecode* pDecoder = NULL
-
-    # get decode PKIID
-    err = GetImageDecodeIID('.jxr', &pIID)
-    if err != WMP_errSuccess:
-        return err
-    # create stream
-    CreateWS_Memory(&pStream, bytes, len)
-    if err != WMP_errSuccess:
-        return err
-    # create decoder
-    err = PKCodecFactory_CreateCodec(pIID, <void **>ppDecoder)
-    if err != WMP_errSuccess:
-        return err
-    # attach stream to decoder
-    pDecoder = ppDecoder[0]
-    pDecoder.Initialize(pDecoder, pStream)
-    pDecoder.fStreamOwner = 1
-    return WMP_errSuccess
-
-
-def jxr_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JXR encoding
-    raise NotImplementedError('jxr_encode')
-
-
-def jxr_decode(data, out=None):
-    """Decode JPEG XR image to numpy array.
-
-    """
-    cdef:
-        numpy.ndarray dst
-        const uint8_t[::1] src = data
-        PKImageDecode* decoder = NULL
-        PKFormatConverter* converter = NULL
-        PKPixelFormatGUID pixel_format
-        PKRect rect
-        I32 width
-        I32 height
-        U32 stride
-        ERR err
-        ssize_t dstsize
-
-    if data is out:
-        raise ValueError('cannot decode in-place')
-
-    try:
-        err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0], src.size,
-                                                    &decoder)
-        if err:
-            raise WmpError('PKCodecFactory_CreateDecoderFromBytes', err)
-
-        err = PKImageDecode_GetSize(decoder, &width, &height)
-        if err:
-            raise WmpError('PKImageDecode_GetSize', err)
-
-        err = PKImageDecode_GetPixelFormat(decoder, &pixel_format)
-        if err:
-            raise WmpError('PKImageDecode_GetPixelFormat', err)
-
-        if IsEqualGUID(&pixel_format, &GUID_PKPixelFormat8bppGray):
-            dtype = numpy.uint8
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat16bppGray):
-            dtype = numpy.uint16
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppGrayFloat):
-            dtype = numpy.float32
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppBGR):
-            dtype = numpy.uint8
-            samples = 3
-            pixel_format = GUID_PKPixelFormat24bppRGB
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppRGB):
-            dtype = numpy.uint8
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat48bppRGB):
-            dtype = numpy.uint16
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBFloat):
-            dtype = numpy.float32
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppBGRA):
-            dtype = numpy.uint8
-            samples = 4
-            pixel_format = GUID_PKPixelFormat32bppRGBA
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppRGBA):
-            dtype = numpy.uint8
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat64bppRGBA):
-            dtype = numpy.uint16
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBAFloat):
-            dtype = numpy.float32
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        else:
-            raise ValueError('unknown pixel format')
-
-        err = PKCodecFactory_CreateFormatConverter(&converter)
-        if err:
-            raise WmpError('PKCodecFactory_CreateFormatConverter', err)
-
-        err = PKFormatConverter_Initialize(converter, decoder, NULL,
-                                           pixel_format)
-        if err:
-            raise WmpError('PKFormatConverter_Initialize', err)
-
-        shape = height, width
-        if samples > 1:
-            shape += samples,
-
-        out = _create_array(out, shape, dtype)
-        dst = out
-        rect.X = 0
-        rect.Y = 0
-        rect.Width = <I32>dst.shape[1]
-        rect.Height = <I32>dst.shape[0]
-        stride = <U32>dst.strides[0]
-        dstsize = dst.size * dst.itemsize
-
-        # TODO: check alignment issues
-        with nogil:
-            memset(<void *>dst.data, 0, dstsize)  # TODO: still necessary?
-            err = PKFormatConverter_Copy(converter, &rect, <U8*>dst.data,
-                                         stride)
-        if err:
-            raise WmpError('PKFormatConverter_Copy', err)
-
-    finally:
-        if converter != NULL:
-            PKFormatConverter_Release(&converter)
-        if decoder != NULL:
-            PKImageDecode_Release(&decoder)
-
-    return out
-
-
 # PNG #########################################################################
 
 cdef extern from 'png.h':
@@ -3343,7 +3053,7 @@ def _jcs_colorspace(colorspace):
         JCS_EXT_ABGR: JCS_EXT_ABGR,
         JCS_EXT_ARGB: JCS_EXT_ARGB,
         JCS_RGB565: JCS_RGB565,
-        }[colorspace]
+        }.get(colorspace, JCS_UNKNOWN)
 
 
 def _jcs_colorspace_samples(colorspace):
@@ -3774,7 +3484,7 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             return jpegls_decode(data, out)
         except Exception:
             return jpegsof3_decode(data, out)
-    except (Jpeg8Error, Jpeg12Error) as exception:
+    except (Jpeg8Error, Jpeg12Error, NotImplementedError) as exception:
         msg = str(exception)
         if 'SOF type' in msg:
             return jpegsof3_decode(data, out)
@@ -4006,7 +3716,8 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
 
 cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) nogil:
     """opj_stream_set_seek_function."""
-    cdef opj_memstream_t* memstream = <opj_memstream_t*>data
+    cdef:
+        opj_memstream_t* memstream = <opj_memstream_t*>data
     if size < 0 or size >= <OPJ_OFF_T>memstream.size:
         return OPJ_FALSE
     memstream.offset = <OPJ_SIZE_T>size
@@ -4035,8 +3746,8 @@ cdef void opj_mem_nop(void* data) nogil:
 cdef opj_stream_t* opj_memstream_create(opj_memstream_t* memstream,
                                         OPJ_BOOL isinput) nogil:
     """Return OPJ stream using memory as input or output."""
-
-    cdef opj_stream_t* stream = opj_stream_default_create(isinput)
+    cdef:
+        opj_stream_t* stream = opj_stream_default_create(isinput)
     if stream == NULL:
         return NULL
     if isinput:
@@ -4268,6 +3979,312 @@ def j2k_decode(data, verbose=0, out=None):
             opj_destroy_codec(codec)
         if image != NULL:
             opj_image_destroy(image)
+
+    return out
+
+
+# JPEG XR #####################################################################
+
+cdef extern from 'windowsmediaphoto.h':
+    int WMP_errSuccess
+    int WMP_errFail
+    int WMP_errNotYetImplemented
+    int WMP_errAbstractMethod
+    int WMP_errOutOfMemory
+    int WMP_errFileIO
+    int WMP_errBufferOverflow
+    int WMP_errInvalidParameter
+    int WMP_errInvalidArgument
+    int WMP_errUnsupportedFormat
+    int WMP_errIncorrectCodecVersion
+    int WMP_errIndexNotFound
+    int WMP_errOutOfSequence
+    int WMP_errNotInitialized
+    int WMP_errMustBeMultipleOf16LinesUntilLastCall
+    int WMP_errPlanarAlphaBandedEncRequiresTempFile
+    int WMP_errAlphaModeCannotBeTranscoded
+    int WMP_errIncorrectCodecSubVersion
+
+    ctypedef long ERR
+    ctypedef int I32
+    ctypedef int PixelI
+    ctypedef unsigned char U8
+    ctypedef unsigned int U32
+
+    ctypedef struct CWMIStrCodecParam:
+        U8 uAlphaMode
+
+    cdef struct WMPStream:
+        pass
+
+    ERR CreateWS_Memory(WMPStream** ppWS, void* pv, size_t cb) nogil
+
+
+cdef extern from 'guiddef.h':
+    ctypedef struct GUID:
+        pass
+
+    int IsEqualGUID(GUID*, GUID*)
+
+
+cdef extern from 'JXRGlue.h':
+    int WMP_SDK_VERSION
+    int PK_SDK_VERSION
+
+    ctypedef U32 PKIID
+    ctypedef GUID PKPixelFormatGUID
+
+    GUID GUID_PKPixelFormat8bppGray
+    GUID GUID_PKPixelFormat16bppGray
+    GUID GUID_PKPixelFormat32bppGrayFloat
+    GUID GUID_PKPixelFormat24bppBGR
+    GUID GUID_PKPixelFormat24bppRGB
+    GUID GUID_PKPixelFormat48bppRGB
+    GUID GUID_PKPixelFormat128bppRGBFloat
+    GUID GUID_PKPixelFormat32bppRGBA
+    GUID GUID_PKPixelFormat32bppBGRA
+    GUID GUID_PKPixelFormat64bppRGBA
+    GUID GUID_PKPixelFormat128bppRGBAFloat
+
+    ctypedef void(*initialize_decode)(PKImageDecode*, WMPStream*) nogil
+
+    ctypedef void(*initialize_encode)(PKImageEncode*,
+                                      WMPStream*,
+                                      void*,
+                                      size_t) nogil
+
+    ctypedef struct WMPstruct:
+        CWMIStrCodecParam wmiSCP
+
+    ctypedef struct PKImageDecode:
+        int fStreamOwner
+        initialize_decode Initialize
+        WMPstruct WMP
+
+    ctypedef struct PKImageEncode:
+        initialize_encode Initialize
+        WMPstruct WMP
+
+    ctypedef struct PKFactory:
+        pass
+
+    ctypedef struct PKCodecFactory:
+        pass
+
+    ctypedef struct PKImageEncode:
+        pass
+
+    ctypedef struct PKFormatConverter:
+        pass
+
+    ctypedef struct PKRect:
+        I32 X, Y, Width, Height
+
+    ERR PKCreateCodecFactory(PKCodecFactory**, U32) nogil
+    ERR PKCreateCodecFactory_Release(PKCodecFactory**) nogil
+    ERR PKCodecFactory_CreateCodec(const PKIID* iid, void** ppv) nogil
+    ERR PKCodecFactory_CreateFormatConverter(PKFormatConverter**) nogil
+    ERR PKImageDecode_GetSize(PKImageDecode*, I32*, I32*) nogil
+    ERR PKImageDecode_Release(PKImageDecode**) nogil
+    ERR PKImageDecode_GetPixelFormat(PKImageDecode*, PKPixelFormatGUID*) nogil
+    ERR PKFormatConverter_Release(PKFormatConverter**) nogil
+
+    ERR PKFormatConverter_Initialize(PKFormatConverter*,
+                                     PKImageDecode*,
+                                     char*,
+                                     PKPixelFormatGUID) nogil
+
+    ERR PKFormatConverter_Copy(PKFormatConverter*,
+                               const PKRect*,
+                               U8*,
+                               U32) nogil
+
+    ERR PKFormatConverter_Convert(PKFormatConverter*,
+                                  const PKRect*,
+                                  U8*,
+                                  U32) nogil
+
+    ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
+
+
+class WmpError(RuntimeError):
+    """WMP Exceptions."""
+    def __init__(self, func, err):
+        msg = {
+            WMP_errFail: 'WMP_errFail',
+            WMP_errNotYetImplemented: 'WMP_errNotYetImplemented',
+            WMP_errAbstractMethod: 'WMP_errAbstractMethod',
+            WMP_errOutOfMemory: 'WMP_errOutOfMemory',
+            WMP_errFileIO: 'WMP_errFileIO',
+            WMP_errBufferOverflow: 'WMP_errBufferOverflow',
+            WMP_errInvalidParameter: 'WMP_errInvalidParameter',
+            WMP_errInvalidArgument: 'WMP_errInvalidArgument',
+            WMP_errUnsupportedFormat: 'WMP_errUnsupportedFormat',
+            WMP_errIncorrectCodecVersion: 'WMP_errIncorrectCodecVersion',
+            WMP_errIndexNotFound: 'WMP_errIndexNotFound',
+            WMP_errOutOfSequence: 'WMP_errOutOfSequence',
+            WMP_errNotInitialized: 'WMP_errNotInitialized',
+            WMP_errAlphaModeCannotBeTranscoded:
+                'WMP_errAlphaModeCannotBeTranscoded',
+            WMP_errIncorrectCodecSubVersion:
+                'WMP_errIncorrectCodecSubVersion',
+            WMP_errMustBeMultipleOf16LinesUntilLastCall:
+                'WMP_errMustBeMultipleOf16LinesUntilLastCall',
+            WMP_errPlanarAlphaBandedEncRequiresTempFile:
+                'WMP_errPlanarAlphaBandedEncRequiresTempFile',
+            }.get(err, 'unknown error % i' % err)
+        msg = '%s returned %s' % (func, msg)
+        RuntimeError.__init__(self, msg)
+
+
+cdef ERR PKCodecFactory_CreateDecoderFromBytes(
+    void* bytes,
+    size_t len,
+    PKImageDecode** ppDecoder) nogil:
+    """ """
+    cdef:
+        ERR err
+        char *pExt = NULL
+        const PKIID* pIID = NULL
+        WMPStream* pStream = NULL
+        PKImageDecode* pDecoder = NULL
+
+    # get decode PKIID
+    err = GetImageDecodeIID('.jxr', &pIID)
+    if err != WMP_errSuccess:
+        return err
+    # create stream
+    CreateWS_Memory(&pStream, bytes, len)
+    if err != WMP_errSuccess:
+        return err
+    # create decoder
+    err = PKCodecFactory_CreateCodec(pIID, <void **>ppDecoder)
+    if err != WMP_errSuccess:
+        return err
+    # attach stream to decoder
+    pDecoder = ppDecoder[0]
+    pDecoder.Initialize(pDecoder, pStream)
+    pDecoder.fStreamOwner = 1
+    return WMP_errSuccess
+
+
+def jxr_encode(*args, **kwargs):
+    """Not implemented."""
+    # TODO: JXR encoding
+    raise NotImplementedError('jxr_encode')
+
+
+def jxr_decode(data, out=None):
+    """Decode JPEG XR image to numpy array.
+
+    """
+    cdef:
+        numpy.ndarray dst
+        const uint8_t[::1] src = data
+        PKImageDecode* decoder = NULL
+        PKFormatConverter* converter = NULL
+        PKPixelFormatGUID pixel_format
+        PKRect rect
+        I32 width
+        I32 height
+        U32 stride
+        ERR err
+        ssize_t dstsize
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    try:
+        err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0], src.size,
+                                                    &decoder)
+        if err:
+            raise WmpError('PKCodecFactory_CreateDecoderFromBytes', err)
+
+        err = PKImageDecode_GetSize(decoder, &width, &height)
+        if err:
+            raise WmpError('PKImageDecode_GetSize', err)
+
+        err = PKImageDecode_GetPixelFormat(decoder, &pixel_format)
+        if err:
+            raise WmpError('PKImageDecode_GetPixelFormat', err)
+
+        if IsEqualGUID(&pixel_format, &GUID_PKPixelFormat8bppGray):
+            dtype = numpy.uint8
+            samples = 1
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat16bppGray):
+            dtype = numpy.uint16
+            samples = 1
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppGrayFloat):
+            dtype = numpy.float32
+            samples = 1
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppBGR):
+            dtype = numpy.uint8
+            samples = 3
+            pixel_format = GUID_PKPixelFormat24bppRGB
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppRGB):
+            dtype = numpy.uint8
+            samples = 3
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat48bppRGB):
+            dtype = numpy.uint16
+            samples = 3
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBFloat):
+            dtype = numpy.float32
+            samples = 3
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppBGRA):
+            dtype = numpy.uint8
+            samples = 4
+            pixel_format = GUID_PKPixelFormat32bppRGBA
+            decoder.WMP.wmiSCP.uAlphaMode = 2
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppRGBA):
+            dtype = numpy.uint8
+            samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat64bppRGBA):
+            dtype = numpy.uint16
+            samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
+        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBAFloat):
+            dtype = numpy.float32
+            samples = 4
+            decoder.WMP.wmiSCP.uAlphaMode = 2
+        else:
+            raise ValueError('unknown pixel format')
+
+        err = PKCodecFactory_CreateFormatConverter(&converter)
+        if err:
+            raise WmpError('PKCodecFactory_CreateFormatConverter', err)
+
+        err = PKFormatConverter_Initialize(converter, decoder, NULL,
+                                           pixel_format)
+        if err:
+            raise WmpError('PKFormatConverter_Initialize', err)
+
+        shape = height, width
+        if samples > 1:
+            shape += samples,
+
+        out = _create_array(out, shape, dtype)
+        dst = out
+        rect.X = 0
+        rect.Y = 0
+        rect.Width = <I32>dst.shape[1]
+        rect.Height = <I32>dst.shape[0]
+        stride = <U32>dst.strides[0]
+        dstsize = dst.size * dst.itemsize
+
+        # TODO: check alignment issues
+        with nogil:
+            memset(<void *>dst.data, 0, dstsize)  # TODO: still necessary?
+            err = PKFormatConverter_Copy(converter, &rect, <U8*>dst.data,
+                                         stride)
+        if err:
+            raise WmpError('PKFormatConverter_Copy', err)
+
+    finally:
+        if converter != NULL:
+            PKFormatConverter_Release(&converter)
+        if decoder != NULL:
+            PKImageDecode_Release(&decoder)
 
     return out
 
