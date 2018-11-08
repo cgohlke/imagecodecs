@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.30
+:Version: 2018.11.8
 
 """
 
@@ -593,6 +593,23 @@ def test_compressors(module, codec, output, length):
         raise ValueError(codec)
 
 
+def test_lzw_msb():
+    from imagecodecs import lzw_decode as decode
+    for data, decoded in [
+            (b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
+             b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02\x80',
+             b'say hammer yo hammer mc hammer go hammer'),
+            (b'\x80\x18M\xc6A\x01\xd0\xd0e\x10\x1c\x8c\xa73\xa0\x80\xc7\x02'
+             b'\x10\x19\xcd\xe2\x08\x14\x10\xe0l0\x9e`\x10\x10\x80',
+             b'and the rest can go and play'),
+            (b'\x80\x18\xcc&\xe19\xd0@t7\x9dLf\x889\xa0\xd2s',
+             b"can't touch this"),
+            (b'\x80@@', b'')]:
+        assert decode(data) == decoded
+
+
+# TODO: add test_lzw_lsb
+
 @pytest.mark.parametrize('output', ['new', 'size', 'ndarray', 'bytearray'])
 def test_lzw_decode(output):
     # LZW with horizontal differencing
@@ -953,13 +970,15 @@ BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
 WORDSIMG = numpy.frombuffer(WORDS, 'uint16').reshape(36, 36, 3)
 IMAGE_DATA = {
-    ('gray', 1): imagecodecs.png_decode(readfile('gray8.png')).reshape(32, 31, 1),
+    ('gray', 1): imagecodecs.png_decode(readfile('gray8.png')
+                                        ).reshape(32, 31, 1),
     ('graya', 1): imagecodecs.png_decode(readfile('graya16.png')),
     ('rgb', 1): imagecodecs.png_decode(readfile('rgb24.png')),
     ('rgba', 1): imagecodecs.png_decode(readfile('rgba32.png')),
     ('view', 1): imagecodecs.png_decode(readfile('rgb24.png')),
 
-    ('gray', 2): imagecodecs.png_decode(readfile('gray16.png')).reshape(32, 31, 1) // 16,
+    ('gray', 2): imagecodecs.png_decode(readfile('gray16.png')
+                                        ).reshape(32, 31, 1) // 16,
     ('graya', 2): imagecodecs.png_decode(readfile('graya32.png')) // 16,
     ('rgb', 2): imagecodecs.png_decode(readfile('rgb48.png')) // 16,
     ('rgba', 2): imagecodecs.png_decode(readfile('rgba64.png')) // 16,
