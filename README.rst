@@ -3,7 +3,7 @@ Image transformation, compression, and decompression codecs
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions
-for use in the tifffile, czifile, and other Python scientific imaging modules.
+for use in the tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
@@ -16,7 +16,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.30
+:Version: 2018.11.8
 
 Requirements
 ------------
@@ -74,6 +74,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.11.8
+    Pass 1323 tests.
+    Decode LSB style LZW.
+    Fix last byte not written by LZW decoder (bug fix).
+    Permit unknown colorspaces in JPEC codecs (e.g. CFA used in TIFF).
 2018.10.30
     Add JPEG 8-bit and 12-bit encoders.
     Improve color space handling in JPEG codecs.
