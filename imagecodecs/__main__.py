@@ -12,16 +12,36 @@ from tifffile import imshow
 import imagecodecs
 
 
+def askopenfilename(**kwargs):
+    """Return file name(s) from Tkinter's file open dialog."""
+    try:
+        from Tkinter import Tk
+        import tkFileDialog as filedialog
+    except ImportError:
+        from tkinter import Tk, filedialog
+    root = Tk()
+    root.withdraw()
+    root.update()
+    filenames = filedialog.askopenfilename(**kwargs)
+    root.destroy()
+    return filenames
+
+
 def main(argv=None, verbose=True, decoders=None):
     """Imagecodecs command line usage main function."""
     if argv is None:
         argv = sys.argv
 
-    if len(argv) != 2:
+    if len(argv) < 2:
+        fname = askopenfilename(title='Select a. image file')
+        if not fname:
+            print('No file selected')
+            return -1
+    elif len(argv) == 2:
+        fname = argv[1]
+    else:
         print('Usage: imagecodecs filename')
         return -1
-
-    fname = argv[1]
 
     with open(fname, 'rb') as fh:
         data = fh.read()
@@ -38,11 +58,9 @@ def main(argv=None, verbose=True, decoders=None):
             imagecodecs.webp_decode,
         ]
 
+    messages = []
     image = None
     for decode in decoders:
-        if verbose:
-            print()
-            print(decode.__name__)
         try:
             image = decode(data)
             if image.dtype == 'object':
@@ -50,18 +68,21 @@ def main(argv=None, verbose=True, decoders=None):
                 raise ValueError('failed')
         except Exception as exception:
             # raise(exception)
-            if verbose:
-                print(' ', exception)
+            messages.append('%s: %s' % (decode.__name__.upper(), exception))
             continue
         break
 
+    if verbose:
+        print()
     if image is None:
+        print('Could not decode the file\n')
         if verbose:
-            print()
-            print('Could not decode the file')
+            for message in messages:
+                print(message)
         return -1
     if verbose:
-        print(' ', image.shape, image.dtype)
+        print("%s: %s %s" % (decode.__name__.upper(),
+                             image.shape, image.dtype))
 
     imshow(image, title=fname)
     show()
