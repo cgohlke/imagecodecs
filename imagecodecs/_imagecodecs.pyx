@@ -53,7 +53,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.11.8
+:Version: 2018.12.1
 
 Requirements
 ------------
@@ -63,13 +63,13 @@ Requirements
 * `zlib 1.2.11 <https://github.com/madler/zlib/>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
 * `zstd 1.3.7 <https://github.com/facebook/zstd/>`_
-* `blosc 1.14.4 <https://github.com/Blosc/c-blosc/>`_
+* `blosc 1.15.0 <https://github.com/Blosc/c-blosc/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
-* `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
-* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
+* `libwebp 1.0.1 <https://github.com/webmproject/libwebp/>`_
+* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
@@ -111,11 +111,15 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.12.1
+    Add J2K encoder (WIP).
+    Use ZStd content size 1 MB if it cannot be determined.
+    Use logging.warning instead of warnings.warn or print.
 2018.11.8
     Pass 1323 tests.
     Decode LSB style LZW.
     Fix last byte not written by LZW decoder (bug fix).
-    Permit unknown colorspaces in JPEC codecs (e.g. CFA used in TIFF).
+    Permit unknown colorspaces in JPEG codecs (e.g. CFA used in TIFF).
 2018.10.30
     Add JPEG 8-bit and 12-bit encoders.
     Improve color space handling in JPEG codecs.
@@ -161,7 +165,7 @@ Revisions
 
 """
 
-__version__ = '2018.11.8'
+__version__ = '2018.12.1'
 
 import numpy
 
@@ -313,8 +317,8 @@ def version(astype=str):
         ('webp', hex(WebPGetDecoderVersion())),
         ('jpeg', '%.1f' % (JPEG_LIB_VERSION / 10.0)),
         ('jpeg_turbo', '%i.%i.%i' % (int(jpeg_turbo_version[:1]),
-                                     int(jpeg_turbo_version[2:3]),
-                                     int(jpeg_turbo_version[4:5]))),
+                                     int(jpeg_turbo_version[3:4]),
+                                     int(jpeg_turbo_version[6:]))),
         ('jpeg_sof3', JPEG_SOF3_VERSION.decode('utf-8')),
         ('charls', _CHARLS_VERSION),
         ('opj', opj_version().decode('utf-8')),
@@ -1340,12 +1344,16 @@ def zstd_decode(data, out=None):
     if out is None or out is data:
         if dstlen < 0:
             cntsize = ZSTD_getFrameContentSize(<void *>&src[0], srcsize)
-            if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
-                raise ZstdError('ZSTD_getFrameContentSize',
-                                'ZSTD_CONTENTSIZE_UNKNOWN')
-            if cntsize == ZSTD_CONTENTSIZE_ERROR:
-                raise ZstdError('ZSTD_getFrameContentSize',
-                                'ZSTD_CONTENTSIZE_ERROR')
+            if (cntsize == ZSTD_CONTENTSIZE_UNKNOWN or
+                cntsize == ZSTD_CONTENTSIZE_ERROR):
+                cntsize = max(1048576, srcsize*2)  # 1 MB; arbitrary
+            # TODO: better use stream interface
+            # if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
+            #     raise ZstdError('ZSTD_getFrameContentSize',
+            #                     'ZSTD_CONTENTSIZE_UNKNOWN')
+            # if cntsize == ZSTD_CONTENTSIZE_ERROR:
+            #     raise ZstdError('ZSTD_getFrameContentSize',
+            #                     'ZSTD_CONTENTSIZE_ERROR')
             dstlen = <ssize_t>cntsize
             if dstlen < 0:
                 raise ZstdError('ZSTD_getFrameContentSize', '%i' % dstlen)
@@ -2065,7 +2073,7 @@ def bz2_decode(data, out=None):
     return out
 
 
-# Blosc ################################################################
+# Blosc #######################################################################
 
 cdef extern from 'blosc.h':
     char* BLOSC_VERSION_STRING
@@ -2331,8 +2339,8 @@ cdef void png_error_callback(png_structp png_ptr,
 
 cdef void png_warn_callback(png_structp png_ptr,
                             png_const_charp msg) with gil:
-    import warnings
-    warnings.warn('PNG %s' % msg.decode('utf8').strip())
+    import logging
+    logging.warning('PNG %s' % msg.decode('utf8').strip())
 
 
 ctypedef struct png_memstream_t:
@@ -2862,6 +2870,7 @@ def webp_decode(data, out=None):
 
 cdef extern from 'jpeglib.h':
     int JPEG_LIB_VERSION
+    int LIBJPEG_TURBO_VERSION
     int LIBJPEG_TURBO_VERSION_NUMBER
 
     ctypedef void noreturn_t
@@ -3468,6 +3477,9 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             return jpeg8_decode(data, tables, colorspace, outcolorspace, out)
         except Jpeg8Error as exception:
             msg = str(exception)
+            if 'Empty JPEG image' in msg:
+                # TODO: handle Hamamatsu NDPI slides with dimensions > 65500
+                raise exception
             if 'Unsupported JPEG data precision' in msg:
                 return jpeg12_decode(data, tables, colorspace, outcolorspace,
                                      out)
@@ -3486,6 +3498,8 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             return jpegsof3_decode(data, out)
     except (Jpeg8Error, Jpeg12Error, NotImplementedError) as exception:
         msg = str(exception)
+        if 'Empty JPEG image' in msg:
+            raise exception
         if 'SOF type' in msg:
             return jpegsof3_decode(data, out)
         return jpegls_decode(data, out)
@@ -3551,7 +3565,39 @@ cdef extern from 'openjpeg.h':
         pass
 
     ctypedef struct opj_image_cmptparm_t:
-        pass
+        OPJ_UINT32 dx
+        OPJ_UINT32 dy
+        OPJ_UINT32 w
+        OPJ_UINT32 h
+        OPJ_UINT32 x0
+        OPJ_UINT32 y0
+        OPJ_UINT32 prec
+        OPJ_UINT32 bpp
+        OPJ_UINT32 sgnd
+
+    ctypedef struct opj_cparameters_t:
+        OPJ_BOOL tile_size_on
+        int cp_tx0
+        int cp_ty0
+        int cp_tdx
+        int cp_tdy
+        int cp_disto_alloc
+        int cp_fixed_alloc
+        int cp_fixed_quality
+        int *cp_matrice
+        char *cp_comment
+        int csty
+        # OPJ_PROG_ORDER prog_order
+        # opj_poc_t POC[32]
+        OPJ_UINT32 numpocs
+        int tcp_numlayers
+        float tcp_rates[100]
+        float tcp_distoratio[100]
+        int numresolution
+        int cblockw_init
+        int cblockh_init
+        int mode
+        int irreversible
 
     ctypedef struct opj_dparameters_t:
         OPJ_UINT32 cp_reduce
@@ -3606,8 +3652,10 @@ cdef extern from 'openjpeg.h':
     ctypedef void(*opj_msg_callback)(const char *msg, void *client_data)
 
     opj_stream_t* opj_stream_default_create(OPJ_BOOL p_is_input) nogil
+    opj_codec_t* opj_create_compress(OPJ_CODEC_FORMAT format) nogil
     opj_codec_t* opj_create_decompress(OPJ_CODEC_FORMAT format) nogil
     void opj_destroy_codec(opj_codec_t* p_codec) nogil
+    void opj_set_default_encoder_parameters(opj_cparameters_t*) nogil
     void opj_set_default_decoder_parameters(opj_dparameters_t *params) nogil
     void opj_image_destroy(opj_image_t* image) nogil
     void* opj_image_data_alloc(OPJ_SIZE_T size) nogil
@@ -3619,6 +3667,23 @@ cdef extern from 'openjpeg.h':
     void color_cmyk_to_rgb(opj_image_t* image) nogil
     void color_esycc_to_rgb(opj_image_t* image) nogil
     char* opj_version() nogil
+
+    OPJ_BOOL opj_encode(opj_codec_t *p_codec, opj_stream_t *p_stream) nogil
+
+    opj_image_t* opj_image_tile_create(OPJ_UINT32 numcmpts,
+                                       opj_image_cmptparm_t *cmptparms,
+                                       OPJ_COLOR_SPACE clrspc) nogil
+
+    OPJ_BOOL opj_setup_encoder(opj_codec_t *p_codec,
+                              opj_cparameters_t *parameters,
+                              opj_image_t *image) nogil
+
+    OPJ_BOOL opj_start_compress(opj_codec_t *p_codec,
+                                opj_image_t * p_image,
+                                opj_stream_t *p_stream) nogil
+
+    OPJ_BOOL opj_end_compress(opj_codec_t *p_codec,
+                              opj_stream_t *p_stream) nogil
 
     OPJ_BOOL opj_end_decompress(opj_codec_t *p_codec,
                                 opj_stream_t *p_stream) nogil
@@ -3679,11 +3744,18 @@ cdef extern from 'openjpeg.h':
     void opj_stream_set_user_data_length(opj_stream_t* p_stream,
                                          OPJ_UINT64 data_length) nogil
 
+    OPJ_BOOL opj_write_tile(opj_codec_t *p_codec,
+                            OPJ_UINT32 p_tile_index,
+                            OPJ_BYTE * p_data,
+                            OPJ_UINT32 p_data_size,
+                            opj_stream_t *p_stream) nogil
+
 
 ctypedef struct opj_memstream_t:
     OPJ_UINT8* data
     OPJ_UINT64 size
     OPJ_UINT64 offset
+    OPJ_UINT64 written
 
 
 cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
@@ -3709,8 +3781,11 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
         return <OPJ_SIZE_T>-1
     if size > memstream.size - memstream.offset:
         count = memstream.size - memstream.offset
+        memstream.written = memstream.size + 1  # indicates error
     memcpy(<void*>&(memstream.data[memstream.offset]), <const void*>dst, count)
     memstream.offset += count
+    if memstream.written < memstream.offset:
+        memstream.written = memstream.offset
     return count
 
 
@@ -3774,22 +3849,267 @@ cdef void j2k_error_callback(char* msg, void* client_data) with gil:
 
 
 cdef void j2k_warning_callback(char* msg, void* client_data) with gil:
-    import warnings
-    warnings.warn('J2K %s' % msg.decode('utf8').strip())
+    import logging
+    logging.warning('J2K warning: %s' % msg.decode('utf8').strip())
 
 
 cdef void j2k_info_callback(char* msg, void* client_data) with gil:
-    print('J2K %s' % msg.decode('utf8').strip())
+    import logging
+    logging.warning('J2K info: %s' % msg.decode('utf8').strip())
 
 
-def j2k_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JPEG 2000 encoding
-    raise NotImplementedError('j2k_encode')
+def _opj_colorspace(colorspace):
+    """Return OPJ colorspace value from user input."""
+    return {
+        'GRAY': OPJ_CLRSPC_GRAY,
+        'GRAYSCALE': OPJ_CLRSPC_GRAY,
+        'MINISWHITE': OPJ_CLRSPC_GRAY,
+        'MINISBLACK': OPJ_CLRSPC_GRAY,
+        'RGB': OPJ_CLRSPC_SRGB,
+        'SRGB': OPJ_CLRSPC_SRGB,
+        'RGBA': OPJ_CLRSPC_SRGB,  # ?
+        'CMYK': OPJ_CLRSPC_CMYK,
+        'SYCC': OPJ_CLRSPC_SYCC,
+        'EYCC': OPJ_CLRSPC_EYCC,
+        'UNSPECIFIED': OPJ_CLRSPC_UNSPECIFIED,
+        'UNKNOWN': OPJ_CLRSPC_UNSPECIFIED,
+        None: OPJ_CLRSPC_UNSPECIFIED,
+        OPJ_CLRSPC_UNSPECIFIED: OPJ_CLRSPC_UNSPECIFIED,
+        OPJ_CLRSPC_SRGB: OPJ_CLRSPC_SRGB,
+        OPJ_CLRSPC_GRAY: OPJ_CLRSPC_GRAY,
+        OPJ_CLRSPC_SYCC: OPJ_CLRSPC_SYCC,
+        OPJ_CLRSPC_EYCC: OPJ_CLRSPC_EYCC,
+        OPJ_CLRSPC_CMYK: OPJ_CLRSPC_CMYK,
+        }.get(colorspace, OPJ_CLRSPC_UNSPECIFIED)
+
+
+def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
+               verbose=0, out=None):
+    """Return JPEG 2000 image from numpy array.
+
+    This function is WIP, use at own risk.
+
+    """
+    cdef:
+        numpy.ndarray src = data
+        const uint8_t[::1] dst
+        ssize_t dstsize
+        ssize_t srcsize = src.size * src.itemsize
+        ssize_t byteswritten
+
+        opj_memstream_t memstream
+        opj_codec_t *codec = NULL
+        opj_image_t *image = NULL
+        opj_stream_t* stream = NULL
+        opj_cparameters_t parameters
+        opj_image_cmptparm_t cmptparms[4]
+
+        OPJ_CODEC_FORMAT codec_format = (OPJ_CODEC_JP2 if codecformat == 'JP2'
+                                         else OPJ_CODEC_J2K)
+        OPJ_BOOL ret = OPJ_TRUE
+        OPJ_COLOR_SPACE color_space
+        OPJ_UINT32 signed, prec, width, height, samples
+        ssize_t i, j
+        int verbosity = verbose
+        int tile_width = 0
+        int tile_height = 0
+
+        float rate = 100.0 / _default_level(level, 100, 1, 100)
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if not (data.dtype in (numpy.int8, numpy.int16, numpy.int32,
+                           numpy.uint8, numpy.uint16, numpy.uint32)
+            and data.ndim in (2, 3)
+            and numpy.PyArray_ISCONTIGUOUS(data)):
+        raise ValueError('invalid input shape, strides, or dtype')
+
+    signed = 1 if data.dtype in (numpy.int8, numpy.int16, numpy.int32) else 0
+    prec = data.itemsize * 8
+    width = data.shape[1]
+    height = data.shape[0]
+    samples = 1 if data.ndim == 2 else data.shape[2]
+
+    if samples > 4 and height <= 4:
+        # bands
+        samples = data.shape[0]
+        width = data.shape[1]
+        height = data.shape[2]
+    elif samples > 1:
+        # contig
+        # TODO: avoid full copy
+        # TODO: doesn't work with e.g. contig (4, 4, 4)
+        src = numpy.ascontiguousarray(numpy.moveaxis(data, -1, 0))
+
+    if tile:
+        tile_height, tile_width = tile
+        # if width % tile_width or height % tile_height:
+        #     raise ValueError('invalid tiles')
+        raise NotImplementedError('writing tiles not implemented yet')
+    else:
+        tile_height = height
+        tile_width = width
+
+    if colorspace is None:
+        if samples <= 2:
+            color_space = OPJ_CLRSPC_GRAY
+        elif samples <= 4:
+            color_space = OPJ_CLRSPC_SRGB
+        else:
+            color_space = OPJ_CLRSPC_UNSPECIFIED
+    else:
+        color_space = _opj_colorspace(colorspace)
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = srcsize + 2048  # ?
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size * dst.itemsize
+
+    try:
+        with nogil:
+
+            # create memory stream
+            memstream.data = <OPJ_UINT8*>&dst[0]
+            memstream.size = dstsize
+            memstream.offset = 0
+            memstream.written = 0
+
+            stream = opj_memstream_create(&memstream, OPJ_FALSE)
+            if stream == NULL:
+                with gil:
+                    raise J2KError('opj_memstream_create failed')
+
+            # create image
+            memset(&cmptparms, 0, sizeof(cmptparms))
+            for i in range(samples):
+                cmptparms[i].dx = 1  # subsampling
+                cmptparms[i].dy = 1
+                cmptparms[i].x0 = 0
+                cmptparms[i].y0 = 0
+                cmptparms[i].h = height
+                cmptparms[i].w = width
+                cmptparms[i].sgnd = signed
+                cmptparms[i].prec = prec
+                cmptparms[i].bpp = prec
+
+            if tile_height > 0:
+                image = opj_image_tile_create(samples, cmptparms, color_space)
+                if image == NULL:
+                    with gil:
+                        raise J2KError('opj_image_tile_create failed')
+            else:
+                image = opj_image_create(samples, cmptparms, color_space)
+                if image == NULL:
+                    with gil:
+                        raise J2KError('opj_image_create failed')
+
+            image.x0 = 0
+            image.y0 = 0
+            image.x1 = width
+            image.y1 = height
+            image.color_space = color_space
+            image.numcomps = samples
+
+            # set parameters
+            opj_set_default_encoder_parameters(&parameters)
+            # TODO: this crashes
+            # parameters.tcp_numlayers = 1  # single quality layer
+            parameters.tcp_rates[0] = rate
+            parameters.irreversible = 0
+            parameters.numresolution = 1
+
+            if tile_height > 0:
+                parameters.tile_size_on = OPJ_TRUE
+                parameters.cp_tx0 = 0
+                parameters.cp_ty0 = 0
+                parameters.cp_tdy = tile_height
+                parameters.cp_tdx = tile_width
+            else:
+                parameters.tile_size_on = OPJ_FALSE
+                parameters.cp_tx0 = 0
+                parameters.cp_ty0 = 0
+                parameters.cp_tdy = 0
+                parameters.cp_tdx = 0
+
+            # create and setup encoder
+            codec = opj_create_compress(codec_format)
+            if codec == NULL:
+                with gil:
+                    raise J2KError('opj_create_compress failed')
+
+            if verbosity > 0:
+                opj_set_error_handler(
+                    codec, <opj_msg_callback>j2k_error_callback, NULL)
+                if verbosity > 1:
+                    opj_set_warning_handler(
+                        codec, <opj_msg_callback>j2k_warning_callback, NULL)
+                if verbosity > 2:
+                    opj_set_info_handler(
+                        codec, <opj_msg_callback>j2k_info_callback, NULL)
+
+            ret = opj_setup_encoder(codec, &parameters, image)
+            if ret == OPJ_FALSE:
+                with gil:
+                    raise J2KError('opj_setup_encoder failed')
+
+            ret = opj_start_compress(codec, image, stream)
+            if ret == OPJ_FALSE:
+                with gil:
+                    raise J2KError('opj_start_compress failed')
+
+            if tile_height > 0:
+                # TODO: loop over tiles
+                ret = opj_write_tile(codec, 0, <OPJ_BYTE*>src.data,
+                                     srcsize, stream)
+            else:
+                # TODO: copy data to image.comps[band].data[y, x]
+                ret = opj_encode(codec, stream)
+
+            if ret == OPJ_FALSE:
+                with gil:
+                    raise J2KError('opj_encode or opj_write_tile failed')
+
+            ret = opj_end_compress(codec, stream)
+            if ret == OPJ_FALSE:
+                with gil:
+                    raise J2KError('opj_end_compress failed')
+
+            if memstream.written > memstream.size:
+                with gil:
+                    raise J2KError('output buffer too small')
+
+            byteswritten = memstream.written
+
+    finally:
+        if stream != NULL:
+            opj_stream_destroy(stream)
+        if codec != NULL:
+            opj_destroy_codec(codec)
+        if image != NULL:
+            opj_image_destroy(image)
+
+    if byteswritten < dstsize:
+        if out_given:
+            out = memoryview(out)[:byteswritten]
+        else:
+            out = out[:byteswritten]
+
+    return out
 
 
 def j2k_decode(data, verbose=0, out=None):
-    """Decode JPEG 2000 J2K image to numpy array."""
+    """Decode JPEG 2000 J2K or JP2 image to numpy array.
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -3830,6 +4150,7 @@ def j2k_decode(data, verbose=0, out=None):
         memstream.data = <OPJ_UINT8*>&src[0]
         memstream.size = src.size
         memstream.offset = 0
+        memstream.written = 0
 
         with nogil:
             stream = opj_memstream_create(&memstream, OPJ_TRUE)
@@ -3932,6 +4253,7 @@ def j2k_decode(data, verbose=0, out=None):
 
         with nogil:
             # memset(<void *>dst.data, 0, dstsize)
+            # TODO: support separate in addition to contig samples
             if itemsize == 1:
                 if signed:
                     for i in range(samples):
@@ -4296,7 +4618,10 @@ def jxr_decode(data, out=None):
 # TODO: Integer resize; magic kernel
 # TODO: Dtype conversion/quantizations
 # TODO: Scale Offset
+# TODO: BMP
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
+# TODO: LZO; http://www.oberhumer.com/opensource/lzo/ is GPL
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
-# TODO: BMP
+# TODO: LERC via https://github.com/Esri/lerc; patented but Apache licensed.
+# TODO: ZFP via https://github.com/LLNL/zfp
