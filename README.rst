@@ -16,7 +16,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.11.8
+:Version: 2018.12.1
 
 Requirements
 ------------
@@ -26,13 +26,13 @@ Requirements
 * `zlib 1.2.11 <https://github.com/madler/zlib/>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
 * `zstd 1.3.7 <https://github.com/facebook/zstd/>`_
-* `blosc 1.14.4 <https://github.com/Blosc/c-blosc/>`_
+* `blosc 1.15.0 <https://github.com/Blosc/c-blosc/>`_
 * `bzip2 1.0.6 <http://www.bzip.org/>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
-* `libwebp 1.0 <https://github.com/webmproject/libwebp/>`_
-* `libjpeg-turbo 2.0 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
+* `libwebp 1.0.1 <https://github.com/webmproject/libwebp/>`_
+* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3 <http://www.openjpeg.org/>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
@@ -74,11 +74,15 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.12.1
+    Add J2K encoder (WIP).
+    Use ZStd content size 1 MB if it cannot be determined.
+    Use logging.warning instead of warnings.warn or print.
 2018.11.8
     Pass 1323 tests.
     Decode LSB style LZW.
     Fix last byte not written by LZW decoder (bug fix).
-    Permit unknown colorspaces in JPEC codecs (e.g. CFA used in TIFF).
+    Permit unknown colorspaces in JPEG codecs (e.g. CFA used in TIFF).
 2018.10.30
     Add JPEG 8-bit and 12-bit encoders.
     Improve color space handling in JPEG codecs.
