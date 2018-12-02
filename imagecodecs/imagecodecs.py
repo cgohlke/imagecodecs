@@ -43,10 +43,12 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.11.8
+:Version: 2018.12.1
 
 Revisions
 ---------
+2018.12.1
+    Use logging.warning instead of warnings.warn.
 2018.10.30
     Check signatures before calling pil_decode.
 2018.10.28
@@ -74,12 +76,12 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.11.8.py'
+__version__ = '2018.12.1.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
 import struct
-import warnings
+import logging
 import functools
 import zlib
 import io
@@ -284,7 +286,7 @@ def floatpred_decode(data, axis=-2, out=None):
         even if 1.
 
     """
-    # warnings.warn('using numpy FloatPred decoder')
+    # logging.warning('using numpy FloatPred decoder')
     if axis != -2:
         raise NotImplementedError('axis %i != -2' % axis)
     shape = data.shape
@@ -359,10 +361,12 @@ def bitorder_decode(data, out=None, _bitorder=[]):
     try:
         view = data.view('uint8')
         numpy.take(_bitorder[1], view, out=view)
+        return data
     except AttributeError:
         return data.translate(_bitorder[0])
     except ValueError:
         raise NotImplementedError('slices of arrays not supported')
+    return None
 
 
 bitorder_encode = bitorder_decode
@@ -386,7 +390,7 @@ def packbits_decode(encoded, out=None):
     b'\xaa\xaa\xaa\x80\x00*\xaa\xaa\xaa\xaa\x80\x00*"\xaa\xaa\xaa\xaa\xaa\xaa'
 
     """
-    # warnings.warn('using pure Python PackBits decoder')
+    # logging.warning('using pure Python PackBits decoder')
     out = []
     out_extend = out.extend
     i = 0
@@ -427,7 +431,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
     b'say hammer yo hammer mc hammer go hammer'
 
     """
-    # warnings.warn('using pure Python LZW decoder')
+    # logging.warning('using pure Python LZW decoder')
     len_encoded = len(encoded)
     bitcount_max = len_encoded * 8
     unpack = struct.unpack
@@ -499,7 +503,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
             bitw, shr, mask = switchbits[lentable]
 
     if code != 257:
-        warnings.warn('unexpected end of LZW stream (code %i)' % code)
+        logging.warning('unexpected end of LZW stream (code %i)', code)
 
     return b''.join(result)
 
@@ -535,7 +539,7 @@ def packints_decode(data, dtype, numbits, runlen=0, out=None):
     array([1, 2, 0, 1, 1, 2, 0, 2], dtype=uint8)
 
     """
-    # warnings.warn('using pure Python PackInts decoder')
+    # logging.warning('using pure Python PackInts decoder')
     if numbits == 1:  # bitarray
         data = numpy.frombuffer(data, '|B')
         data = numpy.unpackbits(data)
