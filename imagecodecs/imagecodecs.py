@@ -43,7 +43,7 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.1
+:Version: 2018.12.12
 
 Revisions
 ---------
@@ -76,7 +76,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.12.1.py'
+__version__ = '2018.12.12.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -162,19 +162,18 @@ def notimplemented(arg=False):
 
 def version(astype=str):
     """Return detailed version information."""
-    versions = (('imagecodecs', __version__),
-                ('numpy', numpy.__version__),
-                ('zlib', zlib.ZLIB_VERSION))
-    if lzma:
-        versions += (('lzma', getattr(lzma, '__version__', sys.version[:5])),)
-    if zstd:
-        versions += (('zstd', zstd.version()),)
-    if lz4:
-        versions += (('lz4', lz4.VERSION),)
-    if blosc:
-        versions += (('blosc', blosc.__version__),)
-    if PIL:
-        versions += (('pil', PIL.PILLOW_VERSION),)
+    versions = (
+        ('imagecodecs', __version__),
+        ('numpy', numpy.__version__),
+        ('zlib', zlib.ZLIB_VERSION),
+        ('bz2', 'stdlib' if bz2 else 'n/a'),
+        ('lzma', getattr(lzma, '__version__', 'stdlib') if lzma else 'n/a'),
+        ('blosc', blosc.__version__ if blosc else 'n/a'),
+        ('zstd', zstd.version() if zstd else 'n/a'),
+        ('lz4', lz4.VERSION if lz4 else 'n/a'),
+        ('lzf', 'unknown' if lzf else 'n/a'),
+        ('pil', PIL.PILLOW_VERSION if PIL else 'n/a'),
+    )
     if astype is str:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
     if astype is dict:
