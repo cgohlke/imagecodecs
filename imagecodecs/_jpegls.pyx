@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 # _jpegls.pyx
+# distutils: language = c
+# cython: language_level = 3
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
@@ -44,11 +46,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.10.28
+:Version: 2018.12.12
 
 """
 
-__version__ = '2018.10.28'
+__version__ = '2018.12.12'
 
 _CHARLS_VERSION = '2.0.0'
 
@@ -57,12 +59,10 @@ import numpy
 cimport cython
 cimport numpy
 
+from cpython.bytearray cimport PyByteArray_FromStringAndSize
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdint cimport uint8_t
 from libc.string cimport memset
-
-cdef extern from 'Python.h':
-    object PyByteArray_FromStringAndSize(const char *string, Py_ssize_t len)
 
 numpy.import_array()
 
