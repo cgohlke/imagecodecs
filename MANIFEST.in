@@ -9,12 +9,19 @@ include imagecodecs/_jpegls.c
 include imagecodecs/_imagecodecs.pyx
 include imagecodecs/_jpeg12.pyx
 include imagecodecs/_jpegls.pyx
+
 include imagecodecs/imagecodecs.c
 include imagecodecs/imagecodecs.h
+
 include imagecodecs/jpeg_sof3.cpp
 include imagecodecs/jpeg_sof3.h
 
+include imagecodecs/opj_color.cpp
+include imagecodecs/opj_color.h
+
 include imagecodecs/licenses/*
+
+include imagecodecs/patches/*
 
 include liblzf-3.6/*
 
@@ -29,6 +36,8 @@ include tests/*.jp2
 include tests/*.jls
 include tests/*.tif
 include tests/*.webp
+
+exclude tests/jpeg_33792x79872.jpg
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
