@@ -3,7 +3,7 @@
 #ifndef ICD_H
 #define ICD_H
 
-#define ICD_VERSION "2018.11.8"
+#define ICD_VERSION "2018.12.12"
 
 #include <stdint.h>
 
