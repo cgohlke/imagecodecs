@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 # _jpeg12.pyx
+# distutils: language = c
+# cython: language_level = 3
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: cdivision=True
@@ -44,26 +46,25 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.11.6
+:Version: 2018.12.12
 
 """
 
-__version__ = '2018.11.6'
+__version__ = '2018.12.12'
 
 import numpy
 
 cimport cython
 cimport numpy
 
+from cpython.bytearray cimport PyByteArray_FromStringAndSize
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from cython.operator cimport dereference as deref
+
 from libc.string cimport memset, memcpy
 from libc.stdlib cimport malloc, free
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
 from libc.stdint cimport uint8_t, uint16_t
-
-cdef extern from 'Python.h':
-    object PyByteArray_FromStringAndSize(const char *string, Py_ssize_t len)
 
 numpy.import_array()
 
@@ -323,7 +324,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
 
     if not (data.dtype == numpy.uint16
             and data.ndim in (2, 3)
-            and data.size * data.itemsize < 2**31-1  # limit to 2 GB
+            # and data.size * data.itemsize < 2**31-1  # limit to 2 GB
             and samples in (1, 3, 4)
             and data.strides[data.ndim-1] == data.itemsize
             and (data.ndim == 2 or data.strides[1] == samples*data.itemsize)):
@@ -415,7 +416,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
 
 
 def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
-                 out=None):
+                 shape=None, out=None):
     """Decode JPEG 12-bit image to numpy array.
 
     """
@@ -433,6 +434,8 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         JSAMPROW rowpointer
         J_COLOR_SPACE jpeg_color_space
         J_COLOR_SPACE out_color_space
+        JDIMENSION width = 0
+        JDIMENSION height = 0
         char *msg
 
     if data is out:
@@ -452,6 +455,12 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         tables_ = tables
         tablesize = tables_.size
 
+    if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
+        # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
+        # when using a patched jibjpeg-turbo
+        height = shape[0]
+        width = shape[1]
+
     with nogil:
 
         cinfo.err = jpeg_std_error(&err.pub)
@@ -465,6 +474,9 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
 
         jpeg_create_decompress(&cinfo)
         cinfo.do_fancy_upsampling = True
+        if width > 0:
+            cinfo.image_width = width
+            cinfo.image_height = height
 
         if tablesize > 0:
             jpeg_mem_src(&cinfo, &tables_[0], tablesize)
@@ -489,7 +501,7 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
             if cinfo.output_components > 1:
                 shape += cinfo.output_components,
 
-            out = _create_array(out, shape, numpy.uint16)  # TODO: allow stride
+            out = _create_array(out, shape, numpy.uint16)  # TODO: allow strides
             dst = out
             dstsize = dst.size * dst.itemsize
             rowstride = dst.strides[0] // dst.itemsize
