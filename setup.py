@@ -41,6 +41,7 @@ else:
 
 sources = [
     'imagecodecs/imagecodecs.c',
+    'imagecodecs/opj_color.c',
     'imagecodecs/jpeg_sof3.cpp',
     'imagecodecs/_imagecodecs.pyx',
 ]
@@ -55,8 +56,10 @@ try:
     import _inclib  # noqa
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
-        'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2']
-    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1), ('OPJ_STATIC', 1),
+        'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2',
+        'lcms2']
+    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1),
+                     ('OPJ_STATIC', 1), ('OPJ_HAVE_LIBLCMS2', 1),
                      ('CHARLS_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
     if sys.version_info < (3, 5):
@@ -68,11 +71,11 @@ try:
 except ImportError:
     # this works with Ubuntu 18.04 WSL
     libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-                 'openjp2', 'jxrglue', 'jpegxr', 'z']
+                 'openjp2', 'jxrglue', 'jpegxr', 'lcms2', 'z']
     include_dirs.extend(
         ['/usr/include/jxrlib',
          '/usr/include/openjpeg-2.3'])
-    define_macros = []
+    define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
     if sys.platform == 'win32':
         define_macros.append(('WIN32', 1), ('CHARLS_STATIC', 1))
     else:
