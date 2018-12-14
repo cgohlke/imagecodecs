@@ -16,27 +16,39 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.1
+:Version: 2018.12.12
 
 Requirements
 ------------
-* `CPython 2.7 or 3.5+ <https://www.python.org>`_
-* `Numpy 1.14 <https://www.numpy.org>`_
-* `Cython 0.28 <http://cython.org/>`_
-* `zlib 1.2.11 <https://github.com/madler/zlib/>`_
-* `lz4 1.8.3 <https://github.com/lz4/lz4/>`_
-* `zstd 1.3.7 <https://github.com/facebook/zstd/>`_
-* `blosc 1.15.0 <https://github.com/Blosc/c-blosc/>`_
-* `bzip2 1.0.6 <http://www.bzip.org/>`_
-* `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz/>`_
+This release has been tested with the following requirements and dependencies
+(other versions may work):
+
+* `CPython 2.7.15, 3.5.4, 3.6.7, 3.7.1, 64-bit <https://www.python.org>`_
+* `Numpy 1.14.6 <https://www.numpy.org>`_
+* `Cython 0.29.1 <https://cython.org>`_
+* `zlib 1.2.11 <https://github.com/madler/zlib>`_
+* `lz4 1.8.3 <https://github.com/lz4/lz4>`_
+* `zstd 1.3.7 <https://github.com/facebook/zstd>`_
+* `blosc 1.15.1 <https://github.com/Blosc/c-blosc>`_
+* `bzip2 1.0.6 <http://www.bzip.org>`_
+* `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
-* `libpng 1.6.35 <https://github.com/glennrp/libpng/>`_
-* `libwebp 1.0.1 <https://github.com/webmproject/libwebp/>`_
-* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org/>`_ (8 and 12-bit)
+* `libpng 1.6.36 <https://github.com/glennrp/libpng>`_
+* `libwebp 1.0.1 <https://github.com/webmproject/libwebp>`_
+* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org>`_ (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
-* `openjpeg 2.3 <http://www.openjpeg.org/>`_
-* `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib/>`_
-* A Python distutils compatible C compiler
+* `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
+* `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
+* `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
+* Visual Studio 2008, 2010, 2015, 2017
+
+Required for testing:
+
+* `python-blosc 1.6.2 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
+* `python-zstd 1.3.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
+* `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
 
 Notes
 -----
@@ -52,28 +64,38 @@ Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
-This software includes a modified version of `jpg_0XC3.cpp
-<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
+This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
+and `openjpeg's color.c
+<https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
+
+To install the requirements for building imagecodecs from source on Debian
+based Linux distributions, run:
+
+    ``$ sudo apt-get install build-essential python3-dev cython3
+    python3-setuptools python3-pip python3-wheel python3-numpy
+    libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
+    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev libjxr-dev
+    liblcms2-dev libtiff-dev``
 
 Other Python packages providing imaging or compression codecs:
 
 * `numcodecs <https://github.com/zarr-developers/numcodecs>`_
-* `python-blosc <https://github.com/Blosc/python-blosc>`_
 * `Python zlib <https://docs.python.org/3/library/zlib.html>`_
 * `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
-* `Python lzma <https://docs.python.org/3/library/lzma.html>`_ and
-  `backports.lzma <https://github.com/peterjc/backports.lzma>`_
+* `Python lzma <https://docs.python.org/3/library/lzma.html>`_
 * `python-snappy <https://github.com/andrix/python-snappy>`_
 * `python-brotli <https://github.com/google/brotli/tree/master/python>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
-* `python-lz4 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
-* `python-lzf <https://github.com/teepark/python-lzf>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
 
 Revisions
 ---------
+2018.12.12
+    Enable decoding of subsampled J2K images via conversion to RGB.
+    Enable decoding of large JPEG using patched libjpeg-turbo.
+    Switch to Cython 0.29, language_level=3.
 2018.12.1
     Add J2K encoder (WIP).
     Use ZStd content size 1 MB if it cannot be determined.
