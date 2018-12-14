@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.1
+:Version: 2018.12.12
 
 """
 
@@ -794,11 +794,14 @@ def test_j2k_int8_4bit(output):
 
 
 def test_j2k_ycbc():
-    """Test J2K decoder with subsampling; not supported."""
+    """Test J2K decoder with subsampling."""
     from imagecodecs import j2k_decode as decode
     data = readfile('ycbc.j2k')
-    with pytest.raises(RuntimeError):
-        decode(data)
+    decoded = decode(data, verbose=2)
+    assert decoded.dtype == 'uint8'
+    assert decoded.shape == (256, 256, 3)
+    assert tuple(decoded[0, 0]) == (243, 243, 240)
+    assert tuple(decoded[-1, -1]) == (0, 0, 0)
 
 
 @pytest.mark.skipif(_jpegls is None, reason='_jpegls module missing')
@@ -947,6 +950,23 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         assert_allclose(data, decoded, atol=6)
     else:
         assert_array_equal(data, decoded, verbose=True)
+
+
+def test_jpeg8_large():
+    """Test JPEG 8-bit decoder with dimensions > 65000."""
+    from imagecodecs import jpeg8_decode as decode
+
+    try:
+        data = readfile('jpeg_33792x79872.jpg')
+    except IOError:
+        pytest.skip('large file not included with source distribution')
+
+    # this fails if libjpeg-turbo wasn't compiled with patch:
+    # Jpeg8Error: Empty JPEG image (DNL not supported)
+    decoded = decode(data, shape=(33792, 79872))
+    assert decoded.shape == (33792, 79872, 3)
+    assert decoded.dtype == 'uint8'
+    assert tuple(decoded[33791, 79871]) == (204, 195, 180)
 
 
 def datafiles(pathname, base=None):
