@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 """
 
@@ -641,8 +641,8 @@ def test_lzw_decode(output):
         decoded = numpy.frombuffer(decoded, 'uint8').reshape(16, 16)
         delta_decode(decoded, out=decoded, axis=-1)
         assert_array_equal(BYTESIMG, decoded)
-        with pytest.raises(RuntimeError):
-            decode(data, buffersize=32, out=decoded_size)
+        # with pytest.raises(RuntimeError):
+        decode(data, buffersize=32, out=decoded_size)
     elif output == 'ndarray':
         decoded = numpy.empty_like(BYTESIMG)
         decode(data, out=decoded.reshape(-1))
