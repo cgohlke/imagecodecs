@@ -55,7 +55,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 Requirements
 ------------
@@ -64,7 +64,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 2.7.15, 3.5.4, 3.6.7, 3.7.1, 64-bit <https://www.python.org>`_
 * `Numpy 1.14.6 <https://www.numpy.org>`_
-* `Cython 0.29.1 <https://cython.org>`_
+* `Cython 0.29.2 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.3.7 <https://github.com/facebook/zstd>`_
@@ -79,7 +79,6 @@ This release has been tested with the following requirements and dependencies
 * `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
-* Visual Studio 2008, 2010, 2015, 2017
 
 Required for testing:
 
@@ -131,6 +130,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.12.16
+    Pass 1537 tests.
+    Reallocate LZW buffer on demand.
+    Ignore integer type output arguments for codecs returning images.
 2018.12.12
     Enable decoding of subsampled J2K images via conversion to RGB.
     Enable decoding of large JPEG using patched libjpeg-turbo.
@@ -189,8 +192,9 @@ Revisions
 
 """
 
-__version__ = '2018.12.12'
+__version__ = '2018.12.16'
 
+import numbers
 import numpy
 
 cimport numpy
@@ -261,7 +265,7 @@ cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
     elif out is bytearray:
         out = None
         out_type = bytearray
-    elif isinstance(out, int):
+    elif isinstance(out, numbers.Integral):
         out_size = out
         out = None
     else:
@@ -273,7 +277,7 @@ cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
 
 cdef _create_array(out, shape, dtype, strides=None):
     """Return numpy array of shape and dtype from output argument."""
-    if out is None:
+    if out is None or isinstance(out, numbers.Integral):
         out = numpy.empty(shape, dtype)
     elif isinstance(out, numpy.ndarray):
         if out.shape != shape:
@@ -316,7 +320,7 @@ def _default_level(level, default, smallest, largest):
     return level
 
 
-def version(astype=str):
+def version(astype=None):
     """Return detailed version information."""
     jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
     versions = (
@@ -346,7 +350,7 @@ def version(astype=str):
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
         )
-    if astype is str:
+    if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
     elif astype is dict:
         return dict(versions)
@@ -405,7 +409,7 @@ cdef _delta(data, int axis, out, int decode):
             if not isinstance(out, numpy.ndarray):
                 raise ValueError('output is not a numpy array')
             if (data.shape != out.shape or
-                data.dtype.itemsize != out.dtype.itemsize):
+                    data.dtype.itemsize != out.dtype.itemsize):
                 raise ValueError('output is not compatible with data array')
 
         if axis < 0:
@@ -1008,7 +1012,7 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         skipbits = 8 - skipbits
 
     dstsize = <ssize_t>(<uint64_t>runlen * <uint64_t>numbits
-                             + <uint64_t>skipbits)
+                        + <uint64_t>skipbits)
     if dstsize > 0:
         dstsize = <ssize_t>(<uint64_t>runlen * ((<uint64_t>srcsize * 8)
                             / <uint64_t>dstsize))
@@ -1032,7 +1036,7 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         # for i in range(0, dstsize, runlen):
         for i from 0 <= i < dstsize by runlen:
             ret = icd_packints_decode(srcptr, srcsize,
-                                       dstptr, runlen, numbits)
+                                      dstptr, runlen, numbits)
             if ret < 0:
                 break
             srcptr += srcsize
@@ -1367,7 +1371,7 @@ def zstd_decode(data, out=None):
         if dstlen < 0:
             cntsize = ZSTD_getFrameContentSize(<void *>&src[0], srcsize)
             if (cntsize == ZSTD_CONTENTSIZE_UNKNOWN or
-                cntsize == ZSTD_CONTENTSIZE_ERROR):
+                    cntsize == ZSTD_CONTENTSIZE_ERROR):
                 cntsize = max(1048576, srcsize*2)  # 1 MB; arbitrary
             # TODO: better use stream interface
             # if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
@@ -1937,8 +1941,8 @@ cdef extern from 'bzlib.h':
         unsigned int total_out_lo32
         unsigned int total_out_hi32
         void *state
-        void *(*bzalloc)(void *,int,int)
-        void (*bzfree)(void *,void *)
+        void *(*bzalloc)(void *, int, int)
+        void (*bzfree)(void *, void *)
         void *opaque
 
     int BZ2_bzCompressInit(bz_stream* strm,
@@ -1982,7 +1986,7 @@ def bz2_encode(data, level=None, out=None):
 
     """
     cdef:
-        const uint8_t[::1] src =  _parse_input(data)
+        const uint8_t[::1] src = _parse_input(data)
         const uint8_t[::1] dst
         ssize_t srcsize = src.size
         ssize_t dstsize
@@ -3114,7 +3118,6 @@ def _jcs_colorspace_samples(colorspace):
 
 class Jpeg8Error(RuntimeError):
     """JPEG Exceptions."""
-    pass
 
 
 def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
@@ -3711,8 +3714,8 @@ cdef extern from 'openjpeg.h':
                                        OPJ_COLOR_SPACE clrspc) nogil
 
     OPJ_BOOL opj_setup_encoder(opj_codec_t *p_codec,
-                              opj_cparameters_t *parameters,
-                              opj_image_t *image) nogil
+                               opj_cparameters_t *parameters,
+                               opj_image_t *image) nogil
 
     OPJ_BOOL opj_start_compress(opj_codec_t *p_codec,
                                 opj_image_t * p_image,
@@ -3852,14 +3855,13 @@ cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) nogil:
         return -1
     count = <OPJ_SIZE_T>size
     if count > memstream.size - memstream.offset:
-       count = memstream.size - memstream.offset
+        count = memstream.size - memstream.offset
     memstream.offset += count
     return count
 
 
 cdef void opj_mem_nop(void* data) nogil:
     """opj_stream_set_user_data."""
-    pass
 
 
 cdef opj_stream_t* opj_memstream_create(opj_memstream_t* memstream,
@@ -4248,9 +4250,9 @@ def j2k_decode(data, verbose=0, out=None):
 
             # handle subsampling and color profiles
             if (image.color_space != OPJ_CLRSPC_SYCC
-                   and image.numcomps == 3
-                   and image.comps[0].dx == image.comps[0].dy
-                   and image.comps[1].dx != 1):
+                    and image.numcomps == 3
+                    and image.comps[0].dx == image.comps[0].dy
+                    and image.comps[1].dx != 1):
                 image.color_space = OPJ_CLRSPC_SYCC
             elif image.numcomps <= 2:
                 image.color_space = OPJ_CLRSPC_GRAY
@@ -4503,9 +4505,7 @@ class WmpError(RuntimeError):
 
 
 cdef ERR PKCodecFactory_CreateDecoderFromBytes(
-    void* bytes,
-    size_t len,
-    PKImageDecode** ppDecoder) nogil:
+    void* bytes, size_t len, PKImageDecode** ppDecoder) nogil:
     """ """
     cdef:
         ERR err
