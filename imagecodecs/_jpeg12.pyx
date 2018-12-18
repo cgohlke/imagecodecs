@@ -46,12 +46,13 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 """
 
-__version__ = '2018.12.12'
+__version__ = '2018.12.16'
 
+import numbers
 import numpy
 
 cimport cython
@@ -294,7 +295,6 @@ def _jcs_colorspace_samples(colorspace):
 
 class Jpeg12Error(RuntimeError):
     """JPEG Exceptions."""
-    pass
 
 
 def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
@@ -416,7 +416,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
 
 
 def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
-                 shape=None, out=None):
+                  shape=None, out=None):
     """Decode JPEG 12-bit image to numpy array.
 
     """
@@ -501,7 +501,7 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
             if cinfo.output_components > 1:
                 shape += cinfo.output_components,
 
-            out = _create_array(out, shape, numpy.uint16)  # TODO: allow strides
+            out = _create_array(out, shape, numpy.uint16)  # TODO: strides
             dst = out
             dstsize = dst.size * dst.itemsize
             rowstride = dst.strides[0] // dst.itemsize
@@ -522,7 +522,7 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
 
 cdef _create_array(out, shape, dtype, strides=None):
     """Return numpy array of shape and dtype from output argument."""
-    if out is None:
+    if out is None or isinstance(out, numbers.Integral):
         out = numpy.empty(shape, dtype)
     elif isinstance(out, numpy.ndarray):
         if out.shape != shape:
@@ -554,7 +554,7 @@ cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
     elif out is bytearray:
         out = None
         out_type = bytearray
-    elif isinstance(out, int):
+    elif isinstance(out, numbers.Integral):
         out_size = out
         out = None
     else:
