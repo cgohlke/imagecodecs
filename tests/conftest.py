@@ -6,6 +6,6 @@ def pytest_report_header(config):
         import imagecodecs
         from imagecodecs import imagecodecs as imagecodecs_py
         return 'versions C: %s\nversions Py: %s' % (
-            imagecodecs.version(str), imagecodecs_py.version(str))
+            imagecodecs.version(), imagecodecs_py.version())
     except Exception:
         pass
