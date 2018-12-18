@@ -43,7 +43,7 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 Revisions
 ---------
@@ -76,7 +76,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.12.12.py'
+__version__ = '2018.12.16.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -160,7 +160,7 @@ def notimplemented(arg=False):
     return nop
 
 
-def version(astype=str):
+def version(astype=None):
     """Return detailed version information."""
     versions = (
         ('imagecodecs', __version__),
@@ -174,7 +174,7 @@ def version(astype=str):
         ('lzf', 'unknown' if lzf else 'n/a'),
         ('pil', PIL.PILLOW_VERSION if PIL else 'n/a'),
     )
-    if astype is str:
+    if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
     if astype is dict:
         return dict(versions)
@@ -316,7 +316,6 @@ def floatpred_decode(data, axis=-2, out=None):
 @notimplemented
 def floatpred_encode(data, axis=-1, out=None):
     """Encode Floating Point Predictor."""
-    pass
 
 
 def bitorder_decode(data, out=None, _bitorder=[]):
@@ -374,7 +373,6 @@ bitorder_encode = bitorder_decode
 @notimplemented
 def packbits_encode(data, level=None, out=None):
     """Compress PackBits."""
-    pass
 
 
 def packbits_decode(encoded, out=None):
@@ -413,7 +411,6 @@ def packbits_decode(encoded, out=None):
 @notimplemented
 def lzw_encode(data, level=None, out=None):
     """Compress LZW."""
-    pass
 
 
 def lzw_decode(encoded, buffersize=0, out=None):
@@ -510,7 +507,6 @@ def lzw_decode(encoded, buffersize=0, out=None):
 @notimplemented
 def packints_encode(*args, **kwargs):
     """Pack integers."""
-    pass
 
 
 def packints_decode(data, dtype, numbits, runlen=0, out=None):
@@ -697,7 +693,6 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
 @notimplemented
 def jpeg_encode(*args, **kwargs):
     """Encode JPEG."""
-    pass
 
 
 @notimplemented(PIL)
@@ -715,43 +710,36 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
 @notimplemented
 def jpeg8_encode(*args, **kwargs):
     """Encode JPEG 8-bit."""
-    pass
 
 
 @notimplemented
 def jpeg12_decode(*args, **kwargs):
     """Decode JPEG 12-bit."""
-    pass
 
 
 @notimplemented
 def jpeg12_encode(*args, **kwargs):
     """Encode JPEG 12-bit."""
-    pass
 
 
 @notimplemented
 def jpegls_decode(*args, **kwargs):
     """Decode JPEG LS."""
-    pass
 
 
 @notimplemented
 def jpegls_encode(*args, **kwargs):
     """Encode JPEG LS."""
-    pass
 
 
 @notimplemented
 def jpegsof3_decode(*args, **kwargs):
     """Decode JPEG SOF3."""
-    pass
 
 
 @notimplemented
 def jpegsof3_encode(*args, **kwargs):
     """Encode JPEG SOF3."""
-    pass
 
 
 @notimplemented(PIL)
@@ -766,19 +754,16 @@ def j2k_decode(data, verbose=0, out=None):
 @notimplemented
 def j2k_encode(*args, **kwargs):
     """Encode JPEG 2000."""
-    pass
 
 
 @notimplemented
 def jxr_decode(*args, **kwargs):
     """Decode JPEG XR."""
-    pass
 
 
 @notimplemented
 def jxr_encode(*args, **kwargs):
     """Encode JPEG XR."""
-    pass
 
 
 @notimplemented(PIL)
@@ -792,7 +777,6 @@ def webp_decode(data, out=None):
 @notimplemented
 def webp_encode(*args, **kwargs):
     """Encode WebP."""
-    pass
 
 
 @notimplemented(PIL)
@@ -806,7 +790,6 @@ def png_decode(data, out=None):
 @notimplemented
 def png_encode(*args, **kwargs):
     """Encode PNG."""
-    pass
 
 
 if __name__ == '__main__':
