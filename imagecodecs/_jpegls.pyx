@@ -46,14 +46,15 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 """
 
-__version__ = '2018.12.12'
+__version__ = '2018.12.16'
 
 _CHARLS_VERSION = '2.0.0'
 
+import numbers
 import numpy
 
 cimport cython
@@ -303,8 +304,8 @@ def jpegls_decode(data, out=None):
         # params.interleaveMode == CHARLS_IM_SAMPLE or CHARLS_IM_LINE
         shape = params.height, params.width, params.components
         shape_ = (params.height,
-                 params.stride // (itemsize * params.components),
-                 params.components)
+                  params.stride // (itemsize * params.components),
+                  params.components)
         strides = params.stride, itemsize * params.components, itemsize
 
     out = _create_array(out, shape_, dtype, strides=strides)
@@ -336,7 +337,7 @@ def jpegls_decode(data, out=None):
 
 cdef _create_array(out, shape, dtype, strides=None):
     """Return numpy array of shape and dtype from output argument."""
-    if out is None:
+    if out is None or isinstance(out, numbers.Integral):
         out = numpy.empty(shape, dtype)
     elif isinstance(out, numpy.ndarray):
         if out.shape != shape:
@@ -368,7 +369,7 @@ cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
     elif out is bytearray:
         out = None
         out_type = bytearray
-    elif isinstance(out, int):
+    elif isinstance(out, numbers.Integral):
         out_size = out
         out = None
     else:
