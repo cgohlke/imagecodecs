@@ -16,7 +16,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.12
+:Version: 2018.12.16
 
 Requirements
 ------------
@@ -25,7 +25,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 2.7.15, 3.5.4, 3.6.7, 3.7.1, 64-bit <https://www.python.org>`_
 * `Numpy 1.14.6 <https://www.numpy.org>`_
-* `Cython 0.29.1 <https://cython.org>`_
+* `Cython 0.29.2 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.3.7 <https://github.com/facebook/zstd>`_
@@ -40,7 +40,6 @@ This release has been tested with the following requirements and dependencies
 * `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
-* Visual Studio 2008, 2010, 2015, 2017
 
 Required for testing:
 
@@ -92,6 +91,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2018.12.16
+    Pass 1537 tests.
+    Reallocate LZW buffer on demand.
+    Ignore integer type output arguments for codecs returning images.
 2018.12.12
     Enable decoding of subsampled J2K images via conversion to RGB.
     Enable decoding of large JPEG using patched libjpeg-turbo.
