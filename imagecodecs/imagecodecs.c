@@ -1,8 +1,8 @@
 /* imagecodecs.c */
 
 /*
-Copyright (c) 2008-2018, Christoph Gohlke
-Copyright (c) 2008-2018, The Regents of the University of California
+Copyright (c) 2008-2019, Christoph Gohlke
+Copyright (c) 2008-2019, The Regents of the University of California
 Produced at the Laboratory for Fluorescence Dynamics
 All rights reserved.
 
