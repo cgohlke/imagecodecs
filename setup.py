@@ -5,7 +5,6 @@
 
 import sys
 import re
-import warnings
 
 import numpy
 
@@ -35,6 +34,7 @@ if 'sdist' in sys.argv:
     with open('README.rst', 'w') as fh:
         fh.write(readme)
     numpy_required = '1.11.3'
+
 else:
     numpy_required = numpy.__version__
 
@@ -52,7 +52,7 @@ include_dirs = [
 ]
 
 try:
-    # running in Windows development environment?
+    # running in Windows development environment
     import _inclib  # noqa
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
@@ -63,13 +63,13 @@ try:
                      ('CHARLS_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
     if sys.version_info < (3, 5):
-        # clarls-2.0 not compatible msvc 9 or 10
+        # clarls-2.0 not compatible with msvc 9 or 10
         libraries_jpegls = []
     else:
         libraries_jpegls = ['charls']
 
 except ImportError:
-    # this works with Ubuntu 18.04 WSL
+    # this works with most recent Debian
     libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
                  'openjp2', 'jxrglue', 'jpegxr', 'lcms2', 'z']
     include_dirs.extend(
@@ -137,8 +137,10 @@ setup_args = dict(
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 'python-lzf'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
-    entry_points={'console_scripts': [
-        'imagecodecs=imagecodecs.__main__:main']},
+    entry_points={
+        'console_scripts': ['imagecodecs=imagecodecs.__main__:main']},
+    ext_modules=ext_modules,
+    cmdclass={'build_ext': build_ext},
     license='BSD',
     zip_safe=False,
     platforms=['any'],
@@ -160,23 +162,9 @@ setup_args = dict(
         ],
     )
 
-try:
-    if '--universal' in sys.argv:
-        raise ValueError(
-            'Not building the _imagecodecs Cython extension in universal mode')
-    setup(ext_modules=ext_modules,
-          cmdclass={'build_ext': build_ext},
-          **setup_args)
-except BaseException as e:
-    sep = '\n\n%s\n\n' % ('*' * 80)
-    warnings.warn(str(e))
-    warnings.warn("""
+if '--universal' in sys.argv:
+    del setup_args['ext_modules']
+    del setup_args['cmdclass']
+    del setup_args['package_data']
 
-*******************************************************************
-
-The _imagecodecs Cython extension module was not built.
-Using a fallback module with limited functionality and performance.
-
-*******************************************************************
-        """)
-    setup(**setup_args)
+setup(**setup_args)
