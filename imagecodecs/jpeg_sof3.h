@@ -66,7 +66,7 @@ typedef SSIZE_T ssize_t;
 #endif
 
 
-#define JPEG_SOF3_VERSION "2018.10.28"
+#define JPEG_SOF3_VERSION "2019.1.1"
 
 #define JPEG_SOF3_OK 0
 #define JPEG_SOF3_INVALID_OUTPUT -1
