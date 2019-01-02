@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # test_imagecodecs.py
 
-# Copyright (c) 2018, Christoph Gohlke
-# Copyright (c) 2018, The Regents of the University of California
+# Copyright (c) 2018-2019, Christoph Gohlke
+# Copyright (c) 2018-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics
 # All rights reserved.
 #
@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 """
 
