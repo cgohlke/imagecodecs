@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # imagecodecs.py
 
-# Copyright (c) 2008-2018, Christoph Gohlke
-# Copyright (c) 2008-2018, The Regents of the University of California
+# Copyright (c) 2008-2019, Christoph Gohlke
+# Copyright (c) 2008-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
@@ -43,7 +43,7 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 Revisions
 ---------
@@ -76,7 +76,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2018.12.16.py'
+__version__ = '2019.1.1.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
