@@ -15,9 +15,6 @@ except ImportError as error:
 The _imagecodecs Cython extension module could not be loaded.
 Using a fallback module with limited functionality and performance.
 
-Install Windows binaries from https://pypi.org/project/imagecodecs/
-or build the _imagecodecs Cython extension module from source.
-
 *******************************************************************
         """ % str(error))
     from .imagecodecs import __doc__, __version__
