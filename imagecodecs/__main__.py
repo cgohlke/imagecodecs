@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # imagecodecs/__main__.py
 
-"""Command line script for the imagecodecs package."""
+"""Imagecodecs package command line script."""
 
 import sys
 
