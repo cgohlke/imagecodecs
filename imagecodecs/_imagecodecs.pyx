@@ -7,8 +7,8 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2008-2018, Christoph Gohlke
-# Copyright (c) 2008-2018, The Regents of the University of California
+# Copyright (c) 2008-2019, Christoph Gohlke
+# Copyright (c) 2008-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
@@ -55,19 +55,19 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.15, 3.5.4, 3.6.7, 3.7.1, 64-bit <https://www.python.org>`_
-* `Numpy 1.14.6 <https://www.numpy.org>`_
+* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
+* `Numpy 1.15.4 <https://www.numpy.org>`_
 * `Cython 0.29.2 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.3.7 <https://github.com/facebook/zstd>`_
+* `zstd 1.3.8 <https://github.com/facebook/zstd>`_
 * `blosc 1.15.1 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.6 <http://www.bzip.org>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
@@ -82,9 +82,9 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing:
 
-* `python-blosc 1.6.2 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.3.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
 
@@ -130,6 +130,9 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.1.1
+    Do not install package if Cython extension fails to build.
+    Fix compiler warnings.
 2018.12.16
     Pass 1537 tests.
     Reallocate LZW buffer on demand.
@@ -192,7 +195,7 @@ Revisions
 
 """
 
-__version__ = '2018.12.16'
+__version__ = '2019.1.1'
 
 import numbers
 import numpy
@@ -387,7 +390,7 @@ cdef _delta(data, int axis, out, int decode):
     """Decode or encode Delta."""
     cdef:
         const uint8_t[::1] src
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize
         ssize_t dstsize
         ssize_t srcstride
@@ -505,7 +508,7 @@ cdef _xor(data, int axis, out, int decode):
     """Decode or encode XOR."""
     cdef:
         const uint8_t[::1] src
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize
         ssize_t dstsize
         ssize_t srcstride
@@ -846,7 +849,7 @@ def packbits_encode(data, level=None, out=None):
     cdef:
         numpy.flatiter srciter
         const uint8_t[::1] src
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         const uint8_t* srcptr
         const uint8_t* dstptr
         ssize_t srcsize
@@ -923,7 +926,7 @@ def packbits_decode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t ret = 0
@@ -982,7 +985,7 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
     """Unpack groups of bits in byte sequence into numpy array."""
     cdef:
         const uint8_t[::1] src = data
-        uint8_t* srcptr = &src[0]
+        uint8_t* srcptr = <uint8_t*>&src[0]
         uint8_t* dstptr = NULL
         ssize_t srcsize = src.size
         ssize_t dstsize = 0
@@ -1035,7 +1038,7 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         # work around "Converting to Python object not allowed without gil"
         # for i in range(0, dstsize, runlen):
         for i from 0 <= i < dstsize by runlen:
-            ret = icd_packints_decode(srcptr, srcsize,
+            ret = icd_packints_decode(<const uint8_t*>srcptr, srcsize,
                                       dstptr, runlen, numbits)
             if ret < 0:
                 break
@@ -1086,7 +1089,7 @@ def lzw_decode(data, buffersize=0, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t ret = 0
@@ -1177,7 +1180,7 @@ def zlib_encode(data, level=None, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)  # TODO: non-contiguous
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         unsigned long srclen, dstlen
@@ -1222,7 +1225,7 @@ def zlib_decode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         unsigned long srclen, dstlen
@@ -1300,7 +1303,7 @@ cdef extern from 'zstd.h':
 class ZstdError(RuntimeError):
     """ZStandard Exceptions."""
     def __init__(self, func, msg='', err=0):
-        cdef char* errmsg
+        cdef const char* errmsg
         if msg:
             RuntimeError.__init__(self, "%s returned '%s'" % (func, msg))
         else:
@@ -1315,7 +1318,7 @@ def zstd_encode(data, level=None, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         size_t srcsize = src.size
         size_t dstsize
         ssize_t dstlen
@@ -1357,7 +1360,7 @@ def zstd_decode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         size_t srcsize = <size_t>src.size
         size_t dstsize
         ssize_t dstlen
@@ -1432,7 +1435,7 @@ def lz4_encode(data, level=None, header=False, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         int srcsize = src.size
         int dstsize
         int offset = 4 if header else 0
@@ -1488,7 +1491,7 @@ def lz4_decode(data, header=False, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         int srcsize = <int>src.size
         int dstsize
         int offset = 4 if header else 0
@@ -1554,7 +1557,7 @@ def lzf_encode(data, level=None, header=False, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         int srcsize = <int>src.size
         int dstsize
         unsigned int ret = 0
@@ -1610,7 +1613,7 @@ def lzf_decode(data, header=False, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         int dstsize
         int srcsize = <unsigned int>src.size
         unsigned int ret = 0
@@ -1810,7 +1813,7 @@ def lzma_decode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen
@@ -1839,7 +1842,7 @@ def lzma_decode(data, out=None):
         with nogil:
             strm.next_in = &src[0]
             strm.avail_in = <size_t>srcsize
-            strm.next_out = &dst[0]
+            strm.next_out = <uint8_t*>&dst[0]
             strm.avail_out = <size_t>dstsize
             ret = lzma_code(&strm, LZMA_RUN)
             dstlen = dstsize - <ssize_t>strm.avail_out
@@ -1860,7 +1863,7 @@ def lzma_encode(data, level=None, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen
@@ -1892,7 +1895,7 @@ def lzma_encode(data, level=None, out=None):
         with nogil:
             strm.next_in = &src[0]
             strm.avail_in = <size_t>srcsize
-            strm.next_out = &dst[0]
+            strm.next_out = <uint8_t*>&dst[0]
             strm.avail_out = <size_t>dstsize
             ret = lzma_code(&strm, LZMA_RUN)
             if ret == LZMA_OK or ret == LZMA_STREAM_END:
@@ -1955,7 +1958,7 @@ cdef extern from 'bzlib.h':
     int BZ2_bzDecompressInit(bz_stream *strm, int verbosity, int small) nogil
     int BZ2_bzDecompress(bz_stream* strm) nogil
     int BZ2_bzDecompressEnd(bz_stream *strm) nogil
-    char* BZ2_bzlibVersion() nogil
+    const char* BZ2_bzlibVersion() nogil
 
 
 class Bz2Error(RuntimeError):
@@ -1987,7 +1990,7 @@ def bz2_encode(data, level=None, out=None):
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen = 0
@@ -2048,7 +2051,7 @@ def bz2_decode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t dstlen = 0
@@ -2139,7 +2142,7 @@ def blosc_decode(data, numthreads=1, out=None):
     """
     cdef:
         const uint8_t[::1] src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = <unsigned int>src.size
         size_t nbytes, cbytes, blocksize
@@ -2185,7 +2188,7 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
     """
     cdef:
         const uint8_t[::1] src = _parse_input(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         size_t blocksize_ = blocksize
@@ -2542,7 +2545,7 @@ def png_encode(data, level=None, out=None):
     """
     cdef:
         numpy.ndarray src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
         ssize_t rowstride = src.strides[0]
@@ -2587,7 +2590,7 @@ def png_encode(data, level=None, out=None):
     try:
         with nogil:
 
-            memstream.data = &dst[0]
+            memstream.data = <png_bytep>&dst[0]
             memstream.size = <png_size_t>dstsize
             memstream.offset = 0
 
@@ -2770,8 +2773,8 @@ def webp_encode(data, level=None, out=None):
     """
     cdef:
         const uint8_t[:, :, :] src = data
-        const uint8_t[::1] dst
-        uint8_t* srcptr = &src[0, 0, 0]
+        const uint8_t[::1] dst  # must be const to write to bytes
+        uint8_t* srcptr = <uint8_t*>&src[0, 0, 0]
         uint8_t* output
         ssize_t dstsize
         size_t ret = 0
@@ -2944,7 +2947,7 @@ cdef extern from 'jpeglib.h':
 
     struct jpeg_error_mgr:
         int msg_code
-        char** jpeg_message_table
+        const char** jpeg_message_table
         noreturn_t error_exit(jpeg_common_struct*)
         void output_message(jpeg_common_struct*)
 
@@ -3127,7 +3130,7 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
     """
     cdef:
         numpy.ndarray src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
         ssize_t rowstride = src.strides[0]
@@ -3140,7 +3143,7 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
-        char* msg
+        const char* msg
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -3196,8 +3199,8 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = src.shape[0]
-        cinfo.image_width = src.shape[1]
+        cinfo.image_height = <JDIMENSION>src.shape[0]
+        cinfo.image_width = <JDIMENSION>src.shape[1]
         cinfo.input_components = samples
 
         if in_color_space != JCS_UNKNOWN:
@@ -3256,7 +3259,7 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
         J_COLOR_SPACE out_color_space
         JDIMENSION width = 0
         JDIMENSION height = 0
-        char *msg
+        const char *msg
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -3278,8 +3281,8 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
         # when using a patched jibjpeg-turbo
-        height = shape[0]
-        width = shape[1]
+        height = <JDIMENSION>shape[0]
+        width = <JDIMENSION>shape[1]
 
     with nogil:
 
@@ -3705,7 +3708,7 @@ cdef extern from 'openjpeg.h':
     void color_cielab_to_rgb(opj_image_t* image) nogil
     void color_cmyk_to_rgb(opj_image_t* image) nogil
     void color_esycc_to_rgb(opj_image_t* image) nogil
-    char* opj_version() nogil
+    const char* opj_version() nogil
 
     OPJ_BOOL opj_encode(opj_codec_t *p_codec, opj_stream_t *p_stream) nogil
 
@@ -3938,7 +3941,7 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
     """
     cdef:
         numpy.ndarray src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
         ssize_t byteswritten
@@ -4115,7 +4118,7 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
             if tile_height > 0:
                 # TODO: loop over tiles
                 ret = opj_write_tile(codec, 0, <OPJ_BYTE*>src.data,
-                                     srcsize, stream)
+                                     <OPJ_UINT32>srcsize, stream)
             else:
                 # TODO: copy data to image.comps[band].data[y, x]
                 ret = opj_encode(codec, stream)
