@@ -16,19 +16,19 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.15, 3.5.4, 3.6.7, 3.7.1, 64-bit <https://www.python.org>`_
-* `Numpy 1.14.6 <https://www.numpy.org>`_
+* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
+* `Numpy 1.15.4 <https://www.numpy.org>`_
 * `Cython 0.29.2 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.3.7 <https://github.com/facebook/zstd>`_
+* `zstd 1.3.8 <https://github.com/facebook/zstd>`_
 * `blosc 1.15.1 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.6 <http://www.bzip.org>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
@@ -43,9 +43,9 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing:
 
-* `python-blosc 1.6.2 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.3.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
 
@@ -91,6 +91,9 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.1.1
+    Do not install package if Cython extension fails to build.
+    Fix compiler warnings.
 2018.12.16
     Pass 1537 tests.
     Reallocate LZW buffer on demand.
