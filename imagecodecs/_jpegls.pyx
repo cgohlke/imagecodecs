@@ -7,8 +7,8 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018, Christoph Gohlke
-# Copyright (c) 2018, The Regents of the University of California
+# Copyright (c) 2018-2019, Christoph Gohlke
+# Copyright (c) 2018-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
@@ -46,11 +46,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 """
 
-__version__ = '2018.12.16'
+__version__ = '2019.1.1'
 
 _CHARLS_VERSION = '2.0.0'
 
@@ -196,7 +196,7 @@ def jpegls_encode(data, level=None, out=None):
     """
     cdef:
         numpy.ndarray src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         size_t byteswritten
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
@@ -226,8 +226,8 @@ def jpegls_encode(data, level=None, out=None):
     dstsize = dst.size * dst.itemsize
 
     memset(&params, 0, sizeof(JlsParameters))
-    params.height = src.shape[0]
-    params.width = src.shape[1]
+    params.height = <int>src.shape[0]
+    params.width = <int>src.shape[1]
     params.bitsPerSample = src.itemsize * 8
     params.allowedLossyError = allowedlossyerror
 
@@ -251,7 +251,7 @@ def jpegls_encode(data, level=None, out=None):
     if ret != CHARLS_API_RESULT_OK:
         raise JpegLsError('JpegLsEncode', ret)
 
-    if byteswritten < dstsize:
+    if <ssize_t>byteswritten < dstsize:
         if out_given:
             out = memoryview(out)[:byteswritten]
         else:
