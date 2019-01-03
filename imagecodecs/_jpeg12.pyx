@@ -7,8 +7,8 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018, Christoph Gohlke
-# Copyright (c) 2018, The Regents of the University of California
+# Copyright (c) 2018-2019, Christoph Gohlke
+# Copyright (c) 2018-2019, The Regents of the University of California
 # Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
@@ -46,11 +46,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2018.12.16
+:Version: 2019.1.1
 
 """
 
-__version__ = '2018.12.16'
+__version__ = '2019.1.1'
 
 import numbers
 import numpy
@@ -74,6 +74,7 @@ numpy.import_array()
 
 cdef extern from 'jpeglib.h':
     int JPEG_LIB_VERSION
+    int LIBJPEG_TURBO_VERSION
     int LIBJPEG_TURBO_VERSION_NUMBER
 
     ctypedef void noreturn_t
@@ -121,7 +122,7 @@ cdef extern from 'jpeglib.h':
 
     struct jpeg_error_mgr:
         int msg_code
-        char** jpeg_message_table
+        const char** jpeg_message_table
         noreturn_t error_exit(jpeg_common_struct*)
         void output_message(jpeg_common_struct*)
 
@@ -304,7 +305,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
     """
     cdef:
         numpy.ndarray src = data
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
         ssize_t rowstride = src.strides[0]
@@ -317,7 +318,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
-        char* msg
+        const char* msg
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -377,9 +378,10 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = src.shape[0]
-        cinfo.image_width = src.shape[1]
+        cinfo.image_height = <JDIMENSION>src.shape[0]
+        cinfo.image_width = <JDIMENSION>src.shape[1]
         cinfo.input_components = samples
+
         if in_color_space != JCS_UNKNOWN:
             cinfo.in_color_space = in_color_space
         if jpeg_color_space != JCS_UNKNOWN:
@@ -436,7 +438,7 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         J_COLOR_SPACE out_color_space
         JDIMENSION width = 0
         JDIMENSION height = 0
-        char *msg
+        const char *msg
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -458,8 +460,8 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
         # when using a patched jibjpeg-turbo
-        height = shape[0]
-        width = shape[1]
+        height = <JDIMENSION>shape[0]
+        width = <JDIMENSION>shape[1]
 
     with nogil:
 
