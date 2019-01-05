@@ -179,13 +179,14 @@ int decodePixelDifference(
     unsigned char *lRawRA,
     ssize_t *lRawPos,
     int *lCurrentBitPos,
-    struct HufTables l)
+    const struct HufTables &l)
 {
     int lByte = (lRawRA[*lRawPos] << *lCurrentBitPos) +
                 (lRawRA[*lRawPos + 1] >> (8 - *lCurrentBitPos));
     lByte = lByte & 255;
     int lHufValSSSS = l.LookUpRA[lByte];
     if (lHufValSSSS < 255) {
+        /* TODO: possible array overrun if lHufValSSSS > 17 */
         *lCurrentBitPos = l.SSSSszRA[lHufValSSSS] + *lCurrentBitPos;
         *lRawPos = *lRawPos + (*lCurrentBitPos >> 3);
         *lCurrentBitPos = *lCurrentBitPos & 7;
