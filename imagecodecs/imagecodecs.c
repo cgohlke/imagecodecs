@@ -321,7 +321,7 @@ ssize_t icd_diff(
             dstptr += stride;  \
             srcptr += srcstride;  \
             t = (*(dtype *)srcptr);  \
-            *(dtype *)dstptr = prev = t ^ prev;  \
+            *(dtype *)dstptr = t ^ prev;  \
             prev = t;  \
         }  \
     }  \
@@ -1001,9 +1001,7 @@ ssize_t _lzw_alloc_buffer(
 
     if (buffersize <= 0) {
         /* free buffer */        
-        if (handle->buffer != NULL) {
-            free(handle->buffer);
-        }
+        free(handle->buffer);
         handle->buffer = NULL;
         handle->buffersize = 0;
         return 0;
@@ -1030,6 +1028,7 @@ ssize_t _lzw_alloc_buffer(
 /* Allocate LZW handle. */
 icd_lzw_handle_t *icd_lzw_new(ssize_t buffersize)
 {
+    /* TODO: check alignment of structs */
     icd_lzw_handle_t *handle = NULL;
     ssize_t size = (sizeof(icd_lzw_handle_t)
                     + sizeof(icd_lzw_table_t) * LZW_TABLESIZE);
@@ -1054,12 +1053,8 @@ icd_lzw_handle_t *icd_lzw_new(ssize_t buffersize)
 /* Free LZW handle. */
 void icd_lzw_del(icd_lzw_handle_t *handle)
 {
-    if (handle != NULL) {
-        if (handle->buffer != NULL) {
-            free(handle->buffer);
-        }
-        free(handle);
-    }
+    free(handle->buffer);
+    free(handle);
 }
 
 
@@ -1112,7 +1107,7 @@ ssize_t icd_lzw_size(
     const uint8_t *src,
     const ssize_t srcsize)
 {
-    icd_lzw_table_t *table = handle->table;
+    icd_lzw_table_t *table;
     uint32_t tablesize = 258;
     uint32_t code = 0;
     uint32_t oldcode = 0;
@@ -1127,12 +1122,13 @@ ssize_t icd_lzw_size(
     ssize_t i;
     int msb = 1;  /* bit ordering of codes */
 
-    if ((handle == NULL) || (src == NULL) || (srcsize < 2)) {
-        return ICD_VALUE_ERROR;
-    }
     if (srcsize == 0) {
         return 0;
     }
+    if ((handle == NULL) || (src == NULL) || (srcsize < 2)) {
+        return ICD_VALUE_ERROR;
+    }
+    table = handle->table;
 
     if ((*src == 0) && (*(src + 1) & 1)) {
         msb = 0;
@@ -1255,8 +1251,8 @@ ssize_t icd_lzw_decode(
     uint8_t *dst,
     const ssize_t dstsize)
 {
-    icd_lzw_table_t *table = handle->table;
-    uint8_t *buffer = handle->buffer;
+    icd_lzw_table_t *table;
+    uint8_t *buffer;
     uint32_t tablesize = 258;
     uint32_t code = 0;
     uint32_t oldcode = 0;
@@ -1278,6 +1274,9 @@ ssize_t icd_lzw_decode(
     if ((srcsize == 0) || (dstsize == 0)) {
         return 0;
     }
+
+    table = handle->table;
+    buffer = handle->buffer;
 
     if ((*src == 0) && (*(src + 1) & 1)) {
         msb = 0;
@@ -1330,7 +1329,7 @@ ssize_t icd_lzw_decode(
 
             if (code == LZW_EOI) break;
 
-            if (--remaining < 0) break;
+            remaining--;
 
             *dst++ = code;
             oldcode = code;
@@ -1368,7 +1367,7 @@ ssize_t icd_lzw_decode(
 
             /* decompressed.append(table[code]) */
             if (code < 256) {
-                if (--remaining < 0) break;
+                remaining--;
                 *dst++ = code;
             }
             else {
@@ -1407,7 +1406,7 @@ ssize_t icd_lzw_decode(
             /* table.append(outstring) */
             table[tablesize].buf = dst;
             if (oldcode < 256) {
-                if (--remaining < 0) break;
+                remaining--;
                 *dst++ = oldcode;
                 if (--remaining < 0) break;
                 *dst++ = oldcode;
