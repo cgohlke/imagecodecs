@@ -162,6 +162,7 @@ typedef struct icd_lzw_handle {
     icd_lzw_table_t *table;
     uint8_t *buffer;
     ssize_t buffersize;
+    ssize_t dummy;  /* icd_lzw_handle_t multiple of icd_lzw_table_t */
 } icd_lzw_handle_t;
 
 
