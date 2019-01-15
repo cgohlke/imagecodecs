@@ -5,10 +5,12 @@ include pyproject.toml
 include imagecodecs/_imagecodecs.c
 include imagecodecs/_jpeg12.c
 include imagecodecs/_jpegls.c
+include imagecodecs/_zfp.c
 
 include imagecodecs/_imagecodecs.pyx
 include imagecodecs/_jpeg12.pyx
 include imagecodecs/_jpegls.pyx
+include imagecodecs/_zfp.pyx
 
 include imagecodecs/imagecodecs.c
 include imagecodecs/imagecodecs.h
@@ -28,6 +30,8 @@ include liblzf-3.6/*
 include tests/*.py
 include tests/*.txt
 include tests/*.bin
+include tests/*.npy
+include tests/*.zfp
 include tests/*.png
 include tests/*.jpg
 include tests/*.jxr
@@ -37,7 +41,8 @@ include tests/*.jls
 include tests/*.tif
 include tests/*.webp
 
-exclude tests/jpeg_33792x79872.jpg
+exclude tests/33792x79872.jpg
+exclude tests/104704x190464.jpg
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
