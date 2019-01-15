@@ -46,11 +46,11 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:Version: 2019.1.14
 
 """
 
-__version__ = '2019.1.1'
+__version__ = '2019.1.14'
 
 import numbers
 import numpy
@@ -443,8 +443,8 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2**31-1:
-        # limit to 2 GB
+    if srcsize > 2**32-1:
+        # limit to 4 GB
         raise ValueError('data too large')
 
     jpeg_color_space = _jcs_colorspace(colorspace)
