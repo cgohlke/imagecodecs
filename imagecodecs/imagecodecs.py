@@ -43,40 +43,45 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:Version: 2019.1.14
 
 Revisions
 ---------
+2019.1.14
+    Add dummy ZFP codec.
+    Add numpy NPY and NPZ codec.
+2019.1.1
+    Update copyright year.
 2018.12.1
     Use logging.warning instead of warnings.warn.
 2018.10.30
     Check signatures before calling pil_decode.
 2018.10.28
-    Add dummy jpegls codec.
+    Add dummy JpegLS codec.
     Rename jpeg0xc3 to jpegsof3.
 2018.10.22
-    Add blosc codec based in blosc package.
+    Add Blosc codec via blosc package.
     Fix FutureWarning with numpy 1.15.
 2018.10.18
     Use Pillow for decoding jpeg, png, j2k, and webp.
 2018.10.17
     Add dummy jpeg0xc3 codec.
 2018.10.10
-    Add dummy png codec.
-    Improve delta codecs.
+    Add dummy PNG codec.
+    Improve Delta codecs.
 2018.9.30
-    Add lzf codec based on python-lzf package.
+    Add LZF codec via python-lzf package.
 2018.9.22
     Add dummy webp codec.
 2018.8.29
-    Add floatpred, lzw, packbits, packints decoders from tifffile.py module.
+    Add FloatPred, LZW, PackBits, PackInts decoders from tifffile.py module.
     Use zlib, bz2, lzma, zstd, and lz4 modules for codecs.
 
 """
 
 from __future__ import division, print_function
 
-__version__ = '2019.1.1.py'
+__version__ = '2019.1.14.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -181,14 +186,39 @@ def version(astype=None):
     return versions
 
 
-def none_decode(data, axis=None, out=None):
+def none_decode(data, *args, **kwargs):
     """Decode NOP."""
     return data
 
 
-def none_encode(data, level=None, axis=None, out=None):
+def none_encode(data, *args, **kwargs):
     """Encode NOP."""
     return data
+
+
+def numpy_decode(data, index=0, out=None, **kwargs):
+    """Decode NPY and NPZ."""
+    with io.BytesIO(data) as fh:
+        out = numpy.load(fh, **kwargs)
+        if hasattr(out, 'files'):
+            try:
+                index = out.files[index]
+            except Exception:
+                pass
+            out = out[index]
+    return out
+
+
+def numpy_encode(data, level=None, out=None, **kwargs):
+    """Encode NPY and NPZ."""
+    with io.BytesIO() as fh:
+        if level:
+            numpy.savez_compressed(fh, data, **kwargs)
+        else:
+            numpy.save(fh, data, **kwargs)
+        fh.seek(0)
+        out = fh.read()
+    return out
 
 
 def delta_encode(data, axis=-1, out=None):
@@ -790,6 +820,16 @@ def png_decode(data, out=None):
 @notimplemented
 def png_encode(*args, **kwargs):
     """Encode PNG."""
+
+
+@notimplemented
+def zfp_decode(*args, **kwargs):
+    """Decode ZFP."""
+
+
+@notimplemented
+def zfp_encode(*args, **kwargs):
+    """Encode ZFP."""
 
 
 if __name__ == '__main__':
