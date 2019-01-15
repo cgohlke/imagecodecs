@@ -56,6 +56,8 @@ def main(argv=None, verbose=True, decoders=None):
             imagecodecs.j2k_decode,
             imagecodecs.jxr_decode,
             imagecodecs.webp_decode,
+            imagecodecs.zfp_decode,
+            imagecodecs.numpy_decode,
         ]
 
     messages = []
