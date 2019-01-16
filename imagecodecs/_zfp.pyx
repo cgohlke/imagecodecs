@@ -178,7 +178,7 @@ cdef extern from 'zfp.h':
 _ZFP_VERSION = ZFP_VERSION_STRING
 
 
-def zfp_encode(data, level=None, header=True, mode=None, execution=None,
+def zfp_encode(data, level=None, mode=None, execution=None, header=True,
                out=None):
     """Compress numpy array to ZFP stream.
 
