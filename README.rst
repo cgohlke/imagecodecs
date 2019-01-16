@@ -6,9 +6,9 @@ transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
-JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta,
-XOR Delta, Floating Point Predictor, and Bitorder reversal.
+ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP, JPEG 8-bit,
+JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers,
+Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -16,7 +16,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:Version: 2019.1.14
 
 Requirements
 ------------
@@ -35,14 +35,17 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.36 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.1 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org>`_ (8 and 12-bit)
+* `libjpeg-turbo 2.0.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+  (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
+* `zfp 0.5.4 <https://github.com/LLNL/zfp>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing:
 
+* `scikit-image 0.14.1 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
@@ -57,7 +60,11 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7 and 3.4 are deprecated.
+Python 2.7, 3.4, and 32-bit are deprecated.
+
+The `Microsoft Visual C++ Redistributable Packages
+<https://support.microsoft.com/en-us/help/2977003/
+the-latest-supported-visual-c-downloads>`_ are required on Windows.
 
 Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
@@ -88,10 +95,17 @@ Other Python packages providing imaging or compression codecs:
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
+* `fpzip <https://github.com/seung-lab/fpzip>`_
 
 Revisions
 ---------
+2019.1.14
+    Pass 2123 tests.
+    Add ZFP codecs via zfp library (WIP).
+    Add numpy NPY and NPZ codecs.
+    Fix some static codechecker errors.
 2019.1.1
+    Update copyright year.
     Do not install package if Cython extension fails to build.
     Fix compiler warnings.
 2018.12.16
