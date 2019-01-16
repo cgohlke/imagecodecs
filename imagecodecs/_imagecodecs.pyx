@@ -45,9 +45,9 @@ transformation, compression, and decompression functions
 for use in the tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, PNG, WebP, JPEG 8-bit, JPEG 12-bit,
-JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers, Delta,
-XOR Delta, Floating Point Predictor, and Bitorder reversal.
+ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP, JPEG 8-bit,
+JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers,
+Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -55,7 +55,7 @@ XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:Version: 2019.1.14
 
 Requirements
 ------------
@@ -74,14 +74,17 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.36 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.1 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.1 <https://libjpeg-turbo.org>`_ (8 and 12-bit)
+* `libjpeg-turbo 2.0.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+  (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
+* `zfp 0.5.4 <https://github.com/LLNL/zfp>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing:
 
+* `scikit-image 0.14.1 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
@@ -96,7 +99,11 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7 and 3.4 are deprecated.
+Python 2.7, 3.4, and 32-bit are deprecated.
+
+The `Microsoft Visual C++ Redistributable Packages
+<https://support.microsoft.com/en-us/help/2977003/
+the-latest-supported-visual-c-downloads>`_ are required on Windows.
 
 Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
@@ -127,10 +134,17 @@ Other Python packages providing imaging or compression codecs:
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
+* `fpzip <https://github.com/seung-lab/fpzip>`_
 
 Revisions
 ---------
+2019.1.14
+    Pass 2123 tests.
+    Add ZFP codecs via zfp library (WIP).
+    Add numpy NPY and NPZ codecs.
+    Fix some static codechecker errors.
 2019.1.1
+    Update copyright year.
     Do not install package if Cython extension fails to build.
     Fix compiler warnings.
 2018.12.16
@@ -195,8 +209,9 @@ Revisions
 
 """
 
-__version__ = '2019.1.1'
+__version__ = '2019.1.14'
 
+import io
 import numbers
 import numpy
 
@@ -352,6 +367,7 @@ def version(astype=None):
         ('charls', _CHARLS_VERSION),
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
+        ('zfp', _ZFP_VERSION.decode('utf-8')),
         )
     if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
@@ -363,14 +379,41 @@ def version(astype=None):
 
 # No Operation ################################################################
 
-def none_decode(data, axis=None, out=None):
+def none_decode(data, *args, **kwargs):
     """Decode NOP."""
     return data
 
 
-def none_encode(data, level=None, axis=None, out=None):
+def none_encode(data, *args, **kwargs):
     """Encode NOP."""
     return data
+
+
+# Numpy #######################################################################
+
+def numpy_decode(data, index=0, out=None, **kwargs):
+    """Decode NPY and NPZ."""
+    with io.BytesIO(data) as fh:
+        out = numpy.load(fh, **kwargs)
+        if hasattr(out, 'files'):
+            try:
+                index = out.files[index]
+            except Exception:
+                pass
+            out = out[index]
+    return out
+
+
+def numpy_encode(data, level=None, out=None, **kwargs):
+    """Encode NPY and NPZ."""
+    with io.BytesIO() as fh:
+        if level:
+            numpy.savez_compressed(fh, data, **kwargs)
+        else:
+            numpy.save(fh, data, **kwargs)
+        fh.seek(0)
+        out = fh.read()
+    return out
 
 
 # Delta #######################################################################
@@ -3264,8 +3307,8 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2**31-1:
-        # limit to 2 GB
+    if srcsize > 2**32-1:
+        # limit to 4 GB
         raise ValueError('data too large')
 
     jpeg_color_space = _jcs_colorspace(colorspace)
@@ -3339,48 +3382,6 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
         jpeg_destroy_decompress(&cinfo)
 
     return out
-
-
-# JPEG 12-bit #################################################################
-
-# JPEG 12-bit codecs are implemented in a separate extension module
-# due to header and link conflicts with JPEG 8-bit.
-
-try:
-    from ._jpeg12 import jpeg12_decode, jpeg12_encode, Jpeg12Error
-except ImportError:
-    Jpeg12Error = RuntimeError
-
-    def jpeg12_decode(*args, **kwargs):
-        """Not implemented."""
-        raise NotImplementedError('jpeg12_decode')
-
-    def jpeg12_encode(*args, **kwargs):
-        """Not implemented."""
-        raise NotImplementedError('jpeg12_encode')
-
-
-# JPEG LS #################################################################
-
-# JPEG-LS codecs are implemented in a separate extension module
-#   because CharLS-2.x is not commonly available yet.
-# TODO: move implementation here once charls2 is available in Debian and
-#   Python 2.7 is dropped
-
-try:
-    from ._jpegls import (jpegls_decode, jpegls_encode, JpegLsError,
-                          _CHARLS_VERSION)
-except ImportError:
-    _CHARLS_VERSION = 'n/a'
-    JpegLsError = RuntimeError
-
-    def jpegls_decode(*args, **kwargs):
-        """Not implemented."""
-        raise NotImplementedError('jpegls_decode')
-
-    def jpegls_encode(*args, **kwargs):
-        """Not implemented."""
-        raise NotImplementedError('jpegls_encode')
 
 
 # JPEG SOF3 ###############################################################
@@ -4657,6 +4658,68 @@ def jxr_decode(data, out=None):
     return out
 
 
+# JPEG 12-bit #################################################################
+
+# JPEG 12-bit codecs are implemented in a separate extension module
+# due to header and link conflicts with JPEG 8-bit.
+
+try:
+    from ._jpeg12 import jpeg12_decode, jpeg12_encode, Jpeg12Error
+except ImportError:
+    Jpeg12Error = RuntimeError
+
+    def jpeg12_decode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpeg12_decode')
+
+    def jpeg12_encode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpeg12_encode')
+
+
+# JPEG LS #################################################################
+
+# JPEG-LS codecs are implemented in a separate extension module
+#   because CharLS-2.x is not commonly available yet.
+# TODO: move implementation here once charls2 is available in Debian and
+#   Python 2.7 is dropped
+
+try:
+    from ._jpegls import (jpegls_decode, jpegls_encode, JpegLsError,
+                          _CHARLS_VERSION)
+except ImportError:
+    _CHARLS_VERSION = 'n/a'
+    JpegLsError = RuntimeError
+
+    def jpegls_decode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegls_decode')
+
+    def jpegls_encode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegls_encode')
+
+
+# ZFP #########################################################################
+
+# ZFP codecs are implemented in a separate extension module
+#   because ZFP is not commonly available yet and might require OpenMP/CUDA.
+# TODO: move implementation here once libzfp is available in Debian
+
+try:
+    from ._zfp import (zfp_decode, zfp_encode, _ZFP_VERSION)
+except ImportError:
+    _ZFP_VERSION = b'n/a'
+
+    def zfp_decode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('zfp_decode')
+
+    def zfp_encode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('zfp_encode')
+
+
 ###############################################################################
 
 # TODO: add option not to release GIL
@@ -4670,4 +4733,3 @@ def jxr_decode(data, out=None):
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: LERC via https://github.com/Esri/lerc; patented but Apache licensed.
-# TODO: ZFP via https://github.com/LLNL/zfp
