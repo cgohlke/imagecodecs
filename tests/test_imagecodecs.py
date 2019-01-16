@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.1
+:Version: 2019.1.14
 
 """
 
@@ -47,10 +47,13 @@ from __future__ import division, print_function
 import os
 import sys
 import glob
+import io
 
 import pytest
 import numpy
 from numpy.testing import assert_array_equal, assert_allclose
+
+from skimage.util.dtype import convert
 
 import imagecodecs
 import imagecodecs.imagecodecs as imagecodecs_py
@@ -67,11 +70,24 @@ try:
 except ImportError:
     _jpeg12 = None
 
-
 try:
     from imagecodecs import _jpegls
 except ImportError:
     _jpegls = None
+
+try:
+    from imagecodecs import _zfp
+except ImportError:
+    _zfp = None
+
+try:
+    import tifffile
+except ImportError:
+    tifffile = None
+
+
+IS_PY2 = sys.version_info[0] == 2
+IS_32BIT = sys.maxsize < 2**32
 
 
 def test_version():
@@ -810,7 +826,7 @@ def test_jpegls_decode(output):
     """Test JPEGLS decoder with RGBA32 image."""
     from imagecodecs import jpegls_decode as decode
 
-    data = readfile('rgba32.jls')
+    data = readfile('rgba.u1.jls')
     dtype = 'uint8'
     shape = 32, 31, 4
 
@@ -834,7 +850,7 @@ def test_webp_decode(output):
     """Test WebpP  decoder with RGBA32 image."""
     from imagecodecs import webp_decode as decode
 
-    data = readfile('rgba32.webp')
+    data = readfile('rgba.u1.webp')
     dtype = 'uint8'
     shape = 32, 31, 4
 
@@ -853,6 +869,64 @@ def test_webp_decode(output):
     assert decoded[-1, -1, -1] == 63
 
 
+@pytest.mark.skipif(_zfp is None, reason='_zfp module missing')
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
+@pytest.mark.parametrize('execution', [None, 'omp'])
+@pytest.mark.parametrize('mode', [(None, None), ('p', None)])  # ('r', 24)
+@pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])  # 'view',
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', ['rgba', 'view', 'gray', 'line'])
+@pytest.mark.parametrize('dtype', ['float32', 'float64', 'int32', 'int64'])
+def test_zfp(dtype, itype, enout, deout, mode, execution):
+    """Test ZFP codecs."""
+    from imagecodecs import zfp_decode as decode
+    from imagecodecs import zfp_encode as encode
+
+    mode, level = mode
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    data = image_data(itype, dtype)
+    shape = data.shape
+
+    if itype == 'view':
+        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
+        temp[2:2+shape[0], 3:3+shape[1], :] = data
+        data = temp[2:2+shape[0], 3:3+shape[1], :]
+
+    kwargs = dict(mode=mode, level=level, execution=execution)
+    encoded = encode(data, **kwargs)
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        encoded = numpy.empty(len(encoded), 'uint8')
+        encode(data, out=encoded, **kwargs)
+    elif enout == 'bytearray':
+        encoded = bytearray(len(encoded))
+        encode(data, out=encoded, **kwargs)
+
+    if deout == 'new':
+        decoded = decode(encoded)
+    elif deout == 'out':
+        decoded = numpy.empty(shape, dtype)
+        decode(encoded, out=decoded)
+    elif deout == 'view':
+        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
+        decoded = temp[2:2+shape[0], 3:3+shape[1], :]
+        decode(encoded, out=decoded)
+    elif deout == 'bytearray':
+        decoded = bytearray(shape[0]*shape[1]*shape[2]*itemsize)
+        decoded = decode(encoded, out=decoded)
+        decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
+
+    if dtype.char == 'f':
+        atol = 1e-6
+    else:
+        atol = 20
+    assert_allclose(data, (decoded), atol=atol, rtol=0)
+
+
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
 @pytest.mark.parametrize('level', [None, 5, -1])
 @pytest.mark.parametrize('deout', ['new', 'out', 'view', 'bytearray'])
 @pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
@@ -907,7 +981,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
 
     dtype = numpy.dtype(dtype)
     itemsize = dtype.itemsize
-    data = IMAGE_DATA[(itype, itemsize)]
+    data = image_data(itype, dtype)
     shape = data.shape
 
     if itype == 'view':
@@ -952,16 +1026,35 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         assert_array_equal(data, decoded, verbose=True)
 
 
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
+@pytest.mark.skipif(tifffile is None, reason='tifffile module missing')
+@pytest.mark.parametrize('dtype', ['u1', 'u2', 'f4'])
+@pytest.mark.parametrize('codec', ['deflate', 'lzma', 'zstd', 'packbits'])
+def test_tifffile(dtype, codec):
+    """Test tifffile compression."""
+    if codec == 'packbits' and dtype != 'u1':
+        pytest.skip('dtype not supported')
+
+    data = image_data('rgb', dtype)
+    with io.BytesIO() as fh:
+        tifffile.imwrite(fh, data, compress=codec)
+        fh.seek(0)
+        image = tifffile.imread(fh)
+
+    assert_array_equal(data, image, verbose=True)
+
+
+@pytest.mark.skipif(IS_32BIT, reason='Data too large for 32-bit')
 def test_jpeg8_large():
     """Test JPEG 8-bit decoder with dimensions > 65000."""
     from imagecodecs import jpeg8_decode as decode
 
     try:
-        data = readfile('jpeg_33792x79872.jpg')
+        data = readfile('33792x79872.jpg')
     except IOError:
         pytest.skip('large file not included with source distribution')
 
-    # this fails if libjpeg-turbo wasn't compiled with patch:
+    # this fails if libjpeg-turbo wasn't compiled with libjpeg-turbo.diff:
     # Jpeg8Error: Empty JPEG image (DNL not supported)
     decoded = decode(data, shape=(33792, 79872))
     assert decoded.shape == (33792, 79872, 3)
@@ -985,27 +1078,32 @@ def readfile(fname):
         return fh.read()
 
 
-SIZE = 2**15 + 3
+def image_data(itype, dtype):
+    """Return test image array."""
+    if itype in ('rgb', 'view'):
+        data = IMAGE[..., :3]
+    elif itype == 'rgba':
+        data = IMAGE
+    elif itype == 'gray':
+        data = IMAGE[..., 2:3]
+    elif itype == 'graya':
+        data = IMAGE[..., 2:]
+    elif itype == 'line':
+        data = IMAGE[:1, :, 2:3]
+
+    # TODO: replace skimage convert with dtype codec
+    data = convert(data, dtype, force_copy=True)
+    if dtype == 'uint16':
+        # 12-bit
+        data //= 16
+    return data
+
+
+IMAGE = numpy.load(datafiles('rgba.f8.npy'))
 BYTES = readfile('bytes.bin')
 BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
 WORDSIMG = numpy.frombuffer(WORDS, 'uint16').reshape(36, 36, 3)
-IMAGE_DATA = {
-    ('gray', 1): imagecodecs.png_decode(readfile('gray8.png')
-                                        ).reshape(32, 31, 1),
-    ('graya', 1): imagecodecs.png_decode(readfile('graya16.png')),
-    ('rgb', 1): imagecodecs.png_decode(readfile('rgb24.png')),
-    ('rgba', 1): imagecodecs.png_decode(readfile('rgba32.png')),
-    ('view', 1): imagecodecs.png_decode(readfile('rgb24.png')),
-
-    ('gray', 2): imagecodecs.png_decode(readfile('gray16.png')
-                                        ).reshape(32, 31, 1) // 16,
-    ('graya', 2): imagecodecs.png_decode(readfile('graya32.png')) // 16,
-    ('rgb', 2): imagecodecs.png_decode(readfile('rgb48.png')) // 16,
-    ('rgba', 2): imagecodecs.png_decode(readfile('rgba64.png')) // 16,
-    ('view', 2): imagecodecs.png_decode(readfile('rgb48.png')) // 16,
-    }
-
 
 if __name__ == '__main__':
     import warnings
