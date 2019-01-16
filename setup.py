@@ -67,6 +67,8 @@ try:
         libraries_jpegls = []
     else:
         libraries_jpegls = ['charls']
+    libraries_zfp = ['zfp']
+    openmp_args = ['/openmp']
 
 except ImportError:
     # this works with most recent Debian
@@ -82,6 +84,8 @@ except ImportError:
         libraries.append('m')
     libraries_jpeg12 = []  # 'jpeg12'
     libraries_jpegls = []  # 'charls'
+    libraries_zfp = []  # 'zfp'
+    openmp_args = ['-fopenmp']
 
 
 if 'lzf' not in libraries and 'liblzf' not in libraries:
@@ -122,6 +126,17 @@ if libraries_jpegls:
         )
     ]
 
+if libraries_zfp:
+    ext_modules += [
+        Extension(
+            'imagecodecs._zfp',
+            ['imagecodecs/_zfp.pyx'],
+            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            libraries=libraries_zfp,
+            define_macros=define_macros,
+            extra_compile_args = openmp_args
+        )
+    ]
 
 setup_args = dict(
     name='imagecodecs',
@@ -133,8 +148,9 @@ setup_args = dict(
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
     install_requires=['numpy>=%s' % numpy_required],
-    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2018.11.28']},
-    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 'python-lzf'],
+    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.1.1']},
+    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 
+                   'python-lzf', 'scikit-image'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
@@ -155,7 +171,6 @@ setup_args = dict(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
