@@ -34,7 +34,7 @@
 
 """Image transformation, compression, and decompression codecs.
 
-This module implements limited functionality of the imagecodec Cython
+This module implements limited functionality of the imagecodecs Cython
 extension module using pure Python and 3rd party packages.
 
 :Author:
@@ -43,7 +43,7 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:Version: 2019.1.20
 
 Revisions
 ---------
@@ -81,7 +81,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.1.14.py'
+__version__ = '2019.1.20.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
