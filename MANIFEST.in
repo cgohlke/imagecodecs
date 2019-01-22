@@ -42,7 +42,7 @@ include tests/*.tif
 include tests/*.webp
 
 exclude tests/33792x79872.jpg
-exclude tests/104704x190464.jpg
+exclude tests/jpegxr.czi
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
