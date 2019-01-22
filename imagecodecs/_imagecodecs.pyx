@@ -41,8 +41,8 @@
 """Image transformation, compression, and decompression codecs.
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
-transformation, compression, and decompression functions
-for use in the tifffile, czifile, and other scientific imaging modules.
+transformation, compression, and decompression functions for use in the
+tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP, JPEG 8-bit,
@@ -55,7 +55,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:Version: 2019.1.20
 
 Requirements
 ------------
@@ -64,7 +64,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
 * `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.2 <https://cython.org>`_
+* `Cython 0.29.3 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.3.8 <https://github.com/facebook/zstd>`_
@@ -84,7 +84,7 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing:
 
-* `scikit-image 0.14.1 <https://github.com/scikit-image>`_
+* `scikit-image 0.14.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
@@ -138,8 +138,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.1.20
+    Pass 2610 tests.
+    Add more pixel formats to JPEG XR codec.
+    Add JPEG XR encoder.
 2019.1.14
-    Pass 2123 tests.
     Add ZFP codecs via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
@@ -148,7 +151,6 @@ Revisions
     Do not install package if Cython extension fails to build.
     Fix compiler warnings.
 2018.12.16
-    Pass 1537 tests.
     Reallocate LZW buffer on demand.
     Ignore integer type output arguments for codecs returning images.
 2018.12.12
@@ -160,7 +162,6 @@ Revisions
     Use ZStd content size 1 MB if it cannot be determined.
     Use logging.warning instead of warnings.warn or print.
 2018.11.8
-    Pass 1323 tests.
     Decode LSB style LZW.
     Fix last byte not written by LZW decoder (bug fix).
     Permit unknown colorspaces in JPEG codecs (e.g. CFA used in TIFF).
@@ -192,7 +193,6 @@ Revisions
 2018.9.22
     Add WebP codecs via libwebp.
 2018.8.29
-    Pass 396 tests.
     Add PackBits encoder.
 2018.8.22
     Add link library version information.
@@ -209,7 +209,7 @@ Revisions
 
 """
 
-__version__ = '2019.1.14'
+__version__ = '2019.1.20'
 
 import io
 import numbers
@@ -218,16 +218,24 @@ import numpy
 cimport numpy
 cimport cython
 
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_AS_STRING
 from cython.operator cimport dereference as deref
+from cpython.bytearray cimport PyByteArray_FromStringAndSize
+from cpython.bytes cimport (PyBytes_FromStringAndSize, PyBytes_AS_STRING,
+                            _PyBytes_Resize)
 
 from libc.math cimport ceil
-from libc.string cimport memset, memcpy
-from libc.stdlib cimport malloc, free
+from libc.string cimport memset, memcpy, memmove
+from libc.stdlib cimport malloc, free, realloc
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
 from libc.stdint cimport (int8_t, uint8_t, int16_t, uint16_t,
                           int32_t, uint32_t, int64_t, uint64_t, UINT64_MAX)
+
+from numpy cimport (PyArray_DescrNewFromType, NPY_BOOL, NPY_INTP,
+                    NPY_INT8, NPY_INT16, NPY_INT32, NPY_INT64, NPY_INT128,
+                    NPY_UINT8, NPY_UINT16, NPY_UINT32, NPY_UINT64,
+                    NPY_FLOAT16, NPY_FLOAT32, NPY_FLOAT64,
+                    NPY_COMPLEX64, NPY_COMPLEX128, )
+
 
 cdef extern from 'numpy/arrayobject.h':
     int NPY_VERSION
@@ -3908,7 +3916,7 @@ cdef void j2k_info_callback(char* msg, void* client_data) with gil:
     logging.warning('J2K info: %s' % msg.decode('utf8').strip())
 
 
-def _opj_colorspace(colorspace):
+cdef OPJ_COLOR_SPACE opj_colorspace(colorspace):
     """Return OPJ colorspace value from user input."""
     return {
         'GRAY': OPJ_CLRSPC_GRAY,
@@ -4009,7 +4017,7 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
         else:
             color_space = OPJ_CLRSPC_UNSPECIFIED
     else:
-        color_space = _opj_colorspace(colorspace)
+        color_space = opj_colorspace(colorspace)
 
     out, dstsize, out_given, out_type = _parse_output(out)
 
@@ -4357,45 +4365,163 @@ def j2k_decode(data, verbose=0, out=None):
 # JPEG XR #####################################################################
 
 cdef extern from 'windowsmediaphoto.h':
-    int WMP_errSuccess
-    int WMP_errFail
-    int WMP_errNotYetImplemented
-    int WMP_errAbstractMethod
-    int WMP_errOutOfMemory
-    int WMP_errFileIO
-    int WMP_errBufferOverflow
-    int WMP_errInvalidParameter
-    int WMP_errInvalidArgument
-    int WMP_errUnsupportedFormat
-    int WMP_errIncorrectCodecVersion
-    int WMP_errIndexNotFound
-    int WMP_errOutOfSequence
-    int WMP_errNotInitialized
-    int WMP_errMustBeMultipleOf16LinesUntilLastCall
-    int WMP_errPlanarAlphaBandedEncRequiresTempFile
-    int WMP_errAlphaModeCannotBeTranscoded
-    int WMP_errIncorrectCodecSubVersion
-
     ctypedef long ERR
     ctypedef int I32
+    ctypedef int Bool
     ctypedef int PixelI
+    ctypedef signed char I8
     ctypedef unsigned char U8
     ctypedef unsigned int U32
+    ctypedef float Float
 
-    ctypedef struct CWMIStrCodecParam:
-        U8 uAlphaMode
+    int MAX_CHANNELS
+    int MAX_TILES
+    int MB_WIDTH_PIXEL
+    int MB_HEIGHT_PIXEL
+    int BLK_WIDTH_PIXEL
+    int BLK_HEIGHT_PIXEL
+    int MB_WIDTH_BLK
+    int MB_HEIGHT_BLK
+    int FRAMEBUFFER_ALIGNMENT
+
+    ERR WMP_errSuccess
+    ERR WMP_errFail
+    ERR WMP_errNotYetImplemented
+    ERR WMP_errAbstractMethod
+    ERR WMP_errOutOfMemory
+    ERR WMP_errFileIO
+    ERR WMP_errBufferOverflow
+    ERR WMP_errInvalidParameter
+    ERR WMP_errInvalidArgument
+    ERR WMP_errUnsupportedFormat
+    ERR WMP_errIncorrectCodecVersion
+    ERR WMP_errIndexNotFound
+    ERR WMP_errOutOfSequence
+    ERR WMP_errNotInitialized
+    ERR WMP_errMustBeMultipleOf16LinesUntilLastCall
+    ERR WMP_errPlanarAlphaBandedEncRequiresTempFile
+    ERR WMP_errAlphaModeCannotBeTranscoded
+    ERR WMP_errIncorrectCodecSubVersion
+
+    ctypedef enum BITDEPTH_BITS:
+        BD_1
+        BD_8
+        BD_16
+        BD_16S
+        BD_16F
+        BD_32
+        BD_32S
+        BD_32F
+        BD_5
+        BD_10
+        BD_565
+        BDB_MAX
+        BD_1alt
+
+    ctypedef enum COLORFORMAT:
+        Y_ONLY
+        YUV_420
+        YUV_422
+        YUV_444
+        CMYK
+        BAYER
+        N_CHANNEL
+        CF_RGB
+        CF_RGBE
+        CF_PALLETIZED
+        CFT_MAX
+
+    ctypedef enum BITDEPTH:
+        BD_SHORT
+        BD_LONG
+        BD_MAX
+
+    ctypedef enum OVERLAP:
+        OL_NONE
+        OL_ONE
+        OL_TWO
+        OL_MAX
+
+    ctypedef enum BITSTREAMFORMAT:
+        SPATIAL
+        FREQUENCY
+
+    ctypedef enum SUBBAND:
+        SB_ALL
+        SB_NO_FLEXBITS
+        SB_NO_HIGHPASS
+        SB_DC_ONLY
+        SB_ISOLATED
+
+    ctypedef ERR (*WMPStream_Close)(WMPStream**) nogil
+    ctypedef ERR (*WMPStream_Read)(WMPStream*, void* pv, size_t c) nogil
+    ctypedef ERR (*WMPStream_Write)(WMPStream*, const void* pv, size_t c) nogil
+    ctypedef ERR (*WMPStream_SetPos)(WMPStream*, size_t offPos) nogil
+    ctypedef ERR (*WMPStream_GetPos)(WMPStream*, size_t* poffPos) nogil
+    ctypedef Bool (*WMPStream_EOS)(WMPStream*) nogil
+
+    cdef struct WMPStream_buf:
+        U8* pbBuf
+        size_t cbBuf
+        size_t cbCur
+        size_t cbBufCount
+
+    cdef union WMPStream_state:
+        WMPStream_buf buf
 
     cdef struct WMPStream:
-        pass
+        WMPStream_state state
+        WMPStream_Close Close
+        WMPStream_Read Read
+        WMPStream_Write Write
+        WMPStream_SetPos SetPos
+        WMPStream_GetPos GetPos
+        WMPStream_EOS EOS
+
+    ctypedef struct CWMIStrCodecParam:
+        Bool bVerbose
+        U8 uiDefaultQPIndex
+        U8 uiDefaultQPIndexYLP
+        U8 uiDefaultQPIndexYHP
+        U8 uiDefaultQPIndexU
+        U8 uiDefaultQPIndexULP
+        U8 uiDefaultQPIndexUHP
+        U8 uiDefaultQPIndexV
+        U8 uiDefaultQPIndexVLP
+        U8 uiDefaultQPIndexVHP
+        U8 uiDefaultQPIndexAlpha
+        COLORFORMAT cfColorFormat
+        BITDEPTH bdBitDepth
+        OVERLAP olOverlap
+        BITSTREAMFORMAT bfBitstreamFormat
+        size_t cChannel  # number of color channels including alpha
+        U8 uAlphaMode  # 0: no alpha, 1: alpha only, else: something + alpha
+        SUBBAND sbSubband
+        U8 uiTrimFlexBits
+        WMPStream* pWStream
+        size_t cbStream
+        U32  cNumOfSliceMinus1V
+        U32* uiTileX  # [MAX_TILES]
+        U32  cNumOfSliceMinus1H
+        U32* uiTileY  # [MAX_TILES]
+        U8 nLenMantissaOrShift
+        I8 nExpBias
+        Bool bBlackWhite
+        Bool bUseHardTileBoundaries
+        Bool bProgressiveMode
+        Bool bYUVData
+        Bool bUnscaledArith
+        Bool fMeasurePerf
 
     ERR CreateWS_Memory(WMPStream** ppWS, void* pv, size_t cb) nogil
+    ERR CloseWS_Memory(WMPStream** ppWS) nogil
 
 
 cdef extern from 'guiddef.h':
     ctypedef struct GUID:
         pass
 
-    int IsEqualGUID(GUID*, GUID*)
+    int IsEqualGUID(GUID*, GUID*) nogil
 
 
 cdef extern from 'JXRGlue.h':
@@ -4403,46 +4529,139 @@ cdef extern from 'JXRGlue.h':
     int PK_SDK_VERSION
 
     ctypedef U32 PKIID
+    ctypedef unsigned long WMP_GRBIT
     ctypedef GUID PKPixelFormatGUID
 
+    GUID GUID_PKPixelFormatDontCare
+    # bool
+    GUID GUID_PKPixelFormatBlackWhite
+    # uint8
     GUID GUID_PKPixelFormat8bppGray
-    GUID GUID_PKPixelFormat16bppGray
-    GUID GUID_PKPixelFormat32bppGrayFloat
+    GUID GUID_PKPixelFormat16bppRGB555
+    GUID GUID_PKPixelFormat16bppRGB565
     GUID GUID_PKPixelFormat24bppBGR
     GUID GUID_PKPixelFormat24bppRGB
-    GUID GUID_PKPixelFormat48bppRGB
-    GUID GUID_PKPixelFormat128bppRGBFloat
+    GUID GUID_PKPixelFormat32bppRGB
     GUID GUID_PKPixelFormat32bppRGBA
     GUID GUID_PKPixelFormat32bppBGRA
+    GUID GUID_PKPixelFormat32bppPRGBA
+    GUID GUID_PKPixelFormat32bppRGBE
+    GUID GUID_PKPixelFormat32bppCMYK
+    GUID GUID_PKPixelFormat40bppCMYKAlpha
+    GUID GUID_PKPixelFormat24bpp3Channels
+    GUID GUID_PKPixelFormat32bpp4Channels
+    GUID GUID_PKPixelFormat40bpp5Channels
+    GUID GUID_PKPixelFormat48bpp6Channels
+    GUID GUID_PKPixelFormat56bpp7Channels
+    GUID GUID_PKPixelFormat64bpp8Channels
+    GUID GUID_PKPixelFormat32bpp3ChannelsAlpha
+    GUID GUID_PKPixelFormat40bpp4ChannelsAlpha
+    GUID GUID_PKPixelFormat48bpp5ChannelsAlpha
+    GUID GUID_PKPixelFormat56bpp6ChannelsAlpha
+    GUID GUID_PKPixelFormat64bpp7ChannelsAlpha
+    GUID GUID_PKPixelFormat72bpp8ChannelsAlpha
+    # uint16
+    GUID GUID_PKPixelFormat16bppGray
+    GUID GUID_PKPixelFormat32bppRGB101010
+    GUID GUID_PKPixelFormat48bppRGB
     GUID GUID_PKPixelFormat64bppRGBA
+    GUID GUID_PKPixelFormat64bppPRGBA
+    GUID GUID_PKPixelFormat64bppCMYK
+    GUID GUID_PKPixelFormat80bppCMYKAlpha
+    GUID GUID_PKPixelFormat48bpp3Channels
+    GUID GUID_PKPixelFormat64bpp4Channels
+    GUID GUID_PKPixelFormat80bpp5Channels
+    GUID GUID_PKPixelFormat96bpp6Channels
+    GUID GUID_PKPixelFormat112bpp7Channels
+    GUID GUID_PKPixelFormat128bpp8Channels
+    GUID GUID_PKPixelFormat64bpp3ChannelsAlpha
+    GUID GUID_PKPixelFormat80bpp4ChannelsAlpha
+    GUID GUID_PKPixelFormat96bpp5ChannelsAlpha
+    GUID GUID_PKPixelFormat112bpp6ChannelsAlpha
+    GUID GUID_PKPixelFormat128bpp7ChannelsAlpha
+    GUID GUID_PKPixelFormat144bpp8ChannelsAlpha
+    # float16
+    GUID GUID_PKPixelFormat16bppGrayHalf
+    GUID GUID_PKPixelFormat48bppRGBHalf
+    GUID GUID_PKPixelFormat64bppRGBHalf
+    GUID GUID_PKPixelFormat64bppRGBAHalf
+    # float32
+    GUID GUID_PKPixelFormat32bppGrayFloat
+    GUID GUID_PKPixelFormat96bppRGBFloat
+    GUID GUID_PKPixelFormat128bppRGBFloat
     GUID GUID_PKPixelFormat128bppRGBAFloat
+    GUID GUID_PKPixelFormat128bppPRGBAFloat
 
-    ctypedef void(*initialize_decode)(PKImageDecode*, WMPStream*) nogil
+    int PK_PI_W0
+    int PK_PI_B0
+    int PK_PI_RGB
+    int PK_PI_RGBPalette
+    int PK_PI_TransparencyMask
+    int PK_PI_CMYK
+    int PK_PI_YCbCr
+    int PK_PI_CIELab
+    int PK_PI_NCH
+    int PK_PI_RGBE
 
-    ctypedef void(*initialize_encode)(PKImageEncode*,
-                                      WMPStream*,
-                                      void*,
-                                      size_t) nogil
+    int PK_pixfmtNul
+    int PK_pixfmtHasAlpha
+    int PK_pixfmtPreMul
+    int PK_pixfmtBGR
+    int PK_pixfmtNeedConvert
+
+    int LOOKUP_FORWARD
+    int LOOKUP_BACKWARD_TIF
+
+    ctypedef ERR (*decode_initialize)(
+        PKImageDecode*, WMPStream*) nogil
+
+    ctypedef ERR (*encode_initialize)(
+        PKImageEncode*, WMPStream*, void*, size_t) nogil
+
+    ctypedef ERR (*encode_set_pixel_format)(
+        PKImageEncode* pIE, PKPixelFormatGUID enPixelFormat) nogil
+
+    ctypedef ERR (*encode_set_size)(
+        PKImageEncode* pIE, I32 iWidth, I32 iHeight) nogil
+
+    ctypedef ERR (*encode_set_resolution)(
+        PKImageEncode* pIE, Float rX, Float rY) nogil
+
+    ctypedef ERR (*encode_write_pixels)(
+        PKImageEncode* pIE, U32 cLine, U8* pbPixel, U32 cbStride) nogil
 
     ctypedef struct WMPstruct:
         CWMIStrCodecParam wmiSCP
 
     ctypedef struct PKImageDecode:
         int fStreamOwner
-        initialize_decode Initialize
+        decode_initialize Initialize
         WMPstruct WMP
 
     ctypedef struct PKImageEncode:
-        initialize_encode Initialize
+        encode_initialize Initialize
+        encode_set_pixel_format SetPixelFormat
+        encode_set_size SetSize
+        encode_set_resolution SetResolution
+        encode_write_pixels WritePixels
         WMPstruct WMP
+
+    ctypedef struct PKPixelInfo:
+        PKPixelFormatGUID* pGUIDPixFmt
+        size_t cChannel
+        COLORFORMAT cfColorFormat
+        BITDEPTH_BITS bdBitDepth
+        U32 cbitUnit
+        WMP_GRBIT grBit
+        U32 uInterpretation
+        U32 uSamplePerPixel
+        U32 uBitsPerSample
+        U32 uSampleFormat
 
     ctypedef struct PKFactory:
         pass
 
     ctypedef struct PKCodecFactory:
-        pass
-
-    ctypedef struct PKImageEncode:
         pass
 
     ctypedef struct PKFormatConverter:
@@ -4475,7 +4694,13 @@ cdef extern from 'JXRGlue.h':
                                   U8*,
                                   U32) nogil
 
+    ERR GetImageEncodeIID(const char* szExt, const PKIID** ppIID) nogil
     ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
+    ERR PixelFormatLookup(PKPixelInfo* pPI, U8 uLookupType) nogil
+    PKPixelFormatGUID* GetPixelFormatFromHash(const U8 uPFHash) nogil
+
+    ERR PKImageEncode_Create_WMP(PKImageEncode** ppIE) nogil
+    ERR PKImageEncode_Release(PKImageEncode** ppIE) nogil
 
 
 class WmpError(RuntimeError):
@@ -4508,39 +4733,718 @@ class WmpError(RuntimeError):
         RuntimeError.__init__(self, msg)
 
 
-cdef ERR PKCodecFactory_CreateDecoderFromBytes(
-    void* bytes, size_t len, PKImageDecode** ppDecoder) nogil:
-    """ """
-    cdef:
-        ERR err
-        char *pExt = NULL
-        const PKIID* pIID = NULL
-        WMPStream* pStream = NULL
-        PKImageDecode* pDecoder = NULL
+cdef ERR WriteWS_Memory(WMPStream* pWS, const void* pv, size_t cb) nogil:
+    """Relpacement for WriteWS_Memory to keep track of bytes written."""
+    if pWS.state.buf.cbCur + cb < pWS.state.buf.cbCur:
+        return WMP_errBufferOverflow
+    if pWS.state.buf.cbBuf < pWS.state.buf.cbCur + cb:
+        return WMP_errBufferOverflow
 
-    # get decode PKIID
-    err = GetImageDecodeIID('.jxr', &pIID)
-    if err != WMP_errSuccess:
-        return err
-    # create stream
-    CreateWS_Memory(&pStream, bytes, len)
-    if err != WMP_errSuccess:
-        return err
-    # create decoder
-    err = PKCodecFactory_CreateCodec(pIID, <void **>ppDecoder)
-    if err != WMP_errSuccess:
-        return err
-    # attach stream to decoder
-    pDecoder = ppDecoder[0]
-    pDecoder.Initialize(pDecoder, pStream)
-    pDecoder.fStreamOwner = 1
+    memmove(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
+    pWS.state.buf.cbCur += cb
+
+    # keep track of bytes written
+    if pWS.state.buf.cbCur > pWS.state.buf.cbBufCount:
+        pWS.state.buf.cbBufCount = pWS.state.buf.cbCur
+
     return WMP_errSuccess
 
 
-def jxr_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: JXR encoding
-    raise NotImplementedError('jxr_encode')
+cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
+    """Relpacement for WriteWS_Memory to realloc buffers on overflow.
+
+    Only use with buffers allocated by malloc.
+
+    """
+    cdef:
+        size_t newsize = pWS.state.buf.cbCur + cb
+    if newsize < pWS.state.buf.cbCur:
+        return WMP_errBufferOverflow
+    if pWS.state.buf.cbBuf < newsize:
+        if newsize <= pWS.state.buf.cbBuf * 1.125:
+            # moderate upsize: overallocate
+            newsize = newsize + newsize // 8
+            newsize = (((newsize-1) // 4096) + 1) * 4096
+        else:
+            # major upsize: resize to exact size
+            newsize = newsize + 1
+        pWS.state.buf.pbBuf = <U8*>realloc(<void*>pWS.state.buf.pbBuf, newsize)
+        if pWS.state.buf.pbBuf  == NULL:
+            return WMP_errOutOfMemory
+        pWS.state.buf.cbBuf = newsize
+
+    memmove(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
+    pWS.state.buf.cbCur += cb
+
+    # keep track of bytes written
+    if pWS.state.buf.cbCur > pWS.state.buf.cbBufCount:
+        pWS.state.buf.cbBufCount = pWS.state.buf.cbCur
+
+    return WMP_errSuccess
+
+
+cdef Bool EOSWS_Realloc(WMPStream* pWS) nogil:
+    """Relpacement for EOSWS_Memory."""
+    # return pWS.state.buf.cbBuf <= pWS.state.buf.cbCur
+    return 1
+
+
+cdef ERR PKCodecFactory_CreateDecoderFromBytes(void* bytes, size_t len,
+                                               PKImageDecode** ppDecode) nogil:
+    """Create PKImageDecode from byte string."""
+    cdef:
+        char *pExt = NULL
+        const PKIID* pIID = NULL
+        WMPStream* stream = NULL
+        PKImageDecode* decoder = NULL
+        ERR err
+
+    # get decode PKIID
+    err = GetImageDecodeIID('.jxr', &pIID)
+    if err:
+        return err
+    # create stream
+    err = CreateWS_Memory(&stream, bytes, len)
+    if err:
+        return err
+    # create decoder
+    err = PKCodecFactory_CreateCodec(pIID, <void **>ppDecode)
+    if err:
+        return err
+    # attach stream to decoder
+    decoder = ppDecode[0]
+    err = decoder.Initialize(decoder, stream)
+    if err:
+        return err
+    decoder.fStreamOwner = 1
+    return WMP_errSuccess
+
+
+cdef ERR jxr_decode_guid(PKPixelFormatGUID* pixelformat, int *typenum,
+                         ssize_t *samples, U8 *alpha) nogil:
+    """Return dtype, samples, alpha from GUID.
+
+    Change pixelformat to output format in-place.
+
+    """
+    alpha[0] = 0
+    samples[0] = 1
+
+    # bool
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormatBlackWhite):
+        pixelformat[0] = GUID_PKPixelFormat8bppGray
+        typenum[0] = numpy.NPY_BOOL
+        return WMP_errSuccess
+
+    # uint8
+    typenum[0] = numpy.NPY_UINT8
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat8bppGray):
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat24bppRGB):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppRGB555):
+        pixelformat[0] = GUID_PKPixelFormat24bppRGB
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppRGB565):
+        pixelformat[0] = GUID_PKPixelFormat24bppRGB
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat24bppBGR):
+        pixelformat[0] = GUID_PKPixelFormat24bppRGB
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGB):
+        pixelformat[0] = GUID_PKPixelFormat24bppRGB
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppBGRA):
+        pixelformat[0] = GUID_PKPixelFormat32bppRGBA
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGBA):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppPRGBA):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGBE):
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppCMYK):
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat40bppCMYKAlpha):
+        alpha[0] = 2
+        samples[0] = 5
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat24bpp3Channels):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bpp4Channels):
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat40bpp5Channels):
+        samples[0] = 5
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bpp6Channels):
+        samples[0] = 6
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat56bpp7Channels):
+        samples[0] = 7
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bpp8Channels):
+        samples[0] = 8
+        return WMP_errSuccess
+
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bpp3ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat40bpp4ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 5
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bpp5ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 6
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat56bpp6ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 7
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bpp7ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 8
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat72bpp8ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 9
+        return WMP_errSuccess
+
+    # uint16
+    typenum[0] = numpy.NPY_UINT16
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGray):
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGB101010):
+        pixelformat[0] = GUID_PKPixelFormat48bppRGB
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGB):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBA):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppPRGBA):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppCMYK):
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat80bppCMYKAlpha):
+        alpha[0] = 2
+        samples[0] = 5
+        return WMP_errSuccess
+
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bpp3Channels):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bpp4Channels):
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat80bpp5Channels):
+        samples[0] = 5
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bpp6Channels):
+        samples[0] = 6
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat112bpp7Channels):
+        samples[0] = 7
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bpp8Channels):
+        samples[0] = 8
+        return WMP_errSuccess
+
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bpp3ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat80bpp4ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 5
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bpp5ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 6
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat112bpp6ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 7
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bpp7ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 8
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat144bpp8ChannelsAlpha):
+        alpha[0] = 2
+        samples[0] = 9
+        return WMP_errSuccess
+
+    # float32
+    typenum[0] = numpy.NPY_FLOAT32
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFloat):
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFloat):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBFloat):
+        pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFloat):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppPRGBAFloat):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+
+    # float16
+    typenum[0] = numpy.NPY_FLOAT16
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGrayHalf):
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGBHalf):
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBHalf):
+        pixelformat[0] = GUID_PKPixelFormat48bppRGBHalf
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAHalf):
+        alpha[0] = 2
+        samples[0] = 4
+        return WMP_errSuccess
+
+    return WMP_errUnsupportedFormat
+
+
+cdef PKPixelFormatGUID jxr_encode_guid(numpy.dtype dtype, ssize_t samples,
+                                       int photometric, int* alpha) nogil:
+    """Return pixel format GUID from dtype, samples, and photometric."""
+    cdef int typenum = dtype.type_num
+    if samples == 1:
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat8bppGray
+        if typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat16bppGray
+        if typenum == numpy.NPY_FLOAT32:
+            return GUID_PKPixelFormat32bppGrayFloat
+        if typenum == numpy.NPY_FLOAT16:
+            return GUID_PKPixelFormat16bppGrayHalf
+        if typenum == numpy.NPY_BOOL:
+            return GUID_PKPixelFormatBlackWhite
+    if samples == 3:
+        if typenum == numpy.NPY_UINT8:
+            if photometric < 0 or photometric == PK_PI_RGB:
+                return GUID_PKPixelFormat24bppRGB
+            return GUID_PKPixelFormat24bpp3Channels
+        if typenum == numpy.NPY_UINT16:
+            if photometric < 0 or photometric == PK_PI_RGB:
+                return GUID_PKPixelFormat48bppRGB
+            return GUID_PKPixelFormat48bpp3Channels
+        if typenum == numpy.NPY_FLOAT32:
+            return GUID_PKPixelFormat96bppRGBFloat
+        if typenum == numpy.NPY_FLOAT16:
+            return GUID_PKPixelFormat48bppRGBHalf
+    if samples == 4:
+        if typenum == numpy.NPY_UINT8:
+            if photometric < 0 or photometric == PK_PI_RGB:
+                alpha[0] = 1
+                return GUID_PKPixelFormat32bppRGBA
+            if photometric == PK_PI_CMYK:
+                return GUID_PKPixelFormat32bppCMYK
+            if alpha:
+                return GUID_PKPixelFormat32bpp3ChannelsAlpha
+            return GUID_PKPixelFormat32bpp4Channels
+        if typenum == numpy.NPY_UINT16:
+            if photometric < 0 or photometric == PK_PI_RGB:
+                alpha[0] = 1
+                return GUID_PKPixelFormat64bppRGBA
+            if photometric == PK_PI_CMYK:
+                return GUID_PKPixelFormat64bppCMYK
+            if alpha:
+                return GUID_PKPixelFormat64bpp3ChannelsAlpha
+            return GUID_PKPixelFormat64bpp4Channels
+        alpha[0] = 1
+        if typenum == numpy.NPY_FLOAT32:
+            return GUID_PKPixelFormat128bppRGBAFloat
+        if typenum == numpy.NPY_FLOAT16:
+            return GUID_PKPixelFormat64bppRGBAHalf
+    if samples == 5:
+        if photometric == PK_PI_CMYK:
+            alpha[0] = 1
+            if typenum == numpy.NPY_UINT8:
+                return GUID_PKPixelFormat40bppCMYKAlpha
+            if typenum == numpy.NPY_UINT16:
+                return GUID_PKPixelFormat80bppCMYKAlpha
+        if alpha[0]:
+            if typenum == numpy.NPY_UINT8:
+                return GUID_PKPixelFormat40bpp4ChannelsAlpha
+            if typenum == numpy.NPY_UINT16:
+                return GUID_PKPixelFormat80bpp4ChannelsAlpha
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat40bpp5Channels
+        if typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat80bpp5Channels
+    if samples == 6:
+        if alpha[0]:
+            if typenum == numpy.NPY_UINT8:
+                return GUID_PKPixelFormat48bpp5ChannelsAlpha
+            if typenum == numpy.NPY_UINT16:
+                return GUID_PKPixelFormat96bpp5ChannelsAlpha
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat48bpp6Channels
+        if typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat96bpp6Channels
+    if samples == 7:
+        if alpha[0]:
+            if typenum == numpy.NPY_UINT8:
+                return GUID_PKPixelFormat56bpp6ChannelsAlpha
+            if typenum == numpy.NPY_UINT16:
+                return GUID_PKPixelFormat112bpp6ChannelsAlpha
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat56bpp7Channels
+        if typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat112bpp7Channels
+    if samples == 8:
+        if alpha[0]:
+            if typenum == numpy.NPY_UINT8:
+                return GUID_PKPixelFormat64bpp7ChannelsAlpha
+            if typenum == numpy.NPY_UINT16:
+                return GUID_PKPixelFormat128bpp7ChannelsAlpha
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat64bpp8Channels
+        elif typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat128bpp8Channels
+    if samples == 9:
+        alpha[0] = 1
+        if typenum == numpy.NPY_UINT8:
+            return GUID_PKPixelFormat72bpp8ChannelsAlpha
+        if typenum == numpy.NPY_UINT16:
+            return GUID_PKPixelFormat144bpp8ChannelsAlpha
+    return GUID_PKPixelFormatDontCare
+
+
+cdef int jxr_encode_photometric(photometric):
+    """Return PK_PI value from photometric argument."""
+    if photometric is None:
+        return -1
+    if isinstance(photometric, int):
+        if photometric not in (-1, PK_PI_W0, PK_PI_B0, PK_PI_RGB, PK_PI_CMYK):
+            raise ValueError('photometric interpretation not supported')
+        return photometric
+    photometric = photometric.upper()
+    if photometric[:3] == 'RGB':
+        return PK_PI_RGB
+    if photometric == 'WHITEISZERO' or photometric == 'MINISWHITE':
+        return PK_PI_W0
+    if photometric in ('BLACKISZERO', 'MINISBLACK', 'GRAY'):
+        return PK_PI_B0
+    if photometric == 'CMYK' or photometric == 'SEPARATED':
+        return PK_PI_CMYK
+    # TODO: support more photometric modes
+    # if photometric == 'YCBCR':
+    #     return PK_PI_YCbCr
+    # if photometric == 'CIELAB':
+    #     return PK_PI_CIELab
+    # if photometric == 'TRANSPARENCYMASK' or photometric == 'MASK':
+    #     return PK_PI_TransparencyMask
+    # if photometric == 'RGBPALETTE' or photometric == 'PALETTE':
+    #     return PK_PI_RGBPalette
+    raise ValueError('photometric interpretation not supported')
+
+
+# Y, U, V, YHP, UHP, VHP
+# optimized for PSNR
+cdef int *DPK_QPS_420 = [
+    66, 65, 70, 72, 72, 77, 59, 58, 63, 64, 63, 68, 52, 51, 57, 56, 56, 61, 48,
+    48, 54, 51, 50, 55, 43, 44, 48, 46, 46, 49, 37, 37, 42, 38, 38, 43, 26, 28,
+    31, 27, 28, 31, 16, 17, 22, 16, 17, 21, 10, 11, 13, 10, 10, 13, 5, 5, 6, 5,
+    5, 6, 2, 2, 3, 2, 2, 2]
+
+cdef int *DPK_QPS_8 = [
+    67, 79, 86, 72, 90, 98, 59, 74, 80, 64, 83, 89, 53, 68, 75, 57, 76, 83, 49,
+    64, 71, 53, 70, 77, 45, 60, 67, 48, 67, 74, 40, 56, 62, 42, 59, 66, 33, 49,
+    55, 35, 51, 58, 27, 44, 49, 28, 45, 50, 20, 36, 42, 20, 38, 44, 13, 27, 34,
+    13, 28, 34, 7, 17, 21, 8, 17, 21, 2, 5, 6, 2, 5, 6]
+
+cdef int *DPK_QPS_16 = [
+    197, 203, 210, 202, 207, 213, 174, 188, 193, 180, 189, 196, 152, 167, 173,
+    156, 169, 174, 135, 152, 157, 137, 153, 158, 119, 137, 141, 119, 138, 142,
+    102, 120, 125, 100, 120, 124, 82, 98, 104, 79, 98, 103, 60, 76, 81, 58, 76,
+    81, 39, 52, 58, 36, 52, 58, 16, 27, 33, 14, 27, 33, 5, 8, 9, 4, 7, 8]
+
+cdef int *DPK_QPS_16f = [
+    148, 177, 171, 165, 187, 191, 133, 155, 153, 147, 172, 181, 114, 133, 138,
+    130, 157, 167, 97, 118, 120, 109, 137, 144, 76, 98, 103, 85, 115, 121, 63,
+    86, 91, 62, 96, 99, 46, 68, 71, 43, 73, 75, 29, 48, 52, 27, 48, 51, 16, 30,
+    35, 14, 29, 34, 8, 14, 17, 7,  13, 17, 3, 5, 7, 3, 5, 6]
+
+cdef int *DPK_QPS_32f = [
+    194, 206, 209, 204, 211, 217, 175, 187, 196, 186, 193, 205, 157, 170, 177,
+    167, 180, 190, 133, 152, 156, 144, 163, 168, 116, 138, 142, 117, 143, 148,
+    98, 120, 123,  96, 123, 126, 80, 99, 102, 78, 99, 102, 65, 79, 84, 63, 79,
+    84, 48, 61, 67, 45, 60, 66, 27, 41, 46, 24, 40, 45, 3, 22, 24,  2, 21, 22]
+
+
+cdef U8 jxr_quantization(int *qps, float quality, ssize_t i) nogil:
+    """Return quantization from DPK_QPS table."""
+    cdef:
+        ssize_t qi = <ssize_t>(10.0 * quality)
+        float qf = 10.0 * quality - <float>qi
+        int *qps0 = qps + qi * 6
+        int *qps1 = qps0 + 6
+    return <U8>(<float>qps0[i] * (1.0 - qf) + <float>qps1[i] * qf + 0.5)
+
+
+cdef ERR jxr_set_encoder(CWMIStrCodecParam *wmiscp, PKPixelInfo *pixelinfo,
+                         float quality, int alpha, int pi) nogil:
+    """Set encoder compression parameters from level argument and pixel format.
+
+    Code and tables adapted from jxrlib's JxrEncApp.c.
+
+    ImageQuality Q(BD==1) Q(BD==8)    Q(BD==16)   Q(BD==32F)  Subsample Overlap
+    [0.0, 0.5)   8-IQ*5   (see table) (see table) (see table) 4:2:0     2
+    [0.5, 1.0)   8-IQ*5   (see table) (see table) (see table) 4:4:4     1
+    [1.0, 1.0]   1        1           1           1           4:4:4     0
+
+    """
+    cdef:
+        int *qps
+
+    # default: lossless, no tiles
+    wmiscp.uiDefaultQPIndex = 1
+    wmiscp.uiDefaultQPIndexAlpha = 1
+    wmiscp.olOverlap = OL_NONE
+    wmiscp.cfColorFormat = YUV_444
+    wmiscp.sbSubband = SB_ALL
+    wmiscp.bfBitstreamFormat = SPATIAL
+    wmiscp.bProgressiveMode = 0
+    wmiscp.cNumOfSliceMinus1H = 0
+    wmiscp.cNumOfSliceMinus1V = 0
+    wmiscp.uAlphaMode = 2 if alpha else 0
+    # wmiscp.bdBitDepth = BD_LONG
+
+    if pi == PK_PI_CMYK:
+        wmiscp.cfColorFormat = CMYK
+
+    if quality <= 0.0 or quality == 1.0 or quality >= 100.0:
+        return WMP_errSuccess
+    if quality > 1.0:
+        quality /= 100.0
+    if quality >= 1.0:
+        return WMP_errSuccess
+    if quality < 0.5:
+        # overlap
+        wmiscp.olOverlap = OL_TWO
+
+    if quality < 0.5 and pixelinfo.uBitsPerSample <= 8 and pi != PK_PI_CMYK:
+        # chroma sub-sampling
+        wmiscp.cfColorFormat = YUV_420
+
+    # bit depth
+    if pixelinfo.bdBitDepth == BD_1:
+        wmiscp.uiDefaultQPIndex = <U8>(8 - 5.0 * quality + 0.5)
+    else:
+        # remap [0.8, 0.866, 0.933, 1.0] to [0.8, 0.9, 1.0, 1.1]
+        # to use 8-bit DPK QP table (0.933 == Photoshop JPEG 100)
+        if quality > 0.8 and (pixelinfo.bdBitDepth == BD_8 and
+                              wmiscp.cfColorFormat != YUV_420 and
+                              wmiscp.cfColorFormat != YUV_422):
+            quality = 0.8 + (quality - 0.8) * 1.5
+
+        if wmiscp.cfColorFormat == YUV_420 or wmiscp.cfColorFormat == YUV_422:
+            qps = DPK_QPS_420
+        elif pixelinfo.bdBitDepth == BD_8:
+            qps = DPK_QPS_8
+        elif pixelinfo.bdBitDepth == BD_16:
+            qps = DPK_QPS_16
+        elif pixelinfo.bdBitDepth == BD_16F:
+            qps = DPK_QPS_16f
+        else:
+            qps = DPK_QPS_32f
+
+        wmiscp.uiDefaultQPIndex = jxr_quantization(qps, quality, 0)
+        wmiscp.uiDefaultQPIndexU = jxr_quantization(qps, quality, 1)
+        wmiscp.uiDefaultQPIndexV = jxr_quantization(qps, quality, 2)
+        wmiscp.uiDefaultQPIndexYHP = jxr_quantization(qps, quality, 3)
+        wmiscp.uiDefaultQPIndexUHP = jxr_quantization(qps, quality, 4)
+        wmiscp.uiDefaultQPIndexVHP = jxr_quantization(qps, quality, 5)
+
+    return WMP_errSuccess
+
+
+def jxr_encode(data, level=None, photometric=None, hasalpha=None,
+               resolution=None, out=None):
+    """Encode numpy array to JPEG XR image."""
+    cdef:
+        numpy.ndarray src = data
+        numpy.dtype dtype = src.dtype
+        const uint8_t[::1] dst  # must be const to write to bytes
+        U8* outbuffer = NULL
+        ssize_t dstsize
+        ssize_t srcsize = src.size * src.itemsize
+        size_t byteswritten = 0
+        ssize_t samples
+        int pi = jxr_encode_photometric(photometric)
+        int alpha = 1 if hasalpha else 0
+        float quality = 1.0 if level is None else level
+
+        WMPStream* stream = NULL
+        PKImageEncode* encoder = NULL
+        PKPixelFormatGUID pixelformat
+        PKPixelInfo pixelinfo
+        float rx = 96.0
+        float ry = 96.0
+        I32 width
+        I32 height
+        U32 stride
+        ERR err
+
+    if not (dtype in (numpy.uint8, numpy.uint16, numpy.bool,
+                      numpy.float16, numpy.float32)
+            and data.ndim in (2, 3)
+            and numpy.PyArray_ISCONTIGUOUS(data)):
+        raise ValueError('invalid data shape, strides, or dtype')
+
+    if resolution:
+        rx, ry = resolution
+
+    width = <I32>data.shape[1]
+    height = <I32>data.shape[0]
+    stride = <U32>data.strides[0]
+    samples = 1 if data.ndim == 2 else data.shape[2]
+
+    if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
+        raise ValueError('invalid data shape')
+
+    if dtype == numpy.bool:
+        if data.ndim != 2:
+            raise ValueError('invalid data shape, strides, or dtype')
+        src = numpy.packbits(data, axis=-1)
+        stride = <U32>src.strides[0]
+        srcsize //= 8
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+    if out is None:
+        if dstsize <= 0:
+            dstsize = srcsize // 2
+        dstsize = (((dstsize - 1) // 4096) + 1) * 4096
+        outbuffer = <U8*>malloc(dstsize)
+        if outbuffer == NULL:
+            raise MemoryError('failed to allocate ouput buffer')
+    else:
+        dst = out
+        dstsize = dst.size * dst.itemsize
+
+    try:
+        with nogil:
+            pixelformat = jxr_encode_guid(dtype, samples, pi, &alpha)
+            if IsEqualGUID(&pixelformat, &GUID_PKPixelFormatDontCare):
+                with gil:
+                    raise ValueError('PKPixelFormatGUID not found')
+            pixelinfo.pGUIDPixFmt = &pixelformat
+
+            err = PixelFormatLookup(&pixelinfo, LOOKUP_FORWARD)
+            if err:
+                with gil:
+                    raise WmpError('PixelFormatLookup', err)
+
+            if outbuffer == NULL:
+                err = CreateWS_Memory(&stream, <void*>&dst[0], dstsize)
+                if err:
+                    with gil:
+                        raise WmpError('CreateWS_Memory', err)
+                stream.Write = WriteWS_Memory
+            else:
+                err = CreateWS_Memory(&stream, <void*>outbuffer, dstsize)
+                if err:
+                    with gil:
+                        raise WmpError('CreateWS_Memory', err)
+                stream.Write = WriteWS_Realloc
+                stream.EOS = EOSWS_Realloc
+
+            err = PKImageEncode_Create_WMP(&encoder)
+            if err:
+                with gil:
+                    raise WmpError('PKImageEncode_Create_WMP', err)
+
+            err = encoder.Initialize(encoder, stream, &encoder.WMP.wmiSCP,
+                                     sizeof(CWMIStrCodecParam))
+            if err:
+                with gil:
+                    raise WmpError('PKImageEncode_Initialize', err)
+
+            jxr_set_encoder(&encoder.WMP.wmiSCP, &pixelinfo,
+                            quality, alpha, pi)
+
+            err = encoder.SetPixelFormat(encoder, pixelformat)
+            if err:
+                with gil:
+                    raise WmpError('PKImageEncode_SetPixelFormat', err)
+
+            err = encoder.SetSize(encoder, width, height)
+            if err:
+                raise WmpError('PKImageEncode_SetSize', err)
+
+            err = encoder.SetResolution(encoder, rx, ry)
+            if err:
+                with gil:
+                    raise WmpError('PKImageEncode_SetResolution', err)
+
+            err = encoder.WritePixels(encoder, height, <U8*>src.data, stride)
+            if err:
+                with gil:
+                    raise WmpError('PKImageEncode_WritePixels', err)
+
+            byteswritten = stream.state.buf.cbBufCount
+            dstsize = stream.state.buf.cbBuf
+            if outbuffer != NULL:
+                outbuffer = stream.state.buf.pbBuf
+
+    except Exception:
+        if outbuffer != NULL:
+            if stream != NULL:
+                outbuffer = stream.state.buf.pbBuf
+            free(outbuffer)
+        raise
+    finally:
+        if encoder != NULL:
+            PKImageEncode_Release(&encoder)
+        elif stream != NULL:
+            stream.Close(&stream)
+
+    if outbuffer != NULL:
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(<char*>outbuffer, byteswritten)
+        else:
+            out = PyByteArray_FromStringAndSize(<char*>outbuffer, byteswritten)
+            free(outbuffer)
+    elif byteswritten < dstsize:
+        if out_given:
+            out = memoryview(out)[:byteswritten]
+        else:
+            out = out[:byteswritten]
+
+    return out
 
 
 def jxr_decode(data, out=None):
@@ -4549,101 +5453,78 @@ def jxr_decode(data, out=None):
     """
     cdef:
         numpy.ndarray dst
+        numpy.dtype dtype
         const uint8_t[::1] src = data
         PKImageDecode* decoder = NULL
         PKFormatConverter* converter = NULL
-        PKPixelFormatGUID pixel_format
+        PKPixelFormatGUID pixelformat
         PKRect rect
         I32 width
         I32 height
         U32 stride
         ERR err
+        U8 alpha
+        ssize_t srcsize = src.size
         ssize_t dstsize
+        ssize_t samples
+        int typenum
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
     try:
-        err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0], src.size,
-                                                    &decoder)
-        if err:
-            raise WmpError('PKCodecFactory_CreateDecoderFromBytes', err)
-
-        err = PKImageDecode_GetSize(decoder, &width, &height)
-        if err:
-            raise WmpError('PKImageDecode_GetSize', err)
-
-        err = PKImageDecode_GetPixelFormat(decoder, &pixel_format)
-        if err:
-            raise WmpError('PKImageDecode_GetPixelFormat', err)
-
-        if IsEqualGUID(&pixel_format, &GUID_PKPixelFormat8bppGray):
-            dtype = numpy.uint8
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat16bppGray):
-            dtype = numpy.uint16
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppGrayFloat):
-            dtype = numpy.float32
-            samples = 1
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppBGR):
-            dtype = numpy.uint8
-            samples = 3
-            pixel_format = GUID_PKPixelFormat24bppRGB
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat24bppRGB):
-            dtype = numpy.uint8
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat48bppRGB):
-            dtype = numpy.uint16
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBFloat):
-            dtype = numpy.float32
-            samples = 3
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppBGRA):
-            dtype = numpy.uint8
-            samples = 4
-            pixel_format = GUID_PKPixelFormat32bppRGBA
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat32bppRGBA):
-            dtype = numpy.uint8
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat64bppRGBA):
-            dtype = numpy.uint16
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        elif IsEqualGUID(&pixel_format, &GUID_PKPixelFormat128bppRGBAFloat):
-            dtype = numpy.float32
-            samples = 4
-            decoder.WMP.wmiSCP.uAlphaMode = 2
-        else:
-            raise ValueError('unknown pixel format')
-
-        err = PKCodecFactory_CreateFormatConverter(&converter)
-        if err:
-            raise WmpError('PKCodecFactory_CreateFormatConverter', err)
-
-        err = PKFormatConverter_Initialize(converter, decoder, NULL,
-                                           pixel_format)
-        if err:
-            raise WmpError('PKFormatConverter_Initialize', err)
-
-        shape = height, width
-        if samples > 1:
-            shape += samples,
-
-        out = _create_array(out, shape, dtype)
-        dst = out
-        rect.X = 0
-        rect.Y = 0
-        rect.Width = <I32>dst.shape[1]
-        rect.Height = <I32>dst.shape[0]
-        stride = <U32>dst.strides[0]
-        dstsize = dst.size * dst.itemsize
-
-        # TODO: check alignment issues
         with nogil:
+            err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0],
+                                                        srcsize, &decoder)
+            if err:
+                with gil:
+                    raise WmpError('PKCodecFactory_CreateDecoderFromBytes',
+                                    err)
+
+            err = PKImageDecode_GetSize(decoder, &width, &height)
+            if err:
+                with gil:
+                    raise WmpError('PKImageDecode_GetSize', err)
+
+            err = PKImageDecode_GetPixelFormat(decoder, &pixelformat)
+            if err:
+                with gil:
+                    raise WmpError('PKImageDecode_GetPixelFormat', err)
+
+            err = jxr_decode_guid(&pixelformat, &typenum, &samples, &alpha)
+            if err:
+                with gil:
+                    raise WmpError('jxr_decode_guid', err)
+            decoder.WMP.wmiSCP.uAlphaMode = alpha
+
+            err = PKCodecFactory_CreateFormatConverter(&converter)
+            if err:
+                with gil:
+                    raise WmpError('PKCodecFactory_CreateFormatConverter', err)
+
+            err = PKFormatConverter_Initialize(converter, decoder, NULL,
+                                               pixelformat)
+            if err:
+                with gil:
+                    raise WmpError('PKFormatConverter_Initialize', err)
+
+            with gil:
+                shape = height, width
+                if samples > 1:
+                    shape += samples,
+                dtype = PyArray_DescrNewFromType(typenum)
+                out = _create_array(out, shape, dtype)
+                dst = out
+                dstsize = dst.size * dst.itemsize
+
+            rect.X = 0
+            rect.Y = 0
+            rect.Width = <I32>dst.shape[1]
+            rect.Height = <I32>dst.shape[0]
+            stride = <U32>dst.strides[0]
+
             memset(<void *>dst.data, 0, dstsize)  # TODO: still necessary?
+            # TODO: check alignment issues
             err = PKFormatConverter_Copy(converter, &rect, <U8*>dst.data,
                                          stride)
         if err:
