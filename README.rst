@@ -2,8 +2,8 @@ Image transformation, compression, and decompression codecs
 ===========================================================
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
-transformation, compression, and decompression functions
-for use in the tifffile, czifile, and other scientific imaging modules.
+transformation, compression, and decompression functions for use in the
+tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP, JPEG 8-bit,
@@ -16,7 +16,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:Version: 2019.1.20
 
 Requirements
 ------------
@@ -25,7 +25,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
 * `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.2 <https://cython.org>`_
+* `Cython 0.29.3 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.3.8 <https://github.com/facebook/zstd>`_
@@ -45,7 +45,7 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing:
 
-* `scikit-image 0.14.1 <https://github.com/scikit-image>`_
+* `scikit-image 0.14.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
@@ -99,8 +99,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.1.20
+    Pass 2610 tests.
+    Add more pixel formats to JPEG XR codec.
+    Add JPEG XR encoder.
 2019.1.14
-    Pass 2123 tests.
     Add ZFP codecs via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
@@ -109,7 +112,6 @@ Revisions
     Do not install package if Cython extension fails to build.
     Fix compiler warnings.
 2018.12.16
-    Pass 1537 tests.
     Reallocate LZW buffer on demand.
     Ignore integer type output arguments for codecs returning images.
 2018.12.12
@@ -121,7 +123,6 @@ Revisions
     Use ZStd content size 1 MB if it cannot be determined.
     Use logging.warning instead of warnings.warn or print.
 2018.11.8
-    Pass 1323 tests.
     Decode LSB style LZW.
     Fix last byte not written by LZW decoder (bug fix).
     Permit unknown colorspaces in JPEG codecs (e.g. CFA used in TIFF).
@@ -153,7 +154,6 @@ Revisions
 2018.9.22
     Add WebP codecs via libwebp.
 2018.8.29
-    Pass 396 tests.
     Add PackBits encoder.
 2018.8.22
     Add link library version information.
