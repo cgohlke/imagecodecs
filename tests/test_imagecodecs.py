@@ -38,7 +38,7 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:Version: 2019.1.20
 
 """
 
@@ -84,6 +84,11 @@ try:
     import tifffile
 except ImportError:
     tifffile = None
+
+try:
+    import czifile
+except ImportError:
+    czifile = None
 
 
 IS_PY2 = sys.version_info[0] == 2
@@ -888,11 +893,6 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     data = image_data(itype, dtype)
     shape = data.shape
 
-    if itype == 'view':
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        temp[2:2+shape[0], 3:3+shape[1], :] = data
-        data = temp[2:2+shape[0], 3:3+shape[1], :]
-
     kwargs = dict(mode=mode, level=level, execution=execution)
     encoded = encode(data, **kwargs)
 
@@ -923,6 +923,70 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
         atol = 1e-6
     else:
         atol = 20
+    assert_allclose(data, (decoded), atol=atol, rtol=0)
+
+
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
+@pytest.mark.parametrize('level', [None, 90, 0.4])
+@pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])  # 'view',
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', [
+    'gray uint8', 'gray uint16', 'gray float16', 'gray float32',
+    'rgb uint8', 'rgb uint16', 'rgb float16', 'rgb float32',
+    'rgba uint8', 'rgba uint16', 'rgba float16', 'rgba float32',
+    'channels uint8', 'channelsa uint8', 'channels uint16', 'channelsa uint16',
+    'cmyk uint8', 'cmyka uint8'])
+def test_jxr(itype, enout, deout, level):
+    """Test JpegXR codecs."""
+    from imagecodecs import jxr_decode as decode
+    from imagecodecs import jxr_encode as encode
+
+    itype, dtype = itype.split()
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    data = image_data(itype, dtype)
+    shape = data.shape
+
+    kwargs = dict(level=level)
+    if itype.startswith('cmyk'):
+        kwargs['photometric'] = 'cmyk'
+    if itype.endswith('a'):
+        kwargs['hasalpha'] = True
+    print(data.shape, data.dtype, data.strides)
+    encoded = encode(data, **kwargs)
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        encoded = numpy.empty(len(encoded), 'uint8')
+        encode(data, out=encoded, **kwargs)
+    elif enout == 'bytearray':
+        encoded = bytearray(len(encoded))
+        encode(data, out=encoded, **kwargs)
+
+    if deout == 'new':
+        decoded = decode(encoded)
+    elif deout == 'out':
+        decoded = numpy.empty(shape, dtype)
+        decode(encoded, out=numpy.squeeze(decoded))
+    elif deout == 'view':
+        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
+        decoded = temp[2:2+shape[0], 3:3+shape[1], :]
+        decode(encoded, out=numpy.squeeze(decoded))
+    elif deout == 'bytearray':
+        decoded = bytearray(shape[0]*shape[1]*shape[2]*itemsize)
+        decoded = decode(encoded, out=decoded)
+        decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
+
+    if itype == 'gray':
+        decoded = decoded.reshape(shape)
+
+    if level is None:
+        atol = 0.00001 if dtype.kind == 'f' else 1
+    if level == 90:
+        atol = 0.005 if dtype.kind == 'f' else 8 if dtype == 'uint8' else 12
+    else:
+        atol = 0.1 if dtype.kind == 'f' else 64 if dtype == 'uint8' else 700
     assert_allclose(data, (decoded), atol=atol, rtol=0)
 
 
@@ -984,11 +1048,6 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     data = image_data(itype, dtype)
     shape = data.shape
 
-    if itype == 'view':
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        temp[2:2+shape[0], 3:3+shape[1], :] = data
-        data = temp[2:2+shape[0], 3:3+shape[1], :]
-
     if enout == 'new':
         encoded = encode(data, level=level)
     elif enout == 'out':
@@ -1044,7 +1103,27 @@ def test_tifffile(dtype, codec):
     assert_array_equal(data, image, verbose=True)
 
 
-@pytest.mark.skipif(IS_32BIT, reason='Data too large for 32-bit')
+@pytest.mark.skipif(czifile is None, reason='czifile module missing')
+def test_czifile():
+    """Test JpegXR compressed CZI file."""
+    from czifile import CziFile
+
+    fname = datafiles('jpegxr.czi')
+    if not os.path.exists(fname):
+        pytest.skip('large file not included with source distribution')
+
+    with CziFile(fname) as czi:
+        assert czi.shape == (1, 1, 15, 404, 356, 1)
+        assert czi.axes == 'BCZYX0'
+        # verify data
+        data = czi.asarray()
+        assert data.flags['C_CONTIGUOUS']
+        assert data.shape == (1, 1, 15, 404, 356, 1)
+        assert data.dtype == 'uint16'
+        assert data[0, 0, 14, 256, 146, 0] == 38086
+
+
+@pytest.mark.skipif(IS_32BIT, reason='data too large for 32-bit')
 def test_jpeg8_large():
     """Test JPEG 8-bit decoder with dimensions > 65000."""
     from imagecodecs import jpeg8_decode as decode
@@ -1081,25 +1160,46 @@ def readfile(fname):
 def image_data(itype, dtype):
     """Return test image array."""
     if itype in ('rgb', 'view'):
-        data = IMAGE[..., :3]
+        data = DATA[..., [0, 2, 4]]
     elif itype == 'rgba':
-        data = IMAGE
+        data = DATA[..., [0, 2, 4, -1]]
+    elif itype == 'cmyk':
+        data = DATA[..., [0, 2, 4, 6]]
+    elif itype == 'cmyka':
+        data = DATA[..., [0, 2, 4, 6, -1]]
     elif itype == 'gray':
-        data = IMAGE[..., 2:3]
+        data = DATA[..., 0:1]
     elif itype == 'graya':
-        data = IMAGE[..., 2:]
+        data = DATA[..., [0, -1]]
+    elif itype == 'rrggbbaa':
+        data = numpy.moveaxis(DATA[..., [0, 2, 4, -1]], -1, 0)
+    elif itype == 'rrggbb':
+        data = numpy.moveaxis(DATA[..., [0, 2, 4]], -1, 0)
+    elif itype == 'channels':
+        data = DATA[..., :-1]
+    elif itype == 'channelsa':
+        data = DATA[..., :]
     elif itype == 'line':
-        data = IMAGE[:1, :, 2:3]
+        data = DATA[0:1, :, 0:1]
+    else:
+        raise ValueError('itype not found')
 
     # TODO: replace skimage convert with dtype codec
-    data = convert(data, dtype, force_copy=True)
+    data = convert(data.copy(), dtype)
     if dtype == 'uint16':
         # 12-bit
         data //= 16
+
+    if itype == 'view':
+        shape = data.shape
+        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
+        temp[2:2+shape[0], 3:3+shape[1], :] = data
+        data = temp[2:2+shape[0], 3:3+shape[1], :]
+
     return data
 
 
-IMAGE = numpy.load(datafiles('rgba.f8.npy'))
+DATA = numpy.load(datafiles('testdata.npy'))
 BYTES = readfile('bytes.bin')
 BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
