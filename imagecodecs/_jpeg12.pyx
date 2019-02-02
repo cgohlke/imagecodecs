@@ -46,11 +46,13 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:License: 3-clause BSD
+
+:Version: 2019.2.2
 
 """
 
-__version__ = '2019.1.14'
+__version__ = '2019.2.2'
 
 import numbers
 import numpy
@@ -373,8 +375,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         if setjmp(err.setjmp_buffer):
             jpeg_destroy_compress(&cinfo)
             msg = err.pub.jpeg_message_table[err.pub.msg_code]
-            with gil:
-                raise Jpeg12Error(msg.decode('utf-8'))
+            raise Jpeg12Error(msg.decode('utf-8'))
 
         jpeg_create_compress(&cinfo)
 
@@ -471,8 +472,7 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         if setjmp(err.setjmp_buffer):
             jpeg_destroy_decompress(&cinfo)
             msg = err.pub.jpeg_message_table[err.pub.msg_code]
-            with gil:
-                raise Jpeg12Error(msg.decode('utf-8'))
+            raise Jpeg12Error(msg.decode('utf-8'))
 
         jpeg_create_decompress(&cinfo)
         cinfo.do_fancy_upsampling = True
@@ -577,7 +577,7 @@ def _default_level(level, default, smallest, largest):
     return level
 
 
-def _check_12bit(data, uint16_t upper=4095):
+def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
     """Return if all values are below 2^12."""
     cdef:
         numpy.flatiter srciter
