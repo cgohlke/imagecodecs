@@ -38,7 +38,9 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.20
+:License: 3-clause BSD
+
+:Version: 2019.2.2
 
 """
 
