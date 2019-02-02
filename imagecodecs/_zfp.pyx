@@ -46,11 +46,13 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.14
+:License: 3-clause BSD
+
+:Version: 2019.2.2
 
 """
 
-__version__ = '2019.1.14'
+__version__ = '2019.2.2'
 
 import numbers
 import numpy
@@ -326,26 +328,22 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         with nogil:
             stream = stream_open(<void*>&dst[0], dstsize)
             if stream == NULL:
-                with gil:
-                    raise RuntimeError('stream_open failed')
+                raise RuntimeError('stream_open failed')
 
             zfp_stream_set_bit_stream(zfp, stream)
 
             ret = zfp_stream_set_execution(zfp, zexec)
             if ret == 0:
-                with gil:
-                    raise RuntimeError('zfp_stream_set_execution failed')
+                raise RuntimeError('zfp_stream_set_execution failed')
 
             if bheader != 0:
                 byteswritten = zfp_write_header(zfp, field, ZFP_HEADER_FULL)
                 if byteswritten == 0:
-                    with gil:
-                        raise RuntimeError('zfp_write_header failed')
+                    raise RuntimeError('zfp_write_header failed')
 
             byteswritten = zfp_compress(zfp, field)
             if byteswritten == 0:
-                with gil:
-                    raise RuntimeError('zfp_compress failed')
+                raise RuntimeError('zfp_compress failed')
 
     finally:
         if field != NULL:
