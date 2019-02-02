@@ -43,7 +43,9 @@ extension module using pure Python and 3rd party packages.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:Version: 2019.1.20
+:License: 3-clause BSD
+
+:Version: 2019.2.2
 
 Revisions
 ---------
@@ -81,7 +83,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.1.20.py'
+__version__ = '2019.2.2.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
