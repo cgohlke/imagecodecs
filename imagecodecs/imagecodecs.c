@@ -912,21 +912,21 @@ ssize_t icd_packints_decode(
         mask.b[3] = 0xFF;
         mask.b[2] = icd_bitmask(numbits-8);
         for (i = 0; i < dstsize; i++) {
-shr -= numbits;
-tmp.i = (value.i & mask.i) >> shr;
-dst[k++] = tmp.b[0]; /* swap bytes */
-dst[k++] = tmp.b[1];
-if (shr < numbits) {
-    value.b[3] = value.b[1];
-    value.b[2] = value.b[0];
-    value.b[1] = j < srcsize ? src[j++] : 0;
-    value.b[0] = j < srcsize ? src[j++] : 0;
-    mask.i <<= 16 - numbits;
-    shr += 16;
-}
-else {
-    mask.i >>= numbits;
-}
+            shr -= numbits;
+            tmp.i = (value.i & mask.i) >> shr;
+            dst[k++] = tmp.b[0]; /* swap bytes */
+            dst[k++] = tmp.b[1];
+            if (shr < numbits) {
+                value.b[3] = value.b[1];
+                value.b[2] = value.b[0];
+                value.b[1] = j < srcsize ? src[j++] : 0;
+                value.b[0] = j < srcsize ? src[j++] : 0;
+                mask.i <<= 16 - numbits;
+                shr += 16;
+            }
+            else {
+                mask.i >>= numbits;
+            }
         }
 #else
     /* not implemented */
