@@ -17,15 +17,20 @@ with open('imagecodecs/_imagecodecs.pyx') as fh:
     code = fh.read()
 
 version = re.search(r"__version__ = '(.*?)'", code).groups()[0]
+
 version += ('.' + buildnumber) if buildnumber else ''
-description = re.search(r'"""(.*)\.[\r\n?|\n]', code).groups()[0]
-readme = re.search(r'[\r\n?|\n]{2}"""(.*)"""[\r\n?|\n]{2}__version__', code,
-                   re.MULTILINE | re.DOTALL).groups()[0]
-license = re.search(r'(# Copyright.*?[\r\n?|\n])[\r\n?|\n]+""', code,
-                    re.MULTILINE | re.DOTALL).groups()[0]
+
+description = re.search(r'"""(.*)\.(?:\r\n|\r|\n)', code).groups()[0]
+
+readme = re.search(r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}__version__',
+                   code, re.MULTILINE | re.DOTALL).groups()[0]
 
 readme = '\n'.join([description, '=' * len(description)]
                    + readme.splitlines()[1:])
+
+license = re.search(r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""', code,
+                    re.MULTILINE | re.DOTALL).groups()[0]
+
 license = license.replace('# ', '').replace('#', '')
 
 if 'sdist' in sys.argv:
@@ -149,7 +154,7 @@ setup_args = dict(
     python_requires='>=2.7',
     install_requires=['numpy>=%s' % numpy_required],
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.1.1']},
-    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4', 
+    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
                    'python-lzf', 'scikit-image'],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
