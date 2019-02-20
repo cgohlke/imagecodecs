@@ -45,7 +45,7 @@ extension module using pure Python and 3rd party packages.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.2
+:Version: 2019.2.20
 
 Revisions
 ---------
@@ -83,7 +83,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.2.2.py'
+__version__ = '2019.2.20.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
