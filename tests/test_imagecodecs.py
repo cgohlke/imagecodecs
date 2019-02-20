@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.2.2
+:Version: 2019.2.20
 
 """
 
