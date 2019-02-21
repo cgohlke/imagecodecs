@@ -18,7 +18,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.2
+:Version: 2019.2.20
 
 Requirements
 ------------
@@ -27,7 +27,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
 * `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.4 <https://cython.org>`_
+* `Cython 0.29.5 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.8.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.3.8 <https://github.com/facebook/zstd>`_
@@ -37,7 +37,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.36 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.2 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjpeg-turbo 2.0.2 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
@@ -101,7 +101,7 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
-2019.2.2
+2019.2.20
     Rebuild with updated dependencies.
 2019.1.20
     Pass 2610 tests.
