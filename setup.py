@@ -45,7 +45,6 @@ else:
 
 
 sources = [
-    'imagecodecs/imagecodecs.c',
     'imagecodecs/opj_color.c',
     'imagecodecs/jpeg_sof3.cpp',
     'imagecodecs/_imagecodecs.pyx',
@@ -81,6 +80,8 @@ except ImportError:
                  'openjp2', 'jxrglue', 'jpegxr', 'lcms2', 'z']
     include_dirs.extend(
         ['/usr/include/jxrlib',
+         '/usr/include/openjpeg-2.1',
+         '/usr/include/openjpeg-2.2',
          '/usr/include/openjpeg-2.3'])
     define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
     if sys.platform == 'win32':
@@ -100,6 +101,12 @@ if 'lzf' not in libraries and 'liblzf' not in libraries:
 
 
 ext_modules = [
+    Extension(
+        'imagecodecs._imagecodecs_lite',
+        ['imagecodecs/imagecodecs.c', 'imagecodecs/_imagecodecs_lite.pyx'],
+        include_dirs=[numpy.get_include(), 'imagecodecs'],
+        libraries=[] if sys.platform == 'win32' else ['m'],
+    ),
     Extension(
         'imagecodecs._imagecodecs',
         sources,
