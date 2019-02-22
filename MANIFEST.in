@@ -3,11 +3,13 @@ include README.rst
 include pyproject.toml
 
 include imagecodecs/_imagecodecs.c
+include imagecodecs/_imagecodecs_lite.c
 include imagecodecs/_jpeg12.c
 include imagecodecs/_jpegls.c
 include imagecodecs/_zfp.c
 
 include imagecodecs/_imagecodecs.pyx
+include imagecodecs/_imagecodecs_lite.pyx
 include imagecodecs/_jpeg12.pyx
 include imagecodecs/_jpegls.pyx
 include imagecodecs/_zfp.pyx
