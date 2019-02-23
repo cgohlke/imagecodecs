@@ -18,7 +18,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.20
+:Version: 2019.2.22
 
 Requirements
 ------------
@@ -47,6 +47,8 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing:
 
+* `tifffile 2019.2.22 <https://pypi.org/project/tifffile/>`_
+* `czifile 2019.2.22 <https://pypi.org/project/czifile/>`_
 * `scikit-image 0.14.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
@@ -62,7 +64,7 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7, 3.4, and 32-bit are deprecated.
+Python 2.7 and 32-bit are deprecated.
 
 The `Microsoft Visual C++ Redistributable Packages
 <https://support.microsoft.com/en-us/help/2977003/
@@ -77,14 +79,21 @@ This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
 and `openjpeg's color.c
 <https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
 
-To install the requirements for building imagecodecs from source on Debian
-based Linux distributions, run:
+To install the requirements for building imagecodecs from source code on
+current Debian based Linux distributions, run:
 
     ``$ sudo apt-get install build-essential python3-dev cython3
     python3-setuptools python3-pip python3-wheel python3-numpy
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev libjxr-dev
     liblcms2-dev libtiff-dev``
+
+The imagecodecs package can be challenging to build from source code. Consider
+using the `imagecodecs_lite <https://pypi.org/project/imagecodecs_lite/>`_
+package instead, which does not depend on external third-party C libraries
+and provides a subset of image codecs for the tifffile library:
+LZW, PackBits, Delta, XOR Delta, Packed Integers, Floating Point Predictor,
+and Bitorder reversal.
 
 Other Python packages providing imaging or compression codecs:
 
@@ -101,10 +110,12 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.2.22
+    Pass 2610 tests.
+    Move codecs without 3rd-party C library dependencies to imagecodecs_lite.
 2019.2.20
     Rebuild with updated dependencies.
 2019.1.20
-    Pass 2610 tests.
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
