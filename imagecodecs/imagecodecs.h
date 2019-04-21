@@ -3,7 +3,7 @@
 #ifndef ICD_H
 #define ICD_H
 
-#define ICD_VERSION "2019.1.1"
+#define ICD_VERSION "2019.4.20"
 
 #include <stdint.h>
 
@@ -169,10 +169,12 @@ typedef struct icd_lzw_handle {
 icd_lzw_handle_t *icd_lzw_new(
     ssize_t buffersize);
 
+
 void icd_lzw_del(
     icd_lzw_handle_t *handle);
 
-ssize_t icd_lzw_size(
+
+ssize_t icd_lzw_decode_size(
     icd_lzw_handle_t *handle,
     const uint8_t *src,
     const ssize_t srcsize);
@@ -184,6 +186,5 @@ ssize_t icd_lzw_decode(
     const ssize_t srcsize,
     uint8_t *dst,
     const ssize_t dstsize);
-
 
 #endif /* ICD_H */
