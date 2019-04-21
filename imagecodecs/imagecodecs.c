@@ -1102,7 +1102,7 @@ void icd_lzw_del(icd_lzw_handle_t *handle)
 
 
 /* Return length of decompressed LZW string and initialize buffer. */
-ssize_t icd_lzw_size(
+ssize_t icd_lzw_decode_size(
     icd_lzw_handle_t *handle,
     const uint8_t *src,
     const ssize_t srcsize)
