@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.2.22
+:Version: 2019.4.20
 
 """
 
@@ -69,9 +69,10 @@ if 'imagecodecs_lite' in os.path.abspath(__file__):
     try:
         import imagecodecs_lite as imagecodecs
         from imagecodecs_lite import _imagecodecs_lite  # noqa
+        from imagecodecs_lite import imagecodecs as imagecodecs_py
     except ImportError:
-        pytest.exit('the imagecodec_lite package is not installed')
-    imagecodecs_py = lzma = zlib = bz2 = zstd = lz4 = lzf = blosc = None
+        pytest.exit('the imagecodec-lite package is not installed')
+    lzma = zlib = bz2 = zstd = lz4 = lzf = blosc = None
     _jpeg12 = _jpegls = _zfp = None
 else:
     try:
@@ -107,21 +108,19 @@ IS_32BIT = sys.maxsize < 2**32
 
 def test_version():
     """Assert imagecodecs versions match docstrings."""
-    from imagecodecs import __version__, version
-
-    ver = ':Version: ' + __version__
+    ver = ':Version: ' + imagecodecs.__version__
     assert ver in __doc__
     assert ver in imagecodecs.__doc__
-    assert version().startswith('imagecodecs')
-    if imagecodecs_py:
-        assert ver in imagecodecs_py.__doc__
-        assert version(dict)['zlib'].startswith('1.')
+    assert imagecodecs.version().startswith('imagecodecs')
+    assert ver in imagecodecs_py.__doc__
+    if zlib:
+        assert imagecodecs.version(dict)['zlib'].startswith('1.')
 
 
 def test_none():
     """Test NOP codec."""
-    from imagecodecs import none_encode as encode
-    from imagecodecs import none_decode as decode
+    encode = imagecodecs.none_encode
+    decode = imagecodecs.none_decode
     data = b'None'
     assert encode(data) is data
     assert decode(data) is data
@@ -129,9 +128,7 @@ def test_none():
 
 def test_bitorder():
     """Test BitOrder codec with bytes."""
-    from imagecodecs import bitorder_encode as encode  # noqa
-    from imagecodecs import bitorder_decode as decode
-
+    decode = imagecodecs.bitorder_decode
     data = b'\x01\x00\x9a\x02'
     reverse = b'\x80\x00Y@'
     # return new string
@@ -151,9 +148,7 @@ def test_bitorder():
 
 def test_bitorder_ndarray():
     """Test BitOrder codec with ndarray."""
-    from imagecodecs import bitorder_encode as encode  # noqa
-    from imagecodecs import bitorder_decode as decode
-
+    decode = imagecodecs.bitorder_decode
     data = numpy.array([1, 666], dtype='uint16')
     reverse = numpy.array([128, 16473], dtype='uint16')
     # return new array
@@ -176,7 +171,7 @@ def test_bitorder_ndarray():
 
 def test_packints_decode():
     """Test PackInts decoder."""
-    from imagecodecs import packints_decode as decode
+    decode = imagecodecs.packints_decode
 
     decoded = decode(b'', 'B', 1)
     assert len(decoded) == 0
@@ -224,8 +219,8 @@ PACKBITS_DATA = [
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
 def test_packbits(codec, data):
     """Test PackBits codec."""
-    from imagecodecs import packbits_encode as encode
-    from imagecodecs import packbits_decode as decode
+    encode = imagecodecs.packbits_encode
+    decode = imagecodecs.packbits_decode
     uncompressed, compressed = PACKBITS_DATA[data]
     if codec == 'decode':
         assert decode(compressed) == uncompressed
@@ -239,7 +234,7 @@ def test_packbits(codec, data):
 
 def test_packbits_nop():
     """Test PackBits decoding empty data."""
-    from imagecodecs import packbits_decode as decode
+    decode = imagecodecs.packbits_decode
     assert decode(b'\x80') == b''
     assert decode(b'\x80\x80') == b''
 
@@ -248,8 +243,8 @@ def test_packbits_nop():
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
 def test_packbits_array(codec, output):
     """Test PackBits codec with arrays."""
-    from imagecodecs import packbits_encode as encode
-    from imagecodecs import packbits_decode as decode
+    encode = imagecodecs.packbits_encode
+    decode = imagecodecs.packbits_decode
     uncompressed, compressed = PACKBITS_DATA[-1]
     shape = (2, 7, len(uncompressed))
     data = numpy.empty(shape, dtype='uint8')
@@ -280,15 +275,15 @@ def test_packbits_array(codec, output):
 def test_delta(output, kind, codec, func):
     """Test Delta codec."""
     if func == 'delta':
-        from imagecodecs import delta_encode as encode
-        from imagecodecs import delta_decode as decode
-        from imagecodecs.imagecodecs import delta_encode as encode_py
-        # from imagecodecs.imagecodecs import delta_decode as decode_py
+        encode = imagecodecs.delta_encode
+        decode = imagecodecs.delta_decode
+        encode_py = imagecodecs_py.delta_encode
+        # decode_py = imagecodecs_py.imagecodecs.delta_decode
     elif func == 'xor':
-        from imagecodecs import xor_encode as encode
-        from imagecodecs import xor_decode as decode
-        from imagecodecs.imagecodecs import xor_encode as encode_py
-        # from imagecodecs.imagecodecs import xor_decode as decode_py
+        encode = imagecodecs.xor_encode
+        decode = imagecodecs.xor_decode
+        encode_py = imagecodecs_py.xor_encode
+        # decode_py = imagecodecs_py.imagecodecs.xor_decode
 
     bytetype = bytearray
     if kind == 'b':
@@ -384,9 +379,8 @@ def test_delta(output, kind, codec, func):
 @pytest.mark.parametrize('planar', ['rgb', 'rrggbb'])
 def test_floatpred(planar, endian, output, codec):
     """Test FloatPred codec."""
-    from imagecodecs import floatpred_encode as encode
-    from imagecodecs import floatpred_decode as decode
-
+    encode = imagecodecs.floatpred_encode
+    decode = imagecodecs.floatpred_decode
     data = numpy.fromfile(
         datafiles('rgb.bin'), dtype='<f4').reshape(33, 31, 3)
 
@@ -473,7 +467,8 @@ def test_floatpred(planar, endian, output, codec):
 
 def test_lzw_msb():
     """Test LZW decoder with MSB."""
-    from imagecodecs import lzw_decode as decode
+    # TODO: add test_lzw_lsb
+    decode = imagecodecs.lzw_decode
     for data, decoded in [
             (b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
              b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02\x80',
@@ -487,14 +482,11 @@ def test_lzw_msb():
         assert decode(data) == decoded
 
 
-# TODO: add test_lzw_lsb
-
 @pytest.mark.parametrize('output', ['new', 'size', 'ndarray', 'bytearray'])
 def test_lzw_decode(output):
     """Test LZW decoder of input with horizontal differencing."""
-    from imagecodecs import lzw_decode as decode
-    from imagecodecs import delta_decode
-
+    decode = imagecodecs.lzw_decode
+    delta_decode = imagecodecs.delta_decode
     data = readfile('bytes.lzw_horizontal.bin')
     decoded_size = len(BYTES)
 
@@ -525,8 +517,7 @@ def test_lzw_decode(output):
 
 def test_lzw_decode_image_noeoi():
     """Test LZW decoder of input without EOI 512x512u2."""
-    from imagecodecs import lzw_decode as decode
-
+    decode = imagecodecs.lzw_decode
     fname = datafiles('image_noeoi.lzw.bin')
     with open(fname, 'rb') as fh:
         encoded = fh.read()
@@ -573,23 +564,23 @@ def test_compressors(module, codec, output, length):
         data = b''
 
     if module == 'blosc':
-        from imagecodecs import blosc_encode as encode
-        from imagecodecs import blosc_decode as decode
+        encode = imagecodecs.blosc_encode
+        decode = imagecodecs.blosc_decode
         level = 9
         encoded = blosc.compress(data, clevel=level)
     elif module == 'zlib':
-        from imagecodecs import zlib_encode as encode
-        from imagecodecs import zlib_decode as decode
+        encode = imagecodecs.zlib_encode
+        decode = imagecodecs.zlib_decode
         level = 5
         encoded = zlib.compress(data, level)
     elif module == 'lzma':
-        from imagecodecs import lzma_encode as encode
-        from imagecodecs import lzma_decode as decode
+        encode = imagecodecs.lzma_encode
+        decode = imagecodecs.lzma_decode
         level = 6
         encoded = lzma.compress(data)
     elif module == 'zstd':
-        from imagecodecs import zstd_encode as encode
-        from imagecodecs import zstd_decode as decode
+        encode = imagecodecs.zstd_encode
+        decode = imagecodecs.zstd_decode
         level = 5
         if length == 0:
             # bug in zstd.compress?
@@ -597,32 +588,29 @@ def test_compressors(module, codec, output, length):
         else:
             encoded = zstd.compress(data, level)
     elif module == 'lzf':
-        from imagecodecs import lzf_encode as encode
-        from imagecodecs import lzf_decode as decode
+        encode = imagecodecs.lzf_encode
+        decode = imagecodecs.lzf_decode
         level = 1
         encoded = lzf.compress(data)
         if encoded is None:
             pytest.skip("lzf can't compress empty input")
     elif module == 'lz4':
-        from imagecodecs import lz4_encode as encode
-        from imagecodecs import lz4_decode as decode
+        encode = imagecodecs.lz4_encode
+        decode = imagecodecs.lz4_decode
         level = 1
         encoded = lz4.block.compress(data, store_size=False)
     elif module == 'lz4h':
-        from imagecodecs import lz4_encode
-        from imagecodecs import lz4_decode
-
         def encode(*args, **kwargs):
-            return lz4_encode(*args, header=True, **kwargs)
+            return imagecodecs.lz4_encode(*args, header=True, **kwargs)
 
         def decode(*args, **kwargs):
-            return lz4_decode(*args, header=True, **kwargs)
+            return imagecodecs.lz4_decode(*args, header=True, **kwargs)
 
         level = 1
         encoded = lz4.block.compress(data, store_size=True)
     elif module == 'bz2':
-        from imagecodecs import bz2_encode as encode
-        from imagecodecs import bz2_decode as decode
+        encode = imagecodecs.bz2_encode
+        decode = imagecodecs.bz2_decode
         level = 9
         encoded = bz2.compress(data, compresslevel=level)
     else:
@@ -705,8 +693,8 @@ def test_compressors(module, codec, output, length):
                                         'zlib', 'zstd'])
 def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
     """Test Blosc codec."""
-    from imagecodecs import blosc_encode as encode
-    from imagecodecs import blosc_decode as decode
+    encode = imagecodecs.blosc_encode
+    decode = imagecodecs.blosc_decode
     data = numpy.random.randint(255, size=2021, dtype='uint8').tostring()
     encoded = encode(data, level=level, compressor=compressor,
                      shuffle=shuffle, numthreads=numthreads)
@@ -719,8 +707,7 @@ def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
 @pytest.mark.parametrize('output', ['new', 'out'])
 def test_jpeg8_decode(output):
     """Test JPEG 8-bit decoder with separate tables."""
-    from imagecodecs import jpeg8_decode as decode
-
+    decode = imagecodecs.jpeg8_decode
     data = readfile('bytes.jpeg8.bin')
     tables = readfile('bytes.jpeg8_tables.bin')
 
@@ -739,8 +726,7 @@ def test_jpeg8_decode(output):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpeg12_decode(output):
     """Test JPEG 12-bit decoder with separate tables."""
-    from imagecodecs import jpeg12_decode as decode
-
+    decode = imagecodecs.jpeg12_decode
     data = readfile('words.jpeg12.bin')
     tables = readfile('words.jpeg12_tables.bin')
 
@@ -763,7 +749,7 @@ def test_jpeg12_decode(output):
 @pytest.mark.parametrize('fname', ['gray8.sof3.jpg', 'gray16.sof3.jpg'])
 def test_jpegsof3(fname, output):
     """Test JPEG SOF3 decoder with 8 and 16-bit images."""
-    from imagecodecs import jpegsof3_decode as decode
+    decode = imagecodecs.jpegsof3_decode
 
     shape = 535, 800
     if fname == 'gray8.sof3.jpg':
@@ -794,8 +780,7 @@ def test_jpegsof3(fname, output):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jxr_decode(output):
     """Test JXR decoder with RGBA32 image."""
-    from imagecodecs import jxr_decode as decode
-
+    decode = imagecodecs.jxr_decode
     image = readfile('rgba32.jxr.bin')
     image = numpy.frombuffer(image, dtype='uint8').reshape(100, 100, -1)
     data = readfile('rgba32.jxr')
@@ -816,7 +801,7 @@ def test_jxr_decode(output):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_j2k_int8_4bit(output):
     """Test J2K decoder with int8, 4-bit image."""
-    from imagecodecs import j2k_decode as decode
+    decode = imagecodecs.j2k_decode
     data = readfile('int8_4bit.j2k')
     dtype = 'int8'
     shape = 256, 256
@@ -840,7 +825,7 @@ def test_j2k_int8_4bit(output):
                     reason='j2k codec missing')
 def test_j2k_ycbc():
     """Test J2K decoder with subsampling."""
-    from imagecodecs import j2k_decode as decode
+    decode = imagecodecs.j2k_decode
     data = readfile('ycbc.j2k')
     decoded = decode(data, verbose=2)
     assert decoded.dtype == 'uint8'
@@ -853,8 +838,7 @@ def test_j2k_ycbc():
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpegls_decode(output):
     """Test JPEGLS decoder with RGBA32 image."""
-    from imagecodecs import jpegls_decode as decode
-
+    decode = imagecodecs.jpegls_decode
     data = readfile('rgba.u1.jls')
     dtype = 'uint8'
     shape = 32, 31, 4
@@ -879,8 +863,7 @@ def test_jpegls_decode(output):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_webp_decode(output):
     """Test WebpP  decoder with RGBA32 image."""
-    from imagecodecs import webp_decode as decode
-
+    decode = imagecodecs.webp_decode
     data = readfile('rgba.u1.webp')
     dtype = 'uint8'
     shape = 32, 31, 4
@@ -910,9 +893,8 @@ def test_webp_decode(output):
 @pytest.mark.parametrize('dtype', ['float32', 'float64', 'int32', 'int64'])
 def test_zfp(dtype, itype, enout, deout, mode, execution):
     """Test ZFP codecs."""
-    from imagecodecs import zfp_decode as decode
-    from imagecodecs import zfp_encode as encode
-
+    decode = imagecodecs.zfp_decode
+    encode = imagecodecs.zfp_encode
     mode, level = mode
     dtype = numpy.dtype(dtype)
     itemsize = dtype.itemsize
@@ -966,9 +948,8 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     'cmyk uint8', 'cmyka uint8'])
 def test_jxr(itype, enout, deout, level):
     """Test JpegXR codecs."""
-    from imagecodecs import jxr_decode as decode
-    from imagecodecs import jxr_encode as encode
-
+    decode = imagecodecs.jxr_decode
+    encode = imagecodecs.jxr_encode
     itype, dtype = itype.split()
     dtype = numpy.dtype(dtype)
     itemsize = dtype.itemsize
@@ -1033,8 +1014,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if codec == 'jpeg8':
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
             pytest.skip("jpeg8 doesn't support these cases")
-        from imagecodecs import jpeg8_decode as decode
-        from imagecodecs import jpeg8_encode as encode
+        decode = imagecodecs.jpeg8_decode
+        encode = imagecodecs.jpeg8_encode
         atol = 24
         if level:
             level += 95
@@ -1043,8 +1024,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.skip('_jpeg12 module missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint8':
             pytest.skip("jpeg12 doesn't support these cases")
-        from imagecodecs import jpeg12_decode as decode
-        from imagecodecs import jpeg12_encode as encode
+        decode = imagecodecs.jpeg12_decode
+        encode = imagecodecs.jpeg12_encode
         atol = 24 * 16
         if level:
             level += 95
@@ -1053,21 +1034,21 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.skip('_jpegls module missing')
         if itype in ('view', 'graya') or deout == 'view':
             pytest.skip("jpegls doesn't support these cases")
-        from imagecodecs import jpegls_decode as decode
-        from imagecodecs import jpegls_encode as encode
+        decode = imagecodecs.jpegls_decode
+        encode = imagecodecs.jpegls_encode
     elif codec == 'webp':
-        from imagecodecs import webp_decode as decode
-        from imagecodecs import webp_encode as encode
+        decode = imagecodecs.webp_decode
+        encode = imagecodecs.webp_encode
         if dtype != 'uint8' or itype.startswith('gray'):
             pytest.skip("webp doesn't support these cases")
     elif codec == 'png':
-        from imagecodecs import png_decode as decode
-        from imagecodecs import png_encode as encode
+        decode = imagecodecs.png_decode
+        encode = imagecodecs.png_encode
     elif codec == 'j2k':
         if itype == 'view' or deout == 'view':
             pytest.skip("j2k doesn't support these cases")
-        from imagecodecs import j2k_decode as decode
-        from imagecodecs import j2k_encode as encode
+        decode = imagecodecs.j2k_decode
+        encode = imagecodecs.j2k_encode
         if level:
             level += 95
     else:
@@ -1116,7 +1097,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
 
 
 @pytest.mark.skipif(not hasattr(imagecodecs, 'lzma_decode'),
-                    reason='image codecs missing')
+                    reason='lzma codecs missing')
 @pytest.mark.skipif(tifffile is None, reason='tifffile module missing')
 @pytest.mark.filterwarnings('ignore:Possible precision loss')
 @pytest.mark.parametrize('dtype', ['u1', 'u2', 'f4'])
@@ -1162,7 +1143,7 @@ def test_czifile():
 @pytest.mark.skipif(IS_32BIT, reason='data too large for 32-bit')
 def test_jpeg8_large():
     """Test JPEG 8-bit decoder with dimensions > 65000."""
-    from imagecodecs import jpeg8_decode as decode
+    decode = imagecodecs.jpeg8_decode
 
     try:
         data = readfile('33792x79872.jpg')
