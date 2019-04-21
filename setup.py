@@ -6,10 +6,8 @@
 import sys
 import re
 
-import numpy
-
 from setuptools import setup, Extension
-from Cython.Distutils import build_ext
+from setuptools.command.build_ext import build_ext as _build_ext
 
 buildnumber = ''  # 'post0'
 
@@ -38,10 +36,6 @@ if 'sdist' in sys.argv:
         fh.write(license)
     with open('README.rst', 'w') as fh:
         fh.write(readme)
-    numpy_required = '1.11.3'
-
-else:
-    numpy_required = numpy.__version__
 
 
 sources = [
@@ -51,7 +45,6 @@ sources = [
 ]
 
 include_dirs = [
-    numpy.get_include(),
     'imagecodecs',
 ]
 
@@ -100,11 +93,29 @@ if 'lzf' not in libraries and 'liblzf' not in libraries:
     include_dirs.append('liblzf-3.6')
 
 
+class build_ext(_build_ext):
+    """Delay import numpy until build."""
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy
+        self.include_dirs.append(numpy.get_include())
+
+
+# Work around "Cython in setup_requires doesn't work"
+# https://github.com/pypa/setuptools/issues/1317
+try:
+    import Cython  # noqa
+    ext = '.pyx'
+except ImportError:
+    ext = '.c'
+
+
 ext_modules = [
     Extension(
         'imagecodecs._imagecodecs_lite',
-        ['imagecodecs/imagecodecs.c', 'imagecodecs/_imagecodecs_lite.pyx'],
-        include_dirs=[numpy.get_include(), 'imagecodecs'],
+        ['imagecodecs/imagecodecs.c', 'imagecodecs/_imagecodecs_lite' + ext],
+        include_dirs=['imagecodecs'],
         libraries=[] if sys.platform == 'win32' else ['m'],
     ),
     Extension(
@@ -120,8 +131,8 @@ if libraries_jpeg12:
     ext_modules += [
         Extension(
             'imagecodecs._jpeg12',
-            ['imagecodecs/_jpeg12.pyx'],
-            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            ['imagecodecs/_jpeg12' + ext],
+            include_dirs=['imagecodecs'],
             libraries=libraries_jpeg12,
             define_macros=[('BITS_IN_JSAMPLE', 12)],
         )
@@ -131,8 +142,8 @@ if libraries_jpegls:
     ext_modules += [
         Extension(
             'imagecodecs._jpegls',
-            ['imagecodecs/_jpegls.pyx'],
-            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            ['imagecodecs/_jpegls' + ext],
+            include_dirs=['imagecodecs'],
             libraries=libraries_jpegls,
             define_macros=define_macros,
         )
@@ -142,11 +153,11 @@ if libraries_zfp:
     ext_modules += [
         Extension(
             'imagecodecs._zfp',
-            ['imagecodecs/_zfp.pyx'],
-            include_dirs=[numpy.get_include(), 'imagecodecs'],
+            ['imagecodecs/_zfp' + ext],
+            include_dirs=['imagecodecs'],
             libraries=libraries_zfp,
             define_macros=define_macros,
-            extra_compile_args = openmp_args
+            extra_compile_args=openmp_args
         )
     ]
 
@@ -159,7 +170,8 @@ setup_args = dict(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=%s' % numpy_required],
+    install_requires=['numpy>=1.11.3'],
+    setup_requires=['setuptools>=18.0', 'numpy>=1.11.3'],  # , 'cython>=0.29.0'
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.1.1']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
                    'python-lzf', 'scikit-image'],
