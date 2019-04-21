@@ -40,17 +40,17 @@
 
 """Subset of image transformation, compression, and decompression codecs.
 
-Imagecodecs_lite is a Python library that provides block-oriented, in-memory
+Imagecodecs-lite is a Python library that provides block-oriented, in-memory
 buffer transformation, compression, and/or decompression functions for
 LZW, PackBits, Delta, XOR Delta, Packed Integers, Floating Point Predictor,
 and Bitorder reversal.
 
-Imagecodecs_lite is a subset of the `imagecodecs
-<https://pypi.org/project/imagecodecs/>`_ library, which also provides codecs
-for Zlib DEFLATE, ZStandard, Blosc, LZMA, BZ2, LZ4, LZF, ZFP, PNG, WebP,
+Imagecodecs-lite is a subset of the `imagecodecs
+<https://pypi.org/project/imagecodecs/>`_ library, which provides additional
+codecs for Zlib DEFLATE, ZStandard, Blosc, LZMA, BZ2, LZ4, LZF, ZFP, PNG, WebP,
 JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, and JPEG XR.
 
-Unlike imagecodecs, imagecodecs_lite does not depend on external third-party
+Unlike imagecodecs, imagecodecs-lite does not depend on external third-party
 C libraries and is therefore simple to build from source code.
 
 :Author:
@@ -61,14 +61,16 @@ C libraries and is therefore simple to build from source code.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.22
+:Version: 2019.4.20
 
 Requirements
 ------------
+This release has been tested with the following requirements and dependencies
+(other versions may work):
 
-* `CPython 2.7, 3.5+, 64-bit <https://www.python.org>`_
-* `Numpy 1.11.3 <https://www.numpy.org>`_
-* `Cython 0.29.5 <https://cython.org>`_
+* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.3, 64-bit <https://www.python.org>`_
+* `Numpy 1.15.4 <https://www.numpy.org>`_
+* `Cython 0.29.7 <https://cython.org>`_
 
 Notes
 -----
@@ -80,12 +82,14 @@ Python 2.7 and 32-bit are deprecated.
 
 Revisions
 ---------
+2019.4.20
+    Fix setup requirements.
 2019.2.22
     Initial release based on imagecodecs 2019.2.22.
 
 """
 
-__version__ = '2019.2.22'
+__version__ = '2019.4.20'
 
 
 import io
@@ -927,21 +931,15 @@ cdef extern from 'imagecodecs.h':
     icd_lzw_handle_t *icd_lzw_new(ssize_t buffersize) nogil
     void icd_lzw_del(icd_lzw_handle_t *handle) nogil
 
-    ssize_t icd_lzw_size(icd_lzw_handle_t *handle,
-                         const uint8_t *src,
-                         const ssize_t srcsize) nogil
+    ssize_t icd_lzw_decode_size(icd_lzw_handle_t *handle,
+                                const uint8_t *src,
+                                const ssize_t srcsize) nogil
 
     ssize_t icd_lzw_decode(icd_lzw_handle_t *handle,
                            const uint8_t *src,
                            const ssize_t srcsize,
                            uint8_t *dst,
                            const ssize_t dstsize) nogil
-
-
-def lzw_encode(*args, **kwargs):
-    """Not implemented."""
-    # TODO: LZW encoding
-    raise NotImplementedError('lzw_encode')
 
 
 def lzw_decode(data, buffersize=0, out=None):
@@ -965,9 +963,9 @@ def lzw_decode(data, buffersize=0, out=None):
         if out is None or out is data:
             if dstsize < 0:
                 with nogil:
-                    dstsize = icd_lzw_size(handle, &src[0], srcsize)
+                    dstsize = icd_lzw_decode_size(handle, &src[0], srcsize)
                 if dstsize < 0:
-                    raise IcdError('icd_lzw_size', dstsize)
+                    raise IcdError('icd_lzw_decode_size', dstsize)
             if out_type is bytes:
                 out = PyBytes_FromStringAndSize(NULL, dstsize)
             else:
@@ -977,8 +975,7 @@ def lzw_decode(data, buffersize=0, out=None):
         dstsize = dst.size
 
         with nogil:
-            ret = icd_lzw_decode(handle, &src[0], srcsize,
-                                 <uint8_t *>&dst[0], dstsize)
+            ret = icd_lzw_decode(handle, &src[0], srcsize, &dst[0], dstsize)
         if ret < 0:
             raise IcdError('icd_lzw_decode', ret)
     finally:
@@ -988,3 +985,9 @@ def lzw_decode(data, buffersize=0, out=None):
         out = memoryview(out)[:ret] if out_given else out[:ret]
 
     return out
+
+
+def lzw_encode(*args, **kwargs):
+    """Not implemented."""
+    # TODO: LZW encoding
+    raise NotImplementedError('lzw_encode')
