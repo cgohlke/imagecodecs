@@ -35,7 +35,8 @@
 """Image transformation, compression, and decompression codecs.
 
 This module implements limited functionality of the imagecodecs Cython
-extension module using pure Python and 3rd party packages.
+extension modules using pure Python and 3rd party packages.
+It is intended for testing and reference.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -45,10 +46,12 @@ extension module using pure Python and 3rd party packages.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.22
+:Version: 2019.4.20
 
 Revisions
 ---------
+2019.4.20
+    Include with imagecodecs-lite.
 2019.1.14
     Add dummy ZFP codec.
     Add numpy NPY and NPZ codec.
@@ -83,7 +86,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.2.22.py'
+__version__ = '2019.4.20.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
