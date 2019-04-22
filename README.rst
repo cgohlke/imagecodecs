@@ -18,20 +18,20 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.2.22
+:Version: 2019.4.20
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.2, 64-bit <https://www.python.org>`_
+* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.3, 64-bit <https://www.python.org>`_
 * `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.5 <https://cython.org>`_
+* `Cython 0.29.7 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.8.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.3.8 <https://github.com/facebook/zstd>`_
-* `blosc 1.16.2 <https://github.com/Blosc/c-blosc>`_
+* `lz4 1.9.0 <https://github.com/lz4/lz4>`_
+* `zstd 1.4.0 <https://github.com/facebook/zstd>`_
+* `blosc 1.16.3 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.6 <http://www.bzip.org>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
@@ -40,14 +40,14 @@ This release has been tested with the following requirements and dependencies
 * `libjpeg-turbo 2.0.2 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
-* `openjpeg 2.3.0 <https://github.com/uclouvain/openjpeg>`_
+* `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `zfp 0.5.4 <https://github.com/LLNL/zfp>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing:
 
-* `tifffile 2019.2.22 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2019.3.18  <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.2.22 <https://pypi.org/project/czifile/>`_
 * `scikit-image 0.14.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
@@ -89,7 +89,7 @@ current Debian based Linux distributions, run:
     liblcms2-dev libtiff-dev``
 
 The imagecodecs package can be challenging to build from source code. Consider
-using the `imagecodecs_lite <https://pypi.org/project/imagecodecs_lite/>`_
+using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
 package instead, which does not depend on external third-party C libraries
 and provides a subset of image codecs for the tifffile library:
 LZW, PackBits, Delta, XOR Delta, Packed Integers, Floating Point Predictor,
@@ -110,6 +110,8 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.4.20
+    Fix setup requirements.
 2019.2.22
     Pass 2610 tests.
     Move codecs without 3rd-party C library dependencies to imagecodecs_lite.
