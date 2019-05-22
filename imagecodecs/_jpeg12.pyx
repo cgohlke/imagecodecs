@@ -48,11 +48,11 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.2.2
+:Version: 2019.5.22
 
 """
 
-__version__ = '2019.2.2'
+__version__ = '2019.5.22'
 
 import numbers
 import numpy
@@ -131,6 +131,12 @@ cdef extern from 'jpeglib.h':
     struct jpeg_common_struct:
         jpeg_error_mgr* err
 
+    struct jpeg_component_info:
+        int component_id
+        int component_index
+        int h_samp_factor
+        int v_samp_factor
+
     struct jpeg_decompress_struct:
         jpeg_error_mgr* err
         void* client_data
@@ -174,7 +180,10 @@ cdef extern from 'jpeglib.h':
         int data_precision
         int num_components
         int smoothing_factor
+        boolean optimize_coding
         JDIMENSION next_scanline
+        boolean progressive_mode
+        jpeg_component_info *comp_info
         # JPEG_LIB_VERSION >= 70
         # unsigned int scale_num
         # unsigned int scale_denom
@@ -301,7 +310,7 @@ class Jpeg12Error(RuntimeError):
 
 
 def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
-                  out=None):
+                  subsampling=None, optimize=None, smoothing=None, out=None):
     """Return JPEG 12-bit image from numpy array.
 
     """
@@ -321,6 +330,10 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
         const char* msg
+        int h_samp_factor = 0
+        int v_samp_factor = 0
+        int smoothing_factor = _default_level(smoothing, -1, 0, 100)
+        int optimize_coding = -1 if optimize is None else 1 if optimize else 0
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -342,8 +355,8 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
             in_color_space = JCS_GRAYSCALE
         elif samples == 3:
             in_color_space = JCS_RGB
-        elif samples == 4:
-            in_color_space = JCS_CMYK
+        # elif samples == 4:
+        #     in_color_space = JCS_CMYK
         else:
             in_color_space = JCS_UNKNOWN
     else:
@@ -352,6 +365,25 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
             raise ValueError('invalid input shape')
 
     jpeg_color_space = _jcs_colorspace(outcolorspace)
+
+    if jpeg_color_space == JCS_YCbCr and subsampling is not None:
+        if subsampling in ('444', (1, 1)):
+            h_samp_factor = 1
+            v_samp_factor = 1
+        elif subsampling in ('422', (2, 1)):
+            h_samp_factor = 2
+            v_samp_factor = 1
+        elif subsampling in ('420', (2, 2)):
+            h_samp_factor = 2
+            v_samp_factor = 2
+        elif subsampling in ('411', (4, 1)):
+            h_samp_factor = 4
+            v_samp_factor = 1
+        elif subsampling in ('440', (1, 2)):
+            h_samp_factor = 1
+            v_samp_factor = 2
+        else:
+            raise ValueError('invalid subsampling')
 
     out, dstsize, out_given, out_type = _parse_output(out)
 
@@ -391,6 +423,21 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         jpeg_set_defaults(&cinfo)
         jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
         jpeg_set_quality(&cinfo, quality, 1)
+
+        if smoothing_factor >= 0:
+            cinfo.smoothing_factor = smoothing_factor
+        if optimize_coding >= 0:
+            cinfo.optimize_coding = <boolean>optimize_coding
+        if h_samp_factor != 0:
+            cinfo.comp_info[0].h_samp_factor = h_samp_factor
+            cinfo.comp_info[0].v_samp_factor = v_samp_factor
+            cinfo.comp_info[1].h_samp_factor = 1
+            cinfo.comp_info[1].v_samp_factor = 1
+            cinfo.comp_info[2].h_samp_factor = 1
+            cinfo.comp_info[2].v_samp_factor = 1
+
+        # TODO: add option to use or return JPEG tables
+
         jpeg_start_compress(&cinfo, 1)
 
         while cinfo.next_scanline < cinfo.image_height:
