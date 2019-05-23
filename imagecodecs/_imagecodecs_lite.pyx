@@ -61,7 +61,7 @@ C libraries and is therefore simple to build from source code.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.20
+:Version: 2019.5.22
 
 Requirements
 ------------
@@ -89,7 +89,7 @@ Revisions
 
 """
 
-__version__ = '2019.4.20'
+__version__ = '2019.5.22'
 
 
 import io
@@ -975,7 +975,8 @@ def lzw_decode(data, buffersize=0, out=None):
         dstsize = dst.size
 
         with nogil:
-            ret = icd_lzw_decode(handle, &src[0], srcsize, &dst[0], dstsize)
+            ret = icd_lzw_decode(handle, &src[0], srcsize,
+                                 <uint8_t*>&dst[0], dstsize)
         if ret < 0:
             raise IcdError('icd_lzw_decode', ret)
     finally:
