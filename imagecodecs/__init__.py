@@ -19,3 +19,5 @@ Using a fallback module with limited functionality and performance.
         """ % str(error))
     from .imagecodecs import __doc__, __version__
     from .imagecodecs import *
+
+from ._utils import *
