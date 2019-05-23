@@ -9,7 +9,7 @@ from matplotlib.pyplot import show
 
 from tifffile import imshow
 
-import imagecodecs
+from ._utils import imread
 
 
 def askopenfilename(**kwargs):
@@ -27,66 +27,39 @@ def askopenfilename(**kwargs):
     return filenames
 
 
-def main(argv=None, verbose=True, decoders=None):
+def main(argv=None, verbose=True, codec=None):
     """Imagecodecs command line usage main function."""
     if argv is None:
         argv = sys.argv
 
     if len(argv) < 2:
-        fname = askopenfilename(title='Select a. image file')
-        if not fname:
+        filename = askopenfilename(title='Select a. image file')
+        if not filename:
             print('No file selected')
             return -1
     elif len(argv) == 2:
-        fname = argv[1]
+        filename = argv[1]
     else:
         print('Usage: imagecodecs filename')
         return -1
 
-    with open(fname, 'rb') as fh:
-        data = fh.read()
-
-    if decoders is None:
-        decoders = [
-            imagecodecs.png_decode,
-            imagecodecs.jpeg8_decode,
-            imagecodecs.jpeg12_decode,
-            imagecodecs.jpegsof3_decode,
-            imagecodecs.jpegls_decode,
-            imagecodecs.j2k_decode,
-            imagecodecs.jxr_decode,
-            imagecodecs.webp_decode,
-            imagecodecs.zfp_decode,
-            imagecodecs.numpy_decode,
-        ]
-
-    messages = []
-    image = None
-    for decode in decoders:
-        try:
-            image = decode(data)
-            if image.dtype == 'object':
-                image = None
-                raise ValueError('failed')
-        except Exception as exception:
-            # raise(exception)
-            messages.append('%s: %s' % (decode.__name__.upper(), exception))
-            continue
-        break
+    try:
+        image, codec = imread(filename, return_codec=True)
+    except ValueError as exception:
+        image = None
+        message = str(exception)
 
     if verbose:
         print()
     if image is None:
         print('Could not decode the file\n')
         if verbose:
-            for message in messages:
-                print(message)
+            print(message)
         return -1
     if verbose:
-        print("%s: %s %s" % (decode.__name__.upper(),
-                             image.shape, image.dtype))
+        print("%s: %s %s" % (codec.__name__.upper(), image.shape, image.dtype))
 
-    imshow(image, title=fname)
+    imshow(image, title=filename)
     show()
     return 0
 
