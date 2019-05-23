@@ -46,10 +46,12 @@ It is intended for testing and reference.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.20
+:Version: 2019.5.22
 
 Revisions
 ---------
+2019.5.22
+    Add ZFP codec via zfpy package.
 2019.4.20
     Include with imagecodecs-lite.
 2019.1.14
@@ -86,7 +88,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.4.20.py'
+__version__ = '2019.5.22.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -126,6 +128,11 @@ try:
     import lzf
 except ImportError:
     lzf = None
+
+try:
+    import zfpy as zfp
+except ImportError:
+    zfp = None
 
 try:
     import blosc
@@ -694,6 +701,30 @@ def lzf_decode(data, header=False, out=None):
     return lzf.decompress(data)
 
 
+@notimplemented(zfp)
+def zfp_encode(data, level=None, mode=None, execution=None, header=True,
+               out=None):
+    kwargs = {'write_header': header}
+    if mode in (None, zfp.mode_null, 'R', 'reversible'):  # zfp.mode_reversible
+        pass
+    elif mode in (zfp.mode_fixed_precision, 'p', 'precision'):
+        kwargs['precision'] = -1 if level is None else level
+    elif mode in (zfp.mode_fixed_rate, 'r', 'rate'):
+        kwargs['rate'] = -1 if level is None else level
+    elif mode in (zfp.mode_fixed_accuracy, 'a', 'accuracy'):
+        kwargs['tolerance'] = -1 if level is None else level
+    elif mode in (zfp.mode_expert, 'c', 'expert'):
+        minbits, maxbits, maxprec, minexp = level
+        raise NotImplementedError()
+    return zfp.compress_numpy(data, **kwargs)
+
+
+@notimplemented(zfp)
+def zfp_decode(data, shape=None, dtype=None, out=None):
+    """Decompress ZFP."""
+    return zfp.decompress_numpy(data)
+
+
 @notimplemented(lz4)
 def lz4_encode(data, level=1, header=False, out=None):
     """Compress LZ4."""
@@ -825,16 +856,6 @@ def png_decode(data, out=None):
 @notimplemented
 def png_encode(*args, **kwargs):
     """Encode PNG."""
-
-
-@notimplemented
-def zfp_decode(*args, **kwargs):
-    """Decode ZFP."""
-
-
-@notimplemented
-def zfp_encode(*args, **kwargs):
-    """Encode ZFP."""
 
 
 if __name__ == '__main__':
