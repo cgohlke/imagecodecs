@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.4.20
+:Version: 2019.5.22
 
 """
 
@@ -50,6 +50,7 @@ import os
 import sys
 import glob
 import io
+import tempfile
 
 import pytest
 import numpy
@@ -106,6 +107,28 @@ IS_PY2 = sys.version_info[0] == 2
 IS_32BIT = sys.maxsize < 2**32
 
 
+class TempFileName():
+    """Temporary file name context manager."""
+    def __init__(self, name=None, suffix='', remove=True):
+        self.remove = bool(remove)
+        if not name:
+            self.name = tempfile.NamedTemporaryFile(prefix='test_',
+                                                    suffix=suffix).name
+        else:
+            self.name = os.path.join(tempfile.gettempdir(),
+                                     'test_%s%s' % (name, suffix))
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.remove:
+            try:
+                os.remove(self.name)
+            except Exception:
+                pass
+
+
 def test_version():
     """Assert imagecodecs versions match docstrings."""
     ver = ':Version: ' + imagecodecs.__version__
@@ -115,6 +138,42 @@ def test_version():
     assert ver in imagecodecs_py.__doc__
     if zlib:
         assert imagecodecs.version(dict)['zlib'].startswith('1.')
+
+
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
+def test_imread_imwrite():
+    """Test imread and imwrite functions."""
+    imread = imagecodecs.imread
+    imwrite = imagecodecs.imwrite
+    data = image_data('rgba', 'uint8')
+
+    # codec from file extension
+    with TempFileName(suffix='.npy') as filename:
+        imwrite(filename, data, level=99)
+        im, codec = imread(filename, return_codec=True)
+        assert codec == imagecodecs.numpy_decode
+        assert_array_equal(data, im)
+
+    with TempFileName() as filename:
+        # codec from name
+        imwrite(filename, data, codec='numpy')
+        im = imread(filename, codec='npy')
+        assert_array_equal(data, im)
+        # codec from function
+        imwrite(filename, data, codec=imagecodecs.numpy_encode)
+        im = imread(filename, codec=imagecodecs.numpy_decode)
+        assert_array_equal(data, im)
+        # codec from name list
+        im = imread(filename, codec=['npz'])
+        assert_array_equal(data, im)
+        # autodetect
+        im = imread(filename)
+        assert_array_equal(data, im)
+        # fail
+        with pytest.raises(ValueError):
+            imwrite(filename, data)
+        with pytest.raises(ValueError):
+            im = imread(filename, codec='unknown')
 
 
 def test_none():
@@ -700,6 +759,48 @@ def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
                      shuffle=shuffle, numthreads=numthreads)
     decoded = decode(encoded, numthreads=numthreads)
     assert data == decoded
+
+
+@pytest.mark.skipif(not hasattr(imagecodecs, 'jpeg_encode'),
+                    reason='jpeg codecs missing')
+@pytest.mark.filterwarnings('ignore:Possible precision loss')
+@pytest.mark.parametrize('optimize', [False, True])
+@pytest.mark.parametrize('smoothing', [0, 25])
+@pytest.mark.parametrize('subsampling', ['444', '422', '420', '411', '440'])
+@pytest.mark.parametrize('itype', ['rgb', 'rgba', 'gray'])
+@pytest.mark.parametrize('codec', ['jpeg8', 'jpeg12'])
+def test_jpeg_encode(codec, itype, subsampling, smoothing, optimize):
+    """Test various JPEG encode options."""
+    # general and default options are tested in test_image_roundtrips
+    if codec == 'jpeg8':
+        dtype = 'uint8'
+        decode = imagecodecs.jpeg8_decode
+        encode = imagecodecs.jpeg8_encode
+        atol = 24
+    elif codec == 'jpeg12':
+        if _jpeg12 is None:
+            pytest.skip('_jpeg12 module missing')
+        if not optimize:
+            pytest.skip('jpeg12 fails without optimize')
+        dtype = 'uint16'
+        decode = imagecodecs.jpeg12_decode
+        encode = imagecodecs.jpeg12_encode
+        atol = 24 * 16
+    else:
+        raise ValueError(codec)
+
+    dtype = numpy.dtype(dtype)
+    data = image_data(itype, dtype)
+    data = data[:32, :16].copy()  # make divisable by subsamples
+
+    encoded = encode(data, level=95, subsampling=subsampling,
+                     smoothing=smoothing, optimize=optimize)
+    decoded = decode(encoded)
+
+    if itype == 'gray':
+        decoded = decoded.reshape(data.shape)
+
+    assert_allclose(data, decoded, atol=atol)
 
 
 @pytest.mark.skipif(not hasattr(imagecodecs, 'jpeg8_decode'),
