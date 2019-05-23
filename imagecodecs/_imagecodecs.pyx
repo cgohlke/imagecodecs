@@ -57,7 +57,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.20
+:Version: 2019.5.22
 
 Requirements
 ------------
@@ -68,7 +68,7 @@ This release has been tested with the following requirements and dependencies
 * `Numpy 1.15.4 <https://www.numpy.org>`_
 * `Cython 0.29.7 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.9.0 <https://github.com/lz4/lz4>`_
+* `lz4 1.9.1 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.0 <https://github.com/facebook/zstd>`_
 * `blosc 1.16.3 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.6 <http://www.bzip.org>`_
@@ -81,19 +81,20 @@ This release has been tested with the following requirements and dependencies
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
-* `zfp 0.5.4 <https://github.com/LLNL/zfp>`_
+* `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
-Required for testing:
+Required for testing (other versions may work):
 
-* `tifffile 2019.3.18  <https://pypi.org/project/tifffile/>`_
-* `czifile 2019.2.22 <https://pypi.org/project/czifile/>`_
-* `scikit-image 0.14.2 <https://github.com/scikit-image>`_
-* `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `tifffile 2019.5.22 <https://pypi.org/project/tifffile/>`_
+* `czifile 2019.5.22 <https://pypi.org/project/czifile/>`_
+* `scikit-image 0.15.0 <https://github.com/scikit-image>`_
+* `python-blosc 1.8.1 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 2.1.6 <https://github.com/python-lz4/python-lz4>`_
+* `python-zstd 1.4.0 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
+* `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
 
 Notes
 -----
@@ -149,10 +150,14 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.5.22
+    Pass 2701 tests.
+    Add optional YCbCr chroma subsampling to JPEG encoder.
+    Add default reversible mode to ZFP encoder.
+    Add imread and imwrite helper functions.
 2019.4.20
     Fix setup requirements.
 2019.2.22
-    Pass 2610 tests.
     Move codecs without 3rd-party C library dependencies to imagecodecs_lite.
 2019.2.20
     Rebuild with updated dependencies.
@@ -226,7 +231,7 @@ Revisions
 
 """
 
-__version__ = '2019.4.20'
+__version__ = '2019.5.22'
 
 import io
 import numbers
@@ -1627,9 +1632,7 @@ cdef void png_read_data_fn(png_structp png_ptr,
         return
     if size > memstream.size - memstream.offset:
         # size = memstream.size - memstream.offset
-        with gil:
-            raise RuntimeError(
-                'PNG input stream too small %i' % memstream.size)
+        raise RuntimeError('PNG input stream too small %i' % memstream.size)
     memcpy(<void*>dst, <const void*>&(memstream.data[memstream.offset]), size)
     memstream.offset += size
 
@@ -1645,9 +1648,7 @@ cdef void png_write_data_fn(png_structp png_ptr,
         return
     if size > memstream.size - memstream.offset:
         # size = memstream.size - memstream.offset
-        with gil:
-            raise RuntimeError(
-                'PNG output stream too small %i' % memstream.size)
+        raise RuntimeError('PNG output stream too small %i' % memstream.size)
     memcpy(<void*>&(memstream.data[memstream.offset]), <const void*>src, size)
     memstream.offset += size
 
@@ -1703,13 +1704,11 @@ def png_decode(data, out=None):
                                              png_error_callback,
                                              png_warn_callback)
             if png_ptr == NULL:
-                with gil:
-                    raise RuntimeError('png_create_read_struct returned NULL')
+                raise RuntimeError('png_create_read_struct returned NULL')
 
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
-                with gil:
-                    raise RuntimeError('png_create_info_struct returned NULL')
+                raise RuntimeError('png_create_info_struct returned NULL')
 
             png_set_read_fn(png_ptr, <png_voidp>&memstream, png_read_data_fn)
             png_set_sig_bytes(png_ptr, 8)
@@ -1718,8 +1717,7 @@ def png_decode(data, out=None):
                                &width, &height, &bit_depth, &color_type,
                                NULL, NULL, NULL)
             if ret != 1:
-                with gil:
-                    raise RuntimeError('png_get_IHDR returned %i' % ret)
+                raise RuntimeError('png_get_IHDR returned %i' % ret)
 
             if bit_depth > 8:
                 png_set_swap(png_ptr)
@@ -1738,9 +1736,8 @@ def png_decode(data, out=None):
             elif color_type == PNG_COLOR_TYPE_RGB_ALPHA:
                 samples = 4
             else:
-                with gil:
-                    raise ValueError(
-                        'PNG color type not supported % i' % color_type)
+                raise ValueError(
+                'PNG color type not supported % i' % color_type)
 
         dtype = numpy.dtype('u%i' % (1 if bit_depth//8 < 2 else 2))
         if samples > 1:
@@ -1758,8 +1755,7 @@ def png_decode(data, out=None):
         with nogil:
             image = <png_bytepp>malloc(sizeof(png_bytep) * height)
             if image == NULL:
-                with gil:
-                    raise MemoryError('failed to allocate row pointers')
+                raise MemoryError('failed to allocate row pointers')
             for row in range(height):
                 image[row] = <png_bytep>rowptr
                 rowptr += rowstride
@@ -1841,23 +1837,20 @@ def png_encode(data, level=None, out=None):
             elif samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
             else:
-                with gil:
-                    raise ValueError('PNG color type not supported')
+                raise ValueError('PNG color type not supported')
 
             png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL,
                                               png_error_callback,
                                               png_warn_callback)
             if png_ptr == NULL:
-                with gil:
-                    raise RuntimeError('png_create_write_struct returned NULL')
+                raise RuntimeError('png_create_write_struct returned NULL')
 
             png_set_write_fn(png_ptr, <png_voidp>&memstream,
                              png_write_data_fn, png_output_flush_fn)
 
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
-                with gil:
-                    raise RuntimeError('png_create_info_struct returned NULL')
+                raise RuntimeError('png_create_info_struct returned NULL')
 
             png_set_IHDR(png_ptr, info_ptr,
                          width, height, bit_depth, color_type,
@@ -1871,8 +1864,7 @@ def png_encode(data, level=None, out=None):
 
             image = <png_bytepp>malloc(sizeof(png_bytep) * height)
             if image == NULL:
-                with gil:
-                    raise MemoryError('failed to allocate row pointers')
+                raise MemoryError('failed to allocate row pointers')
             for row in range(height):
                 image[row] = rowptr
                 rowptr += rowstride
@@ -2192,6 +2184,12 @@ cdef extern from 'jpeglib.h':
     struct jpeg_common_struct:
         jpeg_error_mgr* err
 
+    struct jpeg_component_info:
+        int component_id
+        int component_index
+        int h_samp_factor
+        int v_samp_factor
+
     struct jpeg_decompress_struct:
         jpeg_error_mgr* err
         void* client_data
@@ -2235,7 +2233,10 @@ cdef extern from 'jpeglib.h':
         int data_precision
         int num_components
         int smoothing_factor
+        boolean optimize_coding
         JDIMENSION next_scanline
+        boolean progressive_mode
+        jpeg_component_info *comp_info
         # JPEG_LIB_VERSION >= 70
         # unsigned int scale_num
         # unsigned int scale_denom
@@ -2362,7 +2363,7 @@ class Jpeg8Error(RuntimeError):
 
 
 def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
-                 out=None):
+                 subsampling=None, optimize=None, smoothing=None, out=None):
     """Return JPEG 8-bit image from numpy array.
 
     """
@@ -2382,6 +2383,10 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
         const char* msg
+        int h_samp_factor = 0
+        int v_samp_factor = 0
+        int smoothing_factor = _default_level(smoothing, -1, 0, 100)
+        int optimize_coding = -1 if optimize is None else 1 if optimize else 0
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -2399,8 +2404,8 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
             in_color_space = JCS_GRAYSCALE
         elif samples == 3:
             in_color_space = JCS_RGB
-        elif samples == 4:
-            in_color_space = JCS_CMYK
+        # elif samples == 4:
+        #     in_color_space = JCS_CMYK
         else:
             in_color_space = JCS_UNKNOWN
     else:
@@ -2409,6 +2414,25 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
             raise ValueError('invalid input shape')
 
     jpeg_color_space = _jcs_colorspace(outcolorspace)
+
+    if jpeg_color_space == JCS_YCbCr and subsampling is not None:
+        if subsampling in ('444', (1, 1)):
+            h_samp_factor = 1
+            v_samp_factor = 1
+        elif subsampling in ('422', (2, 1)):
+            h_samp_factor = 2
+            v_samp_factor = 1
+        elif subsampling in ('420', (2, 2)):
+            h_samp_factor = 2
+            v_samp_factor = 2
+        elif subsampling in ('411', (4, 1)):
+            h_samp_factor = 4
+            v_samp_factor = 1
+        elif subsampling in ('440', (1, 2)):
+            h_samp_factor = 1
+            v_samp_factor = 2
+        else:
+            raise ValueError('invalid subsampling')
 
     out, dstsize, out_given, out_type = _parse_output(out)
 
@@ -2432,8 +2456,7 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
         if setjmp(err.setjmp_buffer):
             jpeg_destroy_compress(&cinfo)
             msg = err.pub.jpeg_message_table[err.pub.msg_code]
-            with gil:
-                raise Jpeg8Error(msg.decode('utf-8'))
+            raise Jpeg8Error(msg.decode('utf-8'))
 
         jpeg_create_compress(&cinfo)
 
@@ -2449,6 +2472,21 @@ def jpeg8_encode(data, level=None, colorspace=None, outcolorspace=None,
         jpeg_set_defaults(&cinfo)
         jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
         jpeg_set_quality(&cinfo, quality, 1)
+
+        if smoothing_factor >= 0:
+            cinfo.smoothing_factor = smoothing_factor
+        if optimize_coding >= 0:
+            cinfo.optimize_coding = <boolean>optimize_coding
+        if h_samp_factor != 0:
+            cinfo.comp_info[0].h_samp_factor = h_samp_factor
+            cinfo.comp_info[0].v_samp_factor = v_samp_factor
+            cinfo.comp_info[1].h_samp_factor = 1
+            cinfo.comp_info[1].v_samp_factor = 1
+            cinfo.comp_info[2].h_samp_factor = 1
+            cinfo.comp_info[2].v_samp_factor = 1
+
+        # TODO: add option to use or return JPEG tables
+
         jpeg_start_compress(&cinfo, 1)
 
         while cinfo.next_scanline < cinfo.image_height:
@@ -2530,8 +2568,7 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
         if setjmp(err.setjmp_buffer):
             jpeg_destroy_decompress(&cinfo)
             msg = err.pub.jpeg_message_table[err.pub.msg_code]
-            with gil:
-                raise Jpeg8Error(msg.decode('utf-8'))
+            raise Jpeg8Error(msg.decode('utf-8'))
 
         jpeg_create_decompress(&cinfo)
         cinfo.do_fancy_upsampling = True
@@ -2704,57 +2741,63 @@ def jpegsof3_decode(data, out=None):
 
 def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
                 outcolorspace=None, shape=None, out=None):
-    """Decode JPEG.
+    """Decode JPEG 8-bit, 12-bit, SOF3 or LS.
 
     """
     if bitspersample is None:
         try:
-            return jpeg8_decode(data, tables, colorspace, outcolorspace,
-                                shape, out)
+            return jpeg8_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
         except Jpeg8Error as exception:
             msg = str(exception)
             if 'Empty JPEG image' in msg:
                 # TODO: handle Hamamatsu NDPI slides with dimensions > 65500
                 raise exception
             if 'Unsupported JPEG data precision' in msg:
-                return jpeg12_decode(data, tables, colorspace, outcolorspace,
-                                     shape, out)
+                return jpeg12_decode(
+                    data, tables=tables, colorspace=colorspace,
+                    outcolorspace=outcolorspace, shape=shape, out=out)
             if 'SOF type' in msg:
-                return jpegsof3_decode(data, out)
+                return jpegsof3_decode(data, out=out)
             # Unsupported marker type
-            return jpegls_decode(data, out)
+            return jpegls_decode(data, out=out)
     try:
         if bitspersample == 8:
-            return jpeg8_decode(data, tables, colorspace, outcolorspace,
-                                shape, out)
+            return jpeg8_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
         if bitspersample == 12:
-            return jpeg12_decode(data, tables, colorspace, outcolorspace,
-                                 shape, out)
+            return jpeg12_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
         try:
-            return jpegls_decode(data, out)
+            return jpegls_decode(data, out=out)
         except Exception:
-            return jpegsof3_decode(data, out)
+            return jpegsof3_decode(data, out=out)
     except (Jpeg8Error, Jpeg12Error, NotImplementedError) as exception:
         msg = str(exception)
         if 'Empty JPEG image' in msg:
             raise exception
         if 'SOF type' in msg:
-            return jpegsof3_decode(data, out)
-        return jpegls_decode(data, out)
+            return jpegsof3_decode(data, out=out)
+        return jpegls_decode(data, out=out)
 
 
 def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
-                out=None):
-    """Encode JPEG.
+                subsampling=None, optimize=None, smoothing=None, out=None):
+    """Encode 8-bit or 12-bit JPEG.
 
     """
     if data.dtype == numpy.uint8:
-        return jpeg8_encode(data, level=level, colorspace=colorspace,
-                            outcolorspace=outcolorspace, out=out)
-    if data.dtype == numpy.uint16:
-        return jpeg12_encode(data, level=level, colorspace=colorspace,
-                             outcolorspace=outcolorspace, out=out)
-    raise ValueError('invalid data dtype %s' % data.dtype)
+        func = jpeg8_encode
+    elif data.dtype == numpy.uint16:
+        func = jpeg12_encode
+    else:
+        raise ValueError('invalid data dtype %s' % data.dtype)
+    return func(data, level=level, colorspace=colorspace,
+                outcolorspace=outcolorspace, subsampling=subsampling,
+                optimize=optimize, smoothing=smoothing, out=out)
 
 
 # JPEG 2000 ###################################################################
@@ -3230,8 +3273,7 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
 
             stream = opj_memstream_create(&memstream, OPJ_FALSE)
             if stream == NULL:
-                with gil:
-                    raise J2KError('opj_memstream_create failed')
+                raise J2KError('opj_memstream_create failed')
 
             # create image
             memset(&cmptparms, 0, sizeof(cmptparms))
@@ -3249,13 +3291,11 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
             if tile_height > 0:
                 image = opj_image_tile_create(samples, cmptparms, color_space)
                 if image == NULL:
-                    with gil:
-                        raise J2KError('opj_image_tile_create failed')
+                    raise J2KError('opj_image_tile_create failed')
             else:
                 image = opj_image_create(samples, cmptparms, color_space)
                 if image == NULL:
-                    with gil:
-                        raise J2KError('opj_image_create failed')
+                    raise J2KError('opj_image_create failed')
 
             image.x0 = 0
             image.y0 = 0
@@ -3288,8 +3328,7 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
             # create and setup encoder
             codec = opj_create_compress(codec_format)
             if codec == NULL:
-                with gil:
-                    raise J2KError('opj_create_compress failed')
+                raise J2KError('opj_create_compress failed')
 
             if verbosity > 0:
                 opj_set_error_handler(
@@ -3303,13 +3342,11 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
 
             ret = opj_setup_encoder(codec, &parameters, image)
             if ret == OPJ_FALSE:
-                with gil:
-                    raise J2KError('opj_setup_encoder failed')
+                raise J2KError('opj_setup_encoder failed')
 
             ret = opj_start_compress(codec, image, stream)
             if ret == OPJ_FALSE:
-                with gil:
-                    raise J2KError('opj_start_compress failed')
+                raise J2KError('opj_start_compress failed')
 
             if tile_height > 0:
                 # TODO: loop over tiles
@@ -3320,17 +3357,14 @@ def j2k_encode(data, level=None, codecformat=None, colorspace=None, tile=None,
                 ret = opj_encode(codec, stream)
 
             if ret == OPJ_FALSE:
-                with gil:
-                    raise J2KError('opj_encode or opj_write_tile failed')
+                raise J2KError('opj_encode or opj_write_tile failed')
 
             ret = opj_end_compress(codec, stream)
             if ret == OPJ_FALSE:
-                with gil:
-                    raise J2KError('opj_end_compress failed')
+                raise J2KError('opj_end_compress failed')
 
             if memstream.written > memstream.size:
-                with gil:
-                    raise J2KError('output buffer too small')
+                raise J2KError('output buffer too small')
 
             byteswritten = memstream.written
 
@@ -3439,8 +3473,7 @@ def j2k_decode(data, verbose=0, out=None):
             if ret != OPJ_FALSE:
                 ret = opj_end_decompress(codec, stream)
             if ret == OPJ_FALSE:
-                with gil:
-                    raise J2KError('opj_decode or opj_end_decompress failed')
+                raise J2KError('opj_decode or opj_end_decompress failed')
 
             # handle subsampling and color profiles
             if (image.color_space != OPJ_CLRSPC_SYCC
@@ -3470,16 +3503,13 @@ def j2k_decode(data, verbose=0, out=None):
             for i in range(samples):
                 comp = &image.comps[i]
                 if comp.sgnd != signed or comp.prec != prec:
-                    with gil:
-                        raise J2KError('components dtype mismatch')
+                    raise J2KError('components dtype mismatch')
                 if comp.w != width or comp.h != height:
-                    with gil:
-                        raise J2KError('subsampling not supported')
+                    raise J2KError('subsampling not supported')
             if itemsize == 3:
                 itemsize = 4
             elif itemsize < 1 or itemsize > 4:
-                with gil:
-                    raise J2KError('unsupported itemsize %i' % int(itemsize))
+                raise J2KError('unsupported itemsize %i' % int(itemsize))
 
         dtype = ('i' if signed else 'u') + ('%i' % itemsize)
         if samples > 1:
@@ -4543,47 +4573,40 @@ def jxr_encode(data, level=None, photometric=None, hasalpha=None,
         with nogil:
             pixelformat = jxr_encode_guid(dtype, samples, pi, &alpha)
             if IsEqualGUID(&pixelformat, &GUID_PKPixelFormatDontCare):
-                with gil:
-                    raise ValueError('PKPixelFormatGUID not found')
+                raise ValueError('PKPixelFormatGUID not found')
             pixelinfo.pGUIDPixFmt = &pixelformat
 
             err = PixelFormatLookup(&pixelinfo, LOOKUP_FORWARD)
             if err:
-                with gil:
-                    raise WmpError('PixelFormatLookup', err)
+                raise WmpError('PixelFormatLookup', err)
 
             if outbuffer == NULL:
                 err = CreateWS_Memory(&stream, <void*>&dst[0], dstsize)
                 if err:
-                    with gil:
-                        raise WmpError('CreateWS_Memory', err)
+                    raise WmpError('CreateWS_Memory', err)
                 stream.Write = WriteWS_Memory
             else:
                 err = CreateWS_Memory(&stream, <void*>outbuffer, dstsize)
                 if err:
-                    with gil:
-                        raise WmpError('CreateWS_Memory', err)
+                    raise WmpError('CreateWS_Memory', err)
                 stream.Write = WriteWS_Realloc
                 stream.EOS = EOSWS_Realloc
 
             err = PKImageEncode_Create_WMP(&encoder)
             if err:
-                with gil:
-                    raise WmpError('PKImageEncode_Create_WMP', err)
+                raise WmpError('PKImageEncode_Create_WMP', err)
 
             err = encoder.Initialize(encoder, stream, &encoder.WMP.wmiSCP,
                                      sizeof(CWMIStrCodecParam))
             if err:
-                with gil:
-                    raise WmpError('PKImageEncode_Initialize', err)
+                raise WmpError('PKImageEncode_Initialize', err)
 
             jxr_set_encoder(&encoder.WMP.wmiSCP, &pixelinfo,
                             quality, alpha, pi)
 
             err = encoder.SetPixelFormat(encoder, pixelformat)
             if err:
-                with gil:
-                    raise WmpError('PKImageEncode_SetPixelFormat', err)
+                raise WmpError('PKImageEncode_SetPixelFormat', err)
 
             err = encoder.SetSize(encoder, width, height)
             if err:
@@ -4591,13 +4614,11 @@ def jxr_encode(data, level=None, photometric=None, hasalpha=None,
 
             err = encoder.SetResolution(encoder, rx, ry)
             if err:
-                with gil:
-                    raise WmpError('PKImageEncode_SetResolution', err)
+                raise WmpError('PKImageEncode_SetResolution', err)
 
             err = encoder.WritePixels(encoder, height, <U8*>src.data, stride)
             if err:
-                with gil:
-                    raise WmpError('PKImageEncode_WritePixels', err)
+                raise WmpError('PKImageEncode_WritePixels', err)
 
             byteswritten = stream.state.buf.cbBufCount
             dstsize = stream.state.buf.cbBuf
@@ -4661,36 +4682,29 @@ def jxr_decode(data, out=None):
             err = PKCodecFactory_CreateDecoderFromBytes(<void*>&src[0],
                                                         srcsize, &decoder)
             if err:
-                with gil:
-                    raise WmpError('PKCodecFactory_CreateDecoderFromBytes',
-                                    err)
+                raise WmpError('PKCodecFactory_CreateDecoderFromBytes', err)
 
             err = PKImageDecode_GetSize(decoder, &width, &height)
             if err:
-                with gil:
-                    raise WmpError('PKImageDecode_GetSize', err)
+                raise WmpError('PKImageDecode_GetSize', err)
 
             err = PKImageDecode_GetPixelFormat(decoder, &pixelformat)
             if err:
-                with gil:
-                    raise WmpError('PKImageDecode_GetPixelFormat', err)
+                raise WmpError('PKImageDecode_GetPixelFormat', err)
 
             err = jxr_decode_guid(&pixelformat, &typenum, &samples, &alpha)
             if err:
-                with gil:
-                    raise WmpError('jxr_decode_guid', err)
+                raise WmpError('jxr_decode_guid', err)
             decoder.WMP.wmiSCP.uAlphaMode = alpha
 
             err = PKCodecFactory_CreateFormatConverter(&converter)
             if err:
-                with gil:
-                    raise WmpError('PKCodecFactory_CreateFormatConverter', err)
+                raise WmpError('PKCodecFactory_CreateFormatConverter', err)
 
             err = PKFormatConverter_Initialize(converter, decoder, NULL,
                                                pixelformat)
             if err:
-                with gil:
-                    raise WmpError('PKFormatConverter_Initialize', err)
+                raise WmpError('PKFormatConverter_Initialize', err)
 
             with gil:
                 shape = height, width
@@ -4807,7 +4821,6 @@ from ._imagecodecs_lite import (
 ###############################################################################
 
 # TODO: add option not to release GIL
-# TODO: Chroma Subsampling
 # TODO: Integer resize; magic kernel
 # TODO: Dtype conversion/quantizations
 # TODO: Scale Offset
