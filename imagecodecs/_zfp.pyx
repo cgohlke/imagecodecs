@@ -48,11 +48,11 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.2.2
+:Version: 2019.5.22
 
 """
 
-__version__ = '2019.2.2'
+__version__ = '2019.5.22'
 
 import numbers
 import numpy
@@ -112,6 +112,7 @@ cdef extern from 'zfp.h':
         zfp_mode_fixed_rate
         zfp_mode_fixed_precision
         zfp_mode_fixed_accuracy
+        zfp_mode_reversible
 
     ctypedef struct zfp_exec_params_omp:
         uint threads
@@ -150,6 +151,7 @@ cdef extern from 'zfp.h':
     size_t zfp_compress(zfp_stream*, const zfp_field*) nogil
     size_t zfp_decompress(zfp_stream*, zfp_field*) nogil
     int zfp_stream_set_execution(zfp_stream*, zfp_exec_policy) nogil
+    void zfp_stream_set_reversible(zfp_stream*) nogil
     uint zfp_stream_set_precision(zfp_stream*, uint precision) nogil
     double zfp_stream_set_accuracy(zfp_stream*, double tolerance) nogil
     double zfp_stream_set_rate(zfp_stream*,
@@ -164,8 +166,11 @@ cdef extern from 'zfp.h':
                               int minexp) nogil
 
     zfp_field* zfp_field_alloc() nogil
+    zfp_field* zfp_field_1d(void*, zfp_type, uint) nogil
+    zfp_field* zfp_field_2d(void*, zfp_type, uint nx, uint) nogil
+    zfp_field* zfp_field_3d(void*, zfp_type, uint, uint, uint) nogil
+    zfp_field* zfp_field_4d(void*, zfp_type, uint, uint, uint, uint) nogil
     void zfp_field_free(zfp_field*) nogil
-    zfp_type zfp_field_set_type(zfp_field*, zfp_type type) nogil
     void zfp_field_set_pointer(zfp_field*, void* pointer) nogil
     void zfp_field_set_size_1d(zfp_field*, uint) nogil
     void zfp_field_set_size_2d(zfp_field*, uint, uint) nogil
@@ -175,7 +180,7 @@ cdef extern from 'zfp.h':
     void zfp_field_set_stride_2d(zfp_field*, int, int) nogil
     void zfp_field_set_stride_3d(zfp_field*, int, int, int) nogil
     void zfp_field_set_stride_4d(zfp_field*, int, int, int, int) nogil
-
+    zfp_type zfp_field_set_type(zfp_field*, zfp_type type) nogil
 
 _ZFP_VERSION = ZFP_VERSION_STRING
 
@@ -223,33 +228,33 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
 
     if ndim == 1:
         nx = <uint>data.shape[0]
-        sx = <int>(data.strides[0] / itemsize)
+        sx = <int>(data.strides[0] // itemsize)
     elif ndim == 2:
         ny = <uint>data.shape[0]
         nx = <uint>data.shape[1]
-        sy = <int>(data.strides[0] / itemsize)
-        sx = <int>(data.strides[1] / itemsize)
+        sy = <int>(data.strides[0] // itemsize)
+        sx = <int>(data.strides[1] // itemsize)
     elif ndim == 3:
         nz = <uint>data.shape[0]
         ny = <uint>data.shape[1]
         nx = <uint>data.shape[2]
-        sz = <int>(data.strides[0] / itemsize)
-        sy = <int>(data.strides[1] / itemsize)
-        sx = <int>(data.strides[2] / itemsize)
+        sz = <int>(data.strides[0] // itemsize)
+        sy = <int>(data.strides[1] // itemsize)
+        sx = <int>(data.strides[2] // itemsize)
     elif ndim == 4:
         nw = <uint>data.shape[0]
         nz = <uint>data.shape[1]
         ny = <uint>data.shape[2]
         nx = <uint>data.shape[3]
-        sw = <int>(data.strides[0] / itemsize)
-        sz = <int>(data.strides[1] / itemsize)
-        sy = <int>(data.strides[2] / itemsize)
-        sx = <int>(data.strides[3] / itemsize)
+        sw = <int>(data.strides[0] // itemsize)
+        sz = <int>(data.strides[1] // itemsize)
+        sy = <int>(data.strides[2] // itemsize)
+        sx = <int>(data.strides[3] // itemsize)
     else:
         raise ValueError('data shape not supported by ZFP')
 
-    if mode is None:
-        zmode = zfp_mode_null
+    if mode in (None, zfp_mode_null, zfp_mode_reversible, 'R', 'reversible'):
+        zmode = zfp_mode_reversible
     elif mode in (zfp_mode_fixed_precision, 'p', 'precision'):
         zmode = zfp_mode_fixed_precision
         precision = _default_level(level, ZFP_MAX_PREC, 0, ZFP_MAX_PREC)
@@ -279,30 +284,30 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         if zfp == NULL:
             raise RuntimeError('zfp_stream_open failed')
 
-        field = zfp_field_alloc()
-        if field == NULL:
-            raise RuntimeError('zfp_field_alloc failed')
-
-        ztype = zfp_field_set_type(field, ztype)
-        if ztype == zfp_type_none:
-            raise RuntimeError('zfp_field_set_type failed')
-
-        zfp_field_set_pointer(field, <void*>src.data)
-
         if ndim == 1:
-            zfp_field_set_size_1d(field, nx)
+            field = zfp_field_1d(<void*>src.data, ztype, nx)
+            if field == NULL:
+                raise RuntimeError('zfp_field_1d failed')
             zfp_field_set_stride_1d(field, sx)
         elif ndim == 2:
-            zfp_field_set_size_2d(field, nx, ny)
+            field = zfp_field_2d(<void*>src.data, ztype, nx, ny)
+            if field == NULL:
+                raise RuntimeError('zfp_field_2d failed')
             zfp_field_set_stride_2d(field, sx, sy)
         elif ndim == 3:
-            zfp_field_set_size_3d(field, nx, ny, nz)
+            field = zfp_field_3d(<void*>src.data, ztype, nx, ny, nz)
+            if field == NULL:
+                raise RuntimeError('zfp_field_3d failed')
             zfp_field_set_stride_3d(field, sx, sy, sz)
         elif ndim == 4:
-            zfp_field_set_size_4d(field, nx, ny, nz, nw)
+            field = zfp_field_4d(<void*>src.data, ztype, nx, ny, nz, nw)
+            if field == NULL:
+                raise RuntimeError('zfp_field_4d failed')
             zfp_field_set_stride_4d(field, sx, sy, sz, sw)
 
-        if zmode == zfp_mode_fixed_precision:
+        if zmode == zfp_mode_reversible:
+            zfp_stream_set_reversible(zfp)
+        elif zmode == zfp_mode_fixed_precision:
             precision = zfp_stream_set_precision(zfp, precision)
         elif zmode == zfp_mode_fixed_rate:
             rate = zfp_stream_set_rate(zfp, rate, ztype, ndim, 0)
@@ -331,6 +336,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
                 raise RuntimeError('stream_open failed')
 
             zfp_stream_set_bit_stream(zfp, stream)
+            zfp_stream_rewind(zfp)
 
             ret = zfp_stream_set_execution(zfp, zexec)
             if ret == 0:
@@ -440,6 +446,7 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
             raise RuntimeError('stream_open failed')
 
         zfp_stream_set_bit_stream(zfp, stream)
+        zfp_stream_rewind(zfp)
 
         # ret = zfp_stream_set_execution(zfp, zexec)
         # if ret == 0:
