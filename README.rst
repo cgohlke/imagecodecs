@@ -18,7 +18,7 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.4.20
+:Version: 2019.5.22
 
 Requirements
 ------------
@@ -29,7 +29,7 @@ This release has been tested with the following requirements and dependencies
 * `Numpy 1.15.4 <https://www.numpy.org>`_
 * `Cython 0.29.7 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.9.0 <https://github.com/lz4/lz4>`_
+* `lz4 1.9.1 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.0 <https://github.com/facebook/zstd>`_
 * `blosc 1.16.3 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.6 <http://www.bzip.org>`_
@@ -42,19 +42,20 @@ This release has been tested with the following requirements and dependencies
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
-* `zfp 0.5.4 <https://github.com/LLNL/zfp>`_
+* `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
-Required for testing:
+Required for testing (other versions may work):
 
-* `tifffile 2019.3.18  <https://pypi.org/project/tifffile/>`_
-* `czifile 2019.2.22 <https://pypi.org/project/czifile/>`_
-* `scikit-image 0.14.2 <https://github.com/scikit-image>`_
-* `python-blosc 1.7.0 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 2.1.2 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.3.8 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `tifffile 2019.5.22 <https://pypi.org/project/tifffile/>`_
+* `czifile 2019.5.22 <https://pypi.org/project/czifile/>`_
+* `scikit-image 0.15.0 <https://github.com/scikit-image>`_
+* `python-blosc 1.8.1 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 2.1.6 <https://github.com/python-lz4/python-lz4>`_
+* `python-zstd 1.4.0 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
+* `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
 
 Notes
 -----
@@ -110,10 +111,14 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.5.22
+    Pass 2701 tests.
+    Add optional YCbCr chroma subsampling to JPEG encoder.
+    Add default reversible mode to ZFP encoder.
+    Add imread and imwrite helper functions.
 2019.4.20
     Fix setup requirements.
 2019.2.22
-    Pass 2610 tests.
     Move codecs without 3rd-party C library dependencies to imagecodecs_lite.
 2019.2.20
     Rebuild with updated dependencies.
