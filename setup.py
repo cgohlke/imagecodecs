@@ -23,8 +23,8 @@ description = re.search(r'"""(.*)\.(?:\r\n|\r|\n)', code).groups()[0]
 readme = re.search(r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}__version__',
                    code, re.MULTILINE | re.DOTALL).groups()[0]
 
-readme = '\n'.join([description, '=' * len(description)]
-                   + readme.splitlines()[1:])
+readme = '\n'.join([description, '=' * len(description)] +
+                   readme.splitlines()[1:])
 
 license = re.search(r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""', code,
                     re.MULTILINE | re.DOTALL).groups()[0]
@@ -172,9 +172,9 @@ setup_args = dict(
     python_requires='>=2.7',
     install_requires=['numpy>=1.11.3'],
     setup_requires=['setuptools>=18.0', 'numpy>=1.11.3'],  # , 'cython>=0.29.0'
-    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.1.1']},
+    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.5.22']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
-                   'python-lzf', 'scikit-image'],
+                   'python-lzf', 'scikit-image'],  # zfpy
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
