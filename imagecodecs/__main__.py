@@ -33,7 +33,7 @@ def main(argv=None, verbose=True, codec=None):
         argv = sys.argv
 
     if len(argv) < 2:
-        filename = askopenfilename(title='Select a. image file')
+        filename = askopenfilename(title='Select a image file')
         if not filename:
             print('No file selected')
             return -1
