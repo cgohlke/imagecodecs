@@ -170,9 +170,9 @@ setup_args = dict(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=1.11.3'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.11.3'],  # , 'cython>=0.29.0'
-    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.5.22']},
+    install_requires=['numpy>=1.14.6'],
+    setup_requires=['setuptools>=18.0', 'numpy>=1.14.6'],  # , 'cython>=0.29.0'
+    extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.7.2']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
                    'python-lzf', 'scikit-image'],  # zfpy
     packages=['imagecodecs'],
@@ -198,8 +198,9 @@ setup_args = dict(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        ],
-    )
+        'Programming Language :: Python :: 3.8',
+    ],
+)
 
 if '--universal' in sys.argv:
     del setup_args['ext_modules']
