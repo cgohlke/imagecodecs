@@ -61,16 +61,16 @@ C libraries and is therefore simple to build from source code.
 
 :License: 3-clause BSD
 
-:Version: 2019.5.22
+:Version: 2019.11.5
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.3, 64-bit <https://www.python.org>`_
-* `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.7 <https://cython.org>`_
+* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
+* `Numpy 1.16.5 <https://www.numpy.org>`_
+* `Cython 0.29.14 <https://cython.org>`_
 
 Notes
 -----
@@ -82,6 +82,8 @@ Python 2.7 and 32-bit are deprecated.
 
 Revisions
 ---------
+2019.11.5
+    Update requirements.
 2019.4.20
     Fix setup requirements.
 2019.2.22
@@ -89,7 +91,7 @@ Revisions
 
 """
 
-__version__ = '2019.5.22'
+__version__ = '2019.11.5'
 
 
 import io
@@ -992,3 +994,11 @@ def lzw_encode(*args, **kwargs):
     """Not implemented."""
     # TODO: LZW encoding
     raise NotImplementedError('lzw_encode')
+
+
+###############################################################################
+
+# TODO: LZW encode
+# TODO: Integer resize; magic kernel
+# TODO: Dtype conversion/quantizations
+# TODO: Scale Offset
