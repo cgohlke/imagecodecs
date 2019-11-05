@@ -45,9 +45,10 @@ transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard, Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP, JPEG 8-bit,
-JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits, Packed Integers,
-Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
+ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP,
+JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits,
+Packed Integers, Delta, XOR Delta, Floating Point Predictor, and Bitorder
+reversal.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -57,26 +58,26 @@ Delta, XOR Delta, Floating Point Predictor, and Bitorder reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.5.22
+:Version: 2019.11.5
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.15, 3.5.4, 3.6.8, 3.7.3, 64-bit <https://www.python.org>`_
-* `Numpy 1.15.4 <https://www.numpy.org>`_
-* `Cython 0.29.7 <https://cython.org>`_
+* `CPython 2.7.16, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
+* `Numpy 1.16.5 <https://www.numpy.org>`_
+* `Cython 0.29.14 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.9.1 <https://github.com/lz4/lz4>`_
-* `zstd 1.4.0 <https://github.com/facebook/zstd>`_
-* `blosc 1.16.3 <https://github.com/Blosc/c-blosc>`_
-* `bzip2 1.0.6 <http://www.bzip.org>`_
+* `lz4 1.9.2 <https://github.com/lz4/lz4>`_
+* `zstd 1.4.4 <https://github.com/facebook/zstd>`_
+* `blosc 1.17.0 <https://github.com/Blosc/c-blosc>`_
+* `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
 * `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
-* `libpng 1.6.36 <https://github.com/glennrp/libpng>`_
-* `libwebp 1.0.2 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.2 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
+* `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
+* `libjpeg-turbo 2.0.3 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls-2.0.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
@@ -86,14 +87,14 @@ This release has been tested with the following requirements and dependencies
 
 Required for testing (other versions may work):
 
-* `tifffile 2019.5.22 <https://pypi.org/project/tifffile/>`_
-* `czifile 2019.5.22 <https://pypi.org/project/czifile/>`_
-* `scikit-image 0.15.0 <https://github.com/scikit-image>`_
+* `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
+* `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
+* `scikit-image 0.16.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.8.1 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 2.1.6 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.4.0 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
+* `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
-* `backports.lzma 0.0.13 <https://github.com/peterjc/backports.lzma>`_
+* `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
 
 Notes
@@ -150,6 +151,8 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.11.5
+    Rebuild with updated dependencies.
 2019.5.22
     Pass 2701 tests.
     Add optional YCbCr chroma subsampling to JPEG encoder.
@@ -231,7 +234,7 @@ Revisions
 
 """
 
-__version__ = '2019.5.22'
+__version__ = '2019.11.5'
 
 import io
 import numbers
@@ -4821,9 +4824,7 @@ from ._imagecodecs_lite import (
 ###############################################################################
 
 # TODO: add option not to release GIL
-# TODO: Integer resize; magic kernel
-# TODO: Dtype conversion/quantizations
-# TODO: Scale Offset
+# TODO: split into individual extensions?
 # TODO: Base64
 # TODO: BMP
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
@@ -4831,3 +4832,4 @@ from ._imagecodecs_lite import (
 # TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: LERC via https://github.com/Esri/lerc; patented but Apache licensed.
+# TODO: OpenEXR via ILM's library
