@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.5.22
+:Version: 2019.11.5
 
 """
 
@@ -354,11 +354,11 @@ def test_delta(output, kind, codec, func):
     if kind[0] in 'iuB':
         low = numpy.iinfo(dtype).min
         high = numpy.iinfo(dtype).max
-        data = numpy.random.randint(low, high, size=33*31*3,
+        data = numpy.random.randint(low, high, size=33 * 31 * 3,
                                     dtype=dtype).reshape(33, 31, 3)
     else:
         low, high = -1e5, 1e5
-        data = numpy.random.randint(low, high, size=33*31*3,
+        data = numpy.random.randint(low, high, size=33 * 31 * 3,
                                     dtype='i4').reshape(33, 31, 3)
         data = data.astype(dtype)
 
@@ -599,7 +599,7 @@ def test_lzw_decode_image_noeoi():
 @pytest.mark.skipif(not hasattr(imagecodecs, 'blosc_decode'),
                     reason='compression codecs missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'size', 'excess', 'trunc'])
-@pytest.mark.parametrize('length', [0, 2, 31*33*3])
+@pytest.mark.parametrize('length', [0, 2, 31 * 33 * 3])
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
 @pytest.mark.parametrize('module', [
     'zlib', 'bz2',
@@ -913,7 +913,7 @@ def test_j2k_int8_4bit(output):
         decoded = numpy.empty(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1])
+        decoded = bytearray(shape[0] * shape[1])
         decoded = decode(data, out=decoded)
 
     assert decoded.dtype == dtype
@@ -950,7 +950,7 @@ def test_jpegls_decode(output):
         decoded = numpy.empty(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1]*shape[2])
+        decoded = bytearray(shape[0] * shape[1] * shape[2])
         decoded = decode(data, out=decoded)
 
     assert decoded.dtype == dtype
@@ -975,7 +975,7 @@ def test_webp_decode(output):
         decoded = numpy.empty(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1]*shape[2])
+        decoded = bytearray(shape[0] * shape[1] * shape[2])
         decoded = decode(data, out=decoded)
 
     assert decoded.dtype == dtype
@@ -1020,11 +1020,11 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
         decoded = numpy.empty(shape, dtype)
         decode(encoded, out=decoded)
     elif deout == 'view':
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        decoded = temp[2:2+shape[0], 3:3+shape[1], :]
+        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        decoded = temp[2:2 + shape[0], 3:3 + shape[1], :]
         decode(encoded, out=decoded)
     elif deout == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1]*shape[2]*itemsize)
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
         decoded = decode(encoded, out=decoded)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
 
@@ -1080,11 +1080,11 @@ def test_jxr(itype, enout, deout, level):
         decoded = numpy.empty(shape, dtype)
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'view':
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        decoded = temp[2:2+shape[0], 3:3+shape[1], :]
+        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        decoded = temp[2:2 + shape[0], 3:3 + shape[1], :]
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1]*shape[2]*itemsize)
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
         decoded = decode(encoded, out=decoded)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
 
@@ -1163,10 +1163,11 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if enout == 'new':
         encoded = encode(data, level=level)
     elif enout == 'out':
-        encoded = numpy.empty(2*shape[0]*shape[1]*shape[2]*itemsize, 'uint8')
+        encoded = numpy.empty(2 * shape[0] * shape[1] * shape[2] * itemsize,
+                              'uint8')
         encode(data, level=level, out=encoded)
     elif enout == 'bytearray':
-        encoded = bytearray(2*shape[0]*shape[1]*shape[2]*itemsize)
+        encoded = bytearray(2 * shape[0] * shape[1] * shape[2] * itemsize)
         encode(data, level=level, out=encoded)
 
     if deout == 'new':
@@ -1175,11 +1176,11 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decoded = numpy.empty(shape, dtype)
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'view':
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        decoded = temp[2:2+shape[0], 3:3+shape[1], :]
+        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        decoded = temp[2:2 + shape[0], 3:3 + shape[1], :]
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'bytearray':
-        decoded = bytearray(shape[0]*shape[1]*shape[2]*itemsize)
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
         decoded = decode(encoded, out=decoded)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
 
@@ -1310,9 +1311,9 @@ def image_data(itype, dtype):
 
     if itype == 'view':
         shape = data.shape
-        temp = numpy.empty((shape[0]+5, shape[1]+5, shape[2]), dtype)
-        temp[2:2+shape[0], 3:3+shape[1], :] = data
-        data = temp[2:2+shape[0], 3:3+shape[1], :]
+        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        temp[2:2 + shape[0], 3:3 + shape[1], :] = data
+        data = temp[2:2 + shape[0], 3:3 + shape[1], :]
 
     return data
 
