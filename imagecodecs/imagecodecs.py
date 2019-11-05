@@ -46,10 +46,12 @@ It is intended for testing and reference.
 
 :License: 3-clause BSD
 
-:Version: 2019.5.22
+:Version: 2019.11.5
 
 Revisions
 ---------
+2019.11.5
+    Update dependencies.
 2019.5.22
     Add ZFP codec via zfpy package.
 2019.4.20
@@ -88,7 +90,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.5.22.py'
+__version__ = '2019.11.5.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
