@@ -1,6 +1,8 @@
 include LICENSE
 include README.rst
 include pyproject.toml
+include requirements.txt
+include requirements_test.txt
 
 include imagecodecs/_imagecodecs.c
 include imagecodecs/_imagecodecs_lite.c
@@ -27,6 +29,7 @@ include imagecodecs/licenses/*
 
 include imagecodecs/patches/*
 
+include bitshuffle-0.3.5/*
 include liblzf-3.6/*
 
 include tests/*.py
