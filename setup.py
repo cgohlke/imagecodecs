@@ -93,6 +93,13 @@ if 'lzf' not in libraries and 'liblzf' not in libraries:
     include_dirs.append('liblzf-3.6')
 
 
+if 'bitshuffle' not in libraries and 'bitshuffle' not in libraries:
+    # use bitshuffle sources from sdist
+    sources.extend(['bitshuffle-0.3.5/bitshuffle_core.c',
+                    'bitshuffle-0.3.5/iochain.c'])
+    include_dirs.append('bitshuffle-0.3.5')
+
+
 class build_ext(_build_ext):
     """Delay import numpy until build."""
     def finalize_options(self):
@@ -174,7 +181,7 @@ setup_args = dict(
     setup_requires=['setuptools>=18.0', 'numpy>=1.14.6'],  # , 'cython>=0.29.0'
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.7.2']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
-                   'python-lzf', 'scikit-image'],  # zfpy
+                   'python-lzf', 'scikit-image', 'bitshuffle'],  # zfpy
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
