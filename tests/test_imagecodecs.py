@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.11.5
+:Version: 2019.11.18
 
 """
 
@@ -73,14 +73,14 @@ if 'imagecodecs_lite' in os.path.abspath(__file__):
         from imagecodecs_lite import imagecodecs as imagecodecs_py
     except ImportError:
         pytest.exit('the imagecodec-lite package is not installed')
-    lzma = zlib = bz2 = zstd = lz4 = lzf = blosc = None
+    lzma = zlib = bz2 = zstd = lz4 = lzf = blosc, bitshuffle = None
     _jpeg12 = _jpegls = _zfp = None
 else:
     try:
         import imagecodecs
         import imagecodecs.imagecodecs as imagecodecs_py
         from imagecodecs.imagecodecs import (lzma, zlib, bz2, zstd, lz4, lzf,
-                                             blosc)
+                                             blosc, bitshuffle)
         from imagecodecs import _imagecodecs  # noqa
     except ImportError:
         pytest.exit('the imagecodec package is not installed')
@@ -371,7 +371,7 @@ def test_delta(output, kind, codec, func):
 
     if kind == 'B':
         # data = data.reshape(-1)
-        data = data.tostring()
+        data = data.tobytes()
         diff = encode_py(data, axis=0)
         if output == 'new':
             if codec == 'encode':
@@ -603,22 +603,32 @@ def test_lzw_decode_image_noeoi():
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
 @pytest.mark.parametrize('module', [
     'zlib', 'bz2',
-    pytest.param('blosc', marks=pytest.mark.skipif(blosc is None,
-                                                   reason='import blosc')),
-    pytest.param('lzma', marks=pytest.mark.skipif(lzma is None,
-                                                  reason='import lzma')),
-    pytest.param('zstd', marks=pytest.mark.skipif(zstd is None,
-                                                  reason='import zstd')),
-    pytest.param('lzf', marks=pytest.mark.skipif(lzf is None,
-                                                 reason='import lzf')),
-    pytest.param('lz4', marks=pytest.mark.skipif(lz4 is None,
-                                                 reason='import lz4')),
-    pytest.param('lz4h', marks=pytest.mark.skipif(lz4 is None,
-                                                  reason='import lz4'))])
+    pytest.param('blosc',
+                 marks=pytest.mark.skipif(blosc is None,
+                                          reason='import blosc')),
+    pytest.param('lzma',
+                 marks=pytest.mark.skipif(lzma is None,
+                                          reason='import lzma')),
+    pytest.param('zstd',
+                 marks=pytest.mark.skipif(zstd is None,
+                                          reason='import zstd')),
+    pytest.param('lzf',
+                 marks=pytest.mark.skipif(lzf is None,
+                                          reason='import lzf')),
+    pytest.param('lz4',
+                 marks=pytest.mark.skipif(lz4 is None,
+                                          reason='import lz4')),
+    pytest.param('lz4h',
+                 marks=pytest.mark.skipif(lz4 is None,
+                                          reason='import lz4')),
+    pytest.param('bitshuffle',
+                 marks=pytest.mark.skipif(bitshuffle is None,
+                                          reason='import bitshuffle'))
+])
 def test_compressors(module, codec, output, length):
     """Test various non-image codecs."""
     if length:
-        data = numpy.random.randint(255, size=length, dtype='uint8').tostring()
+        data = numpy.random.randint(255, size=length, dtype='uint8').tobytes()
     else:
         data = b''
 
@@ -650,7 +660,7 @@ def test_compressors(module, codec, output, length):
         encode = imagecodecs.lzf_encode
         decode = imagecodecs.lzf_decode
         level = 1
-        encoded = lzf.compress(data)
+        encoded = lzf.compress(data, ((len(data) * 33) >> 5) + 1)
         if encoded is None:
             pytest.skip("lzf can't compress empty input")
     elif module == 'lz4':
@@ -672,6 +682,12 @@ def test_compressors(module, codec, output, length):
         decode = imagecodecs.bz2_decode
         level = 9
         encoded = bz2.compress(data, compresslevel=level)
+    elif module == 'bitshuffle':
+        encode = imagecodecs.bitshuffle_encode
+        decode = imagecodecs.bitshuffle_decode
+        level = 0
+        encoded = bitshuffle.bitshuffle(
+            numpy.frombuffer(data, 'uint8')).tobytes()
     else:
         raise ValueError(module)
 
@@ -706,8 +722,11 @@ def test_compressors(module, codec, output, length):
         elif output == 'trunc':
             size = max(0, size - 1)
             out = bytearray(size)
-            with pytest.raises(RuntimeError):
-                encode(data, level, out=out)
+            if size == 0 and module == 'bitshuffle':
+                encode(data, level, out=out) == b''
+            else:
+                with pytest.raises(RuntimeError):
+                    encode(data, level, out=out)
         else:
             raise ValueError(output)
     elif codec == 'decode':
@@ -731,7 +750,7 @@ def test_compressors(module, codec, output, length):
             size = max(0, size - 1)
             out = bytearray(size)
             if length > 0 and module in ('zlib', 'zstd', 'lzf', 'lz4', 'lz4h',
-                                         'blosc'):
+                                         'blosc', 'bitshuffle'):
                 with pytest.raises(RuntimeError):
                     decode(encoded, out=out)
             else:
@@ -741,6 +760,28 @@ def test_compressors(module, codec, output, length):
             raise ValueError(output)
     else:
         raise ValueError(codec)
+
+
+@pytest.mark.skipif(not hasattr(imagecodecs, 'bitshuffle_decode'),
+                    reason='bitshuffle codec missing')
+@pytest.mark.parametrize('dtype', ['bytes', 'ndarray'])
+@pytest.mark.parametrize('itemsize', [1, 2, 4, 8])
+@pytest.mark.parametrize('blocksize', [0, 8, 64])
+def test_bitshuffle_roundtrip(dtype, itemsize, blocksize):
+    """Test Bitshuffle codec."""
+    encode = imagecodecs.bitshuffle_encode
+    decode = imagecodecs.bitshuffle_decode
+    if dtype == 'bytes':
+        data = numpy.random.randint(255, size=1024, dtype='uint8').tobytes()
+    else:
+        data = numpy.random.randint(255, size=1024, dtype='u%i' % itemsize)
+        data.shape = 2, 4, 128
+    encoded = encode(data, itemsize=itemsize, blocksize=blocksize)
+    decoded = decode(encoded, itemsize=itemsize, blocksize=blocksize)
+    if dtype == 'bytes':
+        assert data == decoded
+    else:
+        assert_array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not hasattr(imagecodecs, 'blosc_decode'),
@@ -754,7 +795,7 @@ def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
     """Test Blosc codec."""
     encode = imagecodecs.blosc_encode
     decode = imagecodecs.blosc_decode
-    data = numpy.random.randint(255, size=2021, dtype='uint8').tostring()
+    data = numpy.random.randint(255, size=2021, dtype='uint8').tobytes()
     encoded = encode(data, level=level, compressor=compressor,
                      shuffle=shuffle, numthreads=numthreads)
     decoded = decode(encoded, numthreads=numthreads)
