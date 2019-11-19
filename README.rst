@@ -8,8 +8,8 @@ tifffile, czifile, and other scientific imaging modules.
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP,
 JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits,
-Packed Integers, Delta, XOR Delta, Floating Point Predictor, and Bitorder
-reversal.
+Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
+and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -19,7 +19,7 @@ reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.11.5
+:Version: 2019.11.18
 
 Requirements
 ------------
@@ -44,6 +44,7 @@ This release has been tested with the following requirements and dependencies
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing (other versions may work):
@@ -57,6 +58,7 @@ Required for testing (other versions may work):
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
 -----
@@ -112,10 +114,14 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.11.18
+    Pass 2755 tests.
+    Add bitshuffle codec.
+    Fix formatting of unknown error numbers.
+    Fix test failures with official python-lzf.
 2019.11.5
     Rebuild with updated dependencies.
 2019.5.22
-    Pass 2701 tests.
     Add optional YCbCr chroma subsampling to JPEG encoder.
     Add default reversible mode to ZFP encoder.
     Add imread and imwrite helper functions.
@@ -129,7 +135,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add ZFP codecs via zfp library (WIP).
+    Add ZFP codec via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
@@ -160,7 +166,7 @@ Revisions
     Fix missing alpha values in jxr_decode.
     Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
-    Add Blosc codecs via libblosc.
+    Add Blosc codec via libblosc.
 2018.10.21
     Builds on Ubuntu 18.04 WSL.
     Include liblzf in srcdist.
@@ -170,14 +176,14 @@ Revisions
 2018.10.17
     Add JPEG SOF3 decoder based on jpg_0XC3.cpp.
 2018.10.10
-    Add PNG codecs via libpng.
+    Add PNG codec via libpng.
     Add option to specify output colorspace in JPEG decoder.
     Fix Delta codec for floating point numbers.
-    Fix XOR Delta codecs.
+    Fix XOR Delta codec.
 2018.9.30
-    Add LZF codecs via liblzf.
+    Add LZF codec via liblzf.
 2018.9.22
-    Add WebP codecs via libwebp.
+    Add WebP codec via libwebp.
 2018.8.29
     Add PackBits encoder.
 2018.8.22
