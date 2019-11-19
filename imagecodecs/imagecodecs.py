@@ -36,7 +36,7 @@
 
 This module implements limited functionality of the imagecodecs Cython
 extension modules using pure Python and 3rd party packages.
-It is intended for testing and reference.
+The module is intended for testing and reference, not production code.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -46,10 +46,13 @@ It is intended for testing and reference.
 
 :License: 3-clause BSD
 
-:Version: 2019.11.5
+:Version: 2019.11.18
 
 Revisions
 ---------
+2019.11.18
+    Add Bitshuffle codec.
+    Fix doctests.
 2019.11.5
     Update dependencies.
 2019.5.22
@@ -90,7 +93,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.11.5.py'
+__version__ = '2019.11.18.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -142,6 +145,11 @@ except ImportError:
     blosc = None
 
 try:
+    import bitshuffle
+except ImportError:
+    bitshuffle = None
+
+try:
     import PIL
 except ImportError:
     PIL = None
@@ -155,7 +163,7 @@ def notimplemented(arg=False):
     >>> test()
     Traceback (most recent call last):
     ...
-    NotImplementedError: test
+    NotImplementedError: test not implemented
 
     >>> @notimplemented(True)
     ... def test(): pass
@@ -191,7 +199,9 @@ def version(astype=None):
         ('zstd', zstd.version() if zstd else 'n/a'),
         ('lz4', lz4.VERSION if lz4 else 'n/a'),
         ('lzf', 'unknown' if lzf else 'n/a'),
-        ('pil', PIL.PILLOW_VERSION if PIL else 'n/a'),
+        ('zfpy', zfp.__version__ if zfp else 'n/a'),
+        ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
+        ('pillow', PIL.PILLOW_VERSION if PIL else 'n/a'),
     )
     if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
@@ -380,6 +390,7 @@ def bitorder_decode(data, out=None, _bitorder=[]):
     b'\\x80&'
     >>> data = numpy.array([1, 666], dtype='uint16')
     >>> bitorder_decode(data)
+    array([  128, 16473], dtype=uint16)
     >>> data
     array([  128, 16473], dtype=uint16)
 
@@ -627,6 +638,26 @@ def packints_decode(data, dtype, numbits, runlen=0, out=None):
     return result
 
 
+@notimplemented(bitshuffle)
+def bitshuffle_encode(data, level=1, itemsize=1, blocksize=0, out=None):
+    """Bitshuffle."""
+    if isinstance(data, numpy.ndarray):
+        return bitshuffle.bitshuffle(data, blocksize)
+    data = numpy.frombuffer(data, dtype='uint%i' % (itemsize * 8))
+    data = bitshuffle.bitshuffle(data, blocksize)
+    return data.tobytes()
+
+
+@notimplemented(bitshuffle)
+def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
+    """Bitunshuffle."""
+    if isinstance(data, numpy.ndarray):
+        return bitshuffle.bitunshuffle(data, blocksize)
+    data = numpy.frombuffer(data, dtype='uint%i' % (itemsize * 8))
+    data = bitshuffle.bitunshuffle(data, blocksize)
+    return data.tobytes()
+
+
 def zlib_encode(data, level=6, out=None):
     """Compress Zlib DEFLATE."""
     return zlib.compress(data, level)
@@ -725,6 +756,18 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
 def zfp_decode(data, shape=None, dtype=None, out=None):
     """Decompress ZFP."""
     return zfp.decompress_numpy(data)
+
+
+@notimplemented(bitshuffle)
+def bitshuffle_lz4_encode(data, level=1, blocksize=0, out=None):
+    """Compress LZW with Bitshuffle."""
+    return bitshuffle.compress_lz4(data, blocksize)
+
+
+@notimplemented(bitshuffle)
+def bitshuffle_lz4_decode(data, shape, dtype, blocksize=0, out=None):
+    """Decompress LZW with Bitshuffle."""
+    return bitshuffle.decompress_lz4(data, shape, dtype, blocksize)
 
 
 @notimplemented(lz4)
