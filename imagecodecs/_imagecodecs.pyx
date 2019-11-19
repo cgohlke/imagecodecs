@@ -47,8 +47,8 @@ tifffile, czifile, and other scientific imaging modules.
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
 ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP,
 JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits,
-Packed Integers, Delta, XOR Delta, Floating Point Predictor, and Bitorder
-reversal.
+Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
+and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -58,7 +58,7 @@ reversal.
 
 :License: 3-clause BSD
 
-:Version: 2019.11.5
+:Version: 2019.11.18
 
 Requirements
 ------------
@@ -83,6 +83,7 @@ This release has been tested with the following requirements and dependencies
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing (other versions may work):
@@ -96,6 +97,7 @@ Required for testing (other versions may work):
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
 -----
@@ -151,10 +153,14 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.11.18
+    Pass 2755 tests.
+    Add bitshuffle codec.
+    Fix formatting of unknown error numbers.
+    Fix test failures with official python-lzf.
 2019.11.5
     Rebuild with updated dependencies.
 2019.5.22
-    Pass 2701 tests.
     Add optional YCbCr chroma subsampling to JPEG encoder.
     Add default reversible mode to ZFP encoder.
     Add imread and imwrite helper functions.
@@ -168,7 +174,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add ZFP codecs via zfp library (WIP).
+    Add ZFP codec via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
@@ -199,7 +205,7 @@ Revisions
     Fix missing alpha values in jxr_decode.
     Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
-    Add Blosc codecs via libblosc.
+    Add Blosc codec via libblosc.
 2018.10.21
     Builds on Ubuntu 18.04 WSL.
     Include liblzf in srcdist.
@@ -209,14 +215,14 @@ Revisions
 2018.10.17
     Add JPEG SOF3 decoder based on jpg_0XC3.cpp.
 2018.10.10
-    Add PNG codecs via libpng.
+    Add PNG codec via libpng.
     Add option to specify output colorspace in JPEG decoder.
     Fix Delta codec for floating point numbers.
-    Fix XOR Delta codecs.
+    Fix XOR Delta codec.
 2018.9.30
-    Add LZF codecs via liblzf.
+    Add LZF codec via liblzf.
 2018.9.22
-    Add WebP codecs via libwebp.
+    Add WebP codec via libwebp.
 2018.8.29
     Add PackBits encoder.
 2018.8.22
@@ -234,7 +240,7 @@ Revisions
 
 """
 
-__version__ = '2019.11.5'
+__version__ = '2019.11.18'
 
 import io
 import numbers
@@ -344,35 +350,226 @@ def version(astype=None):
         ('numpy_abi', '0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)),
         ('cython', cython.__version__),
         ('icd', _ICD_VERSION),
-        ('zlib', '%i.%i.%i' % (ZLIB_VER_MAJOR, ZLIB_VER_MINOR,
-                               ZLIB_VER_REVISION)),
-        ('lzma', '%i.%i.%i' % (LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR,
-                               LZMA_VERSION_PATCH)),
-        ('zstd', '%i.%i.%i' % (ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR,
-                               ZSTD_VERSION_RELEASE)),
-        ('lz4', '%i.%i.%i' % (LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR,
-                              LZ4_VERSION_RELEASE)),
+        ('zlib', '%i.%i.%i' % (
+            ZLIB_VER_MAJOR, ZLIB_VER_MINOR, ZLIB_VER_REVISION)),
+        ('lzma', '%i.%i.%i' % (
+            LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH)),
+        ('zstd', '%i.%i.%i' % (
+            ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE)),
+        ('lz4', '%i.%i.%i' % (
+            LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR, LZ4_VERSION_RELEASE)),
+        ('bitshuffle', '%i.%i.%i' % (
+            BSHUF_VERSION_MAJOR, BSHUF_VERSION_MINOR, BSHUF_VERSION_POINT)),
         ('blosc', BLOSC_VERSION_STRING.decode('utf-8')),
         ('bz2', str(BZ2_bzlibVersion().decode('utf-8')).split(',')[0]),
         ('lzf', hex(LZF_VERSION)),
         ('png', PNG_LIBPNG_VER_STRING.decode('utf-8')),
         ('webp', hex(WebPGetDecoderVersion())),
         ('jpeg', '%.1f' % (JPEG_LIB_VERSION / 10.0)),
-        ('jpeg_turbo', '%i.%i.%i' % (int(jpeg_turbo_version[:1]),
-                                     int(jpeg_turbo_version[3:4]),
-                                     int(jpeg_turbo_version[6:]))),
+        ('jpeg_turbo', '%i.%i.%i' % (
+            int(jpeg_turbo_version[:1]),
+            int(jpeg_turbo_version[3:4]),
+            int(jpeg_turbo_version[6:]))),
         ('jpeg_sof3', JPEG_SOF3_VERSION.decode('utf-8')),
         ('charls', _CHARLS_VERSION),
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
         ('zfp', _ZFP_VERSION.decode('utf-8')),
-        )
+    )
     if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
     elif astype is dict:
         return dict(versions)
     else:
         return versions
+
+
+# Bitshuffle ##################################################################
+
+cdef extern from 'bitshuffle.h':
+    int BSHUF_VERSION_MAJOR
+    int BSHUF_VERSION_MINOR
+    int BSHUF_VERSION_POINT
+
+    int bshuf_using_NEON() nogil
+    int bshuf_using_SSE2() nogil
+    int bshuf_using_AVX2() nogil
+
+    size_t bshuf_default_block_size(const size_t elem_size) nogil
+
+    int64_t bshuf_compress_lz4(const void* inp,
+                               void* out,
+                               const size_t size,
+                               const size_t elem_size,
+                               size_t block_size) nogil
+
+    int64_t bshuf_decompress_lz4(const void* inp,
+                                 void* out,
+                                 const size_t size,
+                                 const size_t elem_size,
+                                 size_t block_size) nogil
+
+    int64_t bshuf_bitshuffle(const void* inp,
+                             void* out,
+                             const size_t size,
+                             const size_t elem_size,
+                             size_t block_size) nogil
+
+    int64_t bshuf_bitunshuffle(const void* inp,
+                               void* out,
+                               const size_t size,
+                               const size_t elem_size,
+                               size_t block_size) nogil
+
+    size_t bshuf_compress_lz4_bound(const size_t size,
+                                    const size_t elem_size,
+                                    size_t block_size) nogil
+
+
+class BitshuffleError(RuntimeError):
+    """Bitshuffle Exceptions."""
+    def __init__(self, func, err):
+        msg = {
+            0: 'No Error',
+            -1: 'Failed to allocate memory',
+            -11: 'Missing SSE',
+            -12: 'Missing AVX',
+            -80: 'Input size not a multiple of 8',
+            -81: 'Block size not a multiple of 8',
+            -91: 'Decompression error, wrong number of bytes processed',
+        }.get(err, 'internal error %i' % err)
+        msg = '%s returned %s' % (func, msg)
+        RuntimeError.__init__(self, msg)
+
+
+def bitshuffle_encode(data, level=None, itemsize=1, blocksize=0, out=None):
+    """Bitshuffle.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _parse_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        numpy.ndarray ndarr
+        ssize_t srcsize
+        ssize_t dstsize
+        size_t elem_size
+        size_t block_size = blocksize
+        int64_t ret = 0
+
+    if isinstance(data, numpy.ndarray):
+        if data is out:
+            raise ValueError('cannot bitshuffle in-place')
+        out = _create_array(out, data.shape, data.dtype)
+        ndarr = out
+        srcsize = data.size
+        elem_size = <size_t>data.itemsize
+        with nogil:
+            ret = bshuf_bitshuffle(<void *>&src[0], <void *>ndarr.data,
+                                   <size_t>srcsize, elem_size, block_size)
+        if ret < 0:
+            raise BitshuffleError('bshuf_bitshuffle', ret)
+        return out
+
+    srcsize = src.size
+    elem_size = itemsize
+
+    if elem_size != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
+        raise ValueError('invalid item size')
+    if srcsize % elem_size != 0:
+        raise ValueError('data size not a multiple of item size')
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None or out is data:
+        if dstsize < 0:
+            dstsize = srcsize
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    if dstsize < srcsize:
+        raise RuntimeError('output too small')
+
+    with nogil:
+        ret = bshuf_bitshuffle(<void *>&src[0], <void *>&dst[0],
+                               <size_t>srcsize / elem_size,
+                               elem_size, block_size)
+    if ret < 0:
+        raise BitshuffleError('bshuf_bitshuffle', ret)
+
+    if ret < dstsize:
+        out = memoryview(out)[:ret] if out_given else out[:ret]
+
+    return out
+
+
+def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
+    """Un-Bitshuffle.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _parse_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        numpy.ndarray ndarr
+        ssize_t srcsize
+        ssize_t dstsize
+        size_t elem_size
+        size_t block_size = blocksize
+        int64_t ret = 0
+
+    if isinstance(data, numpy.ndarray):
+        if data is out:
+            raise ValueError('cannot un-bitshuffle in-place')
+        out = _create_array(out, data.shape, data.dtype)
+        ndarr = out
+        srcsize = data.size
+        elem_size = <size_t>data.itemsize
+        with nogil:
+            ret = bshuf_bitunshuffle(<void *>&src[0], <void *>ndarr.data,
+                                     <size_t>srcsize, elem_size, block_size)
+        if ret < 0:
+            raise BitshuffleError('bshuf_bitunshuffle', ret)
+        return out
+
+    srcsize = src.size
+    elem_size = itemsize
+
+    if elem_size != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
+        raise ValueError('invalid item size')
+    if srcsize % elem_size != 0:
+        raise ValueError('data size not a multiple of item size')
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None or out is data:
+        if dstsize < 0:
+            dstsize = srcsize
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    if dstsize < srcsize:
+        raise RuntimeError('output too small')
+
+    with nogil:
+        ret = bshuf_bitunshuffle(<void *>&src[0], <void *>&dst[0],
+                                 <size_t>srcsize / elem_size,
+                                 elem_size, block_size)
+    if ret < 0:
+        raise BitshuffleError('bshuf_bitunshuffle', ret)
+
+    if ret < dstsize:
+        out = memoryview(out)[:ret] if out_given else out[:ret]
+
+    return out
 
 
 # Zlib DEFLATE ################################################################
@@ -415,7 +612,7 @@ class ZlibError(RuntimeError):
             Z_BUF_ERROR: 'Z_BUF_ERROR',
             Z_DATA_ERROR: 'Z_DATA_ERROR',
             Z_STREAM_ERROR: 'Z_STREAM_ERROR',
-            }.get(err, 'unknown error % i' % err)
+            }.get(err, 'unknown error %i' % err)
         msg = '%s returned %s' % (func, msg)
         RuntimeError.__init__(self, msg)
 
@@ -1017,7 +1214,7 @@ class LzmaError(RuntimeError):
             LZMA_DATA_ERROR: 'LZMA_DATA_ERROR',
             LZMA_BUF_ERROR: 'LZMA_BUF_ERROR',
             LZMA_PROG_ERROR: 'LZMA_PROG_ERROR',
-            }.get(err, 'unknown error % i' % err)
+            }.get(err, 'unknown error %i' % err)
         msg = '%s returned %s' % (func, msg)
         RuntimeError.__init__(self, msg)
 
@@ -1225,7 +1422,7 @@ class Bz2Error(RuntimeError):
             BZ_UNEXPECTED_EOF: 'BZ_UNEXPECTED_EOF',
             BZ_OUTBUFF_FULL: 'BZ_OUTBUFF_FULL',
             BZ_CONFIG_ERROR: 'BZ_CONFIG_ERROR',
-            }.get(err, 'unknown error % i' % err)
+            }.get(err, 'unknown error %i' % err)
         msg = '%s returned %s' % (func, msg)
         RuntimeError.__init__(self, msg)
 
@@ -1740,7 +1937,7 @@ def png_decode(data, out=None):
                 samples = 4
             else:
                 raise ValueError(
-                'PNG color type not supported % i' % color_type)
+                'PNG color type not supported %i' % color_type)
 
         dtype = numpy.dtype('u%i' % (1 if bit_depth//8 < 2 else 2))
         if samples > 1:
@@ -2674,7 +2871,7 @@ class JpegSof3Error(RuntimeError):
                 'unsupported Restart Segments',
             JPEG_SOF3_NO_TABLE:
                 'no Huffman tables',
-            }.get(err, 'unknown error % i' % err)
+            }.get(err, 'unknown error %i' % err)
         msg = "jpeg_0x3c_decode returned '%s'" % msg
         RuntimeError.__init__(self, msg)
 
@@ -3943,7 +4140,7 @@ class WmpError(RuntimeError):
                 'WMP_errMustBeMultipleOf16LinesUntilLastCall',
             WMP_errPlanarAlphaBandedEncRequiresTempFile:
                 'WMP_errPlanarAlphaBandedEncRequiresTempFile',
-            }.get(err, 'unknown error % i' % err)
+            }.get(err, 'unknown error %i' % err)
         msg = '%s returned %s' % (func, msg)
         RuntimeError.__init__(self, msg)
 
