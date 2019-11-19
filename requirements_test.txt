@@ -1,0 +1,13 @@
+pytest
+numpy
+tifffile
+czifile
+oiffile
+scikit-image
+blosc
+lz4
+zstd
+python-lzf
+backports.lzma
+pyzfp
+bitshuffle
