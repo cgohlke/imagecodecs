@@ -1,4 +1,0 @@
-cython
-numpy
-pytest
-setuptools
