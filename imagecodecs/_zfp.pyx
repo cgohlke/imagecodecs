@@ -48,11 +48,11 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.5.22
+:Version: 2019.11.28
 
 """
 
-__version__ = '2019.5.22'
+__version__ = '2019.11.28'
 
 import numbers
 import numpy
@@ -154,16 +154,20 @@ cdef extern from 'zfp.h':
     void zfp_stream_set_reversible(zfp_stream*) nogil
     uint zfp_stream_set_precision(zfp_stream*, uint precision) nogil
     double zfp_stream_set_accuracy(zfp_stream*, double tolerance) nogil
-    double zfp_stream_set_rate(zfp_stream*,
-                               double rate,
-                               zfp_type type,
-                               uint dims,
-                               int wra) nogil
-    int zfp_stream_set_params(zfp_stream*,
-                              uint minbits,
-                              uint maxbits,
-                              uint maxprec,
-                              int minexp) nogil
+
+    double zfp_stream_set_rate(
+        zfp_stream*,
+        double rate,
+        zfp_type type,
+        uint dims,
+        int wra) nogil
+
+    int zfp_stream_set_params(
+        zfp_stream*,
+        uint minbits,
+        uint maxbits,
+        uint maxprec,
+        int minexp) nogil
 
     zfp_field* zfp_field_alloc() nogil
     zfp_field* zfp_field_1d(void*, zfp_type, uint) nogil
@@ -182,7 +186,8 @@ cdef extern from 'zfp.h':
     void zfp_field_set_stride_4d(zfp_field*, int, int, int, int) nogil
     zfp_type zfp_field_set_type(zfp_field*, zfp_type type) nogil
 
-_ZFP_VERSION = ZFP_VERSION_STRING
+
+_ZFP_VERSION = ZFP_VERSION_STRING.decode('utf-8')
 
 
 def zfp_encode(data, level=None, mode=None, execution=None, header=True,
