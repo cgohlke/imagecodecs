@@ -75,6 +75,7 @@ numpy.import_array()
 # JPEG 12-bit #################################################################
 
 cdef extern from 'jpeglib.h':
+
     int JPEG_LIB_VERSION
     int LIBJPEG_TURBO_VERSION
     int LIBJPEG_TURBO_VERSION_NUMBER
@@ -203,17 +204,20 @@ cdef extern from 'jpeglib.h':
 
     boolean jpeg_finish_decompress(jpeg_decompress_struct*) nogil
 
-    JDIMENSION jpeg_read_scanlines(jpeg_decompress_struct*,
-                                   JSAMPARRAY,
-                                   JDIMENSION) nogil
+    JDIMENSION jpeg_read_scanlines(
+        jpeg_decompress_struct*,
+        JSAMPARRAY,
+        JDIMENSION) nogil
 
-    void jpeg_mem_src(jpeg_decompress_struct*,
-                      unsigned char*,
-                      unsigned long) nogil
+    void jpeg_mem_src(
+        jpeg_decompress_struct*,
+        unsigned char*,
+        unsigned long) nogil
 
-    void jpeg_mem_dest(jpeg_compress_struct*,
-                       unsigned char**,
-                       unsigned long*) nogil
+    void jpeg_mem_dest(
+        jpeg_compress_struct*,
+        unsigned char**,
+        unsigned long*) nogil
 
     void jpeg_create_compress(jpeg_compress_struct*) nogil
 
@@ -227,9 +231,10 @@ cdef extern from 'jpeglib.h':
 
     void jpeg_finish_compress(jpeg_compress_struct* cinfo) nogil
 
-    JDIMENSION jpeg_write_scanlines(jpeg_compress_struct*,
-                                    JSAMPARRAY,
-                                    JDIMENSION) nogil
+    JDIMENSION jpeg_write_scanlines(
+        jpeg_compress_struct*,
+        JSAMPARRAY,
+        JDIMENSION) nogil
 
 
 ctypedef struct my_error_mgr:
