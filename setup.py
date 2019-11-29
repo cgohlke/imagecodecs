@@ -4,6 +4,7 @@
 """Imagecodecs package setuptools script."""
 
 import sys
+import os
 import re
 
 from setuptools import setup, Extension
@@ -48,29 +49,77 @@ include_dirs = [
     'imagecodecs',
 ]
 
-try:
-    # running in Windows development environment
+library_dirs = []
+
+if 'CG-' in os.environ.get('COMPUTERNAME', ''):
+    # Windows development environment
     import _inclib  # noqa
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
         'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2',
-        'lcms2']
+        'libaec', 'lcms2']
     define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1),
                      ('OPJ_STATIC', 1), ('OPJ_HAVE_LIBLCMS2', 1),
                      ('CHARLS_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
     if sys.version_info < (3, 5):
-        # clarls-2.0 not compatible with msvc 9 or 10
+        # CharLS-2.x not compatible with msvc 9, 10, 14
         libraries_jpegls = []
     else:
         libraries_jpegls = ['charls']
     libraries_zfp = ['zfp']
     openmp_args = ['/openmp']
 
-except ImportError:
-    # this works with most recent Debian
+elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
+    # Czaki's CI environment
     libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-                 'openjp2', 'jxrglue', 'jpegxr', 'lcms2', 'z']
+                 'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z', 'm']
+    libraries_jpeg12 = []
+    libraries_jpegls = ['CharLS']
+    libraries_zfp = ['zfp']
+    define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
+    base_path = os.environ.get('BASE_PATH',
+                               os.path.dirname(os.path.abspath(__file__)))
+    include_base_path = os.path.join(base_path,
+                                     'build_utils/libs_build/include')
+
+    library_dirs = [
+        x for x in os.environ.get('LD_LIBRARY_PATH',
+                                  os.environ.get('LIBRARY_PATH', '')
+                                  ).split(':')
+        if x]
+    if os.path.exists(include_base_path):
+        include_dirs.append(include_base_path)
+        for el in os.listdir(include_base_path):
+            path_to_dir = os.path.join(include_base_path, el)
+            if os.path.isdir(path_to_dir):
+                include_dirs.append(path_to_dir)
+        jxr_path = os.path.join(include_base_path, 'libjxr')
+        if os.path.exists(jxr_path):
+            for el in os.listdir(jxr_path):
+                path_to_dir = os.path.join(jxr_path, el)
+                if os.path.isdir(path_to_dir):
+                    include_dirs.append(path_to_dir)
+
+    libraries_jpeg12 = []
+    for dir_path in include_dirs:
+        if os.path.exists(os.path.join(dir_path, 'CharLS', 'charls.h')):
+            libraries_jpegls = ['CharLS']
+            break
+    else:
+        libraries_jpegls = []
+    for dir_path in include_dirs:
+        if os.path.exists(os.path.join(dir_path, 'zfp.h')):
+            libraries_zfp = ['zfp']
+            break
+    else:
+        libraries_zfp = []
+    openmp_args = [] if os.environ.get('SKIP_OMP', False) else ['-fopenmp']
+
+else:
+    # Most recent Debian
+    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
+                 'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z']
     include_dirs.extend(
         ['/usr/include/jxrlib',
          '/usr/include/openjpeg-2.1',
@@ -78,20 +127,18 @@ except ImportError:
          '/usr/include/openjpeg-2.3'])
     define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
     if sys.platform == 'win32':
-        define_macros.append(('WIN32', 1), ('CHARLS_STATIC', 1))
+        define_macros.extend([('WIN32', 1), ('CHARLS_STATIC', 1)])
     else:
         libraries.append('m')
-    libraries_jpeg12 = []  # 'jpeg12'
-    libraries_jpegls = []  # 'charls'
-    libraries_zfp = []  # 'zfp'
+    libraries_jpegls = []  # 'CharLS' core dumps
+    libraries_jpeg12 = []  # 'jpeg12' not available in Debian
+    libraries_zfp = []  # 'zfp' not available in Debian
     openmp_args = ['-fopenmp']
-
 
 if 'lzf' not in libraries and 'liblzf' not in libraries:
     # use liblzf sources from sdist
     sources.extend(['liblzf-3.6/lzf_c.c', 'liblzf-3.6/lzf_d.c'])
     include_dirs.append('liblzf-3.6')
-
 
 if 'bitshuffle' not in libraries and 'bitshuffle' not in libraries:
     # use bitshuffle sources from sdist
@@ -117,18 +164,19 @@ try:
 except ImportError:
     ext = '.c'
 
-
 ext_modules = [
     Extension(
         'imagecodecs._imagecodecs_lite',
         ['imagecodecs/imagecodecs.c', 'imagecodecs/_imagecodecs_lite' + ext],
         include_dirs=['imagecodecs'],
         libraries=[] if sys.platform == 'win32' else ['m'],
+        library_dirs=library_dirs,
     ),
     Extension(
         'imagecodecs._imagecodecs',
         sources,
         include_dirs=include_dirs,
+        library_dirs=library_dirs,
         libraries=libraries,
         define_macros=define_macros,
     )
@@ -139,7 +187,8 @@ if libraries_jpeg12:
         Extension(
             'imagecodecs._jpeg12',
             ['imagecodecs/_jpeg12' + ext],
-            include_dirs=['imagecodecs'],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
             libraries=libraries_jpeg12,
             define_macros=[('BITS_IN_JSAMPLE', 12)],
         )
@@ -150,7 +199,8 @@ if libraries_jpegls:
         Extension(
             'imagecodecs._jpegls',
             ['imagecodecs/_jpegls' + ext],
-            include_dirs=['imagecodecs'],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
             libraries=libraries_jpegls,
             define_macros=define_macros,
         )
@@ -161,14 +211,15 @@ if libraries_zfp:
         Extension(
             'imagecodecs._zfp',
             ['imagecodecs/_zfp' + ext],
-            include_dirs=['imagecodecs'],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
             libraries=libraries_zfp,
             define_macros=define_macros,
             extra_compile_args=openmp_args
         )
     ]
 
-setup_args = dict(
+setup(
     name='imagecodecs',
     version=version,
     description=description,
@@ -178,10 +229,10 @@ setup_args = dict(
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
     install_requires=['numpy>=1.14.6'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.14.6'],  # , 'cython>=0.29.0'
+    setup_requires=['setuptools>=18.0', 'numpy>=1.14.6'],  # 'cython>=0.29.14'
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.7.2']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
-                   'python-lzf', 'scikit-image', 'bitshuffle'],  # zfpy
+                   'python-lzf', 'bitshuffle'],  # zfpy
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
@@ -208,10 +259,3 @@ setup_args = dict(
         'Programming Language :: Python :: 3.8',
     ],
 )
-
-if '--universal' in sys.argv:
-    del setup_args['ext_modules']
-    del setup_args['cmdclass']
-    del setup_args['package_data']
-
-setup(**setup_args)
