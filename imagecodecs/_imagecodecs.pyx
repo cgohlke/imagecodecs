@@ -45,10 +45,10 @@ transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, NPY, PNG, WebP,
-JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, PackBits,
-Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
-and Bitshuffle.
+ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY,
+PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR,
+PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
+Bitorder reversal, and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -58,7 +58,7 @@ and Bitshuffle.
 
 :License: 3-clause BSD
 
-:Version: 2019.11.18
+:Version: 2019.11.28
 
 Requirements
 ------------
@@ -79,24 +79,23 @@ This release has been tested with the following requirements and dependencies
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
 * `libjpeg-turbo 2.0.3 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
-* `charls-2.0.0 <https://github.com/team-charls/charls>`_
+* `charls 2.1.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
+* `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required for testing (other versions may work):
 
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `scikit-image 0.16.2 <https://github.com/scikit-image>`_
 * `python-blosc 1.8.1 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
-* `zfpy 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
@@ -107,7 +106,7 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7 and 32-bit are deprecated.
+Python 2.7, 3.5, and 32-bit are deprecated.
 
 The `Microsoft Visual C++ Redistributable Packages
 <https://support.microsoft.com/en-us/help/2977003/
@@ -119,17 +118,21 @@ This software is based in part on the work of the Independent JPEG Group.
 
 This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
 <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
-and `openjpeg's color.c
+and `OpenJPEG's color.c
 <https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
 
-To install the requirements for building imagecodecs from source code on
-current Debian based Linux distributions, run:
+Build instructions and wheels for manylinux and macOS courtesy of
+`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
 
-    ``$ sudo apt-get install build-essential python3-dev cython3
-    python3-setuptools python3-pip python3-wheel python3-numpy
+To install the requirements for building imagecodecs from source code on
+current Ubuntu Linux distributions, run:
+
+    ``sudo apt-get install build-essential python3-dev cython3
+    python3-setuptools python3-pip python3-wheel python3-numpy python3-pytest
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
-    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev libjxr-dev
-    liblcms2-dev libtiff-dev``
+    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev
+    libjpeg-turbo8-dev libjxr-dev liblcms2-dev libcharls-dev libaec-dev
+    libtiff-dev python3-blosc``
 
 The imagecodecs package can be challenging to build from source code. Consider
 using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
@@ -153,8 +156,12 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.11.28
+    Pass 2795 tests.
+    Add AEC codec via libaec (WIP).
+    Do not require scikit-image for testing.
+    Require CharLS 2.1.
 2019.11.18
-    Pass 2755 tests.
     Add bitshuffle codec.
     Fix formatting of unknown error numbers.
     Fix test failures with official python-lzf.
@@ -201,7 +208,7 @@ Revisions
     Improve color space handling in JPEG codecs.
 2018.10.28
     Rename jpeg0xc3 to jpegsof3.
-    Add JPEG LS codec via libcharls.
+    Add JPEG LS codec via CharLS.
     Fix missing alpha values in jxr_decode.
     Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
@@ -228,7 +235,7 @@ Revisions
 2018.8.22
     Add link library version information.
     Add option to specify size of LZW buffer.
-    Add JPEG 2000 decoder via openjpeg.
+    Add JPEG 2000 decoder via OpenJPEG.
     Add XOR Delta codec.
 2018.8.16
     Link to libjpeg-turbo.
@@ -240,7 +247,7 @@ Revisions
 
 """
 
-__version__ = '2019.11.18'
+__version__ = '2019.11.28'
 
 import io
 import numbers
@@ -363,6 +370,7 @@ def version(astype=None):
         ('blosc', BLOSC_VERSION_STRING.decode('utf-8')),
         ('bz2', str(BZ2_bzlibVersion().decode('utf-8')).split(',')[0]),
         ('lzf', hex(LZF_VERSION)),
+        ('aec', _AEC_VERSION),
         ('png', PNG_LIBPNG_VER_STRING.decode('utf-8')),
         ('webp', hex(WebPGetDecoderVersion())),
         ('jpeg', '%.1f' % (JPEG_LIB_VERSION / 10.0)),
@@ -374,7 +382,7 @@ def version(astype=None):
         ('charls', _CHARLS_VERSION),
         ('opj', opj_version().decode('utf-8')),
         ('jxr', hex(WMP_SDK_VERSION)),
-        ('zfp', _ZFP_VERSION.decode('utf-8')),
+        ('zfp', _ZFP_VERSION),
     )
     if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
@@ -387,6 +395,7 @@ def version(astype=None):
 # Bitshuffle ##################################################################
 
 cdef extern from 'bitshuffle.h':
+
     int BSHUF_VERSION_MAJOR
     int BSHUF_VERSION_MINOR
     int BSHUF_VERSION_POINT
@@ -397,33 +406,38 @@ cdef extern from 'bitshuffle.h':
 
     size_t bshuf_default_block_size(const size_t elem_size) nogil
 
-    int64_t bshuf_compress_lz4(const void* inp,
-                               void* out,
-                               const size_t size,
-                               const size_t elem_size,
-                               size_t block_size) nogil
+    int64_t bshuf_compress_lz4(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size) nogil
 
-    int64_t bshuf_decompress_lz4(const void* inp,
-                                 void* out,
-                                 const size_t size,
-                                 const size_t elem_size,
-                                 size_t block_size) nogil
+    int64_t bshuf_decompress_lz4(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size) nogil
 
-    int64_t bshuf_bitshuffle(const void* inp,
-                             void* out,
-                             const size_t size,
-                             const size_t elem_size,
-                             size_t block_size) nogil
+    int64_t bshuf_bitshuffle(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size) nogil
 
-    int64_t bshuf_bitunshuffle(const void* inp,
-                               void* out,
-                               const size_t size,
-                               const size_t elem_size,
-                               size_t block_size) nogil
+    int64_t bshuf_bitunshuffle(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size) nogil
 
-    size_t bshuf_compress_lz4_bound(const size_t size,
-                                    const size_t elem_size,
-                                    size_t block_size) nogil
+    size_t bshuf_compress_lz4_bound(
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size) nogil
 
 
 class BitshuffleError(RuntimeError):
@@ -575,9 +589,11 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
 # Zlib DEFLATE ################################################################
 
 cdef extern from 'zlib.h':
+
     int ZLIB_VER_MAJOR
     int ZLIB_VER_MINOR
     int ZLIB_VER_REVISION
+
     int Z_OK
     int Z_MEM_ERROR
     int Z_BUF_ERROR
@@ -591,16 +607,18 @@ cdef extern from 'zlib.h':
 
     uLong crc32(uLong crc, const Bytef *buf, uInt len) nogil
 
-    int uncompress2(Bytef *dst,
-                    uLongf *dstLen,
-                    const Bytef *src,
-                    uLong *srcLen) nogil
+    int uncompress2(
+        Bytef *dst,
+        uLongf *dstLen,
+        const Bytef *src,
+        uLong *srcLen) nogil
 
-    int compress2(Bytef *dst,
-                  uLongf *dstLen,
-                  const Bytef *src,
-                  uLong srcLen,
-                  int level) nogil
+    int compress2(
+        Bytef *dst,
+        uLongf *dstLen,
+        const Bytef *src,
+        uLong srcLen,
+        int level) nogil
 
 
 class ZlibError(RuntimeError):
@@ -720,9 +738,11 @@ def zlib_crc32(data):
 # ZStandard ###################################################################
 
 cdef extern from 'zstd.h':
+
     int ZSTD_VERSION_MAJOR
     int ZSTD_VERSION_MINOR
     int ZSTD_VERSION_RELEASE
+
     int ZSTD_CONTENTSIZE_UNKNOWN
     int ZSTD_CONTENTSIZE_ERROR
 
@@ -731,16 +751,18 @@ cdef extern from 'zstd.h':
     const char* ZSTD_getErrorName(size_t code) nogil
     uint64_t ZSTD_getFrameContentSize(const void *src, size_t srcSize) nogil
 
-    size_t ZSTD_decompress(void* dst,
-                           size_t dstCapacity,
-                           const void* src,
-                           size_t compressedSize) nogil
+    size_t ZSTD_decompress(
+        void* dst,
+        size_t dstCapacity,
+        const void* src,
+        size_t compressedSize) nogil
 
-    size_t ZSTD_compress(void* dst,
-                         size_t dstCapacity,
-                         const void* src,
-                         size_t srcSize,
-                         int compressionLevel) nogil
+    size_t ZSTD_compress(
+        void* dst,
+        size_t dstCapacity,
+        const void* src,
+        size_t srcSize,
+        int compressionLevel) nogil
 
 
 class ZstdError(RuntimeError):
@@ -853,23 +875,27 @@ def zstd_decode(data, out=None):
 # LZ4 #########################################################################
 
 cdef extern from 'lz4.h':
+
     int LZ4_VERSION_MAJOR
     int LZ4_VERSION_MINOR
     int LZ4_VERSION_RELEASE
+
     int LZ4_MAX_INPUT_SIZE
 
     int LZ4_compressBound(int isize) nogil
 
-    int LZ4_compress_fast(const char* src,
-                          char* dst,
-                          int srcSize,
-                          int dstCapacity,
-                          int acceleration) nogil
+    int LZ4_compress_fast(
+        const char* src,
+        char* dst,
+        int srcSize,
+        int dstCapacity,
+        int acceleration) nogil
 
-    int LZ4_decompress_safe(const char* src,
-                            char* dst,
-                            int compressedSize,
-                            int dstCapacity) nogil
+    int LZ4_decompress_safe(
+        const char* src,
+        char* dst,
+        int compressedSize,
+        int dstCapacity) nogil
 
 
 def lz4_encode(data, level=None, header=False, out=None):
@@ -981,17 +1007,20 @@ def lz4_decode(data, header=False, out=None):
 # LZF #########################################################################
 
 cdef extern from 'lzf.h':
+
     int LZF_VERSION
 
-    unsigned int lzf_compress(const void *const in_data,
-                              unsigned int in_len,
-                              void *out_data,
-                              unsigned int out_len) nogil
+    unsigned int lzf_compress(
+        const void *const in_data,
+        unsigned int in_len,
+        void *out_data,
+        unsigned int out_len) nogil
 
-    unsigned int lzf_decompress(const void *const in_data,
-                                unsigned int in_len,
-                                void *out_data,
-                                unsigned int out_len) nogil
+    unsigned int lzf_decompress(
+        const void *const in_data,
+        unsigned int in_len,
+        void *out_data,
+        unsigned int out_len) nogil
 
 
 def lzf_encode(data, level=None, header=False, out=None):
@@ -1101,9 +1130,11 @@ def lzf_decode(data, header=False, out=None):
 # LZMA ########################################################################
 
 cdef extern from 'lzma.h':
+
     int LZMA_VERSION_MAJOR
     int LZMA_VERSION_MINOR
     int LZMA_VERSION_PATCH
+
     int LZMA_CONCATENATED
     int LZMA_STREAM_HEADER_SIZE
 
@@ -1172,23 +1203,27 @@ cdef extern from 'lzma.h':
         LZMA_BUF_ERROR
         LZMA_PROG_ERROR
 
-    lzma_ret lzma_easy_encoder(lzma_stream *strm,
-                               uint32_t preset,
-                               lzma_check check) nogil
+    lzma_ret lzma_easy_encoder(
+        lzma_stream *strm,
+        uint32_t preset,
+        lzma_check check) nogil
 
-    lzma_ret lzma_stream_decoder(lzma_stream *strm,
-                                 uint64_t memlimit,
-                                 uint32_t flags) nogil
+    lzma_ret lzma_stream_decoder(
+        lzma_stream *strm,
+        uint64_t memlimit,
+        uint32_t flags) nogil
 
-    lzma_ret lzma_stream_footer_decode(lzma_stream_flags *options,
-                                       const uint8_t *in_) nogil
+    lzma_ret lzma_stream_footer_decode(
+        lzma_stream_flags *options,
+        const uint8_t *in_) nogil
 
-    lzma_ret lzma_index_buffer_decode(lzma_index **i,
-                                      uint64_t *memlimit,
-                                      const lzma_allocator *allocator,
-                                      const uint8_t *in_,
-                                      size_t *in_pos,
-                                      size_t in_size) nogil
+    lzma_ret lzma_index_buffer_decode(
+        lzma_index **i,
+        uint64_t *memlimit,
+        const lzma_allocator *allocator,
+        const uint8_t *in_,
+        size_t *in_pos,
+        size_t in_size) nogil
 
     lzma_ret lzma_code(lzma_stream *strm, lzma_action action) nogil
     void lzma_end(lzma_stream *strm) nogil
@@ -1358,6 +1393,7 @@ def lzma_encode(data, level=None, out=None):
 # BZ2 #########################################################################
 
 cdef extern from 'bzlib.h':
+
     int BZ_RUN
     int BZ_FLUSH
     int BZ_FINISH
@@ -1391,10 +1427,11 @@ cdef extern from 'bzlib.h':
         void (*bzfree)(void *, void *)
         void *opaque
 
-    int BZ2_bzCompressInit(bz_stream* strm,
-                           int blockSize100k,
-                           int verbosity,
-                           int workFactor) nogil
+    int BZ2_bzCompressInit(
+        bz_stream* strm,
+        int blockSize100k,
+        int verbosity,
+        int workFactor) nogil
 
     int BZ2_bzCompress(bz_stream* strm, int action) nogil
     int BZ2_bzCompressEnd(bz_stream* strm) nogil
@@ -1548,6 +1585,7 @@ def bz2_decode(data, out=None):
 # Blosc #######################################################################
 
 cdef extern from 'blosc.h':
+
     char* BLOSC_VERSION_STRING
 
     int BLOSC_MAX_OVERHEAD
@@ -1555,26 +1593,29 @@ cdef extern from 'blosc.h':
     int BLOSC_SHUFFLE
     int BLOSC_BITSHUFFLE
 
-    int blosc_compress_ctx(int clevel,
-                           int doshuffle,
-                           size_t typesize,
-                           size_t nbytes,
-                           const void* src,
-                           void* dest,
-                           size_t destsize,
-                           const char* compressor,
-                           size_t blocksize,
-                           int numinternalthreads) nogil
+    int blosc_compress_ctx(
+        int clevel,
+        int doshuffle,
+        size_t typesize,
+        size_t nbytes,
+        const void* src,
+        void* dest,
+        size_t destsize,
+        const char* compressor,
+        size_t blocksize,
+        int numinternalthreads) nogil
 
-    int blosc_decompress_ctx(const void *src,
-                             void *dest,
-                             size_t destsize,
-                             int numinternalthreads) nogil
+    int blosc_decompress_ctx(
+        const void *src,
+        void *dest,
+        size_t destsize,
+        int numinternalthreads) nogil
 
-    void blosc_cbuffer_sizes(const void *cbuffer,
-                             size_t *nbytes,
-                             size_t *cbytes,
-                             size_t *blocksize) nogil
+    void blosc_cbuffer_sizes(
+        const void *cbuffer,
+        size_t *nbytes,
+        size_t *cbytes,
+        size_t *blocksize) nogil
 
     int blosc_get_blocksize() nogil
 
@@ -1686,11 +1727,328 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
     return out
 
 
+# AEC #########################################################################
+
+_AEC_VERSION = '1.0.4'
+
+cdef extern from 'libaec.h':
+
+    cpdef enum:
+        AEC_DATA_SIGNED
+        AEC_DATA_3BYTE
+        AEC_DATA_MSB
+        AEC_DATA_PREPROCESS
+        AEC_RESTRICTED
+        AEC_PAD_RSI
+        AEC_NOT_ENFORCE
+
+    int AEC_OK
+    int AEC_CONF_ERROR
+    int AEC_STREAM_ERROR
+    int AEC_DATA_ERROR
+    int AEC_MEM_ERROR
+
+    int AEC_NO_FLUSH
+    int AEC_FLUSH
+
+    struct aec_stream:
+        unsigned char *next_in
+        size_t avail_in
+        size_t total_in
+        unsigned char *next_out
+        size_t avail_out
+        size_t total_out
+        unsigned int bits_per_sample
+        unsigned int block_size
+        unsigned int rsi
+        unsigned int flags
+        # internal_state *state
+
+    int aec_encode_init(aec_stream *strm) nogil
+    int aec_encode_c 'aec_encode' (aec_stream *strm, int flush) nogil
+    int aec_encode_end(aec_stream *strm) nogil
+    int aec_decode_init(aec_stream *strm) nogil
+    int aec_decode_c 'aec_decode' (aec_stream *strm, int flush) nogil
+    int aec_decode_end(aec_stream *strm) nogil
+    int aec_buffer_encode(aec_stream *strm) nogil
+    int aec_buffer_decode(aec_stream *strm) nogil
+
+
+class AecError(RuntimeError):
+    """AEC Exceptions."""
+    def __init__(self, func, err):
+        msg = {
+            AEC_OK: 'AEC_OK',
+            AEC_CONF_ERROR: 'AEC_CONF_ERROR',
+            AEC_STREAM_ERROR: 'AEC_STREAM_ERROR',
+            AEC_DATA_ERROR: 'AEC_DATA_ERROR',
+            AEC_MEM_ERROR: 'AEC_MEM_ERROR',
+        }.get(err, 'internal error %i' % err)
+        msg = '%s returned %s' % (func, msg)
+        RuntimeError.__init__(self, msg)
+
+
+def aec_encode(data, level=None, bitspersample=None, flags=None,
+               blocksize=None, rsi=None, out=None):
+    """Compress AEC.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _parse_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t byteswritten
+        int ret = AEC_OK
+        unsigned int flags_ = 0
+        unsigned int bits_per_sample = 8
+        unsigned int block_size = _default_level(blocksize, 8, 8, 64)
+        unsigned int rsi_ = _default_level(rsi, 2, 1, 4096)
+        aec_stream strm
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if flags is None:
+        flags_ = AEC_DATA_PREPROCESS
+    else:
+        flags_ = flags
+
+    if isinstance(data, numpy.ndarray):
+        if bitspersample is None:
+            bitspersample = data.itemsize * 8
+        elif bitspersample > data.itemsize * 8:
+            raise ValueError('invalid bitspersample')
+        if data.dtype.char == 'i':
+            flags_ |= AEC_DATA_SIGNED
+
+    if bitspersample:
+        bits_per_sample = bitspersample
+
+    if bits_per_sample > 32:
+        raise ValueError('invalid bits_per_sample')
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = srcsize  # ? TODO: use dynamic destination buffer
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    try:
+        with nogil:
+            memset(&strm, 0, sizeof(aec_stream))
+            strm.next_in = <unsigned char *>&src[0]
+            strm.avail_in = srcsize
+            strm.next_out = <unsigned char *>&dst[0]
+            strm.avail_out = dstsize
+            strm.bits_per_sample = bits_per_sample
+            strm.block_size = block_size
+            strm.rsi = rsi_
+            strm.flags = flags_
+
+            ret = aec_encode_init(&strm)
+            if ret != AEC_OK:
+                raise AecError('aec_encode_init', ret)
+
+            ret = aec_encode_c(&strm, AEC_FLUSH)
+            if ret != AEC_OK:
+                raise AecError('aec_encode', ret)
+
+            byteswritten = <ssize_t>strm.total_out
+            if strm.total_in != <size_t>srcsize:
+                raise ValueError('output buffer too small')
+    finally:
+        ret = aec_encode_end(&strm)
+        # if ret != AEC_OK:
+        #     raise AecError('aec_encode_end', ret)
+
+    if byteswritten < dstsize:
+        if out_given:
+            out = memoryview(out)[:byteswritten]
+        else:
+            out = out[:byteswritten]
+    return out
+
+
+def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
+               out=None):
+    """Decompress AEC.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t byteswritten
+        int ret = AEC_OK
+        unsigned int flags_ = 0
+        unsigned int bits_per_sample = 8
+        unsigned int block_size = _default_level(blocksize, 8, 8, 64)
+        unsigned int rsi_ = _default_level(rsi, 2, 1, 4096)
+        aec_stream strm
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    if flags is None:
+        flags_ = AEC_DATA_PREPROCESS
+    else:
+        flags_ = flags
+
+    if isinstance(out, numpy.ndarray):
+        if bitspersample is None:
+            bitspersample = out.itemsize * 8
+        elif bitspersample > out.itemsize * 8:
+            raise ValueError('invalid bitspersample')
+        if out.dtype.char == 'i':
+            flags_ |= AEC_DATA_SIGNED
+
+    if bitspersample:
+        bits_per_sample = bitspersample
+
+    if bits_per_sample > 32:
+        raise ValueError('invalid bits_per_sample')
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None or out is data:
+        if dstsize < 0:
+            dstsize = srcsize * 8  # ? TODO: use dynamic destination buffer
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    try:
+        dst = out
+    except ValueError:
+        dst = numpy.ravel(out).view('uint8')
+    dstsize = <int>dst.size
+
+    try:
+        with nogil:
+            memset(&strm, 0, sizeof(aec_stream))
+            strm.next_in = <unsigned char *>&src[0]
+            strm.avail_in = srcsize
+            strm.next_out = <unsigned char *>&dst[0]
+            strm.avail_out = dstsize
+            strm.bits_per_sample = bits_per_sample
+            strm.block_size = block_size
+            strm.rsi = rsi_
+            strm.flags = flags_
+
+            ret = aec_decode_init(&strm)
+            if ret != AEC_OK:
+                raise AecError('aec_decode_init', ret)
+
+            ret = aec_decode_c(&strm, AEC_FLUSH)
+            if ret != AEC_OK:
+                raise AecError('aec_decode', ret)
+
+            byteswritten = <ssize_t>strm.total_out
+            if strm.total_in != <size_t>srcsize:
+                raise ValueError('output buffer too small')
+    finally:
+        ret = aec_decode_end(&strm)
+        # if ret != AEC_OK:
+        #     raise AecError('aec_decode_end', ret)
+
+    if byteswritten < dstsize:
+        if out_given:
+            out = memoryview(out)[:byteswritten]
+        else:
+            out = out[:byteswritten]
+    return out
+
+
+# SZIP ########################################################################
+
+cdef extern from 'szlib.h':
+
+    cpdef enum:
+        SZ_ALLOW_K13_OPTION_MASK
+        SZ_CHIP_OPTION_MASK
+        SZ_EC_OPTION_MASK
+        SZ_LSB_OPTION_MASK
+        SZ_MSB_OPTION_MASK
+        SZ_NN_OPTION_MASK
+        SZ_RAW_OPTION_MASK
+
+    int SZ_OK
+    int SZ_OUTBUFF_FULL
+
+    int SZ_NO_ENCODER_ERROR
+    int SZ_PARAM_ERROR
+    int SZ_MEM_ERROR
+
+    int SZ_MAX_PIXELS_PER_BLOCK
+    int SZ_MAX_BLOCKS_PER_SCANLINE
+
+    struct SZ_com_t:
+        int options_mask
+        int bits_per_pixel
+        int pixels_per_block
+        int pixels_per_scanline
+
+    int SZ_BufftoBuffCompress(
+        void *dest,
+        size_t *destLen,
+        const void *source,
+        size_t sourceLen,
+        SZ_com_t *param) nogil
+
+    int SZ_BufftoBuffDecompress(
+        void *dest,
+        size_t *destLen,
+        const void *source,
+        size_t sourceLen,
+        SZ_com_t *param) nogil
+
+    int SZ_encoder_enabled() nogil
+
+
+class SzipError(RuntimeError):
+    """SZIP Exceptions."""
+    def __init__(self, func, err):
+        msg = {
+            SZ_OK: 'SZ_OK',
+            SZ_OUTBUFF_FULL: 'SZ_OUTBUFF_FULL',
+            SZ_NO_ENCODER_ERROR: 'SZ_NO_ENCODER_ERROR',
+            SZ_PARAM_ERROR: 'SZ_PARAM_ERROR',
+            SZ_MEM_ERROR: 'SZ_MEM_ERROR',
+        }.get(err, 'internal error %i' % err)
+        msg = '%s returned %s' % (func, msg)
+        RuntimeError.__init__(self, msg)
+
+
+def _szip_decode(data, out=None):
+    """Decompress SZIP.
+
+    """
+    raise NotImplementedError()
+
+
+def _szip_encode(data, level=None, bitspersample=None, flags=None, out=None):
+    """Compress SZIP.
+
+    """
+    raise NotImplementedError()
+
+
 # PNG #########################################################################
 
 cdef extern from 'png.h':
 
     char* PNG_LIBPNG_VER_STRING
+
     int PNG_COLOR_TYPE_GRAY
     int PNG_COLOR_TYPE_PALETTE
     int PNG_COLOR_TYPE_RGB
@@ -1731,66 +2089,76 @@ cdef extern from 'png.h':
     ctypedef void(*png_read_status_ptr)(png_structp, png_uint_32, int)
     ctypedef void(*png_write_status_ptr)(png_structp, png_uint_32, int)
 
-    int png_sig_cmp(png_const_bytep sig,
-                    size_t start,
-                    size_t num_to_check) nogil
+    int png_sig_cmp(
+        png_const_bytep sig,
+        size_t start,
+        size_t num_to_check) nogil
 
     void png_set_sig_bytes(png_structrp png_ptr, int num_bytes) nogil
 
-    png_uint_32 png_get_IHDR(png_const_structrp png_ptr,
-                             png_const_inforp info_ptr,
-                             png_uint_32 *width,
-                             png_uint_32 *height,
-                             int *bit_depth,
-                             int *color_type,
-                             int *interlace_method,
-                             int *compression_method,
-                             int *filter_method) nogil
+    png_uint_32 png_get_IHDR(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32 *width,
+        png_uint_32 *height,
+        int *bit_depth,
+        int *color_type,
+        int *interlace_method,
+        int *compression_method,
+        int *filter_method) nogil
 
-    void png_set_IHDR(png_const_structrp png_ptr,
-                      png_inforp info_ptr,
-                      png_uint_32 width,
-                      png_uint_32 height,
-                      int bit_depth,
-                      int color_type,
-                      int interlace_method,
-                      int compression_method,
-                      int filter_method) nogil
+    void png_set_IHDR(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 width,
+        png_uint_32 height,
+        int bit_depth,
+        int color_type,
+        int interlace_method,
+        int compression_method,
+        int filter_method) nogil
 
-    void png_read_row(png_structrp png_ptr,
-                      png_bytep row,
-                      png_bytep display_row) nogil
+    void png_read_row(
+        png_structrp png_ptr,
+        png_bytep row,
+        png_bytep display_row) nogil
 
     void png_write_row(png_structrp png_ptr, png_const_bytep row) nogil
     void png_read_image(png_structrp png_ptr, png_bytepp image) nogil
     void png_write_image(png_structrp png_ptr, png_bytepp image) nogil
     png_infop png_create_info_struct(const png_const_structrp png_ptr) nogil
 
-    png_structp png_create_write_struct(png_const_charp user_png_ver,
-                                        png_voidp error_ptr,
-                                        png_error_ptr error_fn,
-                                        png_error_ptr warn_fn) nogil
+    png_structp png_create_write_struct(
+        png_const_charp user_png_ver,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warn_fn) nogil
 
-    png_structp png_create_read_struct(png_const_charp user_png_ver,
-                                       png_voidp error_ptr,
-                                       png_error_ptr error_fn,
-                                       png_error_ptr warn_fn) nogil
+    png_structp png_create_read_struct(
+        png_const_charp user_png_ver,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warn_fn) nogil
 
-    void png_destroy_write_struct(png_structpp png_ptr_ptr,
-                                  png_infopp info_ptr_ptr) nogil
+    void png_destroy_write_struct(
+        png_structpp png_ptr_ptr,
+        png_infopp info_ptr_ptr) nogil
 
-    void png_destroy_read_struct(png_structpp png_ptr_ptr,
-                                 png_infopp info_ptr_ptr,
-                                 png_infopp end_info_ptr_ptr) nogil
+    void png_destroy_read_struct(
+        png_structpp png_ptr_ptr,
+        png_infopp info_ptr_ptr,
+        png_infopp end_info_ptr_ptr) nogil
 
-    void png_set_write_fn(png_structrp png_ptr,
-                          png_voidp io_ptr,
-                          png_rw_ptr write_data_fn,
-                          png_flush_ptr output_flush_fn) nogil
+    void png_set_write_fn(
+        png_structrp png_ptr,
+        png_voidp io_ptr,
+        png_rw_ptr write_data_fn,
+        png_flush_ptr output_flush_fn) nogil
 
-    void png_set_read_fn(png_structrp png_ptr,
-                         png_voidp io_ptr,
-                         png_rw_ptr read_data_fn) nogil
+    void png_set_read_fn(
+        png_structrp png_ptr,
+        png_voidp io_ptr,
+        png_rw_ptr read_data_fn) nogil
 
     png_voidp png_get_io_ptr(png_const_structrp png_ptr) nogil
     void png_set_palette_to_rgb(png_structrp png_ptr) nogil
@@ -2113,38 +2481,44 @@ cdef extern from 'webp/decode.h':
 
     int WebPGetDecoderVersion() nogil
 
-    int WebPGetInfo(const uint8_t* data,
-                    size_t data_size,
-                    int* width,
-                    int* height) nogil
+    int WebPGetInfo(
+        const uint8_t* data,
+        size_t data_size,
+        int* width,
+        int* height) nogil
 
-    VP8StatusCode WebPGetFeatures(const uint8_t* data,
-                                  size_t data_size,
-                                  WebPBitstreamFeatures* features) nogil
+    VP8StatusCode WebPGetFeatures(
+        const uint8_t* data,
+        size_t data_size,
+        WebPBitstreamFeatures* features) nogil
 
-    uint8_t* WebPDecodeRGBAInto(const uint8_t* data,
-                                size_t data_size,
-                                uint8_t* output_buffer,
-                                size_t output_buffer_size,
-                                int output_stride) nogil
+    uint8_t* WebPDecodeRGBAInto(
+        const uint8_t* data,
+        size_t data_size,
+        uint8_t* output_buffer,
+        size_t output_buffer_size,
+        int output_stride) nogil
 
-    uint8_t* WebPDecodeRGBInto(const uint8_t* data,
-                               size_t data_size,
-                               uint8_t* output_buffer,
-                               size_t output_buffer_size,
-                               int output_stride) nogil
+    uint8_t* WebPDecodeRGBInto(
+        const uint8_t* data,
+        size_t data_size,
+        uint8_t* output_buffer,
+        size_t output_buffer_size,
+        int output_stride) nogil
 
-    uint8_t* WebPDecodeYUVInto(const uint8_t* data,
-                               size_t data_size,
-                               uint8_t* luma,
-                               size_t luma_size,
-                               int luma_stride,
-                               uint8_t* u,
-                               size_t u_size,
-                               int u_stride,
-                               uint8_t* v,
-                               size_t v_size,
-                               int v_stride) nogil
+    uint8_t* WebPDecodeYUVInto(
+        const uint8_t* data,
+        size_t data_size,
+        uint8_t* luma,
+        size_t luma_size,
+        int luma_stride,
+        uint8_t* u,
+        size_t u_size,
+        int u_stride,
+        uint8_t* v,
+        size_t v_size,
+        int v_stride) nogil
+
 
 cdef extern from 'webp/encode.h':
 
@@ -2153,31 +2527,35 @@ cdef extern from 'webp/encode.h':
     int WebPGetEncoderVersion() nogil
     void WebPFree(void* ptr) nogil
 
-    size_t WebPEncodeRGB(const uint8_t* rgb,
-                         int width,
-                         int height,
-                         int stride,
-                         float quality_factor,
-                         uint8_t** output) nogil
+    size_t WebPEncodeRGB(
+        const uint8_t* rgb,
+        int width,
+        int height,
+        int stride,
+        float quality_factor,
+        uint8_t** output) nogil
 
-    size_t WebPEncodeRGBA(const uint8_t* rgba,
-                          int width,
-                          int height,
-                          int stride,
-                          float quality_factor,
-                          uint8_t** output) nogil
+    size_t WebPEncodeRGBA(
+        const uint8_t* rgba,
+        int width,
+        int height,
+        int stride,
+        float quality_factor,
+        uint8_t** output) nogil
 
-    size_t WebPEncodeLosslessRGB(const uint8_t* rgb,
-                                 int width,
-                                 int height,
-                                 int stride,
-                                 uint8_t** output) nogil
+    size_t WebPEncodeLosslessRGB(
+        const uint8_t* rgb,
+        int width,
+        int height,
+        int stride,
+        uint8_t** output) nogil
 
-    size_t WebPEncodeLosslessRGBA(const uint8_t* rgba,
-                                  int width,
-                                  int height,
-                                  int stride,
-                                  uint8_t** output) nogil
+    size_t WebPEncodeLosslessRGBA(
+        const uint8_t* rgba,
+        int width,
+        int height,
+        int stride,
+        uint8_t** output) nogil
 
 
 class WebpError(RuntimeError):
@@ -2328,6 +2706,7 @@ def webp_decode(data, out=None):
 # JPEG 8-bit ##################################################################
 
 cdef extern from 'jpeglib.h':
+
     int JPEG_LIB_VERSION
     int LIBJPEG_TURBO_VERSION
     int LIBJPEG_TURBO_VERSION_NUMBER
@@ -2456,17 +2835,20 @@ cdef extern from 'jpeglib.h':
 
     boolean jpeg_finish_decompress(jpeg_decompress_struct*) nogil
 
-    JDIMENSION jpeg_read_scanlines(jpeg_decompress_struct*,
-                                   JSAMPARRAY,
-                                   JDIMENSION) nogil
+    JDIMENSION jpeg_read_scanlines(
+        jpeg_decompress_struct*,
+        JSAMPARRAY,
+        JDIMENSION) nogil
 
-    void jpeg_mem_src(jpeg_decompress_struct*,
-                      unsigned char*,
-                      unsigned long) nogil
+    void jpeg_mem_src(
+        jpeg_decompress_struct*,
+        unsigned char*,
+        unsigned long) nogil
 
-    void jpeg_mem_dest(jpeg_compress_struct*,
-                       unsigned char**,
-                       unsigned long*) nogil
+    void jpeg_mem_dest(
+        jpeg_compress_struct*,
+        unsigned char**,
+        unsigned long*) nogil
 
     void jpeg_create_compress(jpeg_compress_struct*) nogil
 
@@ -2480,9 +2862,10 @@ cdef extern from 'jpeglib.h':
 
     void jpeg_finish_compress(jpeg_compress_struct* cinfo) nogil
 
-    JDIMENSION jpeg_write_scanlines(jpeg_compress_struct*,
-                                    JSAMPARRAY,
-                                    JDIMENSION) nogil
+    JDIMENSION jpeg_write_scanlines(
+        jpeg_compress_struct*,
+        JSAMPARRAY,
+        JDIMENSION) nogil
 
 
 ctypedef struct my_error_mgr:
@@ -2825,6 +3208,7 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
 cdef extern from 'jpeg_sof3.h':
 
     char* JPEG_SOF3_VERSION
+
     int JPEG_SOF3_OK
     int JPEG_SOF3_INVALID_OUTPUT
     int JPEG_SOF3_INVALID_SIGNATURE
@@ -2837,14 +3221,15 @@ cdef extern from 'jpeg_sof3.h':
     int JPEG_SOF3_INVALID_RESTART_SEGMENTS
     int JPEG_SOF3_NO_TABLE
 
-    int jpeg_sof3_decode(unsigned char *lRawRA,
-                         ssize_t lRawSz,
-                         unsigned char *lImgRA8,
-                         ssize_t lImgSz,
-                         int *dimX,
-                         int *dimY,
-                         int *bits,
-                         int *frames) nogil
+    int jpeg_sof3_decode(
+        unsigned char *lRawRA,
+        ssize_t lRawSz,
+        unsigned char *lImgRA8,
+        ssize_t lImgSz,
+        int *dimX,
+        int *dimY,
+        int *bits,
+        int *frames) nogil
 
 
 class JpegSof3Error(RuntimeError):
@@ -3003,6 +3388,7 @@ def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
 # JPEG 2000 ###################################################################
 
 cdef extern from 'openjpeg.h':
+
     int OPJ_FALSE = 0
     int OPJ_TRUE = 1
 
@@ -3151,85 +3537,106 @@ cdef extern from 'openjpeg.h':
 
     OPJ_BOOL opj_encode(opj_codec_t *p_codec, opj_stream_t *p_stream) nogil
 
-    opj_image_t* opj_image_tile_create(OPJ_UINT32 numcmpts,
-                                       opj_image_cmptparm_t *cmptparms,
-                                       OPJ_COLOR_SPACE clrspc) nogil
+    opj_image_t* opj_image_tile_create(
+        OPJ_UINT32 numcmpts,
+        opj_image_cmptparm_t *cmptparms,
+        OPJ_COLOR_SPACE clrspc) nogil
 
-    OPJ_BOOL opj_setup_encoder(opj_codec_t *p_codec,
-                               opj_cparameters_t *parameters,
-                               opj_image_t *image) nogil
+    OPJ_BOOL opj_setup_encoder(
+        opj_codec_t *p_codec,
+        opj_cparameters_t *parameters,
+        opj_image_t *image) nogil
 
-    OPJ_BOOL opj_start_compress(opj_codec_t *p_codec,
-                                opj_image_t * p_image,
-                                opj_stream_t *p_stream) nogil
+    OPJ_BOOL opj_start_compress(
+        opj_codec_t *p_codec,
+        opj_image_t * p_image,
+        opj_stream_t *p_stream) nogil
 
-    OPJ_BOOL opj_end_compress(opj_codec_t *p_codec,
-                              opj_stream_t *p_stream) nogil
+    OPJ_BOOL opj_end_compress(
+        opj_codec_t *p_codec,
+        opj_stream_t *p_stream) nogil
 
-    OPJ_BOOL opj_end_decompress(opj_codec_t *p_codec,
-                                opj_stream_t *p_stream) nogil
+    OPJ_BOOL opj_end_decompress(
+        opj_codec_t *p_codec,
+        opj_stream_t *p_stream) nogil
 
-    OPJ_BOOL opj_setup_decoder(opj_codec_t *p_codec,
-                               opj_dparameters_t *params) nogil
+    OPJ_BOOL opj_setup_decoder(
+        opj_codec_t *p_codec,
+        opj_dparameters_t *params) nogil
 
-    OPJ_BOOL opj_codec_set_threads(opj_codec_t *p_codec,
-                                   int num_threads) nogil
+    OPJ_BOOL opj_codec_set_threads(
+        opj_codec_t *p_codec,
+        int num_threads) nogil
 
-    OPJ_BOOL opj_read_header(opj_stream_t *p_stream,
-                             opj_codec_t *p_codec,
-                             opj_image_t **p_image) nogil
+    OPJ_BOOL opj_read_header(
+        opj_stream_t *p_stream,
+        opj_codec_t *p_codec,
+        opj_image_t **p_image) nogil
 
-    OPJ_BOOL opj_set_decode_area(opj_codec_t *p_codec,
-                                 opj_image_t* p_image,
-                                 OPJ_INT32 p_start_x,
-                                 OPJ_INT32 p_start_y,
-                                 OPJ_INT32 p_end_x,
-                                 OPJ_INT32 p_end_y) nogil
+    OPJ_BOOL opj_set_decode_area(
+        opj_codec_t *p_codec,
+        opj_image_t* p_image,
+        OPJ_INT32 p_start_x,
+        OPJ_INT32 p_start_y,
+        OPJ_INT32 p_end_x,
+        OPJ_INT32 p_end_y) nogil
 
-    OPJ_BOOL opj_set_info_handler(opj_codec_t * p_codec,
-                                  opj_msg_callback p_callback,
-                                  void * p_user_data) nogil
+    OPJ_BOOL opj_set_info_handler(
+        opj_codec_t * p_codec,
+        opj_msg_callback p_callback,
+        void * p_user_data) nogil
 
-    OPJ_BOOL opj_set_warning_handler(opj_codec_t * p_codec,
-                                     opj_msg_callback p_callback,
-                                     void * p_user_data) nogil
+    OPJ_BOOL opj_set_warning_handler(
+        opj_codec_t * p_codec,
+        opj_msg_callback p_callback,
+        void * p_user_data) nogil
 
-    OPJ_BOOL opj_set_error_handler(opj_codec_t * p_codec,
-                                   opj_msg_callback p_callback,
-                                   void * p_user_data) nogil
+    OPJ_BOOL opj_set_error_handler(
+        opj_codec_t * p_codec,
+        opj_msg_callback p_callback,
+        void * p_user_data) nogil
 
-    OPJ_BOOL opj_decode(opj_codec_t *p_decompressor,
-                        opj_stream_t *p_stream,
-                        opj_image_t *p_image) nogil
+    OPJ_BOOL opj_decode(
+        opj_codec_t *p_decompressor,
+        opj_stream_t *p_stream,
+        opj_image_t *p_image) nogil
 
-    opj_image_t* opj_image_create(OPJ_UINT32 numcmpts,
-                                  opj_image_cmptparm_t* cmptparms,
-                                  OPJ_COLOR_SPACE clrspc) nogil
+    opj_image_t* opj_image_create(
+        OPJ_UINT32 numcmpts,
+        opj_image_cmptparm_t* cmptparms,
+        OPJ_COLOR_SPACE clrspc) nogil
 
-    void opj_stream_set_read_function(opj_stream_t* p_stream,
-                                      opj_stream_read_fn p_func) nogil
+    void opj_stream_set_read_function(
+        opj_stream_t* p_stream,
+        opj_stream_read_fn p_func) nogil
 
-    void opj_stream_set_write_function(opj_stream_t* p_stream,
-                                       opj_stream_write_fn p_func) nogil
+    void opj_stream_set_write_function(
+        opj_stream_t* p_stream,
+        opj_stream_write_fn p_func) nogil
 
-    void opj_stream_set_seek_function(opj_stream_t* p_stream,
-                                      opj_stream_seek_fn p_func) nogil
+    void opj_stream_set_seek_function(
+        opj_stream_t* p_stream,
+        opj_stream_seek_fn p_func) nogil
 
-    void opj_stream_set_skip_function(opj_stream_t* p_stream,
-                                      opj_stream_skip_fn p_func) nogil
+    void opj_stream_set_skip_function(
+        opj_stream_t* p_stream,
+        opj_stream_skip_fn p_func) nogil
 
-    void opj_stream_set_user_data(opj_stream_t* p_stream,
-                                  void* p_data,
-                                  opj_stream_free_user_data_fn p_func) nogil
+    void opj_stream_set_user_data(
+        opj_stream_t* p_stream,
+        void* p_data,
+        opj_stream_free_user_data_fn p_func) nogil
 
-    void opj_stream_set_user_data_length(opj_stream_t* p_stream,
-                                         OPJ_UINT64 data_length) nogil
+    void opj_stream_set_user_data_length(
+        opj_stream_t* p_stream,
+        OPJ_UINT64 data_length) nogil
 
-    OPJ_BOOL opj_write_tile(opj_codec_t *p_codec,
-                            OPJ_UINT32 p_tile_index,
-                            OPJ_BYTE * p_data,
-                            OPJ_UINT32 p_data_size,
-                            opj_stream_t *p_stream) nogil
+    OPJ_BOOL opj_write_tile(
+        opj_codec_t *p_codec,
+        OPJ_UINT32 p_tile_index,
+        OPJ_BYTE * p_data,
+        OPJ_UINT32 p_data_size,
+        opj_stream_t *p_stream) nogil
 
 
 cdef extern from 'opj_color.h':
@@ -3777,6 +4184,7 @@ def j2k_decode(data, verbose=0, out=None):
 # JPEG XR #####################################################################
 
 cdef extern from 'windowsmediaphoto.h':
+
     ctypedef long ERR
     ctypedef int I32
     ctypedef int Bool
@@ -3930,6 +4338,7 @@ cdef extern from 'windowsmediaphoto.h':
 
 
 cdef extern from 'guiddef.h':
+
     ctypedef struct GUID:
         pass
 
@@ -3937,6 +4346,7 @@ cdef extern from 'guiddef.h':
 
 
 cdef extern from 'JXRGlue.h':
+
     int WMP_SDK_VERSION
     int PK_SDK_VERSION
 
@@ -4091,20 +4501,23 @@ cdef extern from 'JXRGlue.h':
     ERR PKImageDecode_GetPixelFormat(PKImageDecode*, PKPixelFormatGUID*) nogil
     ERR PKFormatConverter_Release(PKFormatConverter**) nogil
 
-    ERR PKFormatConverter_Initialize(PKFormatConverter*,
-                                     PKImageDecode*,
-                                     char*,
-                                     PKPixelFormatGUID) nogil
+    ERR PKFormatConverter_Initialize(
+        PKFormatConverter*,
+        PKImageDecode*,
+        char*,
+        PKPixelFormatGUID) nogil
 
-    ERR PKFormatConverter_Copy(PKFormatConverter*,
-                               const PKRect*,
-                               U8*,
-                               U32) nogil
+    ERR PKFormatConverter_Copy(
+        PKFormatConverter*,
+        const PKRect*,
+        U8*,
+        U32) nogil
 
-    ERR PKFormatConverter_Convert(PKFormatConverter*,
-                                  const PKRect*,
-                                  U8*,
-                                  U32) nogil
+    ERR PKFormatConverter_Convert(
+        PKFormatConverter*,
+        const PKRect*,
+        U8*,
+        U32) nogil
 
     ERR GetImageEncodeIID(const char* szExt, const PKIID** ppIID) nogil
     ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
@@ -5026,7 +5439,6 @@ from ._imagecodecs_lite import (
 # TODO: BMP
 # TODO: CCITT and JBIG; JBIG-KIT is GPL
 # TODO: LZO; http://www.oberhumer.com/opensource/lzo/ is GPL
-# TODO: SZIP via libaec
 # TODO: TIFF via libtiff
 # TODO: LERC via https://github.com/Esri/lerc; patented but Apache licensed.
 # TODO: OpenEXR via ILM's library
