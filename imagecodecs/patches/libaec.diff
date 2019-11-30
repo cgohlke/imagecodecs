@@ -1,0 +1,13 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index ed6053e..e46ab1a 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -10,6 +10,8 @@ if(WIN32 AND BUILD_SHARED_LIBS)
+   set_target_properties(sz PROPERTIES OUTPUT_NAME "szip")
+ endif(WIN32 AND BUILD_SHARED_LIBS)
+ 
++add_definitions(-DENABLE_RSI_PADDING)
++
+ add_executable(aec_client aec.c)
+ set_target_properties(aec_client PROPERTIES OUTPUT_NAME "aec")
+ target_link_libraries(aec_client aec)
