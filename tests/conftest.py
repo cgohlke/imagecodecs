@@ -8,7 +8,11 @@ def pytest_report_header(config):
 
     try:
         pyversion = 'Python %s' % sys.version.splitlines()[0]
-        if 'imagecodecs_lite' in os.path.abspath(__file__):
+        if (
+            'imagecodecs_lite' in os.getcwd() or
+            os.path.exists(os.path.join(os.path.dirname(__file__), '..',
+                                        'imagecodecs_lite'))
+        ):
             import imagecodecs_lite
 
             return '%s\packagedir: %s\nversion: %s' % (
