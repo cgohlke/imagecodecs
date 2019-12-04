@@ -15,16 +15,16 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice,
-#   this list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 #
-# * Redistributions in binary form must reproduce the above copyright notice,
-#   this list of conditions and the following disclaimer in the documentation
-#   and/or other materials provided with the distribution.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
 #
-# * Neither the name of the copyright holder nor the names of its
-#   contributors may be used to endorse or promote products derived from
-#   this software without specific prior written permission.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -56,9 +56,9 @@ Bitorder reversal, and Bitshuffle.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.11.28
+:Version: 2019.12.3
 
 Requirements
 ------------
@@ -122,7 +122,7 @@ and `OpenJPEG's color.c
 <https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
-`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
+`Grzegorz Bokota <https://github.com/Czaki>`_.
 
 To install the requirements for building imagecodecs from source code on
 current Ubuntu Linux distributions, run:
@@ -156,8 +156,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
-2019.11.28
+2019.12.3
     Pass 2795 tests.
+    Sync with imagecodecs-lite.
+2019.11.28
     Add AEC codec via libaec (WIP).
     Do not require scikit-image for testing.
     Require CharLS 2.1.
@@ -247,7 +249,7 @@ Revisions
 
 """
 
-__version__ = '2019.11.28'
+__version__ = '2019.12.3'
 
 import io
 import numbers
@@ -1904,6 +1906,9 @@ def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
         flags_ = flags
 
     if isinstance(out, numpy.ndarray):
+        if not numpy.PyArray_ISCONTIGUOUS(out):
+            # TODO: handle this
+            raise ValueError('output is not contiguous')
         if bitspersample is None:
             bitspersample = out.itemsize * 8
         elif bitspersample > out.itemsize * 8:
