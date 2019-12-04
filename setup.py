@@ -34,6 +34,7 @@ license = license.replace('# ', '').replace('#', '')
 
 if 'sdist' in sys.argv:
     with open('LICENSE', 'w') as fh:
+        fh.write('BSD 3-Clause License\n\n')
         fh.write(license)
     with open('README.rst', 'w') as fh:
         fh.write(readme)
@@ -53,7 +54,6 @@ library_dirs = []
 
 if 'CG-' in os.environ.get('COMPUTERNAME', ''):
     # Windows development environment
-    import _inclib  # noqa
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
         'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2',
@@ -63,7 +63,7 @@ if 'CG-' in os.environ.get('COMPUTERNAME', ''):
                      ('CHARLS_STATIC', 1)]
     libraries_jpeg12 = ['jpeg12']
     if sys.version_info < (3, 5):
-        # CharLS-2.x not compatible with msvc 9, 10, 14
+        # CharLS-2.x is not compatible with msvc 9, 10, 14
         libraries_jpegls = []
     else:
         libraries_jpegls = ['charls']
@@ -103,8 +103,8 @@ elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
 
     libraries_jpeg12 = []
     for dir_path in include_dirs:
-        if os.path.exists(os.path.join(dir_path, 'CharLS', 'charls.h')):
-            libraries_jpegls = ['CharLS']
+        if os.path.exists(os.path.join(dir_path, 'charls', 'charls.h')):
+            libraries_jpegls = ['charls']
             break
     else:
         libraries_jpegls = []
@@ -228,8 +228,8 @@ setup(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=1.14.6'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.14.6'],  # 'cython>=0.29.14'
+    install_requires=['numpy>=1.14.5'],
+    setup_requires=['setuptools>=18.0', 'numpy>=1.14.5'],  # 'cython>=0.29.14'
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.7.2']},
     tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
                    'python-lzf', 'bitshuffle'],  # zfpy
@@ -257,5 +257,6 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: Implementation :: CPython',
     ],
 )
