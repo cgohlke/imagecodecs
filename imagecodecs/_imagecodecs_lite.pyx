@@ -15,16 +15,16 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice,
-#   this list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 #
-# * Redistributions in binary form must reproduce the above copyright notice,
-#   this list of conditions and the following disclaimer in the documentation
-#   and/or other materials provided with the distribution.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
 #
-# * Neither the name of the copyright holder nor the names of its
-#   contributors may be used to endorse or promote products derived from
-#   this software without specific prior written permission.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -47,8 +47,8 @@ and Bitorder reversal.
 
 Imagecodecs-lite is a subset of the `imagecodecs
 <https://pypi.org/project/imagecodecs/>`_ library, which provides additional
-codecs for Zlib DEFLATE, ZStandard, Blosc, LZMA, BZ2, LZ4, LZF, ZFP, PNG, WebP,
-JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, and JPEG XR.
+codecs for Zlib DEFLATE, ZStandard, Blosc, LZMA, BZ2, LZ4, LZF, AEC, ZFP,
+PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, and JPEG XR.
 
 Unlike imagecodecs, imagecodecs-lite does not depend on external third-party
 C libraries and is therefore simple to build from source code.
@@ -59,9 +59,9 @@ C libraries and is therefore simple to build from source code.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.11.28
+:Version: 2019.12.3
 
 Requirements
 ------------
@@ -78,12 +78,14 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7 and 32-bit are deprecated.
+Python 2.7, 3.5, and 32-bit are deprecated.
+
+Build instructions for manylinux and macOS courtesy of Grzegorz Bokota.
 
 Revisions
 ---------
-2019.11.5
-    Update requirements.
+2019.12.3
+    Release manylinux and macOS wheels.
 2019.4.20
     Fix setup requirements.
 2019.2.22
@@ -91,7 +93,7 @@ Revisions
 
 """
 
-__version__ = '2019.11.28'
+__version__ = '2019.12.3'
 
 
 import io
