@@ -1,6 +1,7 @@
 include LICENSE
 include README.rst
-include pyproject.toml
+# azure-pipelines.yaml
+# include pyproject.toml
 
 include imagecodecs/_imagecodecs.c
 include imagecodecs/_imagecodecs_lite.c
@@ -43,6 +44,9 @@ include tests/*.jp2
 include tests/*.jls
 include tests/*.tif
 include tests/*.webp
+include tests/libaec/121B2TestData/*.txt
+include tests/libaec/121B2TestData/AllOptions/*.*
+# include tests/libaec/121B2TestData/ExtendedParameters/*.*
 
 exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
