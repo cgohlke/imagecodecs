@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.11.28
+:Version: 2019.12.3
 
 """
 
@@ -52,6 +52,7 @@ import io
 import re
 import glob
 import tempfile
+import os.path as osp
 
 import pytest
 import numpy
@@ -67,14 +68,18 @@ try:
 except ImportError:
     czifile = None
 
-if 'imagecodecs_lite' in os.path.abspath(__file__):
+
+if (
+    'imagecodecs_lite' in os.getcwd() or
+    osp.exists(osp.join(osp.dirname(__file__), '..', 'imagecodecs_lite'))
+):
     try:
         import imagecodecs_lite as imagecodecs
         from imagecodecs_lite import _imagecodecs_lite  # noqa
         from imagecodecs_lite import imagecodecs as imagecodecs_py
     except ImportError:
         pytest.exit('the imagecodec-lite package is not installed')
-    lzma = zlib = bz2 = zstd = lz4 = lzf = blosc, bitshuffle = None
+    lzma = zlib = bz2 = zstd = lz4 = lzf = blosc = bitshuffle = None
     _jpeg12 = _jpegls = _zfp = None
 else:
     try:
@@ -104,7 +109,7 @@ else:
 
 IS_PY2 = sys.version_info[0] == 2
 IS_32BIT = sys.maxsize < 2**32
-TEST_DIR = os.path.dirname(__file__)
+TEST_DIR = osp.dirname(__file__)
 
 
 class TempFileName():
@@ -115,8 +120,8 @@ class TempFileName():
             self.name = tempfile.NamedTemporaryFile(prefix='test_',
                                                     suffix=suffix).name
         else:
-            self.name = os.path.join(tempfile.gettempdir(),
-                                     'test_%s%s' % (name, suffix))
+            self.name = osp.join(tempfile.gettempdir(),
+                                 'test_%s%s' % (name, suffix))
 
     def __enter__(self):
         return self.name
@@ -140,6 +145,8 @@ def test_version():
         assert imagecodecs.version(dict)['zlib'].startswith('1.')
 
 
+@pytest.mark.skipif(not hasattr(imagecodecs, 'imread'),
+                    reason='imread function missing')
 @pytest.mark.filterwarnings('ignore:Possible precision loss')
 def test_imread_imwrite():
     """Test imread and imwrite functions."""
@@ -802,17 +809,20 @@ def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
     assert data == decoded
 
 
-AEC_TEST_DIR = os.path.join(TEST_DIR, 'libaec/121B2TestData')
+# test data from libaec https://gitlab.dkrz.de/k202009/libaec/tree/master/data
+AEC_TEST_DIR = osp.join(TEST_DIR, 'libaec/121B2TestData')
 
 AEC_TEST_OPTIONS = list(
-    os.path.split(f)[-1][5:-3] for f in glob.glob(
-        os.path.join(AEC_TEST_DIR, 'AllOptions', '*.rz')))
+    osp.split(f)[-1][5:-3] for f in glob.glob(osp.join(
+        AEC_TEST_DIR, 'AllOptions', '*.rz')))
 
 AEC_TEST_EXTENDED = list(
-    os.path.split(f)[-1][:-3] for f in glob.glob(
-        os.path.join(AEC_TEST_DIR, 'ExtendedParameters', '*.rz')))
+    osp.split(f)[-1][:-3] for f in glob.glob(osp.join(
+        AEC_TEST_DIR, 'ExtendedParameters', '*.rz')))
 
 
+@pytest.mark.skipif(not hasattr(imagecodecs, 'aec_decode'),
+                    reason='aec codec missing')
 @pytest.mark.parametrize('dtype', ['bytes', 'numpy'])
 @pytest.mark.parametrize('name', AEC_TEST_EXTENDED)
 def test_aec_extended(name, dtype):
@@ -828,12 +838,12 @@ def test_aec_extended(name, dtype):
     blocksize = int(matches[0])
     rsi = int(matches[1])
 
-    filename = os.path.join(AEC_TEST_DIR, 'ExtendedParameters', '%s.rz' % name)
+    filename = osp.join(AEC_TEST_DIR, 'ExtendedParameters', '%s.rz' % name)
     with open(filename, 'rb') as fh:
         rz = fh.read()
 
-    filename = os.path.join(AEC_TEST_DIR, 'ExtendedParameters',
-                            '%s.dat' % name.split('.')[0])
+    filename = osp.join(AEC_TEST_DIR, 'ExtendedParameters',
+                        '%s.dat' % name.split('.')[0])
     if dtype == 'bytes':
         with open(filename, 'rb') as fh:
             dat = fh.read()
@@ -866,6 +876,8 @@ def test_aec_extended(name, dtype):
         assert_array_equal(decoded, out)
 
 
+@pytest.mark.skipif(not hasattr(imagecodecs, 'aec_decode'),
+                    reason='aec codec missing')
 @pytest.mark.parametrize('name', AEC_TEST_OPTIONS)
 def test_aec_options(name):
     """Test AEC codec with libaec 121B2TestData."""
@@ -886,7 +898,7 @@ def test_aec_options(name):
     if bitspersample > 16:
         size *= 2
 
-    filename = os.path.join(AEC_TEST_DIR, 'AllOptions', 'test_%s.rz' % name)
+    filename = osp.join(AEC_TEST_DIR, 'AllOptions', 'test_%s.rz' % name)
     with open(filename, 'rb') as fh:
         rz = fh.read()
 
@@ -1377,7 +1389,7 @@ def test_czifile():
     from czifile import CziFile
 
     fname = datafiles('jpegxr.czi')
-    if not os.path.exists(fname):
+    if not osp.exists(fname):
         pytest.skip('large file not included with source distribution')
 
     with CziFile(fname) as czi:
@@ -1414,8 +1426,8 @@ def test_jpeg8_large():
 def datafiles(pathname, base=None):
     """Return path to data file(s)."""
     if base is None:
-        base = os.path.dirname(__file__)
-    path = os.path.join(base, *pathname.split('/'))
+        base = osp.dirname(__file__)
+    path = osp.join(base, *pathname.split('/'))
     if any(i in path for i in '*?'):
         return glob.glob(path)
     return path
