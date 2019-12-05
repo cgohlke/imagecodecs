@@ -17,9 +17,9 @@ Bitorder reversal, and Bitshuffle.
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.11.28
+:Version: 2019.12.3
 
 Requirements
 ------------
@@ -83,7 +83,7 @@ and `OpenJPEG's color.c
 <https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
-`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
+`Grzegorz Bokota <https://github.com/Czaki>`_.
 
 To install the requirements for building imagecodecs from source code on
 current Ubuntu Linux distributions, run:
@@ -117,8 +117,10 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
-2019.11.28
+2019.12.3
     Pass 2795 tests.
+    Sync with imagecodecs-lite.
+2019.11.28
     Add AEC codec via libaec (WIP).
     Do not require scikit-image for testing.
     Require CharLS 2.1.
