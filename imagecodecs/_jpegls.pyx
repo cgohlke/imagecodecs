@@ -48,11 +48,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.11.28
+:Version: 2019.12.10
 
 """
 
-__version__ = '2019.11.28'
+__version__ = '2019.12.10'
 
 import numbers
 import numpy
@@ -322,10 +322,6 @@ cdef extern from 'charls/charls.h':
     charls_jpegls_errc charls_jpegls_encoder_get_bytes_written(
         const charls_jpegls_encoder* encoder,
         size_t* bytes_written) nogil
-
-
-_CHARLS_VERSION = ('%i.%i.%i' % (
-    CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH))
 
 
 class JpegLsError(RuntimeError):
@@ -638,6 +634,12 @@ def jpegls_decode(data, out=None):
         out = numpy.moveaxis(out, 0, -1)
 
     return out
+
+
+def jpegls_version():
+    """Return CharLS version string."""
+    return 'charls %i.%i.%i' % (
+        CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH)
 
 
 ###############################################################################
