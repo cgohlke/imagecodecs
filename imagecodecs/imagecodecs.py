@@ -46,10 +46,13 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.3
+:Version: 2019.12.10
 
 Revisions
 ---------
+2019.12.10
+    Add brotli codec via Brotli package.
+    Add dummy dtype and jpegxl codecs.
 2019.11.28
     Add dummy AEC codec.
 2019.11.18
@@ -95,7 +98,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.12.3.py'
+__version__ = '2019.12.10.py'
 __docformat__ = 'restructuredtext en'
 
 import sys
@@ -145,6 +148,11 @@ try:
     import blosc
 except ImportError:
     blosc = None
+
+try:
+    import brotli
+except ImportError:
+    brotli = None
 
 try:
     import bitshuffle
@@ -724,6 +732,18 @@ def zstd_decode(data, out=None):
     return zstd.decompress(data)
 
 
+@notimplemented(brotli)
+def brotli_encode(data, level=11, mode=0, lgwin=22, out=None):
+    """Compress Brotli."""
+    return brotli.compress(data, quality=level, mode=mode, lgwin=lgwin)
+
+
+@notimplemented(brotli)
+def brotli_decode(data, out=None):
+    """Decompress Brotli."""
+    return brotli.decompress(data)
+
+
 @notimplemented(lzf)
 def lzf_encode(data, level=None, header=False, out=None):
     """Compress LZF."""
@@ -846,6 +866,16 @@ def jpegls_encode(*args, **kwargs):
 
 
 @notimplemented
+def jpegxp_decode(*args, **kwargs):
+    """Decode JPEG XP."""
+
+
+@notimplemented
+def jpegxp_encode(*args, **kwargs):
+    """Encode JPEG XP."""
+
+
+@notimplemented
 def jpegsof3_decode(*args, **kwargs):
     """Decode JPEG SOF3."""
 
@@ -913,6 +943,16 @@ def aec_decode(*args, **kwargs):
 @notimplemented
 def aec_encode(*args, **kwargs):
     """Encode AEC."""
+
+
+@notimplemented
+def dtype_decode(*args, **kwargs):
+    """Convert dtype."""
+
+
+@notimplemented
+def dtype_encode(*args, **kwargs):
+    """Convert dtype."""
 
 
 if __name__ == '__main__':
