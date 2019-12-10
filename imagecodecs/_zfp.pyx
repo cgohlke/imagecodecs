@@ -48,11 +48,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.11.28
+:Version: 2019.12.10
 
 """
 
-__version__ = '2019.11.28'
+__version__ = '2019.12.10'
 
 import numbers
 import numpy
@@ -81,8 +81,6 @@ cdef extern from 'bitstream.h':
 
 cdef extern from 'zfp.h':
 
-    ctypedef unsigned int uint
-
     char*  ZFP_VERSION_STRING
 
     int ZFP_HEADER_MAGIC
@@ -93,6 +91,8 @@ cdef extern from 'zfp.h':
     int ZFP_MAX_BITS
     int ZFP_MAX_PREC
     int ZFP_MIN_EXP
+
+    ctypedef unsigned int uint
 
     ctypedef enum zfp_exec_policy:
         zfp_exec_serial
@@ -187,7 +187,8 @@ cdef extern from 'zfp.h':
     zfp_type zfp_field_set_type(zfp_field*, zfp_type type) nogil
 
 
-_ZFP_VERSION = ZFP_VERSION_STRING.decode('utf-8')
+class ZfpError(RuntimeError):
+    """ZFP Exceptions."""
 
 
 def zfp_encode(data, level=None, mode=None, execution=None, header=True,
@@ -287,27 +288,27 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
     try:
         zfp = zfp_stream_open(NULL)
         if zfp == NULL:
-            raise RuntimeError('zfp_stream_open failed')
+            raise ZfpError('zfp_stream_open failed')
 
         if ndim == 1:
             field = zfp_field_1d(<void*>src.data, ztype, nx)
             if field == NULL:
-                raise RuntimeError('zfp_field_1d failed')
+                raise ZfpError('zfp_field_1d failed')
             zfp_field_set_stride_1d(field, sx)
         elif ndim == 2:
             field = zfp_field_2d(<void*>src.data, ztype, nx, ny)
             if field == NULL:
-                raise RuntimeError('zfp_field_2d failed')
+                raise ZfpError('zfp_field_2d failed')
             zfp_field_set_stride_2d(field, sx, sy)
         elif ndim == 3:
             field = zfp_field_3d(<void*>src.data, ztype, nx, ny, nz)
             if field == NULL:
-                raise RuntimeError('zfp_field_3d failed')
+                raise ZfpError('zfp_field_3d failed')
             zfp_field_set_stride_3d(field, sx, sy, sz)
         elif ndim == 4:
             field = zfp_field_4d(<void*>src.data, ztype, nx, ny, nz, nw)
             if field == NULL:
-                raise RuntimeError('zfp_field_4d failed')
+                raise ZfpError('zfp_field_4d failed')
             zfp_field_set_stride_4d(field, sx, sy, sz, sw)
 
         if zmode == zfp_mode_reversible:
@@ -321,7 +322,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         elif zmode == zfp_mode_expert:
             ret = zfp_stream_set_params(zfp, minbits, maxbits, maxprec, minexp)
             if ret == 0:
-                raise RuntimeError('zfp_stream_set_params failed')
+                raise ZfpError('zfp_stream_set_params failed')
 
         out, dstsize, out_given, out_type = _parse_output(out)
         if out is None:
@@ -338,23 +339,23 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         with nogil:
             stream = stream_open(<void*>&dst[0], dstsize)
             if stream == NULL:
-                raise RuntimeError('stream_open failed')
+                raise ZfpError('stream_open failed')
 
             zfp_stream_set_bit_stream(zfp, stream)
             zfp_stream_rewind(zfp)
 
             ret = zfp_stream_set_execution(zfp, zexec)
             if ret == 0:
-                raise RuntimeError('zfp_stream_set_execution failed')
+                raise ZfpError('zfp_stream_set_execution failed')
 
             if bheader != 0:
                 byteswritten = zfp_write_header(zfp, field, ZFP_HEADER_FULL)
                 if byteswritten == 0:
-                    raise RuntimeError('zfp_write_header failed')
+                    raise ZfpError('zfp_write_header failed')
 
             byteswritten = zfp_compress(zfp, field)
             if byteswritten == 0:
-                raise RuntimeError('zfp_compress failed')
+                raise ZfpError('zfp_compress failed')
 
     finally:
         if field != NULL:
@@ -440,27 +441,27 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
     try:
         zfp = zfp_stream_open(NULL)
         if zfp == NULL:
-            raise RuntimeError('zfp_stream_open failed')
+            raise ZfpError('zfp_stream_open failed')
 
         field = zfp_field_alloc()
         if field == NULL:
-            raise RuntimeError('zfp_field_alloc failed')
+            raise ZfpError('zfp_field_alloc failed')
 
         stream = stream_open(<void*>&src[0], srcsize)
         if stream == NULL:
-            raise RuntimeError('stream_open failed')
+            raise ZfpError('stream_open failed')
 
         zfp_stream_set_bit_stream(zfp, stream)
         zfp_stream_rewind(zfp)
 
         # ret = zfp_stream_set_execution(zfp, zexec)
         # if ret == 0:
-        #     raise RuntimeError('zfp_stream_set_execution failed')
+        #     raise ZfpError('zfp_stream_set_execution failed')
 
         if ztype == zfp_type_none or ndim == -1:
             size = zfp_read_header(zfp, field, ZFP_HEADER_FULL)
             if size == 0:
-                raise RuntimeError('zfp_read_header failed')
+                raise ZfpError('zfp_read_header failed')
 
         if ztype == zfp_type_none:
             ztype = field.dtype
@@ -473,15 +474,15 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
             elif ztype == zfp_type_int64:
                 dtype = numpy.int64
             else:
-                raise RuntimeError('invalid zfp_field type')
+                raise ZfpError('invalid zfp_field type')
         else:
             ztype = zfp_field_set_type(field, ztype)
             if ztype == zfp_type_none:
-                raise RuntimeError('zfp_field_set_type failed')
+                raise ZfpError('zfp_field_set_type failed')
 
         if ndim == -1:
             if field.nx == 0:
-                raise RuntimeError('invalid zfp_field nx')
+                raise ZfpError('invalid zfp_field nx')
             elif field.ny == 0:
                 shape = field.nx,
             elif field.nz == 0:
@@ -507,7 +508,7 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
             size = zfp_decompress(zfp, field)
 
         if size == 0:
-            raise RuntimeError('zfp_decompress failed')
+            raise ZfpError('zfp_decompress failed')
 
     finally:
         if field != NULL:
@@ -518,6 +519,11 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
             stream_close(stream)
 
     return out
+
+
+def zfp_version():
+    """Return ZFP version string."""
+    return 'zfp ' + ZFP_VERSION_STRING.decode('utf-8')
 
 
 ###############################################################################
