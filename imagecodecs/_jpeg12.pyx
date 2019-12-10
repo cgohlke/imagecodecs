@@ -48,11 +48,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.5.22
+:Version: 2019.12.10
 
 """
 
-__version__ = '2019.5.22'
+__version__ = '2019.12.10'
 
 import numbers
 import numpy
@@ -311,7 +311,7 @@ def _jcs_colorspace_samples(colorspace):
 
 
 class Jpeg12Error(RuntimeError):
-    """JPEG Exceptions."""
+    """JPEG 12-bit Exceptions."""
 
 
 def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
@@ -570,6 +570,20 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
         jpeg_destroy_decompress(&cinfo)
 
     return out
+
+
+def jpeg12_version():
+    """Return JPEG 12-bit version string."""
+    return 'jpeg12 %.1f' % (JPEG_LIB_VERSION / 10.0)
+
+
+def jpeg_turbo_version():
+    """Return JPEG version string."""
+    jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
+    return 'jpeg12_turbo %i.%i.%i' % (
+        int(jpeg_turbo_version[:1]),
+        int(jpeg_turbo_version[3:4]),
+        int(jpeg_turbo_version[6:]))
 
 
 ###############################################################################
