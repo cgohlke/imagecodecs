@@ -61,7 +61,7 @@ C libraries and is therefore simple to build from source code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.3
+:Version: 2019.12.10
 
 Requirements
 ------------
@@ -84,6 +84,8 @@ Build instructions for manylinux and macOS courtesy of Grzegorz Bokota.
 
 Revisions
 ---------
+2019.12.10
+    ...
 2019.12.3
     Release manylinux and macOS wheels.
 2019.4.20
@@ -93,7 +95,7 @@ Revisions
 
 """
 
-__version__ = '2019.12.3'
+__version__ = '2019.12.6'
 
 
 import io
@@ -121,6 +123,7 @@ numpy.import_array()
 cdef extern from 'imagecodecs.h':
 
     char* ICD_VERSION
+
     char ICD_BOC
     int ICD_OK
     int ICD_ERROR
@@ -187,21 +190,22 @@ cdef _parse_input(data):
 def version(astype=None):
     """Return detailed version information."""
     versions = (
-        ('imagecodecs_lite', __version__),
-        ('icd', _ICD_VERSION),
-        ('numpy_abi', '0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)),
-        ('numpy', numpy.__version__),
-        ('cython', cython.__version__),
-        )
+        'imagecodecs_lite %s' % __version__,
+        'cython %s' % cython.__version__,
+        numpy_version(),
+        icd_version(),
+    )
     if astype is str or astype is None:
-        return ', '.join('%s-%s' % (k, v) for k, v in versions)
+        return ', '.join(ver.replace(' ', '-') for ver in versions)
     elif astype is dict:
-        return dict(versions)
+        return dict(ver.split(' ') for ver in versions)
     else:
         return versions
 
 
-_ICD_VERSION = ICD_VERSION.decode('utf-8')
+def icd_version():
+    """Return ICD version string."""
+    return 'icd ' + ICD_VERSION.decode('utf-8')
 
 
 # No Operation ################################################################
@@ -241,6 +245,11 @@ def numpy_encode(data, level=None, out=None, **kwargs):
         fh.seek(0)
         out = fh.read()
     return out
+
+
+def numpy_version():
+    """Return numpy ABI version"""
+    return 'numpy_abi 0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)
 
 
 # Delta #######################################################################
