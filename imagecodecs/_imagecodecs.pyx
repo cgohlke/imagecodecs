@@ -45,8 +45,8 @@ transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY,
-PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR,
+ZStandard (ZSTD), Blosc, Brotli, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY, PNG,
+WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, JPEG XL,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
 Bitorder reversal, and Bitshuffle.
 
@@ -58,7 +58,7 @@ Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.3
+:Version: 2019.12.10
 
 Requirements
 ------------
@@ -85,9 +85,11 @@ This release has been tested with the following requirements and dependencies
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `brotli 1.0.7 <https://github.com/google/brotli>`_
+* `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
-Required for testing (other versions may work):
+Required Python packages for testing (other versions may work):
 
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
@@ -95,6 +97,7 @@ Required for testing (other versions may work):
 * `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
+* `python-brotli <https://github.com/google/brotli/tree/master/python>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
@@ -127,12 +130,12 @@ Build instructions and wheels for manylinux and macOS courtesy of
 To install the requirements for building imagecodecs from source code on
 current Ubuntu Linux distributions, run:
 
-    ``sudo apt-get install build-essential python3-dev cython3
+    `` build-essential python3-dev cython3
     python3-setuptools python3-pip python3-wheel python3-numpy python3-pytest
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev
     libjpeg-turbo8-dev libjxr-dev liblcms2-dev libcharls-dev libaec-dev
-    libtiff-dev python3-blosc``
+    libbrotli-dev libtiff-dev python3-blosc python3-brotli``
 
 The imagecodecs package can be challenging to build from source code. Consider
 using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
@@ -148,7 +151,6 @@ Other Python packages providing imaging or compression codecs:
 * `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
 * `Python lzma <https://docs.python.org/3/library/lzma.html>`_
 * `python-snappy <https://github.com/andrix/python-snappy>`_
-* `python-brotli <https://github.com/google/brotli/tree/master/python>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
@@ -156,8 +158,12 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.12.10
+    Pass 2905 tests.
+    Add version functions.
+    Add Brotli codec (WIP).
+    Add optional JPEG XL codec via brunsli repacker (WIP).
 2019.12.3
-    Pass 2795 tests.
     Sync with imagecodecs-lite.
 2019.11.28
     Add AEC codec via libaec (WIP).
@@ -183,7 +189,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add ZFP codec via zfp library (WIP).
+    Add optional ZFP codec via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
@@ -210,7 +216,7 @@ Revisions
     Improve color space handling in JPEG codecs.
 2018.10.28
     Rename jpeg0xc3 to jpegsof3.
-    Add JPEG LS codec via CharLS.
+    Add optional JPEG LS codec via CharLS.
     Fix missing alpha values in jxr_decode.
     Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
@@ -249,7 +255,7 @@ Revisions
 
 """
 
-__version__ = '2019.12.3'
+__version__ = '2019.12.10'
 
 import io
 import numbers
@@ -260,21 +266,22 @@ cimport cython
 
 from cython.operator cimport dereference as deref
 from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport (PyBytes_FromStringAndSize, PyBytes_AS_STRING,
-                            _PyBytes_Resize)
+from cpython.bytes cimport (
+    PyBytes_FromStringAndSize, PyBytes_AS_STRING, _PyBytes_Resize)
 
 from libc.math cimport ceil
 from libc.string cimport memset, memcpy, memmove
 from libc.stdlib cimport malloc, free, realloc
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
-from libc.stdint cimport (int8_t, uint8_t, int16_t, uint16_t,
-                          int32_t, uint32_t, int64_t, uint64_t, UINT64_MAX)
+from libc.stdint cimport (
+    int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t,
+    UINT64_MAX)
 
-from numpy cimport (PyArray_DescrNewFromType, NPY_BOOL, NPY_INTP,
-                    NPY_INT8, NPY_INT16, NPY_INT32, NPY_INT64, NPY_INT128,
-                    NPY_UINT8, NPY_UINT16, NPY_UINT32, NPY_UINT64,
-                    NPY_FLOAT16, NPY_FLOAT32, NPY_FLOAT64,
-                    NPY_COMPLEX64, NPY_COMPLEX128, )
+from numpy cimport (
+    PyArray_DescrNewFromType, NPY_BOOL, NPY_INTP,
+    NPY_INT8, NPY_INT16, NPY_INT32, NPY_INT64, NPY_INT128,
+    NPY_UINT8, NPY_UINT16, NPY_UINT32, NPY_UINT64,
+    NPY_FLOAT16, NPY_FLOAT32, NPY_FLOAT64, NPY_COMPLEX64, NPY_COMPLEX128)
 
 
 cdef extern from 'numpy/arrayobject.h':
@@ -353,43 +360,37 @@ def _default_level(level, default, smallest, largest):
 
 def version(astype=None):
     """Return detailed version information."""
-    jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
     versions = (
-        ('imagecodecs', __version__),
-        ('numpy_abi', '0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)),
-        ('cython', cython.__version__),
-        ('icd', _ICD_VERSION),
-        ('zlib', '%i.%i.%i' % (
-            ZLIB_VER_MAJOR, ZLIB_VER_MINOR, ZLIB_VER_REVISION)),
-        ('lzma', '%i.%i.%i' % (
-            LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH)),
-        ('zstd', '%i.%i.%i' % (
-            ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE)),
-        ('lz4', '%i.%i.%i' % (
-            LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR, LZ4_VERSION_RELEASE)),
-        ('bitshuffle', '%i.%i.%i' % (
-            BSHUF_VERSION_MAJOR, BSHUF_VERSION_MINOR, BSHUF_VERSION_POINT)),
-        ('blosc', BLOSC_VERSION_STRING.decode('utf-8')),
-        ('bz2', str(BZ2_bzlibVersion().decode('utf-8')).split(',')[0]),
-        ('lzf', hex(LZF_VERSION)),
-        ('aec', _AEC_VERSION),
-        ('png', PNG_LIBPNG_VER_STRING.decode('utf-8')),
-        ('webp', hex(WebPGetDecoderVersion())),
-        ('jpeg', '%.1f' % (JPEG_LIB_VERSION / 10.0)),
-        ('jpeg_turbo', '%i.%i.%i' % (
-            int(jpeg_turbo_version[:1]),
-            int(jpeg_turbo_version[3:4]),
-            int(jpeg_turbo_version[6:]))),
-        ('jpeg_sof3', JPEG_SOF3_VERSION.decode('utf-8')),
-        ('charls', _CHARLS_VERSION),
-        ('opj', opj_version().decode('utf-8')),
-        ('jxr', hex(WMP_SDK_VERSION)),
-        ('zfp', _ZFP_VERSION),
+        'imagecodecs %s' % __version__,
+        'cython %s' % cython.__version__,
+        numpy_version(),
+        icd_version(),
+        zlib_version(),
+        lzma_version(),
+        zstd_version(),
+        lz4_version(),
+        bitshuffle_version(),
+        blosc_version(),
+        bz2_version(),
+        lzf_version(),
+        aec_version(),
+        png_version(),
+        webp_version(),
+        jpeg_turbo_version(),
+        jpeg8_version(),
+        jpeg12_version(),
+        jpegsof3_version(),
+        jpegls_version(),
+        brotli_version(),
+        jpegxl_version(),
+        j2k_version(),
+        jxr_version(),
+        zfp_version(),
     )
-    if astype is str or astype is None:
-        return ', '.join('%s-%s' % (k, v) for k, v in versions)
+    if astype is None or astype is str:
+        return ', '.join(ver.replace(' ', '-') for ver in versions)
     elif astype is dict:
-        return dict(versions)
+        return dict(ver.split(' ') for ver in versions)
     else:
         return versions
 
@@ -588,6 +589,13 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
     return out
 
 
+def bitshuffle_version():
+    """Return BitShuffle version string."""
+    return 'bitshuffle %i.%i.%i' % (
+        BSHUF_VERSION_MAJOR, BSHUF_VERSION_MINOR, BSHUF_VERSION_POINT
+    )
+
+
 # Zlib DEFLATE ################################################################
 
 cdef extern from 'zlib.h':
@@ -737,6 +745,11 @@ def zlib_crc32(data):
     return int(crc)
 
 
+def zlib_version():
+    """Return Zlib version string."""
+    return 'zlib %i.%i.%i' % (ZLIB_VER_MAJOR, ZLIB_VER_MINOR, ZLIB_VER_REVISION)
+
+
 # ZStandard ###################################################################
 
 cdef extern from 'zstd.h':
@@ -840,8 +853,10 @@ def zstd_decode(data, out=None):
     if out is None or out is data:
         if dstlen < 0:
             cntsize = ZSTD_getFrameContentSize(<void *>&src[0], srcsize)
-            if (cntsize == ZSTD_CONTENTSIZE_UNKNOWN or
-                    cntsize == ZSTD_CONTENTSIZE_ERROR):
+            if (
+                cntsize == ZSTD_CONTENTSIZE_UNKNOWN or
+                cntsize == ZSTD_CONTENTSIZE_ERROR
+            ):
                 cntsize = max(1048576, srcsize*2)  # 1 MB; arbitrary
             # TODO: better use stream interface
             # if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
@@ -874,6 +889,12 @@ def zstd_decode(data, out=None):
     return out
 
 
+def zstd_version():
+    """Return Zstd version string."""
+    return 'zstd %i.%i.%i' % (
+        ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE)
+
+
 # LZ4 #########################################################################
 
 cdef extern from 'lz4.h':
@@ -900,6 +921,10 @@ cdef extern from 'lz4.h':
         int dstCapacity) nogil
 
 
+class Lz4Error(RuntimeError):
+    """LZ4 Exceptions."""
+
+
 def lz4_encode(data, level=None, header=False, out=None):
     """Compress LZ4.
 
@@ -923,7 +948,7 @@ def lz4_encode(data, level=None, header=False, out=None):
         if dstsize < 0:
             dstsize = LZ4_compressBound(srcsize) + offset
             if dstsize < 0:
-                raise RuntimeError('LZ4_compressBound returned %i' % dstsize)
+                raise Lz4Error('LZ4_compressBound returned %i' % dstsize)
         if dstsize < offset:
             dstsize = offset
         if out_type is bytes:
@@ -941,7 +966,7 @@ def lz4_encode(data, level=None, header=False, out=None):
         ret = LZ4_compress_fast(<char *>&src[0], <char *>&dst[offset],
                                 srcsize, dstsize, acceleration)
     if ret <= 0:
-        raise RuntimeError('LZ4_compress_fast returned %i' % ret)
+        raise Lz4Error('LZ4_compress_fast returned %i' % ret)
 
     if header:
         pdst = <uint8_t *>&dst[0]
@@ -982,7 +1007,7 @@ def lz4_decode(data, header=False, out=None):
         if dstsize < 0:
             dstsize = max(24, 24 + 255 * (srcsize - offset - 10))  # ugh
             if dstsize < 0:
-                raise RuntimeError('invalid output size %i' % dstsize)
+                raise Lz4Error('invalid output size %i' % dstsize)
         if out_type is bytes:
             out = PyBytes_FromStringAndSize(NULL, dstsize)
         else:
@@ -998,12 +1023,18 @@ def lz4_decode(data, header=False, out=None):
         ret = LZ4_decompress_safe(<char *>&src[offset], <char *>&dst[0],
                                   srcsize-offset, dstsize)
     if ret < 0:
-        raise RuntimeError('LZ4_decompress_safe returned %i' % ret)
+        raise Lz4Error('LZ4_decompress_safe returned %i' % ret)
 
     if ret < dstsize:
         out = memoryview(out)[:ret] if out_given else out[:ret]
 
     return out
+
+
+def lz4_version():
+    """Return LZ4 version string."""
+    return 'lz4 %i.%i.%i' % (
+        LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR, LZ4_VERSION_RELEASE)
 
 
 # LZF #########################################################################
@@ -1023,6 +1054,10 @@ cdef extern from 'lzf.h':
         unsigned int in_len,
         void *out_data,
         unsigned int out_len) nogil
+
+
+class LzfError(RuntimeError):
+    """LZF Exceptions."""
 
 
 def lzf_encode(data, level=None, header=False, out=None):
@@ -1066,7 +1101,7 @@ def lzf_encode(data, level=None, header=False, out=None):
         ret = lzf_compress(<void *>&src[0], <unsigned int>srcsize,
                            <void *>&dst[offset], <unsigned int>dstsize)
     if ret == 0:
-        raise RuntimeError('lzf_compress returned 0')
+        raise LzfError('lzf_compress returned 0')
 
     if header:
         pdst = <uint8_t *>&dst[0]
@@ -1121,12 +1156,17 @@ def lzf_decode(data, header=False, out=None):
         ret = lzf_decompress(<void *>&src[offset], srcsize-offset,
                              <void *>&dst[0], dstsize)
     if ret == 0:
-        raise RuntimeError('lzf_decompress returned %i' % ret)
+        raise LzfError('lzf_decompress returned %i' % ret)
 
     if ret < <unsigned int>dstsize:
         out = memoryview(out)[:ret] if out_given else out[:ret]
 
     return out
+
+
+def lzf_version():
+    """Return LZF version string."""
+    return 'lzf %i.%i' % (LZF_VERSION >> 8, LZF_VERSION & 255)
 
 
 # LZMA ########################################################################
@@ -1357,7 +1397,7 @@ def lzma_encode(data, level=None, out=None):
         if dstsize < 0:
             dstsize = lzma_stream_buffer_bound(srcsize)
             if dstsize == 0:
-                raise RuntimeError('lzma_stream_buffer_bound returned 0')
+                raise LzmaError('lzma_stream_buffer_bound', '0')
         if out_type is bytes:
             out = PyBytes_FromStringAndSize(NULL, dstsize)
         else:
@@ -1390,6 +1430,12 @@ def lzma_encode(data, level=None, out=None):
         out = memoryview(out)[:dstlen] if out_given else out[:dstlen]
 
     return out
+
+
+def lzma_version():
+    """Return LZMA version string."""
+    return 'lzma %i.%i.%i' % (
+        LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH)
 
 
 # BZ2 #########################################################################
@@ -1584,6 +1630,11 @@ def bz2_decode(data, out=None):
     return out
 
 
+def bz2_version():
+    """Return BZ2 version string."""
+    return 'bz2 ' + str(BZ2_bzlibVersion().decode('utf-8')).split(',')[0]
+
+
 # Blosc #######################################################################
 
 cdef extern from 'blosc.h':
@@ -1622,6 +1673,10 @@ cdef extern from 'blosc.h':
     int blosc_get_blocksize() nogil
 
 
+class BloscError(RuntimeError):
+    """Blosc Exceptions."""
+
+
 def blosc_decode(data, numthreads=1, out=None):
     """Decode Blosc.
 
@@ -1645,7 +1700,7 @@ def blosc_decode(data, numthreads=1, out=None):
             blosc_cbuffer_sizes(<const void *>&src[0],
                                 &nbytes, &cbytes, &blocksize)
             if nbytes == 0 and blocksize == 0:
-                raise RuntimeError('invalid blosc data')
+                raise BloscError('invalid blosc data')
             dstsize = <ssize_t>nbytes
         if out_type is bytes:
             out = PyBytes_FromStringAndSize(NULL, dstsize)
@@ -1659,7 +1714,7 @@ def blosc_decode(data, numthreads=1, out=None):
         ret = blosc_decompress_ctx(<const void *>&src[0], <void *>&dst[0],
                                    dstsize, numinternalthreads)
     if ret < 0:
-        raise RuntimeError('blosc_decompress_ctx returned %i' % ret)
+        raise BloscError('blosc_decompress_ctx returned %i' % ret)
 
     if ret < dstsize:
         out = memoryview(out)[:ret] if out_given else out[:ret]
@@ -1721,7 +1776,7 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
                                  <const char*>compressor_, blocksize_,
                                  numinternalthreads)
     if ret <= 0:
-        raise RuntimeError('blosc_compress_ctx returned %i' % ret)
+        raise BloscError('blosc_compress_ctx returned %i' % ret)
 
     if ret < dstsize:
         out = memoryview(out)[:ret] if out_given else out[:ret]
@@ -1729,9 +1784,12 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
     return out
 
 
-# AEC #########################################################################
+def blosc_version():
+    """Return Blosc version string."""
+    return 'blosc ' + BLOSC_VERSION_STRING.decode('utf-8')
 
-_AEC_VERSION = '1.0.4'
+
+# AEC #########################################################################
 
 cdef extern from 'libaec.h':
 
@@ -1974,6 +2032,11 @@ def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
     return out
 
 
+def aec_version():
+    """Return AEC version string."""
+    return 'aec 1.0.4'
+
+
 # SZIP ########################################################################
 
 cdef extern from 'szlib.h':
@@ -2046,6 +2109,293 @@ def _szip_encode(data, level=None, bitspersample=None, flags=None, out=None):
 
     """
     raise NotImplementedError()
+
+
+def szip_version():
+    """Return SZIP version string."""
+    return 'szip n/a'
+
+
+# Brotli ######################################################################
+
+cdef extern from 'brotli/types.h':
+
+    ctypedef int BROTLI_BOOL
+
+    BROTLI_BOOL BROTLI_TRUE
+    BROTLI_BOOL BROTLI_FALSE
+
+    ctypedef void* (*brotli_alloc_func)(void* opaque, size_t size) nogil
+    ctypedef void (*brotli_free_func)(void* opaque, void* address) nogil
+
+
+cdef extern from 'brotli/decode.h':
+
+    ctypedef enum BrotliDecoderErrorCode:
+        pass
+
+    ctypedef struct BrotliDecoderState:
+        pass
+
+    ctypedef enum BrotliDecoderResult:
+        BROTLI_DECODER_RESULT_ERROR
+        BROTLI_DECODER_RESULT_SUCCESS
+        BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT
+        BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT
+
+    ctypedef enum BrotliDecoderParameter:
+        BROTLI_DECODER_PARAM_DISABLE_RING_BUFFER_REALLOCATION
+        BROTLI_DECODER_PARAM_LARGE_WINDOW
+
+    BROTLI_BOOL BrotliDecoderSetParameter(
+        BrotliDecoderState* state,
+        BrotliDecoderParameter param,
+        uint32_t value) nogil
+
+    BrotliDecoderState* BrotliDecoderCreateInstance(
+        brotli_alloc_func alloc_func,
+        brotli_free_func free_func,
+        void* opaque) nogil
+
+    void BrotliDecoderDestroyInstance(BrotliDecoderState* state) nogil
+
+    BrotliDecoderResult BrotliDecoderDecompress(
+        size_t encoded_size,
+        const uint8_t* encoded_buffer,
+        size_t* decoded_size,
+        uint8_t* decoded_buffer) nogil
+
+    BrotliDecoderResult BrotliDecoderDecompressStream(
+        BrotliDecoderState* state,
+        size_t* available_in,
+        const uint8_t** next_in,
+        size_t* available_out,
+        uint8_t** next_out,
+        size_t* total_out) nogil
+
+    BROTLI_BOOL BrotliDecoderHasMoreOutput(
+        const BrotliDecoderState* state) nogil
+
+    const uint8_t* BrotliDecoderTakeOutput(
+        BrotliDecoderState* state,
+        size_t* size) nogil
+
+    BROTLI_BOOL BrotliDecoderIsUsed(const BrotliDecoderState* state) nogil
+
+    BROTLI_BOOL BrotliDecoderIsFinished(const BrotliDecoderState* state) nogil
+
+    BrotliDecoderErrorCode BrotliDecoderGetErrorCode(
+        const BrotliDecoderState* state) nogil
+
+    const char* BrotliDecoderErrorString(BrotliDecoderErrorCode c) nogil
+
+    uint32_t BrotliDecoderVersion() nogil
+
+
+cdef extern from 'brotli/encode.h':
+
+    int BROTLI_MIN_WINDOW_BITS
+    int BROTLI_MAX_WINDOW_BITS
+    int BROTLI_LARGE_MAX_WINDOW_BITS
+    int BROTLI_MIN_INPUT_BLOCK_BITS
+    int BROTLI_MAX_INPUT_BLOCK_BITS
+    int BROTLI_MIN_QUALITY
+    int BROTLI_MAX_QUALITY
+
+    int BROTLI_DEFAULT_QUALITY
+    int BROTLI_DEFAULT_WINDOW
+    int BROTLI_DEFAULT_MODE
+
+    cpdef enum BrotliEncoderMode:
+        BROTLI_MODE_GENERIC
+        BROTLI_MODE_TEXT
+        BROTLI_MODE_FONT
+
+    ctypedef enum BrotliEncoderOperation:
+        BROTLI_OPERATION_PROCESS
+        BROTLI_OPERATION_FLUSH
+        BROTLI_OPERATION_FINISH
+        BROTLI_OPERATION_EMIT_METADATA
+
+    ctypedef enum BrotliEncoderParameter:
+        BROTLI_PARAM_MODE
+        BROTLI_PARAM_QUALITY
+        BROTLI_PARAM_LGWIN
+        BROTLI_PARAM_LGBLOCK
+        BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING
+        BROTLI_PARAM_SIZE_HINT
+        BROTLI_PARAM_LARGE_WINDOW
+        BROTLI_PARAM_NPOSTFIX
+        BROTLI_PARAM_NDIRECT
+
+    ctypedef struct BrotliEncoderState:
+        pass
+
+    BROTLI_BOOL BrotliEncoderSetParameter(
+        BrotliEncoderState* state,
+        BrotliEncoderParameter param,
+        uint32_t value) nogil
+
+    BrotliEncoderState* BrotliEncoderCreateInstance(
+        brotli_alloc_func alloc_func,
+        brotli_free_func free_func,
+        void* opaque) nogil
+
+    void BrotliEncoderDestroyInstance(BrotliEncoderState* state) nogil
+
+    size_t BrotliEncoderMaxCompressedSize(size_t input_size) nogil
+
+    BROTLI_BOOL BrotliEncoderCompress(
+        int quality,
+        int lgwin,
+        BrotliEncoderMode mode,
+        size_t input_size,
+        const uint8_t* input_buffer,
+        size_t* encoded_size,
+        uint8_t* encoded_buffer) nogil
+
+    BROTLI_BOOL BrotliEncoderCompressStream(
+        BrotliEncoderState* state,
+        BrotliEncoderOperation op,
+        size_t* available_in,
+        const uint8_t** next_in,
+        size_t* available_out,
+        uint8_t** next_out,
+        size_t* total_out) nogil
+
+    BROTLI_BOOL BrotliEncoderIsFinished(BrotliEncoderState* state) nogil
+
+    BROTLI_BOOL BrotliEncoderHasMoreOutput(BrotliEncoderState* state) nogil
+
+    const uint8_t* BrotliEncoderTakeOutput(
+        BrotliEncoderState* state,
+        size_t* size) nogil
+
+    uint32_t BrotliEncoderVersion() nogil
+
+
+class BrotliError(RuntimeError):
+    """Brotli Exceptions."""
+    def __init__(self, func, err):
+        err = {
+            True: 'True',
+            False: 'False',
+            BROTLI_DECODER_RESULT_ERROR: 'BROTLI_DECODER_RESULT_ERROR',
+            BROTLI_DECODER_RESULT_SUCCESS: 'BROTLI_DECODER_RESULT_SUCCESS',
+            BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
+                'BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT',
+            BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+                'BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT',
+            }.get(err, 'unknown error %i' % err)
+        msg = '%s returned %s' % (func, err)
+        RuntimeError.__init__(self, msg)
+
+
+def brotli_encode(data, level=None, mode=None, lgwin=None, out=None):
+    """Compress Brotli.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _parse_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        size_t encoded_size
+        BROTLI_BOOL ret = BROTLI_FALSE
+        BrotliEncoderMode mode_ = BROTLI_MODE_GENERIC if mode is None else mode
+        int quality_ = _default_level(level, 11, 0, 11)
+        int lgwin_ = _default_level(lgwin, 22, 10, 24)
+        # int lgblock_ = _default_level(lgblock, 0, 16, 24)
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None or out is data:
+        if dstsize < 0:
+            # TODO: use streaming interface with dynamic buffer
+            dstsize = <ssize_t>BrotliEncoderMaxCompressedSize(<size_t>srcsize)
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = <int>dst.size
+    encoded_size = <size_t>dstsize
+
+    with nogil:
+        ret = BrotliEncoderCompress(
+            quality_,
+            lgwin_,
+            mode_,
+            <size_t>srcsize,
+            <const uint8_t*>&src[0],
+            &encoded_size,
+            <uint8_t*>&dst[0]
+        )
+
+    if ret != BROTLI_TRUE:
+        raise BrotliError('BrotliEncoderCompress', bool(ret))
+
+    if encoded_size < <size_t>dstsize:
+        if out_given:
+            out = memoryview(out)[:encoded_size]
+        else:
+            out = out[:encoded_size]
+
+    return out
+
+
+def brotli_decode(data, out=None):
+    """Decompress Brotli.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t dstsize
+        ssize_t srcsize = src.size
+        size_t decoded_size
+        BrotliDecoderResult ret
+
+    out, dstsize, out_given, out_type = _parse_output(out)
+
+    if out is None or out is data:
+        if dstsize < 0:
+            # TODO: use streaming API with dynamic buffer
+            dstsize = srcsize * 4
+        if out_type is bytes:
+            out = PyBytes_FromStringAndSize(NULL, dstsize)
+        else:
+            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+
+    dst = out
+    dstsize = <int>dst.size
+    decoded_size = <size_t>dstsize
+
+    with nogil:
+        ret = BrotliDecoderDecompress(
+            <size_t>srcsize,
+            <const uint8_t*>&src[0],
+            &decoded_size,
+            <uint8_t*>&dst[0]
+        )
+
+    if ret != BROTLI_DECODER_RESULT_SUCCESS:
+        raise BrotliError('BrotliDecoderDecompress', ret)
+
+    if decoded_size < <size_t>dstsize:
+        if out_given:
+            out = memoryview(out)[:decoded_size]
+        else:
+            out = out[:decoded_size]
+
+    return out
+
+
+def brotli_version():
+    """Return Brotli version string."""
+    cdef uint32_t ver = BrotliDecoderVersion()
+    return 'brotli %i.%i.%i' % (ver >> 24, (ver >> 12) & 4095, ver & 4095)
 
 
 # PNG #########################################################################
@@ -2179,7 +2529,7 @@ cdef extern from 'png.h':
 
 cdef void png_error_callback(png_structp png_ptr,
                              png_const_charp msg) with gil:
-    raise RuntimeError(msg.decode('utf8').strip())
+    raise PngError(msg.decode('utf8').strip())
 
 
 cdef void png_warn_callback(png_structp png_ptr,
@@ -2205,7 +2555,7 @@ cdef void png_read_data_fn(png_structp png_ptr,
         return
     if size > memstream.size - memstream.offset:
         # size = memstream.size - memstream.offset
-        raise RuntimeError('PNG input stream too small %i' % memstream.size)
+        raise PngError('PNG input stream too small %i' % memstream.size)
     memcpy(<void*>dst, <const void*>&(memstream.data[memstream.offset]), size)
     memstream.offset += size
 
@@ -2221,7 +2571,7 @@ cdef void png_write_data_fn(png_structp png_ptr,
         return
     if size > memstream.size - memstream.offset:
         # size = memstream.size - memstream.offset
-        raise RuntimeError('PNG output stream too small %i' % memstream.size)
+        raise PngError('PNG output stream too small %i' % memstream.size)
     memcpy(<void*>&(memstream.data[memstream.offset]), <const void*>src, size)
     memstream.offset += size
 
@@ -2237,6 +2587,10 @@ cdef ssize_t png_size_max(ssize_t size):
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
     size += 8 + 25 + 16 + 44 + 12  # sig IHDR gAMA cHRM IEND
     return size
+
+
+class PngError(RuntimeError):
+    """PNG Exceptions."""
 
 
 def png_decode(data, out=None):
@@ -2277,11 +2631,11 @@ def png_decode(data, out=None):
                                              png_error_callback,
                                              png_warn_callback)
             if png_ptr == NULL:
-                raise RuntimeError('png_create_read_struct returned NULL')
+                raise PngError('png_create_read_struct returned NULL')
 
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
-                raise RuntimeError('png_create_info_struct returned NULL')
+                raise PngError('png_create_info_struct returned NULL')
 
             png_set_read_fn(png_ptr, <png_voidp>&memstream, png_read_data_fn)
             png_set_sig_bytes(png_ptr, 8)
@@ -2290,7 +2644,7 @@ def png_decode(data, out=None):
                                &width, &height, &bit_depth, &color_type,
                                NULL, NULL, NULL)
             if ret != 1:
-                raise RuntimeError('png_get_IHDR returned %i' % ret)
+                raise PngError('png_get_IHDR returned %i' % ret)
 
             if bit_depth > 8:
                 png_set_swap(png_ptr)
@@ -2416,14 +2770,14 @@ def png_encode(data, level=None, out=None):
                                               png_error_callback,
                                               png_warn_callback)
             if png_ptr == NULL:
-                raise RuntimeError('png_create_write_struct returned NULL')
+                raise PngError('png_create_write_struct returned NULL')
 
             png_set_write_fn(png_ptr, <png_voidp>&memstream,
                              png_write_data_fn, png_output_flush_fn)
 
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
-                raise RuntimeError('png_create_info_struct returned NULL')
+                raise PngError('png_create_info_struct returned NULL')
 
             png_set_IHDR(png_ptr, info_ptr,
                          width, height, bit_depth, color_type,
@@ -2460,6 +2814,11 @@ def png_encode(data, level=None, out=None):
             out = out[:memstream.offset]
 
     return out
+
+
+def png_version():
+    """Return PNG version string."""
+    return 'png ' + PNG_LIBPNG_VER_STRING.decode('utf-8')
 
 
 # WebP ########################################################################
@@ -2567,6 +2926,7 @@ class WebpError(RuntimeError):
     """WebP Exceptions."""
     def __init__(self, func, err):
         msg = {
+            None: 'NULL',
             VP8_STATUS_OK: 'VP8_STATUS_OK',
             VP8_STATUS_OUT_OF_MEMORY: 'VP8_STATUS_OUT_OF_MEMORY',
             VP8_STATUS_INVALID_PARAM: 'VP8_STATUS_INVALID_PARAM',
@@ -2627,7 +2987,7 @@ def webp_encode(data, level=None, out=None):
                 &output)
 
     if ret <= 0:
-        raise RuntimeError('WebPEncode returned 0')
+        raise WebpError('WebPEncode', ret)
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -2703,9 +3063,15 @@ def webp_decode(data, out=None):
                                      <size_t> dstsize,
                                      output_stride)
     if pout == NULL:
-        raise RuntimeError('WebPDecodeRGBAInto returned NULL')
+        raise WebpError('WebPDecodeRGBAInto', None)
 
     return out
+
+
+def webp_version():
+    """Return WebP version string."""
+    cdef int ver = WebPGetDecoderVersion()
+    return 'webp %i.%i.%i' % (ver >> 24, (ver >> 12) & 4095, ver & 4095)
 
 
 # JPEG 8-bit ##################################################################
@@ -3204,6 +3570,17 @@ def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
     return out
 
 
+def jpeg8_version():
+    """Return JPEG 8-bit version string."""
+    return 'jpeg8 %.1f' % (JPEG_LIB_VERSION / 10.0)
+
+
+def jpeg_turbo_version():
+    """Return libjpeg-turbo version string."""
+    ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
+    return 'jpeg_turbo %i.%i.%i' % (int(ver[:1]), int(ver[3:4]), int(ver[6:]))
+
+
 # JPEG SOF3 ###############################################################
 
 # The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
@@ -3327,11 +3704,16 @@ def jpegsof3_decode(data, out=None):
     return out
 
 
+def jpegsof3_version():
+    """Return JPEG SOF3 version string."""
+    return 'jpegsof3 ' + JPEG_SOF3_VERSION.decode('utf-8')
+
+
 # JPEG Wrapper ################################################################
 
 def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
                 outcolorspace=None, shape=None, out=None):
-    """Decode JPEG 8-bit, 12-bit, SOF3 or LS.
+    """Decode JPEG 8-bit, 12-bit, SOF3, LS, or XL.
 
     """
     if bitspersample is None:
@@ -3351,7 +3733,10 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             if 'SOF type' in msg:
                 return jpegsof3_decode(data, out=out)
             # Unsupported marker type
-            return jpegls_decode(data, out=out)
+            try:
+                return jpegls_decode(data, out=out)
+            except Exception:
+                return jpegxl_decode(data, out=out)
     try:
         if bitspersample == 8:
             return jpeg8_decode(
@@ -3371,7 +3756,10 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
             raise exception
         if 'SOF type' in msg:
             return jpegsof3_decode(data, out=out)
-        return jpegls_decode(data, out=out)
+        try:
+            return jpegls_decode(data, out=out)
+        except Exception:
+            return jpegxl_decode(data, out=out)
 
 
 def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
@@ -4186,6 +4574,11 @@ def j2k_decode(data, verbose=0, out=None):
     return out
 
 
+def j2k_version():
+    """Return OpenJPEG version string."""
+    return 'openjpeg ' + opj_version().decode('utf-8')
+
+
 # JPEG XR #####################################################################
 
 cdef extern from 'windowsmediaphoto.h':
@@ -4599,7 +4992,7 @@ cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
             # major upsize: resize to exact size
             newsize = newsize + 1
         pWS.state.buf.pbBuf = <U8*>realloc(<void*>pWS.state.buf.pbBuf, newsize)
-        if pWS.state.buf.pbBuf  == NULL:
+        if pWS.state.buf.pbBuf == NULL:
             return WMP_errOutOfMemory
         pWS.state.buf.cbBuf = newsize
 
@@ -5355,14 +5748,23 @@ def jxr_decode(data, out=None):
     return out
 
 
+def jxr_version():
+    """Return JXR version string."""
+    cdef uint32_t ver = WMP_SDK_VERSION
+    return 'jxr %i.%i.%i' % (ver >> 24, (ver >> 12) & 4095, ver & 4095)
+
+
 # JPEG 12-bit #################################################################
 
 # JPEG 12-bit codecs are implemented in a separate extension module
 # due to header and link conflicts with JPEG 8-bit.
 
 try:
-    from ._jpeg12 import jpeg12_decode, jpeg12_encode, Jpeg12Error
+    from ._jpeg12 import (
+        jpeg12_decode, jpeg12_encode, jpeg12_version, Jpeg12Error
+    )
 except ImportError:
+
     Jpeg12Error = RuntimeError
 
     def jpeg12_decode(*args, **kwargs):
@@ -5373,6 +5775,10 @@ except ImportError:
         """Not implemented."""
         raise NotImplementedError('jpeg12_encode')
 
+    def jpeg12_version():
+        """Not available."""
+        return 'jpeg12 n/a'
+
 
 # JPEG LS #################################################################
 
@@ -5382,10 +5788,11 @@ except ImportError:
 #   Python 2.7 is dropped
 
 try:
-    from ._jpegls import (jpegls_decode, jpegls_encode, JpegLsError,
-                          _CHARLS_VERSION)
+    from ._jpegls import (
+        jpegls_decode, jpegls_encode, jpegls_version, JpegLsError
+    )
 except ImportError:
-    _CHARLS_VERSION = 'n/a'
+
     JpegLsError = RuntimeError
 
     def jpegls_decode(*args, **kwargs):
@@ -5396,6 +5803,38 @@ except ImportError:
         """Not implemented."""
         raise NotImplementedError('jpegls_encode')
 
+    def jpegls_version():
+        """Not available."""
+        return 'charls n/a'
+
+
+# JPEG XL #################################################################
+
+# JPEG-XL codecs are implemented in a separate extension module
+#   because brunsli is not commonly available yet.
+# TODO: move implementation here once brunsli is available in Debian and
+#   Python 2.7 is dropped
+
+try:
+    from ._jpegxl import (
+        jpegxl_decode, jpegxl_encode, jpegxl_version, JpegXlError
+    )
+except ImportError:
+
+    JpegXlError = RuntimeError
+
+    def jpegxl_decode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegxl_decode')
+
+    def jpegxl_encode(*args, **kwargs):
+        """Not implemented."""
+        raise NotImplementedError('jpegxl_encode')
+
+    def jpegxl_version():
+        """Not available."""
+        return 'brunsli n/a'
+
 
 # ZFP #########################################################################
 
@@ -5404,9 +5843,12 @@ except ImportError:
 # TODO: move implementation here once libzfp is available in Debian
 
 try:
-    from ._zfp import zfp_decode, zfp_encode, _ZFP_VERSION
+    from ._zfp import (
+        zfp_decode, zfp_encode, zfp_version, ZfpError
+    )
 except ImportError:
-    _ZFP_VERSION = b'n/a'
+
+    ZfpError = RuntimeError
 
     def zfp_decode(*args, **kwargs):
         """Not implemented."""
@@ -5416,6 +5858,10 @@ except ImportError:
         """Not implemented."""
         raise NotImplementedError('zfp_encode')
 
+    def zfp_version():
+        """Not available."""
+        return 'zfp n/a'
+
 
 # Imagecodecs Lite ############################################################
 
@@ -5424,7 +5870,7 @@ except ImportError:
 
 from ._imagecodecs_lite import (
     none_decode, none_encode,
-    numpy_decode, numpy_encode,
+    numpy_decode, numpy_encode, numpy_version,
     delta_decode, delta_encode,
     xor_decode, xor_encode,
     floatpred_decode, floatpred_encode,
@@ -5432,13 +5878,13 @@ from ._imagecodecs_lite import (
     packbits_decode, packbits_encode,
     packints_decode, packints_encode,
     lzw_decode, lzw_encode,
-    _ICD_VERSION
+    icd_version, IcdError
 )
 
 
 ###############################################################################
 
-# TODO: add option not to release GIL
+# TODO: add options for OpenMP and releasing GIL
 # TODO: split into individual extensions?
 # TODO: Base64
 # TODO: BMP
@@ -5446,4 +5892,4 @@ from ._imagecodecs_lite import (
 # TODO: LZO; http://www.oberhumer.com/opensource/lzo/ is GPL
 # TODO: TIFF via libtiff
 # TODO: LERC via https://github.com/Esri/lerc; patented but Apache licensed.
-# TODO: OpenEXR via ILM's library
+# TODO: OpenEXR via ILM's library; C++
