@@ -40,7 +40,7 @@
 
 :License: 3-clause BSD
 
-:Version: 2019.12.3
+:Version: 2019.12.10
 
 """
 
@@ -75,19 +75,21 @@ if (
 ):
     try:
         import imagecodecs_lite as imagecodecs
-        from imagecodecs_lite import _imagecodecs_lite  # noqa
+        from imagecodecs_lite import _imagecodecs_lite
         from imagecodecs_lite import imagecodecs as imagecodecs_py
     except ImportError:
         pytest.exit('the imagecodec-lite package is not installed')
     lzma = zlib = bz2 = zstd = lz4 = lzf = blosc = bitshuffle = None
-    _jpeg12 = _jpegls = _zfp = None
+    _jpeg12 = _jpegls = _jpegxl = _zfp = None
 else:
     try:
         import imagecodecs
         import imagecodecs.imagecodecs as imagecodecs_py
-        from imagecodecs.imagecodecs import (lzma, zlib, bz2, zstd, lz4, lzf,
-                                             blosc, bitshuffle)
+        from imagecodecs.imagecodecs import (
+            lzma, zlib, bz2, zstd, lz4, lzf, blosc, brotli, bitshuffle
+        )
         from imagecodecs import _imagecodecs  # noqa
+        from imagecodecs import _imagecodecs_lite
     except ImportError:
         pytest.exit('the imagecodec package is not installed')
 
@@ -100,6 +102,11 @@ else:
         from imagecodecs import _jpegls
     except ImportError:
         _jpegls = None
+
+    try:
+        from imagecodecs import _jpegxl
+    except ImportError:
+        _jpegxl = None
 
     try:
         from imagecodecs import _zfp
@@ -140,6 +147,7 @@ def test_version():
     assert ver in __doc__
     assert ver in imagecodecs.__doc__
     assert imagecodecs.version().startswith('imagecodecs')
+    assert _imagecodecs_lite.version().startswith('imagecodecs')
     assert ver in imagecodecs_py.__doc__
     if zlib:
         assert imagecodecs.version(dict)['zlib'].startswith('1.')
@@ -630,7 +638,10 @@ def test_lzw_decode_image_noeoi():
                                           reason='import lz4')),
     pytest.param('bitshuffle',
                  marks=pytest.mark.skipif(bitshuffle is None,
-                                          reason='import bitshuffle'))
+                                          reason='import bitshuffle')),
+    pytest.param('brotli',
+                 marks=pytest.mark.skipif(brotli is None,
+                                          reason='import brotli')),
 ])
 def test_compressors(module, codec, output, length):
     """Test various non-image codecs."""
@@ -695,6 +706,14 @@ def test_compressors(module, codec, output, length):
         level = 0
         encoded = bitshuffle.bitshuffle(
             numpy.frombuffer(data, 'uint8')).tobytes()
+    elif module == 'brotli':
+        if codec == 'encode' and length == 0:
+            # TODO: why?
+            pytest.skip("python-brotli returns different valid results")
+        encode = imagecodecs.brotli_encode
+        decode = imagecodecs.brotli_decode
+        level = 11
+        encoded = brotli.compress(data)
     else:
         raise ValueError(module)
 
@@ -757,7 +776,7 @@ def test_compressors(module, codec, output, length):
             size = max(0, size - 1)
             out = bytearray(size)
             if length > 0 and module in ('zlib', 'zstd', 'lzf', 'lz4', 'lz4h',
-                                         'blosc', 'bitshuffle'):
+                                         'blosc', 'brotli', 'bitshuffle'):
                 with pytest.raises(RuntimeError):
                     decode(encoded, out=out)
             else:
@@ -1099,7 +1118,7 @@ def test_j2k_ycbc():
 @pytest.mark.skipif(_jpegls is None, reason='_jpegls module missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpegls_decode(output):
-    """Test JPEGLS decoder with RGBA32 image."""
+    """Test JPEG LS decoder with RGBA32 image."""
     decode = imagecodecs.jpegls_decode
     data = readfile('rgba.u1.jls')
     dtype = 'uint8'
@@ -1119,6 +1138,47 @@ def test_jpegls_decode(output):
     assert decoded[25, 25, 1] == 97
     assert decoded[-1, -1, -1] == 63
 
+
+@pytest.mark.skipif(_jpegxl is None, reason='_jpegxl module missing')
+@pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
+def test_jpegxl_decode(output):
+    """Test JPEG XL decoder with RGBA32 image."""
+    decode = imagecodecs.jpegxl_decode
+    data = readfile('rgba.u1.jxl')
+    dtype = 'uint8'
+    shape = 32, 31, 4
+
+    if output == 'new':
+        decoded = decode(data)
+    elif output == 'out':
+        decoded = numpy.empty(shape, dtype)
+        decode(data, out=decoded)
+    elif output == 'bytearray':
+        decoded = bytearray(shape[0] * shape[1] * shape[2])
+        decoded = decode(data, out=decoded)
+
+    assert decoded.dtype == dtype
+    assert decoded.shape == shape
+    assert decoded[25, 25, 1] == 100
+    assert decoded[-1, -1, -1] == 81
+
+
+@pytest.mark.skipif(_jpegxl is None, reason='_jpegxl module missing')
+def test_jpegxl_encode_jpeg():
+    """Test JPEG XL encoder with JPEG input."""
+    encode = imagecodecs.jpegxl_encode
+    decode = imagecodecs.jpegxl_decode
+    jpg = readfile('rgba.u1.jpg')
+    jxl = readfile('rgba.u1.jxl')
+
+    encoded = encode(jpg)
+    assert encoded == jxl
+
+    decoded = decode(encoded)
+    assert decoded.dtype == 'uint8'
+    assert decoded.shape == (32, 31, 4)
+    assert decoded[25, 25, 1] == 100
+    assert decoded[-1, -1, -1] == 81
 
 @pytest.mark.skipif(not hasattr(imagecodecs, 'webp_decode'),
                     reason='webp codec missing')
@@ -1272,7 +1332,7 @@ def test_jxr(itype, enout, deout, level):
 @pytest.mark.parametrize('itype', ['rgb', 'rgba', 'view', 'gray', 'graya'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
 @pytest.mark.parametrize('codec', ['webp', 'png', 'jpeg8', 'jpeg12', 'jpegls',
-                                   'j2k'])
+                                   'j2k', 'jpegxl'])
 def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     """Test various image codecs."""
     if codec == 'jpeg8':
@@ -1315,6 +1375,16 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         encode = imagecodecs.j2k_encode
         if level:
             level += 95
+    elif codec == 'jpegxl':
+        if _jpegxl is None:
+            pytest.skip('_jpegxl module missing')
+        if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
+            pytest.skip("jpegxl doesn't support these cases")
+        decode = imagecodecs.jpegxl_decode
+        encode = imagecodecs.jpegxl_encode
+        atol = 24
+        if level:
+            level += 95
     else:
         raise ValueError(codec)
 
@@ -1328,10 +1398,16 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     elif enout == 'out':
         encoded = numpy.empty(2 * shape[0] * shape[1] * shape[2] * itemsize,
                               'uint8')
-        encode(data, level=level, out=encoded)
+        ret = encode(data, level=level, out=encoded)
+        if codec == 'jpegxl':
+            # Brunsli doesn't like extra bytes
+            encoded = encoded[:len(ret)]
     elif enout == 'bytearray':
         encoded = bytearray(2 * shape[0] * shape[1] * shape[2] * itemsize)
-        encode(data, level=level, out=encoded)
+        ret = encode(data, level=level, out=encoded)
+        if codec == 'jpegxl':
+            # Brunsli doesn't like extra bytes
+            encoded = encoded[:len(ret)]
 
     if deout == 'new':
         decoded = decode(encoded)
@@ -1353,7 +1429,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if codec == 'webp' and (level != -1 or itype == 'rgba'):
         # RGBA roundtip doesn't work for A=0
         assert_allclose(data, decoded, atol=255)
-    elif codec in ('jpeg8', 'jpeg12'):
+    elif codec in ('jpeg8', 'jpeg12', 'jpegxl'):
         assert_allclose(data, decoded, atol=atol)
     elif codec == 'jpegls' and level == 5:
         assert_allclose(data, decoded, atol=6)
