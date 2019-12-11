@@ -1,0 +1,18 @@
+diff --git a/brunsli.cmake b/brunsli.cmake
+index 1e87527..a588e3f 100644
+--- a/brunsli.cmake
++++ b/brunsli.cmake
+@@ -73,11 +73,11 @@ target_link_libraries(brunslienc-static PRIVATE
+ set(BRUNSLI_LIBRARIES brunslicommon-static brunslidec-static brunslienc-static)
+ 
+ if(NOT BRUNSLI_EMSCRIPTEN)
+-add_library(brunslidec-c SHARED
++add_library(brunslidec-c STATIC
+   c/dec/decode.cc
+ )
+ target_link_libraries(brunslidec-c PRIVATE brunslidec-static)
+-add_library(brunslienc-c SHARED
++add_library(brunslienc-c STATIC
+   c/enc/encode.cc
+ )
+ target_link_libraries(brunslienc-c PRIVATE brunslienc-static)
