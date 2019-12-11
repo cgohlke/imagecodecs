@@ -6,8 +6,8 @@ transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard (ZSTD), Blosc, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY,
-PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR,
+ZStandard (ZSTD), Blosc, Brotli, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY, PNG,
+WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, JPEG XL,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
 Bitorder reversal, and Bitshuffle.
 
@@ -19,7 +19,7 @@ Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.3
+:Version: 2019.12.10
 
 Requirements
 ------------
@@ -46,9 +46,11 @@ This release has been tested with the following requirements and dependencies
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `brotli 1.0.7 <https://github.com/google/brotli>`_
+* `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
-Required for testing (other versions may work):
+Required Python packages for testing (other versions may work):
 
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
@@ -56,6 +58,7 @@ Required for testing (other versions may work):
 * `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
+* `python-brotli <https://github.com/google/brotli/tree/master/python>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
@@ -88,12 +91,12 @@ Build instructions and wheels for manylinux and macOS courtesy of
 To install the requirements for building imagecodecs from source code on
 current Ubuntu Linux distributions, run:
 
-    ``sudo apt-get install build-essential python3-dev cython3
+    `` build-essential python3-dev cython3
     python3-setuptools python3-pip python3-wheel python3-numpy python3-pytest
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev
     libjpeg-turbo8-dev libjxr-dev liblcms2-dev libcharls-dev libaec-dev
-    libtiff-dev python3-blosc``
+    libbrotli-dev libtiff-dev python3-blosc python3-brotli``
 
 The imagecodecs package can be challenging to build from source code. Consider
 using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
@@ -109,7 +112,6 @@ Other Python packages providing imaging or compression codecs:
 * `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
 * `Python lzma <https://docs.python.org/3/library/lzma.html>`_
 * `python-snappy <https://github.com/andrix/python-snappy>`_
-* `python-brotli <https://github.com/google/brotli/tree/master/python>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
@@ -117,8 +119,12 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.12.10
+    Pass 2905 tests.
+    Add version functions.
+    Add Brotli codec (WIP).
+    Add optional JPEG XL codec via brunsli repacker (WIP).
 2019.12.3
-    Pass 2795 tests.
     Sync with imagecodecs-lite.
 2019.11.28
     Add AEC codec via libaec (WIP).
@@ -144,7 +150,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add ZFP codec via zfp library (WIP).
+    Add optional ZFP codec via zfp library (WIP).
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
@@ -171,7 +177,7 @@ Revisions
     Improve color space handling in JPEG codecs.
 2018.10.28
     Rename jpeg0xc3 to jpegsof3.
-    Add JPEG LS codec via CharLS.
+    Add optional JPEG LS codec via CharLS.
     Fix missing alpha values in jxr_decode.
     Fix decoding JPEG SOF3 with multiple DHTs.
 2018.10.22
