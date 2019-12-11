@@ -57,23 +57,44 @@ if 'CG-' in os.environ.get('COMPUTERNAME', ''):
     libraries = [
         'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
         'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2',
-        'libaec', 'lcms2']
-    define_macros = [('WIN32', 1), ('LZMA_API_STATIC', 1),
-                     ('OPJ_STATIC', 1), ('OPJ_HAVE_LIBLCMS2', 1),
-                     ('CHARLS_STATIC', 1)]
+        'libaec', 'lcms2',
+        'brotlienc-static', 'brotlidec-static', 'brotlicommon-static'
+    ]
+    define_macros = [
+        ('WIN32', 1),
+        ('LZMA_API_STATIC', 1),
+        ('OPJ_STATIC', 1),
+        ('OPJ_HAVE_LIBLCMS2', 1),
+        ('CHARLS_STATIC', 1)
+    ]
     libraries_jpeg12 = ['jpeg12']
     if sys.version_info < (3, 5):
-        # CharLS-2.x is not compatible with msvc 9, 10, 14
+        # CharLS-2.x and brunsli are not compatible with msvc 9, 10, 14
         libraries_jpegls = []
+        libraries_jpegxl = []
     else:
         libraries_jpegls = ['charls']
+        libraries_jpegxl = [
+            'brunslidec-c', 'brunslienc-c',
+            # static linking
+            'brunslidec-static', 'brunslienc-static', 'brunslicommon-static',
+            # vendored brotli currently used for compressing metadata
+            'brunsli_brotlidec-static',
+            'brunsli_brotlienc-static',
+            'brunsli_brotlicommon-static',
+        ]
     libraries_zfp = ['zfp']
     openmp_args = ['/openmp']
 
 elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
     # Czaki's CI environment
-    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-                 'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z', 'm']
+    libraries = [
+        'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
+        'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z',
+        'brotlienc', 'brotlidec', 'brotlicommon',
+        'm'
+    ]
+    libraries_jpegxl = []
     libraries_jpeg12 = []
     libraries_jpegls = ['CharLS']
     libraries_zfp = ['zfp']
@@ -118,18 +139,30 @@ elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
 
 else:
     # Most recent Debian
-    libraries = ['jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-                 'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z']
+    libraries = [
+        'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
+        'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z',
+        'brotlienc', 'brotlidec', 'brotlicommon'
+    ]
     include_dirs.extend(
-        ['/usr/include/jxrlib',
-         '/usr/include/openjpeg-2.1',
-         '/usr/include/openjpeg-2.2',
-         '/usr/include/openjpeg-2.3'])
-    define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
+        [
+            '/usr/include/jxrlib',
+            '/usr/include/openjpeg-2.1',
+            '/usr/include/openjpeg-2.2',
+            '/usr/include/openjpeg-2.3',
+        ]
+    )
+    define_macros = [
+        ('OPJ_HAVE_LIBLCMS2', 1),
+    ]
     if sys.platform == 'win32':
-        define_macros.extend([('WIN32', 1), ('CHARLS_STATIC', 1)])
+        define_macros.extend([
+            ('WIN32', 1),
+            ('CHARLS_STATIC', 1)
+        ])
     else:
         libraries.append('m')
+    libraries_jpegxl = []  # 'brunsli*' not available in Debian
     libraries_jpegls = []  # 'CharLS' core dumps
     libraries_jpeg12 = []  # 'jpeg12' not available in Debian
     libraries_zfp = []  # 'zfp' not available in Debian
@@ -137,13 +170,18 @@ else:
 
 if 'lzf' not in libraries and 'liblzf' not in libraries:
     # use liblzf sources from sdist
-    sources.extend(['liblzf-3.6/lzf_c.c', 'liblzf-3.6/lzf_d.c'])
+    sources.extend([
+        'liblzf-3.6/lzf_c.c',
+        'liblzf-3.6/lzf_d.c',
+    ])
     include_dirs.append('liblzf-3.6')
 
 if 'bitshuffle' not in libraries and 'bitshuffle' not in libraries:
     # use bitshuffle sources from sdist
-    sources.extend(['bitshuffle-0.3.5/bitshuffle_core.c',
-                    'bitshuffle-0.3.5/iochain.c'])
+    sources.extend([
+        'bitshuffle-0.3.5/bitshuffle_core.c',
+        'bitshuffle-0.3.5/iochain.c',
+    ])
     include_dirs.append('bitshuffle-0.3.5')
 
 
@@ -164,7 +202,21 @@ try:
 except ImportError:
     ext = '.c'
 
-ext_modules = [
+ext_modules = []
+
+if libraries_jpegxl:
+    ext_modules += [
+        Extension(
+            'imagecodecs._jpegxl',
+            ['imagecodecs/_jpegxl' + ext],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries_jpegxl,
+            define_macros=define_macros,
+        )
+    ]
+
+ext_modules += [
     Extension(
         'imagecodecs._imagecodecs_lite',
         ['imagecodecs/imagecodecs.c', 'imagecodecs/_imagecodecs_lite' + ext],
