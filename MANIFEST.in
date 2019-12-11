@@ -7,12 +7,14 @@ include imagecodecs/_imagecodecs.c
 include imagecodecs/_imagecodecs_lite.c
 include imagecodecs/_jpeg12.c
 include imagecodecs/_jpegls.c
+include imagecodecs/_jpegxl.c
 include imagecodecs/_zfp.c
 
 include imagecodecs/_imagecodecs.pyx
 include imagecodecs/_imagecodecs_lite.pyx
 include imagecodecs/_jpeg12.pyx
 include imagecodecs/_jpegls.pyx
+include imagecodecs/_jpegxl.pyx
 include imagecodecs/_zfp.pyx
 
 include imagecodecs/imagecodecs.c
@@ -25,7 +27,6 @@ include imagecodecs/opj_color.cpp
 include imagecodecs/opj_color.h
 
 include imagecodecs/licenses/*
-
 include imagecodecs/patches/*
 
 include bitshuffle-0.3.5/*
@@ -42,12 +43,13 @@ include tests/*.jxr
 include tests/*.j2k
 include tests/*.jp2
 include tests/*.jls
+include tests/*.jxl
 include tests/*.tif
 include tests/*.webp
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
-# include tests/libaec/121B2TestData/ExtendedParameters/*.*
 
+exclude tests/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
 
