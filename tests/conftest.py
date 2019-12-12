@@ -15,7 +15,7 @@ def pytest_report_header(config):
         ):
             import imagecodecs_lite
 
-            return '%s\packagedir: %s\nversion: %s' % (
+            return '%s\npackagedir: %s\nversion: %s' % (
                 pyversion,
                 imagecodecs_lite.__path__[0],
                 imagecodecs_lite.version(),
