@@ -1,10 +1,10 @@
 /* jpeg_0xc3.h */
 
-/* This is a modified version of
+/* This file is a modified version of
 
 https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.h
 
-which is licensed under the 3-Clause BSD License:
+which is distributed under the 3-clause BSD License:
 
 The Software has been developed for research purposes only and
 is not a clinical tool.
