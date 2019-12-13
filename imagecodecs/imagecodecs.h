@@ -1,9 +1,14 @@
 /* imagecodecs.h */
 
+/*
+Copyright (c) 2008-2019, Christoph Gohlke
+This source code is distributed under the 3-clause BSD license.
+*/
+
 #ifndef ICD_H
 #define ICD_H
 
-#define ICD_VERSION "2019.4.20"
+#define ICD_VERSION "2019.12.12"
 
 #include <stdint.h>
 
