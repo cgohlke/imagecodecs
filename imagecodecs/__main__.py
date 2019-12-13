@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 # imagecodecs/__main__.py
 
+# Copyright (c) 2019, Christoph Gohlke
+# This source code is distributed under the 3-clause BSD license.
+
 """Imagecodecs package command line script."""
 
 import sys
