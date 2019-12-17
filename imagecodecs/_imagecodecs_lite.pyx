@@ -8,8 +8,6 @@
 # cython: nonecheck=False
 
 # Copyright (c) 2008-2019, Christoph Gohlke
-# Copyright (c) 2008-2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -47,8 +45,9 @@ and Bitorder reversal.
 
 Imagecodecs-lite is a subset of the `imagecodecs
 <https://pypi.org/project/imagecodecs/>`_ library, which provides additional
-codecs for Zlib DEFLATE, ZStandard, Blosc, LZMA, BZ2, LZ4, LZF, AEC, ZFP,
-PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, and JPEG XR.
+codecs for Zlib DEFLATE, ZStandard (ZSTD), Blosc, Brotli, LZMA, BZ2, LZ4, LZF,
+ZFP, AEC, PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000, JPEG LS,
+JPEG XR, JPEG XL, and Bitshuffle.
 
 Unlike imagecodecs, imagecodecs-lite does not depend on external third-party
 C libraries and is therefore simple to build from source code.
@@ -61,7 +60,7 @@ C libraries and is therefore simple to build from source code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 Requirements
 ------------
@@ -84,8 +83,9 @@ Build instructions for manylinux and macOS courtesy of Grzegorz Bokota.
 
 Revisions
 ---------
-2019.12.10
-    ...
+2019.12.16
+    Move external C declarations to imagecodecs.pxd file.
+    Add version functions.
 2019.12.3
     Release manylinux and macOS wheels.
 2019.4.20
@@ -95,46 +95,18 @@ Revisions
 
 """
 
-__version__ = '2019.12.6'
+__version__ = '2019.12.16'
 
-
-import io
-import numbers
-import numpy
-
-cimport numpy
-cimport cython
-
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport PyBytes_FromStringAndSize
+include '_imagecodecs.pxi'
 
 from libc.math cimport ceil
 from libc.stdint cimport int8_t, uint8_t, int64_t, uint64_t
 
-cdef extern from 'numpy/arrayobject.h':
-    int NPY_VERSION
-    int NPY_FEATURE_VERSION
-
-numpy.import_array()
-
+import io
 
 ###############################################################################
 
-cdef extern from 'imagecodecs.h':
-
-    char* ICD_VERSION
-
-    char ICD_BOC
-    int ICD_OK
-    int ICD_ERROR
-    int ICD_MEMORY_ERROR
-    int ICD_RUNTIME_ERROR
-    int ICD_NOTIMPLEMENTED_ERROR
-    int ICD_VALUE_ERROR
-    int ICD_LZW_INVALID
-    int ICD_LZW_NOTIMPLEMENTED
-    int ICD_LZW_BUFFER_TOO_SMALL
-    int ICD_LZW_TABLE_TOO_SMALL
+from imagecodecs cimport *
 
 
 class IcdError(RuntimeError):
@@ -157,36 +129,6 @@ class IcdError(RuntimeError):
         RuntimeError.__init__(self, msg)
 
 
-cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
-    """Return out, out_size, out_given, out_type from output argument."""
-    if out is None:
-        pass
-    elif out is bytes:
-        out = None
-        out_type = bytes
-    elif out is bytearray:
-        out = None
-        out_type = bytearray
-    elif isinstance(out, numbers.Integral):
-        out_size = out
-        out = None
-    else:
-        # out_size = len(out)
-        # out_type = type(out)
-        out_given = True
-    return out, out_size, out_given, out_type
-
-
-cdef _parse_input(data):
-    """Return bytes memoryview to input argument."""
-    cdef const uint8_t[::1] src
-    try:
-        src = data
-    except ValueError:
-        src = numpy.ravel(data, 'K').view(numpy.uint8)
-    return src
-
-
 def version(astype=None):
     """Return detailed version information."""
     versions = (
@@ -204,8 +146,8 @@ def version(astype=None):
 
 
 def icd_version():
-    """Return ICD version string."""
-    return 'icd ' + ICD_VERSION.decode('utf-8')
+    """Return imagecodecs.c version string."""
+    return 'imagecodecs_c ' + ICD_VERSION.decode('utf-8')
 
 
 # No Operation ################################################################
@@ -248,24 +190,11 @@ def numpy_encode(data, level=None, out=None, **kwargs):
 
 
 def numpy_version():
-    """Return numpy ABI version"""
+    """Return numpy ABI version."""
     return 'numpy_abi 0x%X.%i' % (NPY_VERSION, NPY_FEATURE_VERSION)
 
 
 # Delta #######################################################################
-
-cdef extern from 'imagecodecs.h':
-
-    ssize_t icd_delta(
-        void *src,
-        const ssize_t srcsize,
-        const ssize_t srcstride,
-        void *dst,
-        const ssize_t dstsize,
-        const ssize_t dststride,
-        const ssize_t itemsize,
-        const int decode) nogil
-
 
 cdef _delta(data, int axis, out, int decode):
     """Decode or encode Delta."""
@@ -277,8 +206,8 @@ cdef _delta(data, int axis, out, int decode):
         ssize_t srcstride
         ssize_t dststride
         ssize_t ret = 0
-        void* srcptr = NULL
-        void* dstptr = NULL
+        void *srcptr = NULL
+        void *dstptr = NULL
         numpy.flatiter srciter
         numpy.flatiter dstiter
         ssize_t itemsize
@@ -292,8 +221,10 @@ cdef _delta(data, int axis, out, int decode):
         else:
             if not isinstance(out, numpy.ndarray):
                 raise ValueError('output is not a numpy array')
-            if (data.shape != out.shape or
-                    data.dtype.itemsize != out.dtype.itemsize):
+            if (
+                data.shape != out.shape or
+                data.dtype.itemsize != out.dtype.itemsize
+            ):
                 raise ValueError('output is not compatible with data array')
 
         if axis < 0:
@@ -313,9 +244,16 @@ cdef _delta(data, int axis, out, int decode):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = numpy.PyArray_ITER_DATA(srciter)
                 dstptr = numpy.PyArray_ITER_DATA(dstiter)
-                ret = icd_delta(<void *>srcptr, srcsize, srcstride,
-                                <void *>dstptr, dstsize, dststride,
-                                itemsize, decode)
+                ret = icd_delta(
+                    <void *>srcptr,
+                    srcsize,
+                    srcstride,
+                    <void *>dstptr,
+                    dstsize,
+                    dststride,
+                    itemsize,
+                    decode
+                )
                 if ret < 0:
                     break
                 numpy.PyArray_ITER_NEXT(srciter)
@@ -326,15 +264,12 @@ cdef _delta(data, int axis, out, int decode):
         return out
 
     src = data
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
             dstsize = src.size
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
@@ -344,16 +279,21 @@ cdef _delta(data, int axis, out, int decode):
     itemsize = 1
 
     with nogil:
-        ret = icd_delta(<void *>&src[0], srcsize, srcstride,
-                        <void *>&dst[0], dstsize, dststride,
-                        itemsize, decode)
+        ret = icd_delta(
+            <void *>&src[0],
+            srcsize,
+            srcstride,
+            <void *>&dst[0],
+            dstsize,
+            dststride,
+            itemsize,
+            decode
+        )
     if ret < 0:
         raise IcdError('icd_delta', ret)
 
-    if ret < dstsize:
-        out = memoryview(out)[:ret] if out_given else out[:ret]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 def delta_decode(data, axis=-1, out=None):
@@ -374,19 +314,6 @@ def delta_encode(data, axis=-1, out=None):
 
 # XOR Delta ###################################################################
 
-cdef extern from 'imagecodecs.h':
-
-    ssize_t icd_xor(
-        void *src,
-        const ssize_t srcsize,
-        const ssize_t srcstride,
-        void *dst,
-        const ssize_t dstsize,
-        const ssize_t dststride,
-        const ssize_t itemsize,
-        const int decode) nogil
-
-
 cdef _xor(data, int axis, out, int decode):
     """Decode or encode XOR."""
     cdef:
@@ -397,8 +324,8 @@ cdef _xor(data, int axis, out, int decode):
         ssize_t srcstride
         ssize_t dststride
         ssize_t ret = 0
-        void* srcptr = NULL
-        void* dstptr = NULL
+        void *srcptr = NULL
+        void *dstptr = NULL
         numpy.flatiter srciter
         numpy.flatiter dstiter
         ssize_t itemsize
@@ -433,9 +360,16 @@ cdef _xor(data, int axis, out, int decode):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = numpy.PyArray_ITER_DATA(srciter)
                 dstptr = numpy.PyArray_ITER_DATA(dstiter)
-                ret = icd_xor(<void *>srcptr, srcsize, srcstride,
-                              <void *>dstptr, dstsize, dststride,
-                              itemsize, decode)
+                ret = icd_xor(
+                    <void *>srcptr,
+                    srcsize,
+                    srcstride,
+                    <void *>dstptr,
+                    dstsize,
+                    dststride,
+                    itemsize,
+                    decode
+                )
                 if ret < 0:
                     break
                 numpy.PyArray_ITER_NEXT(srciter)
@@ -446,15 +380,12 @@ cdef _xor(data, int axis, out, int decode):
         return out
 
     src = data
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
             dstsize = src.size
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
@@ -464,16 +395,21 @@ cdef _xor(data, int axis, out, int decode):
     itemsize = 1
 
     with nogil:
-        ret = icd_xor(<void *>&src[0], srcsize, srcstride,
-                      <void *>&dst[0], dstsize, dststride,
-                      itemsize, decode)
+        ret = icd_xor(
+            <void *>&src[0],
+            srcsize,
+            srcstride,
+            <void *>&dst[0],
+            dstsize,
+            dststride,
+            itemsize,
+            decode
+        )
     if ret < 0:
         raise IcdError('icd_xor', ret)
 
-    if ret < dstsize:
-        out = memoryview(out)[:ret] if out_given else out[:ret]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 def xor_decode(data, axis=-1, out=None):
@@ -494,26 +430,11 @@ def xor_encode(data, axis=-1, out=None):
 
 # TIFF Technical Note 3. April 8, 2005.
 
-cdef extern from 'imagecodecs.h':
-
-    ssize_t icd_floatpred(
-        void *src,
-        const ssize_t srcsize,
-        const ssize_t srcstride,
-        void *dst,
-        const ssize_t dstsize,
-        const ssize_t dststride,
-        const ssize_t itemsize,
-        const ssize_t samples,
-        const char byteorder,
-        const int decode) nogil
-
-
 cdef _floatpred(data, int axis, out, int decode):
     """Encode or decode Floating Point Predictor."""
     cdef:
-        void* srcptr = NULL
-        void* dstptr = NULL
+        void *srcptr = NULL
+        void *dstptr = NULL
         numpy.flatiter srciter
         numpy.flatiter dstiter
         ssize_t srcsize
@@ -569,9 +490,18 @@ cdef _floatpred(data, int axis, out, int decode):
         while numpy.PyArray_ITER_NOTDONE(srciter):
             srcptr = numpy.PyArray_ITER_DATA(srciter)
             dstptr = numpy.PyArray_ITER_DATA(dstiter)
-            ret = icd_floatpred(<void *>srcptr, srcsize, srcstride,
-                                <void *>dstptr, dstsize, dststride,
-                                itemsize, samples, byteorder, decode)
+            ret = icd_floatpred(
+                <void *>srcptr,
+                srcsize,
+                srcstride,
+                <void *>dstptr,
+                dstsize,
+                dststride,
+                itemsize,
+                samples,
+                byteorder,
+                decode
+            )
             if ret < 0:
                 break
             numpy.PyArray_ITER_NEXT(srciter)
@@ -606,18 +536,6 @@ def floatpred_decode(data, axis=-1, out=None):
 
 # BitOrder Reversal ###########################################################
 
-cdef extern from 'imagecodecs.h':
-
-    ssize_t icd_bitorder(
-        uint8_t *src,
-        const ssize_t srcsize,
-        const ssize_t srcstride,
-        const ssize_t itemsize,
-        uint8_t *dst,
-        const ssize_t dstsize,
-        const ssize_t dststride) nogil
-
-
 def bitorder_decode(data, out=None):
     """"Reverse bits in each byte of bytes, bytearray or numpy array.
 
@@ -625,8 +543,8 @@ def bitorder_decode(data, out=None):
     cdef:
         const uint8_t[::1] src
         uint8_t[::1] dst
-        uint8_t* srcptr = NULL
-        uint8_t* dstptr = NULL
+        uint8_t *srcptr = NULL
+        uint8_t *dstptr = NULL
         ssize_t srcsize = 0
         ssize_t dstsize = 0
         ssize_t srcstride = 1
@@ -648,9 +566,15 @@ def bitorder_decode(data, out=None):
                 srcsize = data.size * itemsize
                 srcstride = itemsize
                 with nogil:
-                    icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
-                                 itemsize,
-                                 <uint8_t *>dstptr, dstsize, dststride)
+                    icd_bitorder(
+                        <uint8_t *>srcptr,
+                        srcsize,
+                        srcstride,
+                        itemsize,
+                        <uint8_t *>dstptr,
+                        dstsize,
+                        dststride
+                    )
                 return data
 
             srciter = numpy.PyArray_IterAllButAxis(data, &axis)
@@ -659,9 +583,15 @@ def bitorder_decode(data, out=None):
             with nogil:
                 while numpy.PyArray_ITER_NOTDONE(srciter):
                     srcptr = <uint8_t *>numpy.PyArray_ITER_DATA(srciter)
-                    icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
-                                 itemsize,
-                                 <uint8_t *>dstptr, dstsize, dststride)
+                    icd_bitorder(
+                        <uint8_t *>srcptr,
+                        srcsize,
+                        srcstride,
+                        itemsize,
+                        <uint8_t *>dstptr,
+                        dstsize,
+                        dststride
+                    )
                     numpy.PyArray_ITER_NEXT(srciter)
             return data
 
@@ -682,9 +612,15 @@ def bitorder_decode(data, out=None):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = <uint8_t *>numpy.PyArray_ITER_DATA(srciter)
                 dstptr = <uint8_t *>numpy.PyArray_ITER_DATA(dstiter)
-                icd_bitorder(<uint8_t *>srcptr, srcsize, srcstride,
-                             itemsize,
-                             <uint8_t *>dstptr, dstsize, dststride)
+                icd_bitorder(
+                    <uint8_t *>srcptr,
+                    srcsize,
+                    srcstride,
+                    itemsize,
+                    <uint8_t *>dstptr,
+                    dstsize,
+                    dststride
+                )
                 numpy.PyArray_ITER_NEXT(srciter)
                 numpy.PyArray_ITER_NEXT(dstiter)
         return out
@@ -695,8 +631,15 @@ def bitorder_decode(data, out=None):
     if data is out:
         # in-place
         with nogil:
-            icd_bitorder(<uint8_t *>&src[0], srcsize, 1, 1,
-                         <uint8_t *>&src[0], srcsize, 1)
+            icd_bitorder(
+                <uint8_t *>&src[0],
+                srcsize,
+                1,
+                1,
+                <uint8_t *>&src[0],
+                srcsize,
+                1
+            )
         return data
 
     if out is None:
@@ -704,8 +647,15 @@ def bitorder_decode(data, out=None):
     dst = out
     dstsize = dst.size
     with nogil:
-        icd_bitorder(<uint8_t *>&src[0], srcsize, 1, 1,
-                     <uint8_t *>&dst[0], dstsize, 1)
+        icd_bitorder(
+            <uint8_t *>&src[0],
+            srcsize,
+            1,
+            1,
+            <uint8_t *>&dst[0],
+            dstsize,
+            1
+        )
     return out
 
 
@@ -713,25 +663,6 @@ bitorder_encode = bitorder_decode
 
 
 # PackBits ####################################################################
-
-cdef extern from 'imagecodecs.h':
-
-    ssize_t icd_packbits_size(
-        const uint8_t *src,
-        const ssize_t srcsize) nogil
-
-    ssize_t icd_packbits_decode(
-        const uint8_t *src,
-        const ssize_t srcsize,
-        uint8_t *dst,
-        const ssize_t dstsize) nogil
-
-    ssize_t icd_packbits_encode(
-        const uint8_t *src,
-        const ssize_t srcsize,
-        uint8_t *dst,
-        const ssize_t dstsize) nogil
-
 
 def packbits_encode(data, level=None, out=None):
     """Compress PackBits.
@@ -741,8 +672,8 @@ def packbits_encode(data, level=None, out=None):
         numpy.flatiter srciter
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
-        const uint8_t* srcptr
-        const uint8_t* dstptr
+        const uint8_t *srcptr
+        const uint8_t *dstptr
         ssize_t srcsize
         ssize_t dstsize
         ssize_t ret = 0
@@ -758,7 +689,7 @@ def packbits_encode(data, level=None, out=None):
         if data.strides[axis] != 1:
             raise ValueError('data array is not contiguous along last axis')
 
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None or out is data:
         if dstsize < 0:
@@ -768,10 +699,7 @@ def packbits_encode(data, level=None, out=None):
             else:
                 srcsize = len(data)
                 dstsize = srcsize + srcsize // 128 + 2
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
@@ -783,8 +711,12 @@ def packbits_encode(data, level=None, out=None):
         with nogil:
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
-                ret = icd_packbits_encode(srcptr, srcsize,
-                                          <uint8_t *>dstptr, dstsize)
+                ret = icd_packbits_encode(
+                    srcptr,
+                    srcsize,
+                    <uint8_t *>dstptr,
+                    dstsize
+                )
                 if ret < 0:
                     break
                 dstptr = dstptr + ret
@@ -798,17 +730,18 @@ def packbits_encode(data, level=None, out=None):
         src = _parse_input(data)
         srcsize = src.size
         with nogil:
-            ret = icd_packbits_encode(&src[0], srcsize,
-                                      <uint8_t *>&dst[0], dstsize)
-
+            ret = icd_packbits_encode(
+                &src[0],
+                srcsize,
+                <uint8_t *>&dst[0],
+                dstsize
+            )
     if ret < 0:
         raise IcdError('icd_packbits_encode', ret)
-    if ret < dst.size:
-        if out_given and not isinstance(out, numpy.ndarray):
-            out = memoryview(out)[:ret]
-        else:
-            out = out[:ret]
-    return out
+
+    dstsize = dst.size
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 def packbits_decode(data, out=None):
@@ -822,7 +755,7 @@ def packbits_decode(data, out=None):
         ssize_t dstsize
         ssize_t ret = 0
 
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None or out is data:
         if dstsize < 0:
@@ -830,44 +763,26 @@ def packbits_decode(data, out=None):
                 dstsize = icd_packbits_size(&src[0], srcsize)
             if dstsize < 0:
                 raise IcdError('icd_packbits_size', dstsize)
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
 
     with nogil:
-        ret = icd_packbits_decode(&src[0], srcsize,
-                                  <uint8_t *>&dst[0], dstsize)
+        ret = icd_packbits_decode(
+            &src[0],
+            srcsize,
+            <uint8_t *>&dst[0],
+            dstsize
+        )
     if ret < 0:
         raise IcdError('icd_packbits_decode', ret)
 
-    if ret < dstsize:
-        out = memoryview(out)[:ret] if out_given else out[:ret]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 # Packed Integers #############################################################
-
-cdef extern from 'imagecodecs.h':
-
-    int SSIZE_MAX
-
-    ssize_t icd_packints_decode(
-        const uint8_t *src,
-        const ssize_t srcsize,
-        uint8_t *dst,
-        const ssize_t dstsize,
-        const int numbits) nogil
-
-    void icd_swapbytes(
-        void *src,
-        const ssize_t srcsize,
-        const ssize_t itemsize) nogil
-
 
 def packints_encode(*args, **kwargs):
     """Not implemented."""
@@ -879,8 +794,8 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
     """Unpack groups of bits in byte sequence into numpy array."""
     cdef:
         const uint8_t[::1] src = data
-        uint8_t* srcptr = <uint8_t*>&src[0]
-        uint8_t* dstptr = NULL
+        uint8_t *srcptr = <uint8_t*>&src[0]
+        uint8_t *dstptr = NULL
         ssize_t srcsize = src.size
         ssize_t dstsize = 0
         ssize_t bytesize
@@ -932,8 +847,13 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         # work around "Converting to Python object not allowed without gil"
         # for i in range(0, dstsize, runlen):
         for i from 0 <= i < dstsize by runlen:
-            ret = icd_packints_decode(<const uint8_t*>srcptr, srcsize,
-                                      dstptr, runlen, numbits)
+            ret = icd_packints_decode(
+                <const uint8_t*>srcptr,
+                srcsize,
+                dstptr,
+                runlen,
+                numbits
+            )
             if ret < 0:
                 break
             srcptr += srcsize
@@ -953,28 +873,6 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
 
 # LZW #########################################################################
 
-cdef extern from 'imagecodecs.h':
-
-    ctypedef struct icd_lzw_handle_t:
-        pass
-
-    icd_lzw_handle_t *icd_lzw_new(ssize_t buffersize) nogil
-
-    void icd_lzw_del(icd_lzw_handle_t *handle) nogil
-
-    ssize_t icd_lzw_decode_size(
-        icd_lzw_handle_t *handle,
-        const uint8_t *src,
-        const ssize_t srcsize) nogil
-
-    ssize_t icd_lzw_decode(
-        icd_lzw_handle_t *handle,
-        const uint8_t *src,
-        const ssize_t srcsize,
-        uint8_t *dst,
-        const ssize_t dstsize) nogil
-
-
 def lzw_decode(data, buffersize=0, out=None):
     """Decompress LZW.
 
@@ -987,7 +885,7 @@ def lzw_decode(data, buffersize=0, out=None):
         ssize_t ret = 0
         icd_lzw_handle_t *handle = NULL
 
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     handle = icd_lzw_new(buffersize)
     if handle == NULL:
@@ -999,26 +897,26 @@ def lzw_decode(data, buffersize=0, out=None):
                     dstsize = icd_lzw_decode_size(handle, &src[0], srcsize)
                 if dstsize < 0:
                     raise IcdError('icd_lzw_decode_size', dstsize)
-            if out_type is bytes:
-                out = PyBytes_FromStringAndSize(NULL, dstsize)
-            else:
-                out = PyByteArray_FromStringAndSize(NULL, dstsize)
+            out = _create_output(outtype, dstsize)
 
         dst = out
         dstsize = dst.size
 
         with nogil:
-            ret = icd_lzw_decode(handle, &src[0], srcsize,
-                                 <uint8_t*>&dst[0], dstsize)
+            ret = icd_lzw_decode(
+                handle,
+                &src[0],
+                srcsize,
+                <uint8_t*>&dst[0],
+                dstsize
+            )
         if ret < 0:
             raise IcdError('icd_lzw_decode', ret)
     finally:
         icd_lzw_del(handle)
 
-    if ret < dstsize:
-        out = memoryview(out)[:ret] if out_given else out[:ret]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 def lzw_encode(*args, **kwargs):
