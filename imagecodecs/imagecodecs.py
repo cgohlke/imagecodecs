@@ -2,8 +2,6 @@
 # imagecodecs.py
 
 # Copyright (c) 2008-2019, Christoph Gohlke
-# Copyright (c) 2008-2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -46,10 +44,14 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 Revisions
 ---------
+2019.12.16
+    Rename jxr and j2k codecs to jpegxr and jpeg2k.
+    Add zopfli codec via zopflipy package.
+    Add snappy codec via python-snappy package.
 2019.12.10
     Add brotli codec via Brotli package.
     Add dummy dtype and jpegxl codecs.
@@ -98,8 +100,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.12.10.py'
-__docformat__ = 'restructuredtext en'
+__version__ = '2019.12.16.py'
 
 import sys
 import struct
@@ -160,6 +161,16 @@ except ImportError:
     bitshuffle = None
 
 try:
+    import snappy
+except ImportError:
+    snappy = None
+
+try:
+    import zopfli
+except ImportError:
+    zopfli = None
+
+try:
     import PIL
 except ImportError:
     PIL = None
@@ -200,7 +211,7 @@ def notimplemented(arg=False):
 def version(astype=None):
     """Return detailed version information."""
     versions = (
-        ('imagecodecs', __version__),
+        ('imagecodecs.py', __version__),
         ('numpy', numpy.__version__),
         ('zlib', zlib.ZLIB_VERSION),
         ('bz2', 'stdlib' if bz2 else 'n/a'),
@@ -209,6 +220,8 @@ def version(astype=None):
         ('zstd', zstd.version() if zstd else 'n/a'),
         ('lz4', lz4.VERSION if lz4 else 'n/a'),
         ('lzf', 'unknown' if lzf else 'n/a'),
+        ('snappy', 'unknown' if snappy else 'n/a'),
+        ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
         ('zfpy', zfp.__version__ if zfp else 'n/a'),
         ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
         ('pillow', PIL.PILLOW_VERSION if PIL else 'n/a'),
@@ -744,6 +757,32 @@ def brotli_decode(data, out=None):
     return brotli.decompress(data)
 
 
+@notimplemented(snappy)
+def snappy_encode(data, level=None, out=None):
+    """Compress Snappy."""
+    return snappy.compress(data)
+
+
+@notimplemented(snappy)
+def snappy_decode(data, out=None):
+    """Decompress Snappy."""
+    return snappy.decompress(data)
+
+
+@notimplemented(zopfli)
+def zopfli_encode(data, level=None, out=None):
+    """Compress Zopfli."""
+    c = zopfli.ZopfliCompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
+    return c.compress(data) + c.flush()
+
+
+@notimplemented(zopfli)
+def zopfli_decode(data, out=None):
+    """Compress Zopfli."""
+    d = zopfli.ZopfliDecompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
+    return d.decompress(data) + d.flush()
+
+
 @notimplemented(lzf)
 def lzf_encode(data, level=None, header=False, out=None):
     """Compress LZF."""
@@ -886,26 +925,28 @@ def jpegsof3_encode(*args, **kwargs):
 
 
 @notimplemented(PIL)
-def j2k_decode(data, verbose=0, out=None):
+def jpeg2k_decode(data, verbose=0, out=None):
     """Decode JPEG 2000."""
-    if (data[:4] != b'\xff\x4f\xff\x51' and data[:4] != b'\x0d\x0a\x87\x0a' and
-            data[:12] != b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'):
+    if (
+        data[:4] != b'\xff\x4f\xff\x51' and data[:4] != b'\x0d\x0a\x87\x0a' and
+        data[:12] != b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
+    ):
         raise ValueError('not a JPEG 2000 image')
     return pil_decode(data)
 
 
 @notimplemented
-def j2k_encode(*args, **kwargs):
+def jpeg2k_encode(*args, **kwargs):
     """Encode JPEG 2000."""
 
 
 @notimplemented
-def jxr_decode(*args, **kwargs):
+def jpegxr_decode(*args, **kwargs):
     """Decode JPEG XR."""
 
 
 @notimplemented
-def jxr_encode(*args, **kwargs):
+def jpegxr_encode(*args, **kwargs):
     """Encode JPEG XR."""
 
 
