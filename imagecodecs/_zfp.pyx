@@ -8,23 +8,21 @@
 # cython: nonecheck=False
 
 # Copyright (c) 2019, Christoph Gohlke
-# Copyright (c) 2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright notice,
-#   this list of conditions and the following disclaimer.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
 #
-# * Redistributions in binary form must reproduce the above copyright notice,
-#   this list of conditions and the following disclaimer in the documentation
-#   and/or other materials provided with the distribution.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
 #
-# * Neither the name of the copyright holder nor the names of its
-#   contributors may be used to endorse or promote products derived from
-#   this software without specific prior written permission.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -48,143 +46,20 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 """
 
-__version__ = '2019.12.10'
+__version__ = '2019.12.16'
 
-import numbers
-import numpy
+include '_imagecodecs.pxi'
 
-cimport cython
-cimport numpy
-
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdint cimport uint8_t
-from libc.string cimport memset
-
-numpy.import_array()
 
 
 # ZFP #########################################################################
 
-cdef extern from 'bitstream.h':
-
-    ctypedef struct bitstream:
-        pass
-
-    bitstream* stream_open(void* buffer, size_t bytes) nogil
-    void stream_close(bitstream* stream) nogil
-
-
-cdef extern from 'zfp.h':
-
-    char*  ZFP_VERSION_STRING
-
-    int ZFP_HEADER_MAGIC
-    int ZFP_HEADER_META
-    int ZFP_HEADER_MODE
-    int ZFP_HEADER_FULL
-    int ZFP_MIN_BITS
-    int ZFP_MAX_BITS
-    int ZFP_MAX_PREC
-    int ZFP_MIN_EXP
-
-    ctypedef unsigned int uint
-
-    ctypedef enum zfp_exec_policy:
-        zfp_exec_serial
-        zfp_exec_omp
-        zfp_exec_cuda
-
-    ctypedef enum zfp_type:
-        zfp_type_none
-        zfp_type_int32
-        zfp_type_int64
-        zfp_type_float
-        zfp_type_double
-
-    ctypedef enum zfp_mode:
-        zfp_mode_null
-        zfp_mode_expert
-        zfp_mode_fixed_rate
-        zfp_mode_fixed_precision
-        zfp_mode_fixed_accuracy
-        zfp_mode_reversible
-
-    ctypedef struct zfp_exec_params_omp:
-        uint threads
-        uint chunk_size
-
-    ctypedef union zfp_exec_params:
-        zfp_exec_params_omp omp
-
-    ctypedef struct zfp_execution:
-        zfp_exec_policy policy
-        zfp_exec_params params
-
-    ctypedef struct zfp_stream:
-        uint minbits
-        uint maxbits
-        uint maxprec
-        int minexp
-        bitstream* stream
-        zfp_execution zexec 'exec'
-
-    ctypedef struct zfp_field:
-        zfp_type dtype 'type'
-        uint nx, ny, nz, nw
-        int sx, sy, sz, sw
-        void* data
-
-    zfp_stream* zfp_stream_open(zfp_stream*) nogil
-    void zfp_stream_close(zfp_stream*) nogil
-    void zfp_stream_rewind(zfp_stream*) nogil
-    void zfp_stream_set_bit_stream(zfp_stream*, bitstream*) nogil
-    size_t zfp_stream_flush(zfp_stream*) nogil
-    size_t zfp_write_header(zfp_stream*, const zfp_field*, uint mask) nogil
-    size_t zfp_read_header(zfp_stream*, zfp_field*, uint mask) nogil
-    size_t zfp_stream_maximum_size(const zfp_stream*, const zfp_field*) nogil
-    size_t zfp_stream_compressed_size(const zfp_stream*) nogil
-    size_t zfp_compress(zfp_stream*, const zfp_field*) nogil
-    size_t zfp_decompress(zfp_stream*, zfp_field*) nogil
-    int zfp_stream_set_execution(zfp_stream*, zfp_exec_policy) nogil
-    void zfp_stream_set_reversible(zfp_stream*) nogil
-    uint zfp_stream_set_precision(zfp_stream*, uint precision) nogil
-    double zfp_stream_set_accuracy(zfp_stream*, double tolerance) nogil
-
-    double zfp_stream_set_rate(
-        zfp_stream*,
-        double rate,
-        zfp_type type,
-        uint dims,
-        int wra) nogil
-
-    int zfp_stream_set_params(
-        zfp_stream*,
-        uint minbits,
-        uint maxbits,
-        uint maxprec,
-        int minexp) nogil
-
-    zfp_field* zfp_field_alloc() nogil
-    zfp_field* zfp_field_1d(void*, zfp_type, uint) nogil
-    zfp_field* zfp_field_2d(void*, zfp_type, uint nx, uint) nogil
-    zfp_field* zfp_field_3d(void*, zfp_type, uint, uint, uint) nogil
-    zfp_field* zfp_field_4d(void*, zfp_type, uint, uint, uint, uint) nogil
-    void zfp_field_free(zfp_field*) nogil
-    void zfp_field_set_pointer(zfp_field*, void* pointer) nogil
-    void zfp_field_set_size_1d(zfp_field*, uint) nogil
-    void zfp_field_set_size_2d(zfp_field*, uint, uint) nogil
-    void zfp_field_set_size_3d(zfp_field*, uint, uint, uint) nogil
-    void zfp_field_set_size_4d(zfp_field*, uint, uint, uint, uint) nogil
-    void zfp_field_set_stride_1d(zfp_field*, int) nogil
-    void zfp_field_set_stride_2d(zfp_field*, int, int) nogil
-    void zfp_field_set_stride_3d(zfp_field*, int, int, int) nogil
-    void zfp_field_set_stride_4d(zfp_field*, int, int, int, int) nogil
-    zfp_type zfp_field_set_type(zfp_field*, zfp_type type) nogil
+from zfp cimport *
 
 
 class ZfpError(RuntimeError):
@@ -202,9 +77,9 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         size_t byteswritten
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
-        bitstream* stream = NULL
-        zfp_stream* zfp = NULL
-        zfp_field* field = NULL
+        bitstream *stream = NULL
+        zfp_stream *zfp = NULL
+        zfp_field *field = NULL
         zfp_type ztype
         zfp_mode zmode
         zfp_exec_policy zexec
@@ -263,7 +138,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         zmode = zfp_mode_reversible
     elif mode in (zfp_mode_fixed_precision, 'p', 'precision'):
         zmode = zfp_mode_fixed_precision
-        precision = _default_level(level, ZFP_MAX_PREC, 0, ZFP_MAX_PREC)
+        precision = _default_value(level, ZFP_MAX_PREC, 0, ZFP_MAX_PREC)
     elif mode in (zfp_mode_fixed_rate, 'r', 'rate'):
         zmode = zfp_mode_fixed_rate
         rate = level
@@ -324,14 +199,11 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
             if ret == 0:
                 raise ZfpError('zfp_stream_set_params failed')
 
-        out, dstsize, out_given, out_type = _parse_output(out)
+        out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
             if dstsize < 0:
                 dstsize = zfp_stream_maximum_size(zfp, field)
-            if out_type is bytes:
-                out = PyBytes_FromStringAndSize(NULL, dstsize)
-            else:
-                out = PyByteArray_FromStringAndSize(NULL, dstsize)
+            out = _create_output(outtype, dstsize)
 
         dst = out
         dstsize = dst.size * dst.itemsize
@@ -365,13 +237,8 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         if stream != NULL:
             stream_close(stream)
 
-    if <ssize_t>byteswritten < dstsize:
-        if out_given:
-            out = memoryview(out)[:byteswritten]
-        else:
-            out = out[:byteswritten]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, byteswritten, outgiven)
 
 
 def zfp_decode(data, shape=None, dtype=None, out=None):
@@ -382,9 +249,9 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
-        zfp_stream* zfp = NULL
-        bitstream* stream = NULL
-        zfp_field* field = NULL
+        zfp_stream *zfp = NULL
+        bitstream *stream = NULL
+        zfp_field *field = NULL
         zfp_type ztype
         ssize_t ndim
         size_t size
@@ -504,7 +371,7 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
         dst = out
 
         with nogil:
-            zfp_field_set_pointer(field, <void *>dst.data)
+            zfp_field_set_pointer(field, <void*>dst.data)
             size = zfp_decompress(zfp, field)
 
         if size == 0:
@@ -524,60 +391,3 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
 def zfp_version():
     """Return ZFP version string."""
     return 'zfp ' + ZFP_VERSION_STRING.decode('utf-8')
-
-
-###############################################################################
-
-cdef _create_array(out, shape, dtype, strides=None):
-    """Return numpy array of shape and dtype from output argument."""
-    if out is None or isinstance(out, numbers.Integral):
-        out = numpy.empty(shape, dtype)
-    elif isinstance(out, numpy.ndarray):
-        if out.shape != shape:
-            raise ValueError('invalid output shape')
-        if out.itemsize != numpy.dtype(dtype).itemsize:
-            raise ValueError('invalid output dtype')
-        if strides is not None:
-            for i, j in zip(strides, out.strides):
-                if i is not None and i != j:
-                    raise ValueError('invalid output strides')
-        elif not numpy.PyArray_ISCONTIGUOUS(out):
-            raise ValueError('output is not contiguous')
-    else:
-        dstsize = 1
-        for i in shape:
-            dstsize *= i
-        out = numpy.frombuffer(out, dtype, dstsize)
-        out.shape = shape
-    return out
-
-
-cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
-    """Return out, out_size, out_given, out_type from output argument."""
-    if out is None:
-        pass
-    elif out is bytes:
-        out = None
-        out_type = bytes
-    elif out is bytearray:
-        out = None
-        out_type = bytearray
-    elif isinstance(out, numbers.Integral):
-        out_size = out
-        out = None
-    else:
-        # out_size = len(out)
-        # out_type = type(out)
-        out_given = True
-    return out, out_size, out_given, out_type
-
-
-def _default_level(level, default, smallest, largest):
-    """Return compression level in range."""
-    if level is None:
-        level = default
-    if largest is not None:
-        level = min(level, largest)
-    if smallest is not None:
-        level = max(level, smallest)
-    return level
