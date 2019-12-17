@@ -7,9 +7,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2019, Christoph Gohlke
-# Copyright (c) 2018-2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics.
+# Copyright (c) 2019, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -48,288 +46,29 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 """
 
-__version__ = '2019.12.10'
+__version__ = '2019.12.16'
 
-import numbers
-import numpy
+include '_imagecodecs.pxi'
 
-cimport cython
-cimport numpy
-
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdint cimport uint8_t, int32_t, uint32_t
 from libc.string cimport memset
-
-numpy.import_array()
 
 
 # JPEG LS #####################################################################
 
-cdef extern from 'charls/charls.h':
-
-    int CHARLS_VERSION_MAJOR
-    int CHARLS_VERSION_MINOR
-    int CHARLS_VERSION_PATCH
-
-    ctypedef enum charls_jpegls_errc:
-        CHARLS_JPEGLS_ERRC_SUCCESS
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT
-        CHARLS_JPEGLS_ERRC_PARAMETER_VALUE_NOT_SUPPORTED
-        CHARLS_JPEGLS_ERRC_DESTINATION_BUFFER_TOO_SMALL
-        CHARLS_JPEGLS_ERRC_SOURCE_BUFFER_TOO_SMALL
-        CHARLS_JPEGLS_ERRC_INVALID_ENCODED_DATA
-        CHARLS_JPEGLS_ERRC_TOO_MUCH_ENCODED_DATA
-        CHARLS_JPEGLS_ERRC_INVALID_OPERATION
-        CHARLS_JPEGLS_ERRC_BIT_DEPTH_FOR_TRANSFORM_NOT_SUPPORTED
-        CHARLS_JPEGLS_ERRC_COLOR_TRANSFORM_NOT_SUPPORTED
-        CHARLS_JPEGLS_ERRC_ENCODING_NOT_SUPPORTED
-        CHARLS_JPEGLS_ERRC_UNKNOWN_JPEG_MARKER_FOUND
-        CHARLS_JPEGLS_ERRC_JPEG_MARKER_START_BYTE_NOT_FOUND
-        CHARLS_JPEGLS_ERRC_NOT_ENOUGH_MEMORY
-        CHARLS_JPEGLS_ERRC_UNEXPECTED_FAILURE
-        CHARLS_JPEGLS_ERRC_START_OF_IMAGE_MARKER_NOT_FOUND
-        CHARLS_JPEGLS_ERRC_START_OF_FRAME_MARKER_NOT_FOUND
-        CHARLS_JPEGLS_ERRC_INVALID_MARKER_SEGMENT_SIZE
-        CHARLS_JPEGLS_ERRC_DUPLICATE_START_OF_IMAGE_MARKER
-        CHARLS_JPEGLS_ERRC_DUPLICATE_START_OF_FRAME_MARKER
-        CHARLS_JPEGLS_ERRC_DUPLICATE_COMPONENT_ID_IN_SOF_SEGMENT
-        CHARLS_JPEGLS_ERRC_UNEXPECTED_END_OF_IMAGE_MARKER
-        CHARLS_JPEGLS_ERRC_INVALID_JPEGLS_PRESET_PARAMETER_TYPE
-        CHARLS_JPEGLS_ERRC_JPEGLS_PRESET_EXTENDED_PARAMETER_TYPE_NOT_SUPPORTED
-        CHARLS_JPEGLS_ERRC_MISSING_END_OF_SPIFF_DIRECTORY
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_WIDTH
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_HEIGHT
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_COMPONENT_COUNT
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_BITS_PER_SAMPLE
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_INTERLEAVE_MODE
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_NEAR_LOSSLESS
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_PC_PARAMETERS
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_SPIFF_ENTRY_SIZE
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_COLOR_TRANSFORMATION
-        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_WIDTH
-        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_HEIGHT
-        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_COMPONENT_COUNT
-        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_BITS_PER_SAMPLE
-        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_INTERLEAVE_MODE
-
-    ctypedef enum charls_interleave_mode:
-        CHARLS_INTERLEAVE_MODE_NONE
-        CHARLS_INTERLEAVE_MODE_LINE
-        CHARLS_INTERLEAVE_MODE_SAMPLE
-
-    ctypedef enum charls_color_transformation:
-        CHARLS_COLOR_TRANSFORMATION_NONE
-        CHARLS_COLOR_TRANSFORMATION_HP1
-        CHARLS_COLOR_TRANSFORMATION_HP2
-        CHARLS_COLOR_TRANSFORMATION_HP3
-
-    ctypedef enum charls_spiff_profile_id:
-        CHARLS_SPIFF_PROFILE_ID_NONE
-        CHARLS_SPIFF_PROFILE_ID_CONTINUOUS_TONE_BASE
-        CHARLS_SPIFF_PROFILE_ID_CONTINUOUS_TONE_PROGRESSIVE
-        CHARLS_SPIFF_PROFILE_ID_BI_LEVEL_FACSIMILE
-        CHARLS_SPIFF_PROFILE_ID_CONTINUOUS_TONE_FACSIMILE
-
-    ctypedef enum charls_spiff_color_space:
-        CHARLS_SPIFF_COLOR_SPACE_BI_LEVEL_BLACK
-        CHARLS_SPIFF_COLOR_SPACE_YCBCR_ITU_BT_709_VIDEO
-        CHARLS_SPIFF_COLOR_SPACE_NONE
-        CHARLS_SPIFF_COLOR_SPACE_YCBCR_ITU_BT_601_1_RGB
-        CHARLS_SPIFF_COLOR_SPACE_YCBCR_ITU_BT_601_1_VIDEO
-        CHARLS_SPIFF_COLOR_SPACE_GRAYSCALE
-        CHARLS_SPIFF_COLOR_SPACE_PHOTO_YCC
-        CHARLS_SPIFF_COLOR_SPACE_RGB
-        CHARLS_SPIFF_COLOR_SPACE_CMY
-        CHARLS_SPIFF_COLOR_SPACE_CMYK
-        CHARLS_SPIFF_COLOR_SPACE_YCCK
-        CHARLS_SPIFF_COLOR_SPACE_CIE_LAB
-        CHARLS_SPIFF_COLOR_SPACE_BI_LEVEL_WHITE
-
-    ctypedef enum charls_spiff_compression_type:
-        CHARLS_SPIFF_COMPRESSION_TYPE_UNCOMPRESSED
-        CHARLS_SPIFF_COMPRESSION_TYPE_MODIFIED_HUFFMAN
-        CHARLS_SPIFF_COMPRESSION_TYPE_MODIFIED_READ
-        CHARLS_SPIFF_COMPRESSION_TYPE_MODIFIED_MODIFIED_READ
-        CHARLS_SPIFF_COMPRESSION_TYPE_JBIG
-        CHARLS_SPIFF_COMPRESSION_TYPE_JPEG
-        CHARLS_SPIFF_COMPRESSION_TYPE_JPEG_LS
-
-    ctypedef enum charls_spiff_resolution_units:
-        CHARLS_SPIFF_RESOLUTION_UNITS_ASPECT_RATIO
-        CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_INCH
-        CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_CENTIMETER
-
-    ctypedef enum charls_spiff_entry_tag:
-        CHARLS_SPIFF_ENTRY_TAG_TRANSFER_CHARACTERISTICS
-        CHARLS_SPIFF_ENTRY_TAG_COMPONENT_REGISTRATION
-        CHARLS_SPIFF_ENTRY_TAG_IMAGE_ORIENTATION
-        CHARLS_SPIFF_ENTRY_TAG_THUMBNAIL
-        CHARLS_SPIFF_ENTRY_TAG_IMAGE_TITLE
-        CHARLS_SPIFF_ENTRY_TAG_IMAGE_DESCRIPTION
-        CHARLS_SPIFF_ENTRY_TAG_TIME_STAMP
-        CHARLS_SPIFF_ENTRY_TAG_VERSION_IDENTIFIER
-        CHARLS_SPIFF_ENTRY_TAG_CREATOR_IDENTIFICATION
-        CHARLS_SPIFF_ENTRY_TAG_PROTECTION_INDICATOR
-        CHARLS_SPIFF_ENTRY_TAG_COPYRIGHT_INFORMATION
-        CHARLS_SPIFF_ENTRY_TAG_CONTACT_INFORMATION
-        CHARLS_SPIFF_ENTRY_TAG_TILE_INDEX
-        CHARLS_SPIFF_ENTRY_TAG_SCAN_INDEX
-        CHARLS_SPIFF_ENTRY_TAG_SET_REFERENCE
-
-    struct charls_jpegls_decoder:
-        pass
-
-    struct charls_jpegls_encoder:
-        pass
-
-    struct charls_spiff_header:
-        charls_spiff_profile_id profile_id
-        int32_t component_count
-        uint32_t height
-        uint32_t width
-        charls_spiff_color_space color_space
-        int32_t bits_per_sample
-        charls_spiff_compression_type compression_type
-        charls_spiff_resolution_units resolution_units
-        uint32_t vertical_resolution
-        uint32_t horizontal_resolution
-
-    struct charls_jpegls_pc_parameters:
-        int32_t maximum_sample_value
-        int32_t threshold1
-        int32_t threshold2
-        int32_t threshold3
-        int32_t reset_value
-
-    struct charls_frame_info:
-        uint32_t width
-        uint32_t height
-        int32_t bits_per_sample
-        int32_t component_count
-
-    const void* charls_get_jpegls_category() nogil
-
-    const char* charls_get_error_message(int32_t error_value) nogil
-
-    charls_jpegls_decoder* charls_jpegls_decoder_create() nogil
-
-    void charls_jpegls_decoder_destroy(
-        const charls_jpegls_decoder* decoder) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_set_source_buffer(
-        charls_jpegls_decoder* decoder,
-        const void* source_buffer,
-        size_t source_size_bytes) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_read_spiff_header(
-        charls_jpegls_decoder* decoder,
-        charls_spiff_header* spiff_header,
-        int32_t* header_found) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_read_header(
-        charls_jpegls_decoder* decoder) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_get_frame_info(
-        const charls_jpegls_decoder* decoder,
-        charls_frame_info* frame_info) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_get_near_lossless(
-        const charls_jpegls_decoder* decoder,
-        int32_t component,
-        int32_t* near_lossless) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_get_interleave_mode(
-        const charls_jpegls_decoder* decoder,
-        charls_interleave_mode* interleave_mode) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_get_preset_coding_parameters(
-        const charls_jpegls_decoder* decoder,
-        int32_t reserved,
-        charls_jpegls_pc_parameters* preset_coding_parameters) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_get_destination_size(
-        const charls_jpegls_decoder* decoder,
-        size_t* destination_size_bytes) nogil
-
-    charls_jpegls_errc charls_jpegls_decoder_decode_to_buffer(
-        const charls_jpegls_decoder* decoder,
-        void* destination_buffer,
-        size_t destination_size_bytes,
-        uint32_t stride) nogil
-
-    charls_jpegls_encoder* charls_jpegls_encoder_create() nogil
-
-    void charls_jpegls_encoder_destroy(
-        const charls_jpegls_encoder* encoder) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_frame_info(
-        charls_jpegls_encoder* encoder,
-        const charls_frame_info* frame_info) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_near_lossless(
-        charls_jpegls_encoder* encoder,
-        int32_t near_lossless) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_interleave_mode(
-        charls_jpegls_encoder* encoder,
-        charls_interleave_mode interleave_mode) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_preset_coding_parameters(
-        charls_jpegls_encoder* encoder,
-        const charls_jpegls_pc_parameters* preset_coding_parameters) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_color_transformation(
-        charls_jpegls_encoder* encoder,
-        charls_color_transformation color_transformation) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_get_estimated_destination_size(
-        const charls_jpegls_encoder* encoder,
-        size_t* size_in_bytes) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_set_destination_buffer(
-        charls_jpegls_encoder* encoder,
-        void* destination_buffer,
-        size_t destination_size) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_write_standard_spiff_header(
-        charls_jpegls_encoder* encoder,
-        charls_spiff_color_space color_space,
-        charls_spiff_resolution_units resolution_units,
-        uint32_t vertical_resolution,
-        uint32_t horizontal_resolution) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_write_spiff_header(
-        charls_jpegls_encoder* encoder,
-        const charls_spiff_header* spiff_header) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_write_spiff_entry(
-        charls_jpegls_encoder* encoder,
-        uint32_t entry_tag,
-        const void* entry_data,
-        size_t entry_data_size) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_encode_from_buffer(
-        charls_jpegls_encoder* encoder,
-        const void* source_buffer,
-        size_t source_size,
-        uint32_t stride) nogil
-
-    charls_jpegls_errc charls_jpegls_encoder_get_bytes_written(
-        const charls_jpegls_encoder* encoder,
-        size_t* bytes_written) nogil
+from charls cimport *
 
 
 class JpegLsError(RuntimeError):
     """JPEG-LS Exceptions."""
     def __init__(self, func, err):
         cdef:
-            char* error_message
-            int32_t error_value
+            char *error_message
+            charls_jpegls_errc error_value
         try:
             error_value = int(err)
             error_message = charls_get_error_message(error_value)
@@ -349,14 +88,14 @@ def jpegls_encode(data, level=None, out=None):
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
-        charls_jpegls_errc ret = CHARLS_JPEGLS_ERRC_SUCCESS
-        charls_jpegls_encoder* encoder = NULL
+        charls_jpegls_errc ret
+        charls_jpegls_encoder *encoder = NULL
         charls_frame_info frameinfo
         # charls_jpegls_pc_parameters preset_coding_parameters
         charls_interleave_mode interleave_mode
-        int32_t near_lossless = _default_level(level, 0, 0, 9)
+        int32_t near_lossless = _default_value(level, 0, 0, 9)
         uint32_t rowstride = src.strides[0]
-        size_t bytes_written
+        size_t byteswritten
         size_t size_in_bytes
 
     if data is out:
@@ -367,16 +106,13 @@ def jpegls_encode(data, level=None, out=None):
             and numpy.PyArray_ISCONTIGUOUS(data)):
         raise ValueError('invalid input shape, strides, or dtype')
 
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is not None:
         dst = out
         dstsize = dst.size * dst.itemsize
     elif dstsize > 0:
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
         dst = out
         dstsize = dst.size * dst.itemsize
 
@@ -453,10 +189,7 @@ def jpegls_encode(data, level=None, out=None):
                         ret)
                 dstsize = size_in_bytes + sizeof(charls_spiff_header)
                 with gil:
-                    if out_type is bytes:
-                        out = PyBytes_FromStringAndSize(NULL, dstsize)
-                    else:
-                        out = PyByteArray_FromStringAndSize(NULL, dstsize)
+                    out = _create_output(outtype, dstsize)
                     dst = out
                     dstsize = dst.size * dst.itemsize
 
@@ -489,7 +222,7 @@ def jpegls_encode(data, level=None, out=None):
 
             ret = charls_jpegls_encoder_get_bytes_written(
                 encoder,
-                &bytes_written)
+                &byteswritten)
             if ret:
                 raise JpegLsError(
                     'charls_jpegls_encoder_get_bytes_written', ret)
@@ -497,13 +230,8 @@ def jpegls_encode(data, level=None, out=None):
         if encoder != NULL:
             charls_jpegls_encoder_destroy(encoder)
 
-    if <ssize_t>bytes_written < dstsize:
-        if out_given:
-            out = memoryview(out)[:bytes_written]
-        else:
-            out = out[:bytes_written]
-
-    return out
+    del dst
+    return _return_output(out, dstsize, byteswritten, outgiven)
 
 
 def jpegls_decode(data, out=None):
@@ -516,8 +244,8 @@ def jpegls_decode(data, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t itemsize = 0
-        charls_jpegls_errc ret = CHARLS_JPEGLS_ERRC_SUCCESS
-        charls_jpegls_decoder* decoder = NULL
+        charls_jpegls_errc ret
+        charls_jpegls_decoder *decoder = NULL
         charls_interleave_mode interleave_mode
         charls_frame_info frameinfo
         # charls_spiff_header spiff_header
@@ -640,60 +368,3 @@ def jpegls_version():
     """Return CharLS version string."""
     return 'charls %i.%i.%i' % (
         CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH)
-
-
-###############################################################################
-
-cdef _create_array(out, shape, dtype, strides=None):
-    """Return numpy array of shape and dtype from output argument."""
-    if out is None or isinstance(out, numbers.Integral):
-        out = numpy.empty(shape, dtype)
-    elif isinstance(out, numpy.ndarray):
-        if out.shape != shape:
-            raise ValueError('invalid output shape')
-        if out.itemsize != numpy.dtype(dtype).itemsize:
-            raise ValueError('invalid output dtype')
-        if strides is not None:
-            for i, j in zip(strides, out.strides):
-                if i is not None and i != j:
-                    raise ValueError('invalid output strides')
-        elif not numpy.PyArray_ISCONTIGUOUS(out):
-            raise ValueError('output is not contiguous')
-    else:
-        dstsize = 1
-        for i in shape:
-            dstsize *= i
-        out = numpy.frombuffer(out, dtype, dstsize)
-        out.shape = shape
-    return out
-
-
-cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
-    """Return out, out_size, out_given, out_type from output argument."""
-    if out is None:
-        pass
-    elif out is bytes:
-        out = None
-        out_type = bytes
-    elif out is bytearray:
-        out = None
-        out_type = bytearray
-    elif isinstance(out, numbers.Integral):
-        out_size = out
-        out = None
-    else:
-        # out_size = len(out)
-        # out_type = type(out)
-        out_given = True
-    return out, out_size, out_given, out_type
-
-
-def _default_level(level, default, smallest, largest):
-    """Return compression level in range."""
-    if level is None:
-        level = default
-    if largest is not None:
-        level = min(level, largest)
-    if smallest is not None:
-        level = max(level, smallest)
-    return level
