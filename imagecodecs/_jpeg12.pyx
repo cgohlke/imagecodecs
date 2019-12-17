@@ -8,8 +8,6 @@
 # cython: nonecheck=False
 
 # Copyright (c) 2018-2019, Christoph Gohlke
-# Copyright (c) 2018-2019, The Regents of the University of California
-# Produced at the Laboratory for Fluorescence Dynamics.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -48,193 +46,25 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 """
 
-__version__ = '2019.12.10'
+__version__ = '2019.12.16'
 
-import numbers
-import numpy
+include '_imagecodecs.pxi'
 
-cimport cython
-cimport numpy
-
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cpython.bytes cimport PyBytes_FromStringAndSize
 from cython.operator cimport dereference as deref
 
-from libc.string cimport memset, memcpy
+from libc.string cimport memset
 from libc.stdlib cimport malloc, free
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
 from libc.stdint cimport uint8_t, uint16_t
 
-numpy.import_array()
-
 
 # JPEG 12-bit #################################################################
 
-cdef extern from 'jpeglib.h':
-
-    int JPEG_LIB_VERSION
-    int LIBJPEG_TURBO_VERSION
-    int LIBJPEG_TURBO_VERSION_NUMBER
-
-    ctypedef void noreturn_t
-    ctypedef int boolean
-    ctypedef char JOCTET
-    ctypedef unsigned int JDIMENSION
-    ctypedef unsigned short JSAMPLE
-    ctypedef JSAMPLE* JSAMPROW
-    ctypedef JSAMPROW* JSAMPARRAY
-
-    ctypedef enum J_COLOR_SPACE:
-        JCS_UNKNOWN
-        JCS_GRAYSCALE
-        JCS_RGB
-        JCS_YCbCr
-        JCS_CMYK
-        JCS_YCCK
-        JCS_EXT_RGB
-        JCS_EXT_RGBX
-        JCS_EXT_BGR
-        JCS_EXT_BGRX
-        JCS_EXT_XBGR
-        JCS_EXT_XRGB
-        JCS_EXT_RGBA
-        JCS_EXT_BGRA
-        JCS_EXT_ABGR
-        JCS_EXT_ARGB
-        JCS_RGB565
-
-    ctypedef enum J_DITHER_MODE:
-        JDITHER_NONE
-        JDITHER_ORDERED
-        JDITHER_FS
-
-    ctypedef enum J_DCT_METHOD:
-        JDCT_ISLOW
-        JDCT_IFAST
-        JDCT_FLOAT
-
-    struct jpeg_source_mgr:
-        pass
-
-    struct jpeg_destination_mgr:
-        pass
-
-    struct jpeg_error_mgr:
-        int msg_code
-        const char** jpeg_message_table
-        noreturn_t error_exit(jpeg_common_struct*)
-        void output_message(jpeg_common_struct*)
-
-    struct jpeg_common_struct:
-        jpeg_error_mgr* err
-
-    struct jpeg_component_info:
-        int component_id
-        int component_index
-        int h_samp_factor
-        int v_samp_factor
-
-    struct jpeg_decompress_struct:
-        jpeg_error_mgr* err
-        void* client_data
-        jpeg_source_mgr* src
-        JDIMENSION image_width
-        JDIMENSION image_height
-        JDIMENSION output_width
-        JDIMENSION output_height
-        JDIMENSION output_scanline
-        J_COLOR_SPACE jpeg_color_space
-        J_COLOR_SPACE out_color_space
-        J_DCT_METHOD dct_method
-        J_DITHER_MODE dither_mode
-        boolean buffered_image
-        boolean raw_data_out
-        boolean do_fancy_upsampling
-        boolean do_block_smoothing
-        boolean quantize_colors
-        boolean two_pass_quantize
-        unsigned int scale_num
-        unsigned int scale_denom
-        int num_components
-        int out_color_components
-        int output_components
-        int rec_outbuf_height
-        int desired_number_of_colors
-        int actual_number_of_colors
-        int data_precision
-        double output_gamma
-
-    struct jpeg_compress_struct:
-        jpeg_error_mgr* err
-        void* client_data
-        jpeg_destination_mgr *dest
-        JDIMENSION image_width
-        JDIMENSION image_height
-        int input_components
-        J_COLOR_SPACE in_color_space
-        J_COLOR_SPACE jpeg_color_space
-        double input_gamma
-        int data_precision
-        int num_components
-        int smoothing_factor
-        boolean optimize_coding
-        JDIMENSION next_scanline
-        boolean progressive_mode
-        jpeg_component_info *comp_info
-        # JPEG_LIB_VERSION >= 70
-        # unsigned int scale_num
-        # unsigned int scale_denom
-        # JDIMENSION jpeg_width
-        # JDIMENSION jpeg_height
-        # boolean do_fancy_downsampling
-
-    jpeg_error_mgr* jpeg_std_error(jpeg_error_mgr*) nogil
-
-    void jpeg_create_decompress(jpeg_decompress_struct*) nogil
-
-    void jpeg_destroy_decompress(jpeg_decompress_struct*) nogil
-
-    int jpeg_read_header(jpeg_decompress_struct*, boolean) nogil
-
-    boolean jpeg_start_decompress(jpeg_decompress_struct*) nogil
-
-    boolean jpeg_finish_decompress(jpeg_decompress_struct*) nogil
-
-    JDIMENSION jpeg_read_scanlines(
-        jpeg_decompress_struct*,
-        JSAMPARRAY,
-        JDIMENSION) nogil
-
-    void jpeg_mem_src(
-        jpeg_decompress_struct*,
-        unsigned char*,
-        unsigned long) nogil
-
-    void jpeg_mem_dest(
-        jpeg_compress_struct*,
-        unsigned char**,
-        unsigned long*) nogil
-
-    void jpeg_create_compress(jpeg_compress_struct*) nogil
-
-    void jpeg_destroy_compress(jpeg_compress_struct*) nogil
-
-    void jpeg_set_defaults(jpeg_compress_struct*) nogil
-
-    void jpeg_set_quality(jpeg_compress_struct*, int, boolean) nogil
-
-    void jpeg_start_compress(jpeg_compress_struct*, boolean) nogil
-
-    void jpeg_finish_compress(jpeg_compress_struct* cinfo) nogil
-
-    JDIMENSION jpeg_write_scanlines(
-        jpeg_compress_struct*,
-        JSAMPARRAY,
-        JDIMENSION) nogil
+from libjpeg_turbo cimport *
 
 
 ctypedef struct my_error_mgr:
@@ -242,12 +72,12 @@ ctypedef struct my_error_mgr:
     jmp_buf setjmp_buffer
 
 
-cdef void my_error_exit(jpeg_common_struct* cinfo):
-    cdef my_error_mgr* error = <my_error_mgr*> deref(cinfo).err
+cdef void my_error_exit(jpeg_common_struct *cinfo):
+    cdef my_error_mgr *error = <my_error_mgr*> deref(cinfo).err
     longjmp(deref(error).setjmp_buffer, 1)
 
 
-cdef void my_output_message(jpeg_common_struct* cinfo):
+cdef void my_output_message(jpeg_common_struct *cinfo):
     pass
 
 
@@ -326,18 +156,18 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         ssize_t srcsize = src.size * src.itemsize
         ssize_t rowstride = src.strides[0]
         int samples = <int>src.shape[2] if src.ndim == 3 else 1
-        int quality = _default_level(level, 90, 0, 100)
+        int quality = _default_value(level, 90, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
         JSAMPROW rowpointer
         J_COLOR_SPACE in_color_space = JCS_UNKNOWN
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
-        unsigned char* outbuffer = NULL
-        const char* msg
+        unsigned char *outbuffer = NULL
+        const char *msg
         int h_samp_factor = 0
         int v_samp_factor = 0
-        int smoothing_factor = _default_level(smoothing, -1, 0, 100)
+        int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
 
     if data is out:
@@ -390,13 +220,10 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         else:
             raise ValueError('invalid subsampling')
 
-    out, dstsize, out_given, out_type = _parse_output(out)
+    out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None and dstsize > 0:
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(NULL, dstsize)
-        else:
-            out = PyByteArray_FromStringAndSize(NULL, dstsize)
+        out = _create_output(outtype, dstsize)
 
     if out is not None:
         dst = out
@@ -446,28 +273,21 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         jpeg_start_compress(&cinfo, 1)
 
         while cinfo.next_scanline < cinfo.image_height:
-            rowpointer = <JSAMPROW>(<char*>src.data
-                                    + cinfo.next_scanline * rowstride)
+            rowpointer = <JSAMPROW>(
+                <char*>src.data + cinfo.next_scanline * rowstride)
             jpeg_write_scanlines(&cinfo, &rowpointer, 1)
 
         jpeg_finish_compress(&cinfo)
         jpeg_destroy_compress(&cinfo)
 
     if out is None or outbuffer != <unsigned char*>&dst[0]:
-        if out_type is bytes:
-            out = PyBytes_FromStringAndSize(<const char*>outbuffer,
-                                            <ssize_t>outsize)
-        else:
-            out = PyByteArray_FromStringAndSize(<const char*>outbuffer,
-                                                <ssize_t>outsize)
+        # outbuffer was allocated in jpeg_mem_dest
+        out = _create_output(outtype, <ssize_t>outsize, <const char*>outbuffer)
         free(outbuffer)
-    elif outsize < dstsize:
-        if out_given:
-            out = memoryview(out)[:outsize]
-        else:
-            out = out[:outsize]
+        return out
 
-    return out
+    del dst
+    return _return_output(out, dstsize, outsize, outgiven)
 
 
 def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
@@ -574,80 +394,14 @@ def jpeg12_decode(data, tables=None, colorspace=None, outcolorspace=None,
 
 def jpeg12_version():
     """Return JPEG 12-bit version string."""
-    return 'jpeg12 %.1f' % (JPEG_LIB_VERSION / 10.0)
-
-
-def jpeg_turbo_version():
-    """Return JPEG version string."""
-    jpeg_turbo_version = str(LIBJPEG_TURBO_VERSION_NUMBER)
-    return 'jpeg12_turbo %i.%i.%i' % (
-        int(jpeg_turbo_version[:1]),
-        int(jpeg_turbo_version[3:4]),
-        int(jpeg_turbo_version[6:]))
-
-
-###############################################################################
-
-cdef _create_array(out, shape, dtype, strides=None):
-    """Return numpy array of shape and dtype from output argument."""
-    if out is None or isinstance(out, numbers.Integral):
-        out = numpy.empty(shape, dtype)
-    elif isinstance(out, numpy.ndarray):
-        if out.shape != shape:
-            raise ValueError('invalid output shape')
-        if out.itemsize != numpy.dtype(dtype).itemsize:
-            raise ValueError('invalid output dtype')
-        if strides is not None:
-            for i, j in zip(strides, out.strides):
-                if i is not None and i != j:
-                    raise ValueError('invalid output strides')
-        elif not numpy.PyArray_ISCONTIGUOUS(out):
-            raise ValueError('output is not contiguous')
-    else:
-        dstsize = 1
-        for i in shape:
-            dstsize *= i
-        out = numpy.frombuffer(out, dtype, dstsize)
-        out.shape = shape
-    return out
-
-
-cdef _parse_output(out, ssize_t out_size=-1, out_given=False, out_type=bytes):
-    """Return out, out_size, out_given, out_type from output argument."""
-    if out is None:
-        pass
-    elif out is bytes:
-        out = None
-        out_type = bytes
-    elif out is bytearray:
-        out = None
-        out_type = bytearray
-    elif isinstance(out, numbers.Integral):
-        out_size = out
-        out = None
-    else:
-        # out_size = len(out)
-        # out_type = type(out)
-        out_given = True
-    return out, out_size, out_given, out_type
-
-
-def _default_level(level, default, smallest, largest):
-    """Return compression level in range."""
-    if level is None:
-        level = default
-    if largest is not None:
-        level = min(level, largest)
-    if smallest is not None:
-        level = max(level, smallest)
-    return level
+    return 'libjpeg12 %.1f' % (JPEG_LIB_VERSION / 10.0)
 
 
 def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
     """Return if all values are below 2^12."""
     cdef:
         numpy.flatiter srciter
-        uint8_t* srcptr = NULL
+        uint8_t *srcptr = NULL
         ssize_t srcsize = 0
         ssize_t srcstride = 0
         ssize_t i
