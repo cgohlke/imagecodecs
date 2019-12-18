@@ -16,6 +16,8 @@ include imagecodecs/_jpeg12.pyx
 include imagecodecs/_jpegls.pyx
 include imagecodecs/_jpegxl.pyx
 include imagecodecs/_zfp.pyx
+include imagecodecs/*.pxd
+include imagecodecs/*.pxi
 
 include imagecodecs/imagecodecs.c
 include imagecodecs/imagecodecs.h
@@ -57,3 +59,5 @@ recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *-
 recursive-exclude * *.html
+recursive-exclude * *Copy*.*
+
