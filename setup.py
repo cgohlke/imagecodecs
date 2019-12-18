@@ -52,13 +52,20 @@ include_dirs = [
 
 library_dirs = []
 
-if 'CG-' in os.environ.get('COMPUTERNAME', ''):
+if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
     # Windows development environment
+    from _inclib import INCLIB
+    include_dirs.extend([
+        INCLIB,
+        INCLIB + 'jxrlib',
+        INCLIB + 'openjpeg-2.3',
+    ])
+    library_dirs.append(INCLIB)
     libraries = [
-        'zlib', 'lz4', 'webp', 'png', 'jxrlib', 'jpeg', 'lzf', 'libbz2',
-        'libblosc', 'snappy', 'zstd_static', 'lzma-static', 'openjp2',
-        'libaec', 'lcms2',
-        'brotlienc-static', 'brotlidec-static', 'brotlicommon-static'
+        'zlib', 'lz4', 'libbz2', 'lzf', 'zstd_static', 'lzma-static',
+        'libaec', 'libblosc', 'snappy', 'zopfli',
+        'brotlienc-static', 'brotlidec-static', 'brotlicommon-static',
+        'jpeg', 'png', 'webp', 'openjp2', 'jpegxr', 'jxrglue', 'lcms2',
     ]
     define_macros = [
         ('WIN32', 1),
@@ -89,13 +96,13 @@ if 'CG-' in os.environ.get('COMPUTERNAME', ''):
 elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
     # Czaki's CI environment
     libraries = [
-        'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-        'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z',
+        'z', 'lz4', 'bz2', 'zstd', 'lzma', 'aec', 'blosc', 'snappy', 'zopfli',
         'brotlienc', 'brotlidec', 'brotlicommon',
+        'jpeg', 'png', 'webp', 'openjp2', 'jpegxr', 'jxrglue', 'lcms2',
         'm'
     ]
-    libraries_jpegxl = []
     libraries_jpeg12 = []
+    libraries_jpegxl = ['brunslidec-c', 'brunslienc-c']
     libraries_jpegls = ['CharLS']
     libraries_zfp = ['zfp']
     define_macros = [('OPJ_HAVE_LIBLCMS2', 1)]
@@ -140,15 +147,13 @@ elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
 else:
     # Most recent Debian
     libraries = [
-        'jpeg', 'lz4', 'zstd', 'lzma', 'bz2', 'png', 'webp', 'blosc',
-        'openjp2', 'jxrglue', 'jpegxr', 'aec', 'lcms2', 'z',
-        'brotlienc', 'brotlidec', 'brotlicommon'
+        'z', 'lz4', 'bz2', 'zstd', 'lzma', 'aec', 'blosc', 'snappy', 'zopfli',
+        'brotlienc', 'brotlidec', 'brotlicommon',
+        'jpeg', 'png', 'webp', 'openjp2', 'jpegxr', 'jxrglue', 'lcms2',
     ]
     include_dirs.extend(
         [
             '/usr/include/jxrlib',
-            '/usr/include/openjpeg-2.1',
-            '/usr/include/openjpeg-2.2',
             '/usr/include/openjpeg-2.3',
         ]
     )
@@ -163,7 +168,7 @@ else:
     else:
         libraries.append('m')
     libraries_jpegxl = []  # 'brunsli*' not available in Debian
-    libraries_jpegls = []  # 'CharLS' core dumps
+    libraries_jpegls = []  # 'CharLS 2.0' core dumps
     libraries_jpeg12 = []  # 'jpeg12' not available in Debian
     libraries_zfp = []  # 'zfp' not available in Debian
     openmp_args = ['-fopenmp']
@@ -176,7 +181,7 @@ if 'lzf' not in libraries and 'liblzf' not in libraries:
     ])
     include_dirs.append('liblzf-3.6')
 
-if 'bitshuffle' not in libraries and 'bitshuffle' not in libraries:
+if 'bitshuffle' not in libraries and 'libbitshuffle' not in libraries:
     # use bitshuffle sources from sdist
     sources.extend([
         'bitshuffle-0.3.5/bitshuffle_core.c',
@@ -203,18 +208,6 @@ except ImportError:
     ext = '.c'
 
 ext_modules = []
-
-if libraries_jpegxl:
-    ext_modules += [
-        Extension(
-            'imagecodecs._jpegxl',
-            ['imagecodecs/_jpegxl' + ext],
-            include_dirs=include_dirs,
-            library_dirs=library_dirs,
-            libraries=libraries_jpegxl,
-            define_macros=define_macros,
-        )
-    ]
 
 ext_modules += [
     Extension(
@@ -258,6 +251,18 @@ if libraries_jpegls:
         )
     ]
 
+if libraries_jpegxl:
+    ext_modules += [
+        Extension(
+            'imagecodecs._jpegxl',
+            ['imagecodecs/_jpegxl' + ext],
+            include_dirs=include_dirs,
+            library_dirs=library_dirs,
+            libraries=libraries_jpegxl,
+            define_macros=define_macros,
+        )
+    ]
+
 if libraries_zfp:
     ext_modules += [
         Extension(
@@ -280,11 +285,11 @@ setup(
     author_email='cgohlke@uci.edu',
     url='https://www.lfd.uci.edu/~gohlke/',
     python_requires='>=2.7',
-    install_requires=['numpy>=1.14.5'],
+    install_requires=['numpy>=1.14.5', 'pathlib;python_version=="2.7"'],
     setup_requires=['setuptools>=18.0', 'numpy>=1.14.5'],  # 'cython>=0.29.14'
     extras_require={'all': ['matplotlib>=2.2', 'tifffile>=2019.7.2']},
-    tests_require=['pytest', 'tifffile', 'blosc', 'zstd', 'lz4',
-                   'python-lzf', 'bitshuffle'],  # zfpy
+    tests_require=['pytest', 'tifffile', 'czifile', 'blosc', 'zstd', 'lz4',
+                   'python-lzf', 'bitshuffle', 'zopflipy'],  # zfpy
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
