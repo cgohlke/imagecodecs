@@ -5,11 +5,11 @@ Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific imaging modules.
 
-Decode and/or encode functions are currently implemented for Zlib DEFLATE,
-ZStandard (ZSTD), Blosc, Brotli, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC, NPY, PNG,
-WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG LS, JPEG 2000, JPEG XR, JPEG XL,
-PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-Bitorder reversal, and Bitshuffle.
+Decode and/or encode functions are implemented for Zlib (DEFLATE),
+ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC,
+NPY, PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000, JPEG LS,
+JPEG XR, JPEG XL, PackBits, Packed Integers, Delta, XOR Delta,
+Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -19,22 +19,22 @@ Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.10
+:Version: 2019.12.16
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.16, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
+* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
 * `Numpy 1.16.5 <https://www.numpy.org>`_
 * `Cython 0.29.14 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.2 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.4 <https://github.com/facebook/zstd>`_
-* `blosc 1.17.0 <https://github.com/Blosc/c-blosc>`_
+* `blosc 1.17.1 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
-* `xz liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
+* `liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
@@ -42,10 +42,12 @@ This release has been tested with the following requirements and dependencies
   (8 and 12-bit)
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
-* `jxrlib 0.2.1 <https://github.com/glencoesoftware/jxrlib>`_
+* `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `snappy 1.1.7 <https://github.com/google/snappy>`_
+* `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.7 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
@@ -54,18 +56,18 @@ Required Python packages for testing (other versions may work):
 
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.8.1 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
-* `python-brotli <https://github.com/google/brotli/tree/master/python>`_
+* `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
+* `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
+* `zopflipy 1.3 <https://github.com/hattya/zopflipy>`_
 * `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
 -----
-Imagecodecs is currently developed, built, and tested on Windows only.
-
 The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
@@ -89,14 +91,15 @@ Build instructions and wheels for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki>`_.
 
 To install the requirements for building imagecodecs from source code on
-current Ubuntu Linux distributions, run:
+latest Ubuntu Linux distributions, run:
 
-    `` build-essential python3-dev cython3
-    python3-setuptools python3-pip python3-wheel python3-numpy python3-pytest
+    ``sudo apt-get install build-essential python3-dev cython3
+    python3-setuptools python3-pip python3-wheel python3-numpy
+    python3-pytest python3-blosc python3-brotli python3-snappy python3-lz4
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
-    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg62-turbo-dev
-    libjpeg-turbo8-dev libjxr-dev liblcms2-dev libcharls-dev libaec-dev
-    libbrotli-dev libtiff-dev python3-blosc python3-brotli``
+    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-turbo8-dev libjxr-dev
+    liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
+    libzopfli-dev``
 
 The imagecodecs package can be challenging to build from source code. Consider
 using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
@@ -111,7 +114,6 @@ Other Python packages providing imaging or compression codecs:
 * `Python zlib <https://docs.python.org/3/library/zlib.html>`_
 * `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
 * `Python lzma <https://docs.python.org/3/library/lzma.html>`_
-* `python-snappy <https://github.com/andrix/python-snappy>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
@@ -119,11 +121,21 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.12.16
+    Pass 3287 tests.
+    Add Zopfli codec.
+    Add Snappy codec.
+    Rename j2k codec to jpeg2k.
+    Rename jxr codec to jpegxr.
+    Use Debian's jxrlib.
+    Support pathlib and binary streams in imread and imwrite.
+    Move external C declarations to pxd files.
+    Move shared code to pxi file.
+    Update copyright notices.
 2019.12.10
-    Pass 2905 tests.
     Add version functions.
     Add Brotli codec (WIP).
-    Add optional JPEG XL codec via brunsli repacker (WIP).
+    Add optional JPEG XL codec via Brunsli repacker (WIP).
 2019.12.3
     Sync with imagecodecs-lite.
 2019.11.28
