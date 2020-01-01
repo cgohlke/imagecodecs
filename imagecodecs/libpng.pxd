@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # libpng.pxd
 # cython: language_level = 3
 
