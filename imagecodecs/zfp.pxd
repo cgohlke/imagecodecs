@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # zfp.pxd
 # cython: language_level = 3
 
@@ -10,8 +9,8 @@ cdef extern from 'bitstream.h':
     ctypedef struct bitstream:
         pass
 
-    bitstream *stream_open(void *buffer, size_t bytes) nogil
-    void stream_close(bitstream *stream) nogil
+    bitstream* stream_open(void* buffer, size_t bytes) nogil
+    void stream_close(bitstream* stream) nogil
 
 
 cdef extern from 'zfp.h':
@@ -65,14 +64,14 @@ cdef extern from 'zfp.h':
         uint maxbits
         uint maxprec
         int minexp
-        bitstream *stream
+        bitstream* stream
         zfp_execution zexec 'exec'
 
     ctypedef struct zfp_field:
         zfp_type dtype 'type'
         uint nx, ny, nz, nw
         int sx, sy, sz, sw
-        void *data
+        void* data
 
     zfp_stream* zfp_stream_open(zfp_stream*) nogil
     void zfp_stream_close(zfp_stream*) nogil
@@ -108,9 +107,9 @@ cdef extern from 'zfp.h':
     zfp_field* zfp_field_1d(void*, zfp_type, uint) nogil
     zfp_field* zfp_field_2d(void*, zfp_type, uint nx, uint) nogil
     zfp_field* zfp_field_3d(void*, zfp_type, uint, uint, uint) nogil
-    zfp_field *zfp_field_4d(void*, zfp_type, uint, uint, uint, uint) nogil
+    zfp_field* zfp_field_4d(void*, zfp_type, uint, uint, uint, uint) nogil
     void zfp_field_free(zfp_field*) nogil
-    void zfp_field_set_pointer(zfp_field*, void *pointer) nogil
+    void zfp_field_set_pointer(zfp_field*, void* pointer) nogil
     void zfp_field_set_size_1d(zfp_field*, uint) nogil
     void zfp_field_set_size_2d(zfp_field*, uint, uint) nogil
     void zfp_field_set_size_3d(zfp_field*, uint, uint, uint) nogil
