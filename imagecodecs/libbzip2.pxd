@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # libbzip2.pxd
 # cython: language_level = 3
 
@@ -27,28 +26,28 @@ cdef extern from 'bzlib.h':
     int BZ_CONFIG_ERROR
 
     ctypedef struct bz_stream:
-        char *next_in
+        char* next_in
         unsigned int avail_in
         unsigned int total_in_lo32
         unsigned int total_in_hi32
-        char *next_out
+        char* next_out
         unsigned int avail_out
         unsigned int total_out_lo32
         unsigned int total_out_hi32
-        void *state
-        void *(*bzalloc)(void *, int, int)
-        void (*bzfree)(void *, void *)
-        void *opaque
+        void* state
+        void* (*bzalloc)(void*, int, int)
+        void (*bzfree)(void*, void*)
+        void* opaque
 
     int BZ2_bzCompressInit(
-        bz_stream *strm,
+        bz_stream* strm,
         int blockSize100k,
         int verbosity,
         int workFactor) nogil
 
-    int BZ2_bzCompress(bz_stream *strm, int action) nogil
-    int BZ2_bzCompressEnd(bz_stream *strm) nogil
-    int BZ2_bzDecompressInit(bz_stream *strm, int verbosity, int small) nogil
-    int BZ2_bzDecompress(bz_stream *strm) nogil
-    int BZ2_bzDecompressEnd(bz_stream *strm) nogil
+    int BZ2_bzCompress(bz_stream* strm, int action) nogil
+    int BZ2_bzCompressEnd(bz_stream* strm) nogil
+    int BZ2_bzDecompressInit(bz_stream* strm, int verbosity, int small) nogil
+    int BZ2_bzDecompress(bz_stream* strm) nogil
+    int BZ2_bzDecompressEnd(bz_stream* strm) nogil
     const char* BZ2_bzlibVersion() nogil
