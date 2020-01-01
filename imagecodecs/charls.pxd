@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # charls.pxd
 # cython: language_level = 3
 
@@ -156,106 +155,106 @@ cdef extern from 'charls/charls.h':
     charls_jpegls_decoder* charls_jpegls_decoder_create() nogil
 
     void charls_jpegls_decoder_destroy(
-        const charls_jpegls_decoder *decoder) nogil
+        const charls_jpegls_decoder* decoder) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_set_source_buffer(
-        charls_jpegls_decoder *decoder,
-        const void *source_buffer,
+        charls_jpegls_decoder* decoder,
+        const void* source_buffer,
         size_t source_size_bytes) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_read_spiff_header(
-        charls_jpegls_decoder *decoder,
-        charls_spiff_header *spiff_header,
-        int32_t *header_found) nogil
+        charls_jpegls_decoder* decoder,
+        charls_spiff_header* spiff_header,
+        int32_t* header_found) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_read_header(
-        charls_jpegls_decoder *decoder) nogil
+        charls_jpegls_decoder* decoder) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_get_frame_info(
-        const charls_jpegls_decoder *decoder,
-        charls_frame_info *frame_info) nogil
+        const charls_jpegls_decoder* decoder,
+        charls_frame_info* frame_info) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_get_near_lossless(
-        const charls_jpegls_decoder *decoder,
+        const charls_jpegls_decoder* decoder,
         int32_t component,
-        int32_t *near_lossless) nogil
+        int32_t* near_lossless) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_get_interleave_mode(
-        const charls_jpegls_decoder *decoder,
-        charls_interleave_mode *interleave_mode) nogil
+        const charls_jpegls_decoder* decoder,
+        charls_interleave_mode* interleave_mode) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_get_preset_coding_parameters(
-        const charls_jpegls_decoder *decoder,
+        const charls_jpegls_decoder* decoder,
         int32_t reserved,
-        charls_jpegls_pc_parameters *preset_coding_parameters) nogil
+        charls_jpegls_pc_parameters* preset_coding_parameters) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_get_destination_size(
-        const charls_jpegls_decoder *decoder,
-        size_t *destination_size_bytes) nogil
+        const charls_jpegls_decoder* decoder,
+        size_t* destination_size_bytes) nogil
 
     charls_jpegls_errc charls_jpegls_decoder_decode_to_buffer(
-        const charls_jpegls_decoder *decoder,
-        void *destination_buffer,
+        const charls_jpegls_decoder* decoder,
+        void* destination_buffer,
         size_t destination_size_bytes,
         uint32_t stride) nogil
 
     charls_jpegls_encoder* charls_jpegls_encoder_create() nogil
 
     void charls_jpegls_encoder_destroy(
-        const charls_jpegls_encoder *encoder) nogil
+        const charls_jpegls_encoder* encoder) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_frame_info(
-        charls_jpegls_encoder *encoder,
-        const charls_frame_info *frame_info) nogil
+        charls_jpegls_encoder* encoder,
+        const charls_frame_info* frame_info) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_near_lossless(
-        charls_jpegls_encoder *encoder,
+        charls_jpegls_encoder* encoder,
         int32_t near_lossless) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_interleave_mode(
-        charls_jpegls_encoder *encoder,
+        charls_jpegls_encoder* encoder,
         charls_interleave_mode interleave_mode) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_preset_coding_parameters(
-        charls_jpegls_encoder *encoder,
-        const charls_jpegls_pc_parameters *preset_coding_parameters) nogil
+        charls_jpegls_encoder* encoder,
+        const charls_jpegls_pc_parameters* preset_coding_parameters) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_color_transformation(
-        charls_jpegls_encoder *encoder,
+        charls_jpegls_encoder* encoder,
         charls_color_transformation color_transformation) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_get_estimated_destination_size(
-        const charls_jpegls_encoder *encoder,
-        size_t *size_in_bytes) nogil
+        const charls_jpegls_encoder* encoder,
+        size_t* size_in_bytes) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_destination_buffer(
-        charls_jpegls_encoder *encoder,
-        void *destination_buffer,
+        charls_jpegls_encoder* encoder,
+        void* destination_buffer,
         size_t destination_size) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_write_standard_spiff_header(
-        charls_jpegls_encoder *encoder,
+        charls_jpegls_encoder* encoder,
         charls_spiff_color_space color_space,
         charls_spiff_resolution_units resolution_units,
         uint32_t vertical_resolution,
         uint32_t horizontal_resolution) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_write_spiff_header(
-        charls_jpegls_encoder *encoder,
-        const charls_spiff_header *spiff_header) nogil
+        charls_jpegls_encoder* encoder,
+        const charls_spiff_header* spiff_header) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_write_spiff_entry(
-        charls_jpegls_encoder *encoder,
+        charls_jpegls_encoder* encoder,
         uint32_t entry_tag,
-        const void *entry_data,
+        const void* entry_data,
         size_t entry_data_size) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_encode_from_buffer(
-        charls_jpegls_encoder *encoder,
-        const void *source_buffer,
+        charls_jpegls_encoder* encoder,
+        const void* source_buffer,
         size_t source_size,
         uint32_t stride) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_get_bytes_written(
-        const charls_jpegls_encoder *encoder,
-        size_t *bytes_written) nogil
+        const charls_jpegls_encoder* encoder,
+        size_t* bytes_written) nogil
