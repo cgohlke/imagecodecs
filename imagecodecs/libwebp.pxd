@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # libwebp.pxd
 # cython: language_level = 3
 
@@ -30,40 +29,40 @@ cdef extern from 'webp/decode.h':
     int WebPGetDecoderVersion() nogil
 
     int WebPGetInfo(
-        const uint8_t *data,
+        const uint8_t* data,
         size_t data_size,
-        int *width,
-        int *height) nogil
+        int* width,
+        int* height) nogil
 
     VP8StatusCode WebPGetFeatures(
-        const uint8_t *data,
+        const uint8_t* data,
         size_t data_size,
-        WebPBitstreamFeatures *features) nogil
+        WebPBitstreamFeatures* features) nogil
 
     uint8_t* WebPDecodeRGBAInto(
-        const uint8_t *data,
+        const uint8_t* data,
         size_t data_size,
-        uint8_t *output_buffer,
+        uint8_t* output_buffer,
         size_t output_buffer_size,
         int output_stride) nogil
 
     uint8_t* WebPDecodeRGBInto(
-        const uint8_t *data,
+        const uint8_t* data,
         size_t data_size,
-        uint8_t *output_buffer,
+        uint8_t* output_buffer,
         size_t output_buffer_size,
         int output_stride) nogil
 
     uint8_t* WebPDecodeYUVInto(
-        const uint8_t *data,
+        const uint8_t* data,
         size_t data_size,
-        uint8_t *luma,
+        uint8_t* luma,
         size_t luma_size,
         int luma_stride,
-        uint8_t *u,
+        uint8_t* u,
         size_t u_size,
         int u_stride,
-        uint8_t *v,
+        uint8_t* v,
         size_t v_size,
         int v_stride) nogil
 
@@ -73,34 +72,34 @@ cdef extern from 'webp/encode.h':
     int WEBP_MAX_DIMENSION
 
     int WebPGetEncoderVersion() nogil
-    void WebPFree(void *ptr) nogil
+    void WebPFree(void* ptr) nogil
 
     size_t WebPEncodeRGB(
-        const uint8_t *rgb,
+        const uint8_t* rgb,
         int width,
         int height,
         int stride,
         float quality_factor,
-        uint8_t **output) nogil
+        uint8_t** output) nogil
 
     size_t WebPEncodeRGBA(
-        const uint8_t *rgba,
+        const uint8_t* rgba,
         int width,
         int height,
         int stride,
         float quality_factor,
-        uint8_t **output) nogil
+        uint8_t** output) nogil
 
     size_t WebPEncodeLosslessRGB(
-        const uint8_t *rgb,
+        const uint8_t* rgb,
         int width,
         int height,
         int stride,
-        uint8_t **output) nogil
+        uint8_t** output) nogil
 
     size_t WebPEncodeLosslessRGBA(
-        const uint8_t *rgba,
+        const uint8_t* rgba,
         int width,
         int height,
         int stride,
-        uint8_t **output) nogil
+        uint8_t** output) nogil
