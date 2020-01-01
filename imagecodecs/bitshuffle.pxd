@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # bitshuffle.pxd
 # cython: language_level = 3
 
@@ -20,29 +19,29 @@ cdef extern from 'bitshuffle.h':
     size_t bshuf_default_block_size(const size_t elem_size) nogil
 
     int64_t bshuf_compress_lz4(
-        const void *inp,
-        void *out,
+        const void* inp,
+        void* out,
         const size_t size,
         const size_t elem_size,
         size_t block_size) nogil
 
     int64_t bshuf_decompress_lz4(
-        const void *inp,
-        void *out,
+        const void* inp,
+        void* out,
         const size_t size,
         const size_t elem_size,
         size_t block_size) nogil
 
     int64_t bshuf_bitshuffle(
-        const void *inp,
-        void *out,
+        const void* inp,
+        void* out,
         const size_t size,
         const size_t elem_size,
         size_t block_size) nogil
 
     int64_t bshuf_bitunshuffle(
-        const void *inp,
-        void *out,
+        const void* inp,
+        void* out,
         const size_t size,
         const size_t elem_size,
         size_t block_size) nogil
