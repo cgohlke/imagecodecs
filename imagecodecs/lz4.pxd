@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # lz4.pxd
 # cython: language_level = 3
 
