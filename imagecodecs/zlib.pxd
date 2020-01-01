@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # zlib.pxd
 # cython: language_level = 3
 
@@ -7,7 +6,7 @@
 
 cdef extern from 'zlib.h':
 
-    char *ZLIB_VERSION
+    char* ZLIB_VERSION
     int ZLIB_VERNUM
     int ZLIB_VER_MAJOR
     int ZLIB_VER_MINOR
@@ -63,9 +62,9 @@ cdef extern from 'zlib.h':
     ctypedef unsigned long uLong
     ctypedef unsigned long uLongf
     ctypedef unsigned int uInt
-    ctypedef void *voidpf
-    ctypedef void *voidp
-    ctypedef const void *voidpc
+    ctypedef void* voidpf
+    ctypedef void* voidp
+    ctypedef const void* voidpc
     ctypedef size_t z_size_t
     ctypedef long z_off_t
     ctypedef long long z_off64_t
@@ -77,14 +76,14 @@ cdef extern from 'zlib.h':
         pass
 
     ctypedef struct z_stream:
-        const Bytef *next_in
+        const Bytef* next_in
         uInt avail_in
         uLong total_in
-        Bytef *next_out
+        Bytef* next_out
         uInt avail_out
         uLong total_out
-        const char *msg
-        internal_state *state
+        const char* msg
+        internal_state* state
         alloc_func zalloc
         free_func zfree
         voidpf opaque
@@ -92,24 +91,24 @@ cdef extern from 'zlib.h':
         uLong adler
         uLong reserved
 
-    ctypedef z_stream *z_streamp
+    ctypedef z_stream* z_streamp
 
     ctypedef struct gz_header:
         int text
         uLong time
         int xflags
         int os
-        Bytef *extra
+        Bytef* extra
         uInt extra_len
         uInt extra_max
-        Bytef *name
+        Bytef* name
         uInt name_max
-        Bytef *comment
+        Bytef* comment
         uInt comm_max
         int hcrc
         int done
 
-    ctypedef gz_header *gz_headerp
+    ctypedef gz_header* gz_headerp
 
     int deflate(z_streamp strm, int flush) nogil
     int deflateEnd(z_streamp strm) nogil
@@ -118,13 +117,13 @@ cdef extern from 'zlib.h':
 
     int deflateSetDictionary(
         z_streamp strm,
-        const Bytef *dictionary,
+        const Bytef* dictionary,
         uInt dictLength) nogil
 
     int deflateGetDictionary(
         z_streamp strm,
-        Bytef *dictionary,
-        uInt *dictLength) nogil
+        Bytef* dictionary,
+        uInt* dictLength) nogil
 
     int deflateCopy(z_streamp dest, z_streamp source) nogil
     int deflateReset(z_streamp strm) nogil
@@ -145,8 +144,8 @@ cdef extern from 'zlib.h':
 
     int deflatePending(
         z_streamp strm,
-        unsigned *pending,
-        int *bits) nogil
+        unsigned* pending,
+        int* bits) nogil
 
     int deflatePrime(
         z_streamp strm,
@@ -159,13 +158,13 @@ cdef extern from 'zlib.h':
 
     int inflateSetDictionary(
         z_streamp strm,
-        const Bytef *dictionary,
+        const Bytef* dictionary,
         uInt dictLength) nogil
 
     int inflateGetDictionary(
         z_streamp strm,
-        Bytef *dictionary,
-        uInt *dictLength) nogil
+        Bytef* dictionary,
+        uInt* dictLength) nogil
 
     int inflateSync(z_streamp strm) nogil
     int inflateCopy(z_streamp dest, z_streamp source) nogil
@@ -175,56 +174,56 @@ cdef extern from 'zlib.h':
     long inflateMark(z_streamp strm) nogil
     int inflateGetHeader(z_streamp strm, gz_headerp head) nogil
 
-    ctypedef unsigned(*in_func)(void *, const unsigned char **) nogil
-    ctypedef int(*out_func)(void *, unsigned char *, unsigned) nogil
+    ctypedef unsigned(*in_func)(void*, const unsigned char**) nogil
+    ctypedef int(*out_func)(void*, unsigned char*, unsigned) nogil
 
     int inflateBack(
         z_streamp strm,
         in_func inf,
-        void *in_desc,
+        void* in_desc,
         out_func out,
-        void *out_desc) nogil
+        void* out_desc) nogil
 
     int inflateBackEnd(z_streamp strm) nogil
     uLong zlibCompileFlags() nogil
 
     int compress(
-        Bytef *dest,
-        uLongf *destLen,
-        const Bytef *source,
+        Bytef* dest,
+        uLongf* destLen,
+        const Bytef* source,
         uLong sourceLen) nogil
 
     int compress2(
-        Bytef *dest,
-        uLongf *destLen,
-        const Bytef *source,
+        Bytef* dest,
+        uLongf* destLen,
+        const Bytef* source,
         uLong sourceLen,
         int level) nogil
 
     uLong compressBound(uLong sourceLen) nogil
 
     int uncompress(
-        Bytef *dest,
-        uLongf *destLen,
-        const Bytef *source,
+        Bytef* dest,
+        uLongf* destLen,
+        const Bytef* source,
         uLong sourceLen) nogil
 
     int uncompress2(
-        Bytef *dest,
-        uLongf *destLen,
-        const Bytef *source,
-        uLong *sourceLen) nogil
+        Bytef* dest,
+        uLongf* destLen,
+        const Bytef* source,
+        uLong* sourceLen) nogil
 
     # GZIP
 
     ctypedef struct gzFile_s:
         unsigned have
-        unsigned char *next
+        unsigned char* next
         z_off64_t pos
 
-    ctypedef gzFile_s *gzFile
+    ctypedef gzFile_s* gzFile
 
-    gzFile gzdopen(int fd, const char *mode) nogil
+    gzFile gzdopen(int fd, const char* mode) nogil
     int gzbuffer(gzFile file, unsigned size) nogil
     int gzsetparams(gzFile file, int level, int strategy) nogil
     int gzread(gzFile file, voidp buf, unsigned len) nogil
@@ -243,8 +242,8 @@ cdef extern from 'zlib.h':
         z_size_t nitems,
         gzFile file) nogil
 
-    int gzputs(gzFile file, const char *s) nogil
-    char* gzgets(gzFile file, char *buf, int len) nogil
+    int gzputs(gzFile file, const char* s) nogil
+    char* gzgets(gzFile file, char* buf, int len) nogil
     int gzputc(gzFile file, int c) nogil
     int gzgetc(gzFile file) nogil
     int gzungetc(int c, gzFile file) nogil
@@ -255,12 +254,12 @@ cdef extern from 'zlib.h':
     int gzclose(gzFile file) nogil
     int gzclose_r(gzFile file) nogil
     int gzclose_w(gzFile file) nogil
-    const char* gzerror(gzFile file, int *errnum) nogil
+    const char* gzerror(gzFile file, int* errnum) nogil
     void gzclearerr(gzFile file) nogil
 
     # CRC
-    uLong adler32(uLong adler, const Bytef *buf, uInt len) nogil
-    uLong adler32_z(uLong adler, const Bytef *buf, z_size_t len) nogil
+    uLong adler32(uLong adler, const Bytef* buf, uInt len) nogil
+    uLong adler32_z(uLong adler, const Bytef* buf, z_size_t len) nogil
     uLong adler32_combine(uLong adler1, uLong adler2, z_off_t len2) nogil
-    uLong crc32 (uLong crc, const Bytef *buf, uInt len) nogil
-    uLong crc32_z(uLong adler, const Bytef *buf, z_size_t len) nogil
+    uLong crc32 (uLong crc, const Bytef* buf, uInt len) nogil
+    uLong crc32_z(uLong adler, const Bytef* buf, z_size_t len) nogil
