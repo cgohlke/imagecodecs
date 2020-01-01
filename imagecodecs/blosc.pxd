@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # blosc.pxd
 # cython: language_level = 3
 
@@ -19,23 +18,23 @@ cdef extern from 'blosc.h':
         int doshuffle,
         size_t typesize,
         size_t nbytes,
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         size_t destsize,
-        const char *compressor,
+        const char* compressor,
         size_t blocksize,
         int numinternalthreads) nogil
 
     int blosc_decompress_ctx(
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         size_t destsize,
         int numinternalthreads) nogil
 
     void blosc_cbuffer_sizes(
-        const void *cbuffer,
-        size_t *nbytes,
-        size_t *cbytes,
-        size_t *blocksize) nogil
+        const void* cbuffer,
+        size_t* nbytes,
+        size_t* cbytes,
+        size_t* blocksize) nogil
 
     int blosc_get_blocksize() nogil
