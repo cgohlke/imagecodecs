@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 # libjpeg_turbo.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 2.0.3` library.
+# Cython declarations for the `libjpeg-turbo 2.0.4` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 cdef extern from 'jpeglib.h':
@@ -16,8 +15,8 @@ cdef extern from 'jpeglib.h':
     ctypedef char JOCTET
     ctypedef unsigned int JDIMENSION
     ctypedef unsigned short JSAMPLE
-    ctypedef JSAMPLE *JSAMPROW
-    ctypedef JSAMPROW *JSAMPARRAY
+    ctypedef JSAMPLE* JSAMPROW
+    ctypedef JSAMPROW* JSAMPARRAY
 
     ctypedef enum J_COLOR_SPACE:
         JCS_UNKNOWN
@@ -54,14 +53,17 @@ cdef extern from 'jpeglib.h':
     struct jpeg_destination_mgr:
         pass
 
+    int JMSG_LENGTH_MAX
+
     struct jpeg_error_mgr:
         int msg_code
-        const char **jpeg_message_table
-        noreturn_t error_exit(jpeg_common_struct*)
-        void output_message(jpeg_common_struct*)
+        const char** jpeg_message_table
+        noreturn_t error_exit(jpeg_common_struct*) nogil
+        void output_message(jpeg_common_struct*) nogil
+        void format_message(jpeg_common_struct* cinfo, char* buffer) nogil
 
     struct jpeg_common_struct:
-        jpeg_error_mgr *err
+        jpeg_error_mgr* err
 
     struct jpeg_component_info:
         int component_id
@@ -70,9 +72,9 @@ cdef extern from 'jpeglib.h':
         int v_samp_factor
 
     struct jpeg_decompress_struct:
-        jpeg_error_mgr *err
-        void *client_data
-        jpeg_source_mgr *src
+        jpeg_error_mgr* err
+        void* client_data
+        jpeg_source_mgr* src
         JDIMENSION image_width
         JDIMENSION image_height
         JDIMENSION output_width
@@ -100,9 +102,9 @@ cdef extern from 'jpeglib.h':
         double output_gamma
 
     struct jpeg_compress_struct:
-        jpeg_error_mgr *err
-        void *client_data
-        jpeg_destination_mgr *dest
+        jpeg_error_mgr* err
+        void* client_data
+        jpeg_destination_mgr* dest
         JDIMENSION image_width
         JDIMENSION image_height
         int input_components
@@ -115,7 +117,7 @@ cdef extern from 'jpeglib.h':
         boolean optimize_coding
         JDIMENSION next_scanline
         boolean progressive_mode
-        jpeg_component_info *comp_info
+        jpeg_component_info* comp_info
         # JPEG_LIB_VERSION >= 70
         # unsigned int scale_num
         # unsigned int scale_denom
@@ -141,7 +143,7 @@ cdef extern from 'jpeglib.h':
         unsigned long) nogil
 
     void jpeg_mem_dest(
-        jpeg_compress_struct *,
+        jpeg_compress_struct*,
         unsigned char**,
         unsigned long*) nogil
 
