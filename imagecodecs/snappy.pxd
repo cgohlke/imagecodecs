@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 # snappy.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Snappy 1.1.7` library.
+# Cython declarations for the `Snappy 1.1.8` library.
 # https://github.com/google/snappy
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -18,7 +17,7 @@ cdef extern from 'snappy-c.h':
         const char* input,
         size_t input_length,
         char* compressed,
-        size_t *compressed_length) nogil
+        size_t* compressed_length) nogil
 
     snappy_status snappy_uncompress(
         const char* compressed,
@@ -31,7 +30,7 @@ cdef extern from 'snappy-c.h':
     snappy_status snappy_uncompressed_length(
         const char* compressed,
         size_t compressed_length,
-        size_t *result) nogil
+        size_t* result) nogil
 
     snappy_status snappy_validate_compressed_buffer(
         const char* compressed,
