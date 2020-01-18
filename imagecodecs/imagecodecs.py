@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # imagecodecs.py
 
-# Copyright (c) 2008-2019, Christoph Gohlke
+# Copyright (c) 2008-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -44,10 +44,12 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2019.12.31
 
 Revisions
 ---------
+2019.12.31
+    Fix Pillow version.
 2019.12.16
     Rename jxr and j2k codecs to jpegxr and jpeg2k.
     Add zopfli codec via zopflipy package.
@@ -100,7 +102,7 @@ Revisions
 
 from __future__ import division, print_function
 
-__version__ = '2019.12.16.py'
+__version__ = '2019.12.31.py'
 
 import sys
 import struct
@@ -224,7 +226,7 @@ def version(astype=None):
         ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
         ('zfpy', zfp.__version__ if zfp else 'n/a'),
         ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
-        ('pillow', PIL.PILLOW_VERSION if PIL else 'n/a'),
+        ('pillow', PIL.__version__ if PIL else 'n/a'),
     )
     if astype is str or astype is None:
         return ', '.join('%s-%s' % (k, v) for k, v in versions)
