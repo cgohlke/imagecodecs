@@ -5,94 +5,476 @@
 # Cython declarations for the `libpng 1.6.37` library.
 # https://github.com/glennrp/libpng
 
+from libc.stdio cimport FILE
+from libc.setjmp cimport jmp_buf
+
 cdef extern from 'png.h':
 
     char* PNG_LIBPNG_VER_STRING
+    char* PNG_HEADER_VERSION_STRING
 
+    int PNG_LIBPNG_VER_SONUM
+    int PNG_LIBPNG_VER_DLLNUM
+    int PNG_LIBPNG_VER_MAJOR
+    int PNG_LIBPNG_VER_MINOR
+    int PNG_LIBPNG_VER_RELEASE
+    int PNG_LIBPNG_VER_BUILD
+    int PNG_LIBPNG_BUILD_ALPHA
+    int PNG_LIBPNG_BUILD_BETA
+    int PNG_LIBPNG_BUILD_RC
+    int PNG_LIBPNG_BUILD_STABLE
+    int PNG_LIBPNG_BUILD_RELEASE_STATUS_MASK
+    int PNG_LIBPNG_BUILD_PATCH
+    int PNG_LIBPNG_BUILD_PRIVATE
+    int PNG_LIBPNG_BUILD_SPECIAL
+    int PNG_LIBPNG_BUILD_BASE_TYPE
+    int PNG_LIBPNG_VER
+
+    int PNG_APNG_SUPPORTED
+    int PNG_READ_APNG_SUPPORTED
+    int PNG_WRITE_APNG_SUPPORTED
+    int PNG_DISPOSE_OP_NONE
+    int PNG_DISPOSE_OP_BACKGROUND
+    int PNG_DISPOSE_OP_PREVIOUS
+    int PNG_BLEND_OP_SOURCE
+    int PNG_BLEND_OP_OVER
+    int PNG_TEXT_COMPRESSION_NONE_WR
+    int PNG_TEXT_COMPRESSION_zTXt_WR
+    int PNG_TEXT_COMPRESSION_NONE
+    int PNG_TEXT_COMPRESSION_zTXt
+    int PNG_ITXT_COMPRESSION_NONE
+    int PNG_ITXT_COMPRESSION_zTXt
+    int PNG_TEXT_COMPRESSION_LAST
+    int PNG_HAVE_IHDR
+    int PNG_HAVE_PLTE
+    int PNG_AFTER_IDAT
+    int PNG_UINT_31_MAX
+    int PNG_UINT_32_MAX
+    int PNG_SIZE_MAX
+    int PNG_FP_1
+    int PNG_FP_HALF
+    int PNG_FP_MAX
+    int PNG_FP_MIN
+    int PNG_COLOR_MASK_PALETTE
+    int PNG_COLOR_MASK_COLOR
+    int PNG_COLOR_MASK_ALPHA
     int PNG_COLOR_TYPE_GRAY
     int PNG_COLOR_TYPE_PALETTE
     int PNG_COLOR_TYPE_RGB
     int PNG_COLOR_TYPE_RGB_ALPHA
     int PNG_COLOR_TYPE_GRAY_ALPHA
-    int PNG_INTERLACE_NONE
+    int PNG_COLOR_TYPE_RGBA
+    int PNG_COLOR_TYPE_GA
+    int PNG_COMPRESSION_TYPE_BASE
     int PNG_COMPRESSION_TYPE_DEFAULT
+    int PNG_FILTER_TYPE_BASE
+    int PNG_INTRAPIXEL_DIFFERENCING
     int PNG_FILTER_TYPE_DEFAULT
+    int PNG_INTERLACE_NONE
+    int PNG_INTERLACE_ADAM7
+    int PNG_INTERLACE_LAST
+    int PNG_OFFSET_PIXEL
+    int PNG_OFFSET_MICROMETER
+    int PNG_OFFSET_LAST
+    int PNG_EQUATION_LINEAR
+    int PNG_EQUATION_BASE_E
+    int PNG_EQUATION_ARBITRARY
+    int PNG_EQUATION_HYPERBOLIC
+    int PNG_EQUATION_LAST
+    int PNG_SCALE_UNKNOWN
+    int PNG_SCALE_METER
+    int PNG_SCALE_RADIAN
+    int PNG_SCALE_LAST
+    int PNG_RESOLUTION_UNKNOWN
+    int PNG_RESOLUTION_METER
+    int PNG_RESOLUTION_LAST
+    int PNG_sRGB_INTENT_PERCEPTUAL
+    int PNG_sRGB_INTENT_RELATIVE
+    int PNG_sRGB_INTENT_SATURATION
+    int PNG_sRGB_INTENT_ABSOLUTE
+    int PNG_sRGB_INTENT_LAST
+    int PNG_KEYWORD_MAX_LENGTH
+    int PNG_MAX_PALETTE_LENGTH
+    int PNG_INFO_gAMA
+    int PNG_INFO_sBIT
+    int PNG_INFO_cHRM
+    int PNG_INFO_PLTE
+    int PNG_INFO_tRNS
+    int PNG_INFO_bKGD
+    int PNG_INFO_hIST
+    int PNG_INFO_pHYs
+    int PNG_INFO_oFFs
+    int PNG_INFO_tIME
+    int PNG_INFO_pCAL
+    int PNG_INFO_sRGB
+    int PNG_INFO_iCCP
+    int PNG_INFO_sPLT
+    int PNG_INFO_sCAL
+    int PNG_INFO_IDAT
+    int PNG_INFO_eXIf
+    int PNG_INFO_acTL
+    int PNG_INFO_fcTL
+    int PNG_TRANSFORM_IDENTITY
+    int PNG_TRANSFORM_STRIP_16
+    int PNG_TRANSFORM_STRIP_ALPHA
+    int PNG_TRANSFORM_PACKING
+    int PNG_TRANSFORM_PACKSWAP
+    int PNG_TRANSFORM_EXPAND
+    int PNG_TRANSFORM_INVERT_MONO
+    int PNG_TRANSFORM_SHIFT
+    int PNG_TRANSFORM_BGR
+    int PNG_TRANSFORM_SWAP_ALPHA
+    int PNG_TRANSFORM_SWAP_ENDIAN
+    int PNG_TRANSFORM_INVERT_ALPHA
+    int PNG_TRANSFORM_STRIP_FILLER
+    int PNG_TRANSFORM_STRIP_FILLER_BEFORE
+    int PNG_TRANSFORM_STRIP_FILLER_AFTER
+    int PNG_TRANSFORM_GRAY_TO_RGB
+    int PNG_TRANSFORM_EXPAND_16
+    int PNG_TRANSFORM_SCALE_16
+    int PNG_FLAG_MNG_EMPTY_PLTE
+    int PNG_FLAG_MNG_FILTER_64
+    int PNG_ALL_MNG_FEATURES
+    int PNG_ERROR_ACTION_NONE
+    int PNG_ERROR_ACTION_WARN
+    int PNG_ERROR_ACTION_ERROR
+    int PNG_RGB_TO_GRAY_DEFAULT
+    int PNG_ALPHA_PNG
+    int PNG_ALPHA_STANDARD
+    int PNG_ALPHA_ASSOCIATED
+    int PNG_ALPHA_PREMULTIPLIED
+    int PNG_ALPHA_OPTIMIZED
+    int PNG_ALPHA_BROKEN
+    int PNG_DEFAULT_sRGB
+    int PNG_GAMMA_MAC_18
+    int PNG_GAMMA_sRGB
+    int PNG_GAMMA_LINEAR
+    int PNG_READ_16_TO_8_SUPPORTED
+    int PNG_GAMMA_THRESHOLD
+    int PNG_CRC_DEFAULT
+    int PNG_CRC_ERROR_QUIT
+    int PNG_CRC_WARN_DISCARD
+    int PNG_CRC_WARN_USE
+    int PNG_CRC_QUIET_USE
+    int PNG_CRC_NO_CHANGE
+    int PNG_NO_FILTERS
+    int PNG_FILTER_NONE
+    int PNG_FILTER_SUB
+    int PNG_FILTER_UP
+    int PNG_FILTER_AVG
+    int PNG_FILTER_PAETH
+    int PNG_FAST_FILTERS
+    int PNG_ALL_FILTERS
+    int PNG_FILTER_VALUE_NONE
+    int PNG_FILTER_VALUE_SUB
+    int PNG_FILTER_VALUE_UP
+    int PNG_FILTER_VALUE_AVG
+    int PNG_FILTER_VALUE_PAETH
+    int PNG_FILTER_VALUE_LAST
+    int PNG_FILTER_HEURISTIC_DEFAULT
+    int PNG_FILTER_HEURISTIC_UNWEIGHTED
+    int PNG_FILTER_HEURISTIC_WEIGHTED
+    int PNG_FILTER_HEURISTIC_LAST
+    int PNG_DESTROY_WILL_FREE_DATA
+    int PNG_SET_WILL_FREE_DATA
+    int PNG_USER_WILL_FREE_DATA
+    int PNG_FREE_HIST
+    int PNG_FREE_ICCP
+    int PNG_FREE_SPLT
+    int PNG_FREE_ROWS
+    int PNG_FREE_PCAL
+    int PNG_FREE_SCAL
+    int PNG_FREE_PLTE
+    int PNG_FREE_TRNS
+    int PNG_FREE_TEXT
+    int PNG_FREE_EXIF
+    int PNG_FREE_ALL
+    int PNG_FREE_MUL
+    int PNG_HANDLE_CHUNK_AS_DEFAULT
+    int PNG_HANDLE_CHUNK_NEVER
+    int PNG_HANDLE_CHUNK_IF_SAFE
+    int PNG_HANDLE_CHUNK_ALWAYS
+    int PNG_HANDLE_CHUNK_LAST
+    int PNG_INTERLACE_ADAM7_PASSES
+    int PNG_IMAGE_VERSION
+    int PNG_FORMAT_FLAG_ALPHA
+    int PNG_FORMAT_FLAG_COLOR
+    int PNG_FORMAT_FLAG_LINEAR
+    int PNG_FORMAT_FLAG_COLORMAP
+    int PNG_FORMAT_FLAG_ASSOCIATED_ALPHA
+    int PNG_FORMAT_GRAY
+    int PNG_FORMAT_GA
+    int PNG_FORMAT_AG
+    int PNG_FORMAT_RGB
+    int PNG_FORMAT_BGR
+    int PNG_FORMAT_RGBA
+    int PNG_FORMAT_ARGB
+    int PNG_FORMAT_BGRA
+    int PNG_FORMAT_ABGR
+    int PNG_FORMAT_LINEAR_Y
+    int PNG_FORMAT_LINEAR_Y_ALPHA
+    int PNG_FORMAT_LINEAR_RGB
+    int PNG_FORMAT_LINEAR_RGB_ALPHA
+    int PNG_FORMAT_RGB_COLORMAP
+    int PNG_FORMAT_BGR_COLORMAP
+    int PNG_FORMAT_RGBA_COLORMAP
+    int PNG_FORMAT_ARGB_COLORMAP
+    int PNG_FORMAT_BGRA_COLORMAP
+    int PNG_FORMAT_ABGR_COLORMAP
+    int PNG_IMAGE_FLAG_COLORSPACE_NOT_sRGB
+    int PNG_IMAGE_FLAG_FAST
+    int PNG_IMAGE_FLAG_16BIT_sRGB
+    int PNG_MAXIMUM_INFLATE_WINDOW
+    int PNG_SKIP_sRGB_CHECK_PROFILE
+    int PNG_IGNORE_ADLER32
+    int PNG_OPTION_NEXT
+    int PNG_OPTION_UNSET
+    int PNG_OPTION_INVALID
+    int PNG_OPTION_OFF
+    int PNG_OPTION_ON
     int PNG_ZBUF_SIZE
 
-    ctypedef struct png_struct:
+    ctypedef struct png_struct_def:
         pass
 
-    ctypedef struct png_info:
+    ctypedef struct png_info_def:
         pass
 
-    ctypedef size_t png_size_t
+    ctypedef struct png_control:
+        pass
+
+    ctypedef unsigned char png_byte
+    ctypedef short png_int_16
+    ctypedef unsigned short png_uint_16
+    ctypedef int png_int_32
     ctypedef unsigned int png_uint_32
-    ctypedef unsigned char *png_bytep
-    ctypedef unsigned char *png_const_bytep
-    ctypedef unsigned char **png_bytepp
-    ctypedef char *png_charp
-    ctypedef char *png_const_charp
-    ctypedef void *png_voidp
-    ctypedef png_struct *png_structp
-    ctypedef png_struct *png_structrp
-    ctypedef png_struct *png_const_structp
-    ctypedef png_struct *png_const_structrp
-    ctypedef png_struct **png_structpp
-    ctypedef png_info *png_infop
-    ctypedef png_info *png_inforp
-    ctypedef png_info *png_const_infop
-    ctypedef png_info *png_const_inforp
-    ctypedef png_info **png_infopp
-    ctypedef void(*png_error_ptr)(png_structp, png_const_charp)
-    ctypedef void(*png_rw_ptr)(png_structp, png_bytep, size_t)
-    ctypedef void(*png_flush_ptr)(png_structp)
-    ctypedef void(*png_read_status_ptr)(png_structp, png_uint_32, int)
-    ctypedef void(*png_write_status_ptr)(png_structp, png_uint_32, int)
+    ctypedef size_t png_size_t
+    ctypedef ptrdiff_t png_ptrdiff_t
+    ctypedef size_t png_alloc_size_t
+    ctypedef png_int_32 png_fixed_point
+    ctypedef void* png_voidp
+    ctypedef void* png_const_voidp
+    ctypedef png_byte* png_bytep
+    ctypedef png_byte* png_const_bytep
+    ctypedef png_uint_32* png_uint_32p
+    ctypedef png_uint_32* png_const_uint_32p
+    ctypedef png_int_32* png_int_32p
+    ctypedef png_int_32* png_const_int_32p
+    ctypedef png_uint_16* png_uint_16p
+    ctypedef png_uint_16* png_const_uint_16p
+    ctypedef png_int_16* png_int_16p
+    ctypedef png_int_16* png_const_int_16p
+    ctypedef char* png_charp
+    ctypedef char* png_const_charp
+    ctypedef png_fixed_point* png_fixed_point_p
+    ctypedef png_fixed_point* png_const_fixed_point_p
+    ctypedef size_t* png_size_tp
+    ctypedef size_t* png_const_size_tp
+    ctypedef FILE* png_FILE_p
+    ctypedef double* png_doublep
+    ctypedef double* png_const_doublep
+    ctypedef png_byte** png_bytepp
+    ctypedef png_uint_32** png_uint_32pp
+    ctypedef png_int_32** png_int_32pp
+    ctypedef png_uint_16** png_uint_16pp
+    ctypedef png_int_16** png_int_16pp
+    ctypedef char** png_const_charpp
+    ctypedef char** png_charpp
+    ctypedef png_fixed_point** png_fixed_point_pp
+    ctypedef double** png_doublepp
+    ctypedef char*** png_charppp
+    ctypedef char* png_libpng_version_1_6_37
+    ctypedef png_struct_def png_struct
+    ctypedef png_struct* png_const_structp
+    ctypedef png_struct* png_structp
+    ctypedef png_struct** png_structpp
+    ctypedef png_info_def png_info
+    ctypedef png_info* png_infop
+    ctypedef png_info* png_const_infop
+    ctypedef png_info** png_infopp
+    ctypedef png_struct* png_structrp
+    ctypedef png_struct* png_const_structrp
+    ctypedef png_info* png_inforp
+    ctypedef png_info* png_const_inforp
+
+    cdef struct png_color_struct:
+        png_byte red
+        png_byte green
+        png_byte blue
+
+    ctypedef png_color_struct png_color
+    ctypedef png_color* png_colorp
+    ctypedef png_color* png_const_colorp
+    ctypedef png_color** png_colorpp
+
+    cdef struct png_color_16_struct:
+        png_byte index
+        png_uint_16 red
+        png_uint_16 green
+        png_uint_16 blue
+        png_uint_16 gray
+
+    ctypedef png_color_16_struct png_color_16
+    ctypedef png_color_16* png_color_16p
+    ctypedef png_color_16* png_const_color_16p
+    ctypedef png_color_16** png_color_16pp
+
+    cdef struct png_color_8_struct:
+        png_byte red
+        png_byte green
+        png_byte blue
+        png_byte gray
+        png_byte alpha
+
+    ctypedef png_color_8_struct png_color_8
+    ctypedef png_color_8* png_color_8p
+    ctypedef png_color_8* png_const_color_8p
+    ctypedef png_color_8** png_color_8pp
+
+    cdef struct png_sPLT_entry_struct:
+        png_uint_16 red
+        png_uint_16 green
+        png_uint_16 blue
+        png_uint_16 alpha
+        png_uint_16 frequency
+
+    ctypedef png_sPLT_entry_struct png_sPLT_entry
+    ctypedef png_sPLT_entry* png_sPLT_entryp
+    ctypedef png_sPLT_entry* png_const_sPLT_entryp
+    ctypedef png_sPLT_entry** png_sPLT_entrypp
+
+    cdef struct png_sPLT_struct:
+        png_charp name
+        png_byte depth
+        png_sPLT_entryp entries
+        png_int_32 nentries
+
+    ctypedef png_sPLT_struct png_sPLT_t
+    ctypedef png_sPLT_t* png_sPLT_tp
+    ctypedef png_sPLT_t* png_const_sPLT_tp
+    ctypedef png_sPLT_t** png_sPLT_tpp
+
+    cdef struct png_text_struct:
+        int compression
+        png_charp key
+        png_charp text
+        size_t text_length
+        size_t itxt_length
+        png_charp lang
+        png_charp lang_key
+
+    ctypedef png_text_struct png_text
+    ctypedef png_text* png_textp
+    ctypedef png_text* png_const_textp
+    ctypedef png_text** png_textpp
+
+    cdef struct png_time_struct:
+        png_uint_16 year
+        png_byte month
+        png_byte day
+        png_byte hour
+        png_byte minute
+        png_byte second
+
+    ctypedef png_time_struct png_time
+    ctypedef png_time* png_timep
+    ctypedef png_time* png_const_timep
+    ctypedef png_time** png_timepp
+
+    cdef struct png_unknown_chunk_t:
+        png_byte name[5]
+        png_byte* data
+        size_t size
+        png_byte location
+
+    ctypedef png_unknown_chunk_t png_unknown_chunk
+    ctypedef png_unknown_chunk* png_unknown_chunkp
+    ctypedef png_unknown_chunk* png_const_unknown_chunkp
+    ctypedef png_unknown_chunk** png_unknown_chunkpp
+
+    cdef struct png_row_info_struct:
+        png_uint_32 width
+        size_t rowbytes
+        png_byte color_type
+        png_byte bit_depth
+        png_byte channels
+        png_byte pixel_depth
+
+    ctypedef png_row_info_struct png_row_info
+    ctypedef png_row_info* png_row_infop
+    ctypedef png_row_info** png_row_infopp
+
+    ctypedef void (*png_error_ptr)(
+        png_structp,
+        png_const_charp) nogil
+
+    ctypedef void (*png_rw_ptr)(
+        png_structp,
+        png_bytep,
+        size_t) nogil
+
+    ctypedef void (*png_flush_ptr)(
+        png_structp) nogil
+
+    ctypedef void (*png_read_status_ptr)(
+        png_structp,
+        png_uint_32,
+        int) nogil
+
+    ctypedef void (*png_write_status_ptr)(
+        png_structp,
+        png_uint_32,
+        int) nogil
+
+    ctypedef void (*png_progressive_info_ptr)(
+        png_structp,
+        png_infop) nogil
+
+    ctypedef void (*png_progressive_end_ptr)(
+        png_structp,
+        png_infop) nogil
+
+    ctypedef void (*png_progressive_frame_ptr)(
+        png_structp,
+        png_uint_32) nogil
+
+    ctypedef void (*png_progressive_row_ptr)(
+        png_structp,
+        png_bytep,
+        png_uint_32,
+        int) nogil
+
+    ctypedef void (*png_user_transform_ptr)(
+        png_structp,
+        png_row_infop,
+        png_bytep) nogil
+
+    ctypedef int (*png_user_chunk_ptr)(
+        png_structp,
+        png_unknown_chunkp) nogil
+
+    ctypedef void (*png_longjmp_ptr)(
+        jmp_buf,
+        int) nogil
+
+    ctypedef png_voidp (*png_malloc_ptr)(
+        png_structp,
+        png_alloc_size_t) nogil
+
+    ctypedef void (*png_free_ptr)(
+        png_structp,
+        png_voidp) nogil
+
+    png_uint_32 png_access_version_number() nogil
+
+    void png_set_sig_bytes(
+        png_structrp png_ptr,
+        int num_bytes) nogil
 
     int png_sig_cmp(
         png_const_bytep sig,
         size_t start,
         size_t num_to_check) nogil
-
-    void png_set_sig_bytes(png_structrp png_ptr, int num_bytes) nogil
-
-    png_uint_32 png_get_IHDR(
-        png_const_structrp png_ptr,
-        png_const_inforp info_ptr,
-        png_uint_32 *width,
-        png_uint_32 *height,
-        int *bit_depth,
-        int *color_type,
-        int *interlace_method,
-        int *compression_method,
-        int *filter_method) nogil
-
-    void png_set_IHDR(
-        png_const_structrp png_ptr,
-        png_inforp info_ptr,
-        png_uint_32 width,
-        png_uint_32 height,
-        int bit_depth,
-        int color_type,
-        int interlace_method,
-        int compression_method,
-        int filter_method) nogil
-
-    void png_read_row(
-        png_structrp png_ptr,
-        png_bytep row,
-        png_bytep display_row) nogil
-
-    void png_write_row(png_structrp png_ptr, png_const_bytep row) nogil
-    void png_read_image(png_structrp png_ptr, png_bytepp image) nogil
-    void png_write_image(png_structrp png_ptr, png_bytepp image) nogil
-    png_infop png_create_info_struct(const png_const_structrp png_ptr) nogil
-
-    png_structp png_create_write_struct(
-        png_const_charp user_png_ver,
-        png_voidp error_ptr,
-        png_error_ptr error_fn,
-        png_error_ptr warn_fn) nogil
 
     png_structp png_create_read_struct(
         png_const_charp user_png_ver,
@@ -100,14 +482,371 @@ cdef extern from 'png.h':
         png_error_ptr error_fn,
         png_error_ptr warn_fn) nogil
 
-    void png_destroy_write_struct(
-        png_structpp png_ptr_ptr,
+    png_structp png_create_write_struct(
+        png_const_charp user_png_ver,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warn_fn) nogil
+
+    size_t png_get_compression_buffer_size(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_compression_buffer_size(
+        png_structrp png_ptr,
+        size_t size) nogil
+
+    jmp_buf* png_set_longjmp_fn(
+        png_structrp png_ptr,
+        png_longjmp_ptr longjmp_fn,
+        size_t jmp_buf_size) nogil
+
+    void png_longjmp(
+        png_const_structrp png_ptr,
+        int val) nogil
+
+    int png_reset_zstream(
+        png_structrp png_ptr) nogil
+
+    png_structp png_create_read_struct_2(
+        png_const_charp user_png_ver,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warn_fn,
+        png_voidp mem_ptr,
+        png_malloc_ptr malloc_fn,
+        png_free_ptr free_fn) nogil
+
+    png_structp png_create_write_struct_2(
+        png_const_charp user_png_ver,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warn_fn,
+        png_voidp mem_ptr,
+        png_malloc_ptr malloc_fn,
+        png_free_ptr free_fn) nogil
+
+    void png_write_sig(
+        png_structrp png_ptr) nogil
+
+    void png_write_chunk(
+        png_structrp png_ptr,
+        png_const_bytep chunk_name,
+        png_const_bytep data,
+        size_t length) nogil
+
+    void png_write_chunk_start(
+        png_structrp png_ptr,
+        png_const_bytep chunk_name,
+        png_uint_32 length) nogil
+
+    void png_write_chunk_data(
+        png_structrp png_ptr,
+        png_const_bytep data,
+        size_t length) nogil
+
+    void png_write_chunk_end(
+        png_structrp png_ptr) nogil
+
+    png_infop png_create_info_struct(
+        png_const_structrp png_ptr) nogil
+
+    void png_info_init_3(
+        png_infopp info_ptr,
+        size_t png_info_struct_size) nogil
+
+    void png_write_info_before_PLTE(
+        png_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    void png_write_info(
+        png_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    void png_read_info(
+        png_structrp png_ptr,
+        png_inforp info_ptr) nogil
+
+    png_const_charp png_convert_to_rfc1123(
+        png_structrp png_ptr,
+        png_const_timep ptime) nogil
+
+    int png_convert_to_rfc1123_buffer(
+        char out[29],
+        png_const_timep ptime) nogil
+
+    # void png_convert_from_struct_tm(
+    #     png_timep ptime,
+    #     tm* ttime) nogil
+
+    # void png_convert_from_time_t(
+    #     png_timep ptime,
+    #     time_t ttime) nogil
+
+    void png_set_expand(
+        png_structrp png_ptr) nogil
+
+    void png_set_expand_gray_1_2_4_to_8(
+        png_structrp png_ptr) nogil
+
+    void png_set_palette_to_rgb(
+        png_structrp png_ptr) nogil
+
+    void png_set_tRNS_to_alpha(
+        png_structrp png_ptr) nogil
+
+    void png_set_expand_16(
+        png_structrp png_ptr) nogil
+
+    void png_set_bgr(
+        png_structrp png_ptr) nogil
+
+    void png_set_gray_to_rgb(
+        png_structrp png_ptr) nogil
+
+    void png_set_rgb_to_gray(
+        png_structrp png_ptr,
+        int error_action,
+        double red,
+        double green) nogil
+
+    void png_set_rgb_to_gray_fixed(
+        png_structrp png_ptr,
+        int error_action,
+        png_fixed_point red,
+        png_fixed_point green) nogil
+
+    png_byte png_get_rgb_to_gray_status(
+        png_const_structrp png_ptr) nogil
+
+    void png_build_grayscale_palette(
+        int bit_depth,
+        png_colorp palette) nogil
+
+    void png_set_alpha_mode(
+        png_structrp png_ptr,
+        int mode,
+        double output_gamma) nogil
+
+    void png_set_alpha_mode_fixed(
+        png_structrp png_ptr,
+        int mode,
+        png_fixed_point output_gamma) nogil
+
+    void png_set_strip_alpha(
+        png_structrp png_ptr) nogil
+
+    void png_set_swap_alpha(
+        png_structrp png_ptr) nogil
+
+    void png_set_invert_alpha(
+        png_structrp png_ptr) nogil
+
+    void png_set_filler(
+        png_structrp png_ptr,
+        png_uint_32 filler,
+        int flags) nogil
+
+    void png_set_add_alpha(
+        png_structrp png_ptr,
+        png_uint_32 filler,
+        int flags) nogil
+
+    void png_set_swap(
+        png_structrp png_ptr) nogil
+
+    void png_set_packing(
+        png_structrp png_ptr) nogil
+
+    void png_set_packswap(
+        png_structrp png_ptr) nogil
+
+    void png_set_shift(
+        png_structrp png_ptr,
+        png_const_color_8p true_bits) nogil
+
+    int png_set_interlace_handling(
+        png_structrp png_ptr) nogil
+
+    void png_set_invert_mono(
+        png_structrp png_ptr) nogil
+
+    void png_set_background(
+        png_structrp png_ptr,
+        png_const_color_16p background_color,
+        int background_gamma_code,
+        int need_expand,
+        double background_gamma) nogil
+
+    void png_set_background_fixed(
+        png_structrp png_ptr,
+        png_const_color_16p background_color,
+        int background_gamma_code,
+        int need_expand,
+        png_fixed_point background_gamma) nogil
+
+    void png_set_scale_16(
+        png_structrp png_ptr) nogil
+
+    void png_set_strip_16(
+        png_structrp png_ptr) nogil
+
+    void png_set_quantize(
+        png_structrp png_ptr,
+        png_colorp palette,
+        int num_palette,
+        int maximum_colors,
+        png_const_uint_16p histogram,
+        int full_quantize) nogil
+
+    void png_set_gamma(
+        png_structrp png_ptr,
+        double screen_gamma,
+        double override_file_gamma) nogil
+
+    void png_set_gamma_fixed(
+        png_structrp png_ptr,
+        png_fixed_point screen_gamma,
+        png_fixed_point override_file_gamma) nogil
+
+    void png_set_flush(
+        png_structrp png_ptr,
+        int nrows) nogil
+
+    void png_write_flush(
+        png_structrp png_ptr) nogil
+
+    void png_start_read_image(
+        png_structrp png_ptr) nogil
+
+    void png_read_update_info(
+        png_structrp png_ptr,
+        png_inforp info_ptr) nogil
+
+    void png_read_rows(
+        png_structrp png_ptr,
+        png_bytepp row,
+        png_bytepp display_row,
+        png_uint_32 num_rows) nogil
+
+    void png_read_row(
+        png_structrp png_ptr,
+        png_bytep row,
+        png_bytep display_row) nogil
+
+    void png_read_image(
+        png_structrp png_ptr,
+        png_bytepp image) nogil
+
+    void png_write_row(
+        png_structrp png_ptr,
+        png_const_bytep row) nogil
+
+    void png_write_rows(
+        png_structrp png_ptr,
+        png_bytepp row,
+        png_uint_32 num_rows) nogil
+
+    void png_write_image(
+        png_structrp png_ptr,
+        png_bytepp image) nogil
+
+    void png_write_end(
+        png_structrp png_ptr,
+        png_inforp info_ptr) nogil
+
+    void png_read_end(
+        png_structrp png_ptr,
+        png_inforp info_ptr) nogil
+
+    void png_destroy_info_struct(
+        png_const_structrp png_ptr,
         png_infopp info_ptr_ptr) nogil
 
     void png_destroy_read_struct(
         png_structpp png_ptr_ptr,
         png_infopp info_ptr_ptr,
         png_infopp end_info_ptr_ptr) nogil
+
+    void png_destroy_write_struct(
+        png_structpp png_ptr_ptr,
+        png_infopp info_ptr_ptr) nogil
+
+    void png_set_crc_action(
+        png_structrp png_ptr,
+        int crit_action,
+        int ancil_action) nogil
+
+    void png_set_filter(
+        png_structrp png_ptr,
+        int method,
+        int filters) nogil
+
+    void png_set_filter_heuristics(
+        png_structrp png_ptr,
+        int heuristic_method,
+        int num_weights,
+        png_const_doublep filter_weights,
+        png_const_doublep filter_costs) nogil
+
+    void png_set_filter_heuristics_fixed(
+        png_structrp png_ptr,
+        int heuristic_method,
+        int num_weights,
+        png_const_fixed_point_p filter_weights,
+        png_const_fixed_point_p filter_costs) nogil
+
+    void png_set_compression_level(
+        png_structrp png_ptr,
+        int level) nogil
+
+    void png_set_compression_mem_level(
+        png_structrp png_ptr,
+        int mem_level) nogil
+
+    void png_set_compression_strategy(
+        png_structrp png_ptr,
+        int strategy) nogil
+
+    void png_set_compression_window_bits(
+        png_structrp png_ptr,
+        int window_bits) nogil
+
+    void png_set_compression_method(
+        png_structrp png_ptr,
+        int method) nogil
+
+    void png_set_text_compression_level(
+        png_structrp png_ptr,
+        int level) nogil
+
+    void png_set_text_compression_mem_level(
+        png_structrp png_ptr,
+        int mem_level) nogil
+
+    void png_set_text_compression_strategy(
+        png_structrp png_ptr,
+        int strategy) nogil
+
+    void png_set_text_compression_window_bits(
+        png_structrp png_ptr,
+        int window_bits) nogil
+
+    void png_set_text_compression_method(
+        png_structrp png_ptr,
+        int method) nogil
+
+    void png_init_io(
+        png_structrp png_ptr,
+        png_FILE_p fp) nogil
+
+    void png_set_error_fn(
+        png_structrp png_ptr,
+        png_voidp error_ptr,
+        png_error_ptr error_fn,
+        png_error_ptr warning_fn) nogil
+
+    png_voidp png_get_error_ptr(
+        png_const_structrp png_ptr) nogil
 
     void png_set_write_fn(
         png_structrp png_ptr,
@@ -120,13 +859,960 @@ cdef extern from 'png.h':
         png_voidp io_ptr,
         png_rw_ptr read_data_fn) nogil
 
-    png_voidp png_get_io_ptr(png_const_structrp png_ptr) nogil
-    void png_set_palette_to_rgb(png_structrp png_ptr) nogil
-    void png_set_expand_gray_1_2_4_to_8(png_structrp png_ptr) nogil
-    void png_read_info(png_structrp png_ptr, png_inforp info_ptr) nogil
-    void png_write_info(png_structrp png_ptr, png_const_inforp info_ptr) nogil
-    void png_write_end(png_structrp png_ptr, png_inforp info_ptr) nogil
-    void png_read_update_info(png_structrp png_ptr, png_inforp info_ptr) nogil
-    void png_set_expand_16(png_structrp png_ptr) nogil
-    void png_set_swap(png_structrp png_ptr) nogil
-    void png_set_compression_level(png_structrp png_ptr, int level) nogil
+    png_voidp png_get_io_ptr(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_read_status_fn(
+        png_structrp png_ptr,
+        png_read_status_ptr read_row_fn) nogil
+
+    void png_set_write_status_fn(
+        png_structrp png_ptr,
+        png_write_status_ptr write_row_fn) nogil
+
+    void png_set_mem_fn(
+        png_structrp png_ptr,
+        png_voidp mem_ptr,
+        png_malloc_ptr malloc_fn,
+        png_free_ptr free_fn) nogil
+
+    png_voidp png_get_mem_ptr(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_read_user_transform_fn(
+        png_structrp png_ptr,
+        png_user_transform_ptr read_user_transform_fn) nogil
+
+    void png_set_write_user_transform_fn(
+        png_structrp png_ptr,
+        png_user_transform_ptr write_user_transform_fn) nogil
+
+    void png_set_user_transform_info(
+        png_structrp png_ptr,
+        png_voidp user_transform_ptr,
+        int user_transform_depth,
+        int user_transform_channels) nogil
+
+    png_voidp png_get_user_transform_ptr(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_get_current_row_number(
+        png_const_structrp) nogil
+
+    png_byte png_get_current_pass_number(
+        png_const_structrp) nogil
+
+    void png_set_read_user_chunk_fn(
+        png_structrp png_ptr,
+        png_voidp user_chunk_ptr,
+        png_user_chunk_ptr read_user_chunk_fn) nogil
+
+    png_voidp png_get_user_chunk_ptr(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_progressive_read_fn(
+        png_structrp png_ptr,
+        png_voidp progressive_ptr,
+        png_progressive_info_ptr info_fn,
+        png_progressive_row_ptr row_fn,
+        png_progressive_end_ptr end_fn) nogil
+
+    png_voidp png_get_progressive_ptr(
+        png_const_structrp png_ptr) nogil
+
+    void png_process_data(
+        png_structrp png_ptr,
+        png_inforp info_ptr,
+        png_bytep buffer,
+        size_t buffer_size) nogil
+
+    size_t png_process_data_pause(
+        png_structrp,
+        int save) nogil
+
+    png_uint_32 png_process_data_skip(
+        png_structrp) nogil
+
+    void png_progressive_combine_row(
+        png_const_structrp png_ptr,
+        png_bytep old_row,
+        png_const_bytep new_row) nogil
+
+    png_voidp png_malloc(
+        png_const_structrp png_ptr,
+        png_alloc_size_t size) nogil
+
+    png_voidp png_calloc(
+        png_const_structrp png_ptr,
+        png_alloc_size_t size) nogil
+
+    png_voidp png_malloc_warn(
+        png_const_structrp png_ptr,
+        png_alloc_size_t size) nogil
+
+    void png_free(
+        png_const_structrp png_ptr,
+        png_voidp ptr) nogil
+
+    void png_free_data(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 free_me,
+        int num) nogil
+
+    void png_data_freer(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int freer,
+        png_uint_32 mask) nogil
+
+    png_voidp png_malloc_default(
+        png_const_structrp png_ptr,
+        png_alloc_size_t size) nogil
+
+    void png_free_default(
+        png_const_structrp png_ptr,
+        png_voidp ptr) nogil
+
+    void png_error(
+        png_const_structrp png_ptr,
+        png_const_charp error_message) nogil
+
+    void png_chunk_error(
+        png_const_structrp png_ptr,
+        png_const_charp error_message) nogil
+
+    void png_warning(
+        png_const_structrp png_ptr,
+        png_const_charp warning_message) nogil
+
+    void png_chunk_warning(
+        png_const_structrp png_ptr,
+        png_const_charp warning_message) nogil
+
+    void png_benign_error(
+        png_const_structrp png_ptr,
+        png_const_charp warning_message) nogil
+
+    void png_chunk_benign_error(
+        png_const_structrp png_ptr,
+        png_const_charp warning_message) nogil
+
+    void png_set_benign_errors(
+        png_structrp png_ptr,
+        int allowed) nogil
+
+    png_uint_32 png_get_valid(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32 flag) nogil
+
+    size_t png_get_rowbytes(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_bytepp png_get_rows(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    void png_set_rows(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_bytepp row_pointers) nogil
+
+    png_byte png_get_channels(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_image_width(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_image_height(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_byte png_get_bit_depth(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_byte png_get_color_type(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_byte png_get_filter_type(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_byte png_get_interlace_type(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_byte png_get_compression_type(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_pixels_per_meter(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_x_pixels_per_meter(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_y_pixels_per_meter(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    float png_get_pixel_aspect_ratio(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_fixed_point png_get_pixel_aspect_ratio_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_int_32 png_get_x_offset_pixels(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_int_32 png_get_y_offset_pixels(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_int_32 png_get_x_offset_microns(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_int_32 png_get_y_offset_microns(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_const_bytep png_get_signature(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_bKGD(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_color_16p* background) nogil
+
+    void png_set_bKGD(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_color_16p background) nogil
+
+    png_uint_32 png_get_cHRM(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        double* white_x,
+        double* white_y,
+        double* red_x,
+        double* red_y,
+        double* green_x,
+        double* green_y,
+        double* blue_x,
+        double* blue_y) nogil
+
+    png_uint_32 png_get_cHRM_XYZ(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        double* red_X,
+        double* red_Y,
+        double* red_Z,
+        double* green_X,
+        double* green_Y,
+        double* green_Z,
+        double* blue_X,
+        double* blue_Y,
+        double* blue_Z) nogil
+
+    png_uint_32 png_get_cHRM_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_fixed_point* int_white_x,
+        png_fixed_point* int_white_y,
+        png_fixed_point* int_red_x,
+        png_fixed_point* int_red_y,
+        png_fixed_point* int_green_x,
+        png_fixed_point* int_green_y,
+        png_fixed_point* int_blue_x,
+        png_fixed_point* int_blue_y) nogil
+
+    png_uint_32 png_get_cHRM_XYZ_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_fixed_point* int_red_X,
+        png_fixed_point* int_red_Y,
+        png_fixed_point* int_red_Z,
+        png_fixed_point* int_green_X,
+        png_fixed_point* int_green_Y,
+        png_fixed_point* int_green_Z,
+        png_fixed_point* int_blue_X,
+        png_fixed_point* int_blue_Y,
+        png_fixed_point* int_blue_Z) nogil
+
+    void png_set_cHRM(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        double white_x,
+        double white_y,
+        double red_x,
+        double red_y,
+        double green_x,
+        double green_y,
+        double blue_x,
+        double blue_y) nogil
+
+    void png_set_cHRM_XYZ(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        double red_X,
+        double red_Y,
+        double red_Z,
+        double green_X,
+        double green_Y,
+        double green_Z,
+        double blue_X,
+        double blue_Y,
+        double blue_Z) nogil
+
+    void png_set_cHRM_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_fixed_point int_white_x,
+        png_fixed_point int_white_y,
+        png_fixed_point int_red_x,
+        png_fixed_point int_red_y,
+        png_fixed_point int_green_x,
+        png_fixed_point int_green_y,
+        png_fixed_point int_blue_x,
+        png_fixed_point int_blue_y) nogil
+
+    void png_set_cHRM_XYZ_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_fixed_point int_red_X,
+        png_fixed_point int_red_Y,
+        png_fixed_point int_red_Z,
+        png_fixed_point int_green_X,
+        png_fixed_point int_green_Y,
+        png_fixed_point int_green_Z,
+        png_fixed_point int_blue_X,
+        png_fixed_point int_blue_Y,
+        png_fixed_point int_blue_Z) nogil
+
+    png_uint_32 png_get_eXIf(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_bytep* exif) nogil
+
+    void png_set_eXIf(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_bytep exif) nogil
+
+    png_uint_32 png_get_eXIf_1(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32* num_exif,
+        png_bytep* exif) nogil
+
+    void png_set_eXIf_1(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 num_exif,
+        png_bytep exif) nogil
+
+    png_uint_32 png_get_gAMA(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        double* file_gamma) nogil
+
+    png_uint_32 png_get_gAMA_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_fixed_point* int_file_gamma) nogil
+
+    void png_set_gAMA(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        double file_gamma) nogil
+
+    void png_set_gAMA_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_fixed_point int_file_gamma) nogil
+
+    png_uint_32 png_get_hIST(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_16p* hist) nogil
+
+    void png_set_hIST(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_uint_16p hist) nogil
+
+    png_uint_32 png_get_IHDR(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32* width,
+        png_uint_32* height,
+        int* bit_depth,
+        int* color_type,
+        int* interlace_method,
+        int* compression_method,
+        int* filter_method) nogil
+
+    void png_set_IHDR(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 width,
+        png_uint_32 height,
+        int bit_depth,
+        int color_type,
+        int interlace_method,
+        int compression_method,
+        int filter_method) nogil
+
+    png_uint_32 png_get_oFFs(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_int_32* offset_x,
+        png_int_32* offset_y,
+        int* unit_type) nogil
+
+    void png_set_oFFs(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_int_32 offset_x,
+        png_int_32 offset_y,
+        int unit_type) nogil
+
+    png_uint_32 png_get_pCAL(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_charp* purpose,
+        png_int_32* X0,
+        png_int_32* X1,
+        int* type,
+        int* nparams,
+        png_charp* units,
+        png_charpp* params) nogil
+
+    void png_set_pCAL(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_charp purpose,
+        png_int_32 X0,
+        png_int_32 X1,
+        int type,
+        int nparams,
+        png_const_charp units,
+        png_charpp params)
+
+    png_uint_32 png_get_pHYs(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32* res_x,
+        png_uint_32* res_y,
+        int* unit_type) nogil
+
+    void png_set_pHYs(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 res_x,
+        png_uint_32 res_y,
+        int unit_type) nogil
+
+    png_uint_32 png_get_PLTE(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_colorp* palette,
+        int* num_palette) nogil
+
+    void png_set_PLTE(
+        png_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_colorp palette,
+        int num_palette) nogil
+
+    png_uint_32 png_get_sBIT(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_color_8p* sig_bit) nogil
+
+    void png_set_sBIT(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_color_8p sig_bit) nogil
+
+    png_uint_32 png_get_sRGB(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        int* file_srgb_intent) nogil
+
+    void png_set_sRGB(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int srgb_intent) nogil
+
+    void png_set_sRGB_gAMA_and_cHRM(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int srgb_intent) nogil
+
+    png_uint_32 png_get_iCCP(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_charpp name,
+        int* compression_type,
+        png_bytepp profile,
+        png_uint_32* proflen) nogil
+
+    void png_set_iCCP(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_charp name,
+        int compression_type,
+        png_const_bytep profile,
+        png_uint_32 proflen) nogil
+
+    int png_get_sPLT(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_sPLT_tpp entries) nogil
+
+    void png_set_sPLT(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_sPLT_tp entries,
+        int nentries) nogil
+
+    int png_get_text(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_textp* text_ptr,
+        int* num_text) nogil
+
+    void png_set_text(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_textp text_ptr,
+        int num_text) nogil
+
+    png_uint_32 png_get_tIME(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_timep* mod_time) nogil
+
+    void png_set_tIME(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_timep mod_time) nogil
+
+    png_uint_32 png_get_tRNS(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_bytep* trans_alpha,
+        int* num_trans,
+        png_color_16p* trans_color) nogil
+
+    void png_set_tRNS(
+        png_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_bytep trans_alpha,
+        int num_trans,
+        png_const_color_16p trans_color) nogil
+
+    png_uint_32 png_get_sCAL(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        int* unit,
+        double* width,
+        double* height) nogil
+
+    png_uint_32 png_get_sCAL_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        int* unit,
+        png_fixed_point* width,
+        png_fixed_point* height) nogil
+
+    png_uint_32 png_get_sCAL_s(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        int* unit,
+        png_charpp swidth,
+        png_charpp sheight) nogil
+
+    void png_set_sCAL(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int unit,
+        double width,
+        double height) nogil
+
+    void png_set_sCAL_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int unit,
+        png_fixed_point width,
+        png_fixed_point height) nogil
+
+    void png_set_sCAL_s(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int unit,
+        png_const_charp swidth,
+        png_const_charp sheight) nogil
+
+    void png_set_keep_unknown_chunks(
+        png_structrp png_ptr,
+        int keep,
+        png_const_bytep chunk_list,
+        int num_chunks) nogil
+
+    int png_handle_as_unknown(
+        png_const_structrp png_ptr,
+        png_const_bytep chunk_name) nogil
+
+    void png_set_unknown_chunks(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_const_unknown_chunkp unknowns,
+        int num_unknowns) nogil
+
+    void png_set_unknown_chunk_location(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int chunk,
+        int location) nogil
+
+    int png_get_unknown_chunks(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_unknown_chunkpp entries) nogil
+
+    void png_set_invalid(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        int mask) nogil
+
+    void png_read_png(
+        png_structrp png_ptr,
+        png_inforp info_ptr,
+        int transforms,
+        png_voidp params) nogil
+
+    void png_write_png(
+        png_structrp png_ptr,
+        png_inforp info_ptr,
+        int transforms,
+        png_voidp params) nogil
+
+    png_const_charp png_get_copyright(
+        png_const_structrp png_ptr) nogil
+
+    png_const_charp png_get_header_ver(
+        png_const_structrp png_ptr) nogil
+
+    png_const_charp png_get_header_version(
+        png_const_structrp png_ptr) nogil
+
+    png_const_charp png_get_libpng_ver(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_permit_mng_features(
+        png_structrp png_ptr,
+        png_uint_32 mng_features_permitted) nogil
+
+    void png_set_user_limits(
+        png_structrp png_ptr,
+        png_uint_32 user_width_max,
+        png_uint_32 user_height_max) nogil
+
+    png_uint_32 png_get_user_width_max(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_get_user_height_max(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_chunk_cache_max(
+        png_structrp png_ptr,
+        png_uint_32 user_chunk_cache_max) nogil
+
+    png_uint_32 png_get_chunk_cache_max(
+        png_const_structrp png_ptr) nogil
+
+    void png_set_chunk_malloc_max(
+        png_structrp png_ptr,
+        png_alloc_size_t user_chunk_cache_max) nogil
+
+    png_alloc_size_t png_get_chunk_malloc_max(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_get_pixels_per_inch(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_x_pixels_per_inch(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_y_pixels_per_inch(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    float png_get_x_offset_inches(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_fixed_point png_get_x_offset_inches_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    float png_get_y_offset_inches(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_fixed_point png_get_y_offset_inches_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr) nogil
+
+    png_uint_32 png_get_pHYs_dpi(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32* res_x,
+        png_uint_32* res_y,
+        int* unit_type) nogil
+
+    png_uint_32 png_get_io_state(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_get_io_chunk_type(
+        png_const_structrp png_ptr) nogil
+
+    png_uint_32 png_get_uint_32(
+        png_const_bytep buf) nogil
+
+    png_uint_16 png_get_uint_16(
+        png_const_bytep buf) nogil
+
+    png_int_32 png_get_int_32(
+        png_const_bytep buf) nogil
+
+    png_uint_32 png_get_uint_31(
+        png_const_structrp png_ptr,
+        png_const_bytep buf) nogil
+
+    void png_save_uint_32(
+        png_bytep buf,
+        png_uint_32 i) nogil
+
+    void png_save_int_32(
+        png_bytep buf,
+        png_int_32 i) nogil
+
+    void png_save_uint_16(
+        png_bytep buf,
+        unsigned int i) nogil
+
+    void png_set_check_for_invalid_index(
+        png_structrp png_ptr,
+        int allowed) nogil
+
+    int png_get_palette_max(
+        png_const_structp png_ptr,
+        png_const_infop info_ptr) nogil
+
+    ctypedef png_control* png_controlp
+
+    ctypedef struct png_image:
+        png_controlp opaque
+        png_uint_32 version
+        png_uint_32 width
+        png_uint_32 height
+        png_uint_32 format
+        png_uint_32 flags
+        png_uint_32 colormap_entries
+        png_uint_32 warning_or_error
+        char message[64]
+
+    cdef struct _png_imagep_s:
+        png_controlp opaque
+        png_uint_32 version
+        png_uint_32 width
+        png_uint_32 height
+        png_uint_32 format
+        png_uint_32 flags
+        png_uint_32 colormap_entries
+        png_uint_32 warning_or_error
+        char message[64]
+
+    ctypedef _png_imagep_s* png_imagep
+
+    int png_image_begin_read_from_file(
+        png_imagep image,
+        char* file_name)
+
+    int png_image_begin_read_from_stdio(
+        png_imagep image,
+        FILE* file) nogil
+
+    int png_image_begin_read_from_memory(
+        png_imagep image,
+        png_const_voidp memory,
+        size_t size) nogil
+
+    int png_image_finish_read(
+        png_imagep image,
+        png_const_colorp background,
+        void* buffer,
+        png_int_32 row_stride,
+        void* colormap) nogil
+
+    void png_image_free(
+        png_imagep image) nogil
+
+    int png_image_write_to_file(
+        png_imagep image,
+        char* file,
+        int convert_to_8bit,
+        void* buffer,
+        png_int_32 row_stride,
+        void* colormap) nogil
+
+    int png_image_write_to_stdio(
+        png_imagep image,
+        FILE* file,
+        int convert_to_8_bit,
+        void* buffer,
+        png_int_32 row_stride,
+        void* colormap) nogil
+
+    int png_image_write_to_memory(
+        png_imagep image,
+        void* memory,
+        png_alloc_size_t* memory_bytes,
+        int convert_to_8_bit,
+        void* buffer,
+        png_int_32 row_stride,
+        void* colormap) nogil
+
+    int png_set_option(
+        png_structrp png_ptr,
+        int option,
+        int onoff) nogil
+
+    png_uint_32 png_get_acTL(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_uint_32* num_frames,
+        png_uint_32* num_plays) nogil
+
+    png_uint_32 png_set_acTL(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_uint_32 num_frames,
+        png_uint_32 num_plays) nogil
+
+    png_uint_32 png_get_num_frames(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_get_num_plays(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_get_next_frame_fcTL(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_uint_32* width,
+        png_uint_32* height,
+        png_uint_32* x_offset,
+        png_uint_32* y_offset,
+        png_uint_16* delay_num,
+        png_uint_16* delay_den,
+        png_byte* dispose_op,
+        png_byte* blend_op) nogil
+
+    png_uint_32 png_set_next_frame_fcTL(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_uint_32 width,
+        png_uint_32 height,
+        png_uint_32 x_offset,
+        png_uint_32 y_offset,
+        png_uint_16 delay_num,
+        png_uint_16 delay_den,
+        png_byte dispose_op,
+        png_byte blend_op) nogil
+
+    png_uint_32 png_get_next_frame_width(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_get_next_frame_height(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_get_next_frame_x_offset(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_get_next_frame_y_offset(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_16 png_get_next_frame_delay_num(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_16 png_get_next_frame_delay_den(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_byte png_get_next_frame_dispose_op(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_byte png_get_next_frame_blend_op(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_byte png_get_first_frame_is_hidden(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    png_uint_32 png_set_first_frame_is_hidden(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_byte is_hidden) nogil
+
+    void png_read_frame_head(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
+
+    void png_set_progressive_frame_fn(
+        png_structp png_ptr,
+        png_progressive_frame_ptr frame_info_fn,
+        png_progressive_frame_ptr frame_end_fn) nogil
+
+    void png_write_frame_head(
+        png_structp png_ptr,
+        png_infop info_ptr,
+        png_bytepp row_pointers,
+        png_uint_32 width,
+        png_uint_32 height,
+        png_uint_32 x_offset,
+        png_uint_32 y_offset,
+        png_uint_16 delay_num,
+        png_uint_16 delay_den,
+        png_byte dispose_op,
+        png_byte blend_op) nogil
+
+    void png_write_frame_tail(
+        png_structp png_ptr,
+        png_infop info_ptr) nogil
