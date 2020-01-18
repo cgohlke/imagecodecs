@@ -12,8 +12,12 @@ from setuptools.command.build_ext import build_ext as _build_ext
 
 buildnumber = ''  # 'post0'
 
-with open('imagecodecs/_imagecodecs.pyx') as fh:
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+with open(os.path.join(base_dir, 'imagecodecs/_imagecodecs.pyx')) as fh:
     code = fh.read()
+
+code = code.replace("\r", "")
 
 version = re.search(r"__version__ = '(.*?)'", code).groups()[0]
 
@@ -194,7 +198,10 @@ class build_ext(_build_ext):
     """Delay import numpy until build."""
     def finalize_options(self):
         _build_ext.finalize_options(self)
-        __builtins__.__NUMPY_SETUP__ = False
+        try:
+            __builtins__.__NUMPY_SETUP__ = False
+        except AttributeError:
+            pass
         import numpy
         self.include_dirs.append(numpy.get_include())
 
