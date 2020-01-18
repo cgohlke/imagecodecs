@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # test_imagecodecs.py
 
-# Copyright (c) 2018-2019, Christoph Gohlke
+# Copyright (c) 2018-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,9 +36,9 @@
 :Organization:
   Laboratory for Fluorescence Dynamics. University of California, Irvine
 
-:License: 3-clause BSD
+:License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2019.12.31
 
 """
 
@@ -1519,6 +1519,16 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         assert_allclose(data, decoded, atol=6)
     else:
         assert_array_equal(data, decoded, verbose=True)
+
+
+@pytest.mark.skipif(not hasattr(imagecodecs, 'png_decode'),
+                    reason='png codec missing')
+def test_png_rgba_palette():
+    """Test decoding indexed PNG with transparency."""
+    png = readfile('rgba.u1.pal.png')
+    image = imagecodecs.png_decode(png)
+    assert tuple(image[6, 15]) == (255, 255, 255, 0)
+    assert tuple(image[6, 16]) == (141, 37, 52, 255)
 
 
 @pytest.mark.skipif(not hasattr(imagecodecs, 'lzma_decode'),
