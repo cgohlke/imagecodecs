@@ -7,7 +7,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2008-2019, Christoph Gohlke
+# Copyright (c) 2008-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -56,15 +56,15 @@ Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2019.12.31
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
-* `Numpy 1.16.5 <https://www.numpy.org>`_
+* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
+* `Numpy 1.16.6 <https://www.numpy.org>`_
 * `Cython 0.29.14 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.2 <https://github.com/lz4/lz4>`_
@@ -75,7 +75,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.3 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
@@ -83,7 +83,7 @@ This release has been tested with the following requirements and dependencies
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
-* `snappy 1.1.7 <https://github.com/google/snappy>`_
+* `snappy 1.1.8 <https://github.com/google/snappy>`_
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.7 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
@@ -94,7 +94,7 @@ Required Python packages for testing (other versions may work):
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
+* `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
@@ -158,8 +158,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.12.31
+    Pass 3288 tests.
+    Fix decoding of indexed PNG with transparency.
+    Last version to support Python 2.7 and 3.5.
 2019.12.16
-    Pass 3287 tests.
     Add Zopfli codec.
     Add Snappy codec.
     Rename j2k codec to jpeg2k.
@@ -265,7 +268,7 @@ Revisions
 
 """
 
-__version__ = '2019.12.16'
+__version__ = '2019.12.31'
 
 include '_imagecodecs.pxi'
 
@@ -2125,6 +2128,7 @@ def png_decode(data, out=None):
         png_bytepp image = NULL  # row pointers
         png_bytep rowptr
         ssize_t rowstride
+        ssize_t itemsize
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -2169,31 +2173,45 @@ def png_decode(data, out=None):
 
             if bit_depth > 8:
                 png_set_swap(png_ptr)
+                itemsize = 2
+            else:
+                itemsize = 1
 
             if color_type == PNG_COLOR_TYPE_GRAY:
-                samples = 1
+                # samples = 1
                 if bit_depth < 8:
                     png_set_expand_gray_1_2_4_to_8(png_ptr)
             elif color_type == PNG_COLOR_TYPE_GRAY_ALPHA:
-                samples = 2
+                # samples = 2
+                pass
             elif color_type == PNG_COLOR_TYPE_RGB:
-                samples = 3
+                # samples = 3
+                pass
             elif color_type == PNG_COLOR_TYPE_PALETTE:
-                samples = 3
+                # samples = 3 or 4
                 png_set_palette_to_rgb(png_ptr)
             elif color_type == PNG_COLOR_TYPE_RGB_ALPHA:
-                samples = 4
+                # samples = 4
+                pass
             else:
                 raise ValueError(
-                'PNG color type not supported %i' % color_type)
+                    'PNG color type not supported %i' % color_type)
 
-        dtype = numpy.dtype('u%i' % (1 if bit_depth//8 < 2 else 2))
+            if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
+                png_set_tRNS_to_alpha(png_ptr)
+
+            png_read_update_info(png_ptr, info_ptr)
+
+            samples = <int>(
+                png_get_rowbytes(png_ptr, info_ptr) / (width * itemsize))
+
+        dtype = numpy.dtype('u%i' % itemsize)
         if samples > 1:
             shape = int(height), int(width), int(samples)
-            strides = None, shape[2] * dtype.itemsize, dtype.itemsize
+            strides = None, shape[2] * int(itemsize), int(itemsize)
         else:
             shape = int(height), int(width)
-            strides = None, dtype.itemsize
+            strides = None, int(itemsize)
 
         out = _create_array(out, shape, dtype, strides)
         dst = out
@@ -2207,7 +2225,6 @@ def png_decode(data, out=None):
             for row in range(height):
                 image[row] = <png_bytep>rowptr
                 rowptr += rowstride
-            png_read_update_info(png_ptr, info_ptr)
             png_read_image(png_ptr, image)
 
     finally:
