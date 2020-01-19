@@ -19,15 +19,15 @@ Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2019.12.31
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.5, 3.8.0 64-bit <https://www.python.org>`_
-* `Numpy 1.16.5 <https://www.numpy.org>`_
+* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
+* `Numpy 1.16.6 <https://www.numpy.org>`_
 * `Cython 0.29.14 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.2 <https://github.com/lz4/lz4>`_
@@ -38,7 +38,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
-* `libjpeg-turbo 2.0.3 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
@@ -46,7 +46,7 @@ This release has been tested with the following requirements and dependencies
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
-* `snappy 1.1.7 <https://github.com/google/snappy>`_
+* `snappy 1.1.8 <https://github.com/google/snappy>`_
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.7 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
@@ -57,7 +57,7 @@ Required Python packages for testing (other versions may work):
 * `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 2.2.1 <https://github.com/python-lz4/python-lz4>`_
+* `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
@@ -121,8 +121,11 @@ Other Python packages providing imaging or compression codecs:
 
 Revisions
 ---------
+2019.12.31
+    Pass 3288 tests.
+    Fix decoding of indexed PNG with transparency.
+    Last version to support Python 2.7 and 3.5.
 2019.12.16
-    Pass 3287 tests.
     Add Zopfli codec.
     Add Snappy codec.
     Rename j2k codec to jpeg2k.
