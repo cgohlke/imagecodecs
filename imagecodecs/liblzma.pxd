@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # liblzma.pxd
 # cython: language_level = 3
 
@@ -34,7 +33,7 @@ cdef extern from 'lzma.h':
     ctypedef enum lzma_reserved_enum:
         LZMA_RESERVED_ENUM
 
-    ctypedef enum lzma_check:
+    ctypedef enum lzma_check_t 'lzma_check':
         LZMA_CHECK_NONE
         LZMA_CHECK_CRC32
         LZMA_CHECK_CRC64
@@ -49,10 +48,10 @@ cdef extern from 'lzma.h':
         uint64_t total_out
         lzma_allocator *allocator
         lzma_internal *internal
-        void *reserved_ptr1
-        void *reserved_ptr2
-        void *reserved_ptr3
-        void *reserved_ptr4
+        void* reserved_ptr1
+        void* reserved_ptr2
+        void* reserved_ptr3
+        void* reserved_ptr4
         uint64_t reserved_int1
         uint64_t reserved_int2
         size_t reserved_int3
@@ -84,7 +83,7 @@ cdef extern from 'lzma.h':
     lzma_ret lzma_easy_encoder(
         lzma_stream *strm,
         uint32_t preset,
-        lzma_check check) nogil
+        lzma_check_t check) nogil
 
     lzma_ret lzma_stream_decoder(
         lzma_stream *strm,
@@ -93,19 +92,19 @@ cdef extern from 'lzma.h':
 
     lzma_ret lzma_stream_footer_decode(
         lzma_stream_flags *options,
-        const uint8_t *in_) nogil
+        const uint8_t *src) nogil
 
     lzma_ret lzma_index_buffer_decode(
-        lzma_index **i,
-        uint64_t *memlimit,
-        const lzma_allocator *allocator,
-        const uint8_t *in_,
-        size_t *in_pos,
+        lzma_index** i,
+        uint64_t* memlimit,
+        const lzma_allocator* allocator,
+        const uint8_t* src,
+        size_t* in_pos,
         size_t in_size) nogil
 
-    lzma_ret lzma_code(lzma_stream *strm, lzma_action action) nogil
-    void lzma_end(lzma_stream *strm) nogil
+    lzma_ret lzma_code(lzma_stream* strm, lzma_action action) nogil
+    void lzma_end(lzma_stream* strm) nogil
     size_t lzma_stream_buffer_bound(size_t uncompressed_size) nogil
-    lzma_vli lzma_index_uncompressed_size(const lzma_index *i) nogil
-    lzma_index* lzma_index_init(const lzma_allocator *allocator) nogil
-    void lzma_index_end(lzma_index *i, const lzma_allocator *allocator) nogil
+    lzma_vli lzma_index_uncompressed_size(const lzma_index* i) nogil
+    lzma_index* lzma_index_init(const lzma_allocator* allocator) nogil
+    void lzma_index_end(lzma_index* i, const lzma_allocator* allocator) nogil
