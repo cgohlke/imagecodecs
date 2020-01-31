@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # _jpegls.pyx
 # distutils: language = c
 # cython: language_level = 3
@@ -7,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019, Christoph Gohlke
+# Copyright (c) 2019-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG-LS codec for the imagecodecs package.
+"""JPEG LS codec for the imagecodecs package.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -46,41 +45,51 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2020.1.31
 
 """
 
-__version__ = '2019.12.16'
+__version__ = '2020.1.31'
 
-include '_imagecodecs.pxi'
-
-from libc.stdint cimport uint8_t, int32_t, uint32_t
-from libc.string cimport memset
-
-
-# JPEG LS #####################################################################
+include '_shared.pxi'
 
 from charls cimport *
 
 
-class JpegLsError(RuntimeError):
-    """JPEG-LS Exceptions."""
+class JPEGLS:
+    """JPEG LS Constants."""
+
+
+class JpeglsError(RuntimeError):
+    """JPEG LS Exceptions."""
+
     def __init__(self, func, err):
         cdef:
-            char *error_message
+            char* error_message
             charls_jpegls_errc error_value
+
         try:
             error_value = int(err)
             error_message = charls_get_error_message(error_value)
-            msg = error_message.decode('utf8').strip()
+            msg = error_message.decode().strip()
         except Exception:
-            msg = 'NULL' if err is None else 'unknown error %s' % err
-        msg = "%s returned '%s'" % (func, msg)
-        RuntimeError.__init__(self, msg)
+            msg = 'NULL' if err is None else f'unknown error {err!r}'
+        msg = f'{func} returned {msg}'
+        super().__init__(msg)
+
+
+def jpegls_version():
+    """Return CharLS library version string."""
+    return 'charls {}.{}.{}'.format(
+        CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH)
+
+
+def jpegls_check(data):
+    """Return True if data likely contains a JPEG LS image."""
 
 
 def jpegls_encode(data, level=None, out=None):
-    """Return JPEG-LS image from numpy array.
+    """Return JPEG LS image from numpy array.
 
     """
     cdef:
@@ -101,9 +110,11 @@ def jpegls_encode(data, level=None, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if not (data.dtype in (numpy.uint8, numpy.uint16)
-            and data.ndim in (2, 3)
-            and numpy.PyArray_ISCONTIGUOUS(data)):
+    if not (
+        data.dtype in (numpy.uint8, numpy.uint16) and
+        data.ndim in (2, 3) and
+        numpy.PyArray_ISCONTIGUOUS(data)
+    ):
         raise ValueError('invalid input shape, strides, or dtype')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -144,38 +155,38 @@ def jpegls_encode(data, level=None, out=None):
         with nogil:
             encoder = charls_jpegls_encoder_create()
             if encoder == NULL:
-                raise JpegLsError('charls_jpegls_encoder_create', None)
+                raise JpeglsError('charls_jpegls_encoder_create', None)
 
             ret = charls_jpegls_encoder_set_frame_info(encoder, &frameinfo)
             if ret:
-                raise JpegLsError('charls_jpegls_encoder_set_frame_info', ret)
+                raise JpeglsError('charls_jpegls_encoder_set_frame_info', ret)
 
             ret = charls_jpegls_encoder_set_near_lossless(
                 encoder,
                 near_lossless)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_set_near_lossless', ret)
 
             ret = charls_jpegls_encoder_set_interleave_mode(
                 encoder,
                 interleave_mode)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_set_interleave_mode', ret)
 
             # ret = charls_jpegls_encoder_set_color_transformation(
             #     encoder,
             #     color_transformation)
             # if ret:
-            #     raise JpegLsError(
+            #     raise JpeglsError(
             #         'charls_jpegls_encoder_set_color_transformation', ret)
 
             # ret charls_jpegls_encoder_set_preset_coding_parameters(
             #     encoder,
             #     &preset_coding_parameters)
             # if ret:
-            #    raise JpegLsError(
+            #    raise JpeglsError(
             #        'charls_jpegls_encoder_set_preset_coding_parameters', ret)
 
             if dstsize < 0:
@@ -184,7 +195,7 @@ def jpegls_encode(data, level=None, out=None):
                     &size_in_bytes
                 )
                 if ret:
-                    raise JpegLsError(
+                    raise JpeglsError(
                         'charls_jpegls_encoder_get_estimated_destination_size',
                         ret)
                 dstsize = size_in_bytes + sizeof(charls_spiff_header)
@@ -198,7 +209,7 @@ def jpegls_encode(data, level=None, out=None):
                 <void*>&dst[0],
                 <size_t>dstsize)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_set_destination_buffer', ret)
 
             ret = charls_jpegls_encoder_write_standard_spiff_header(
@@ -208,7 +219,7 @@ def jpegls_encode(data, level=None, out=None):
                 300,
                 300)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_write_standard_spiff_header', ret)
 
             ret = charls_jpegls_encoder_encode_from_buffer(
@@ -217,14 +228,14 @@ def jpegls_encode(data, level=None, out=None):
                 <size_t>srcsize,
                 <uint32_t>rowstride)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_encode_from_buffer', ret)
 
             ret = charls_jpegls_encoder_get_bytes_written(
                 encoder,
                 &byteswritten)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_encoder_get_bytes_written', ret)
     finally:
         if encoder != NULL:
@@ -234,7 +245,7 @@ def jpegls_encode(data, level=None, out=None):
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegls_decode(data, out=None):
+def jpegls_decode(data, index=None, out=None):
     """Return numpy array from JPEG LS image.
 
     """
@@ -245,7 +256,7 @@ def jpegls_decode(data, out=None):
         ssize_t dstsize
         ssize_t itemsize = 0
         charls_jpegls_errc ret
-        charls_jpegls_decoder *decoder = NULL
+        charls_jpegls_decoder* decoder = NULL
         charls_interleave_mode interleave_mode
         charls_frame_info frameinfo
         # charls_spiff_header spiff_header
@@ -258,14 +269,14 @@ def jpegls_decode(data, out=None):
         with nogil:
             decoder = charls_jpegls_decoder_create()
             if decoder == NULL:
-                raise JpegLsError('charls_jpegls_decoder_create', None)
+                raise JpeglsError('charls_jpegls_decoder_create', None)
 
             ret = charls_jpegls_decoder_set_source_buffer(
                 decoder,
                 <void*>&src[0],
                 <size_t>srcsize)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_decoder_set_source_buffer', ret)
 
             # ret = charls_jpegls_decoder_read_spiff_header(
@@ -273,22 +284,22 @@ def jpegls_decode(data, out=None):
             #     &spiff_header,
             #     &header_found)
             # if ret:
-            #     raise JpegLsError(
+            #     raise JpeglsError(
             #         'charls_jpegls_decoder_read_spiff_header', ret)
 
             ret = charls_jpegls_decoder_read_header(decoder)
             if ret:
-                raise JpegLsError('charls_jpegls_decoder_read_header', ret)
+                raise JpeglsError('charls_jpegls_decoder_read_header', ret)
 
             ret = charls_jpegls_decoder_get_frame_info(decoder, &frameinfo)
             if ret:
-                raise JpegLsError('charls_jpegls_decoder_get_frame_info', ret)
+                raise JpeglsError('charls_jpegls_decoder_get_frame_info', ret)
 
             ret = charls_jpegls_decoder_get_interleave_mode(
                 decoder,
                 &interleave_mode)
             if ret:
-                raise JpegLsError(
+                raise JpeglsError(
                     'charls_jpegls_decoder_get_interleave_mode', ret)
 
             with gil:
@@ -300,8 +311,8 @@ def jpegls_decode(data, out=None):
                     itemsize = 2
                 else:
                     raise ValueError(
-                        'JpegLs bits_per_sample not supported: %i'
-                        % frameinfo.bits_per_sample)
+                        'JpegLs bits_per_sample not supported: {}'.format(
+                            frameinfo.bits_per_sample))
 
                 if frameinfo.component_count == 1:
                     shape = (
@@ -349,7 +360,7 @@ def jpegls_decode(data, out=None):
                 0)
 
         if ret:
-            raise JpegLsError('charls_jpegls_decoder_decode_to_buffer', ret)
+            raise JpeglsError('charls_jpegls_decoder_decode_to_buffer', ret)
 
     finally:
         if decoder != NULL:
@@ -362,9 +373,3 @@ def jpegls_decode(data, out=None):
         out = numpy.moveaxis(out, 0, -1)
 
     return out
-
-
-def jpegls_version():
-    """Return CharLS version string."""
-    return 'charls %i.%i.%i' % (
-        CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH)
