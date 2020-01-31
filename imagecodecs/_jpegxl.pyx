@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # _jpegls.pyx
 # distutils: language = c
 # cython: language_level = 3
@@ -7,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019, Christoph Gohlke
+# Copyright (c) 2019-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG-XL codec for the imagecodecs package.
+"""JPEG XL codec for the imagecodecs package.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -46,37 +45,150 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2020.1.31
 
 """
 
-__version__ = '2019.12.16'
+__version__ = '2020.1.31'
 
-include '_imagecodecs.pxi'
-
-from libc.string cimport memcpy
-from libc.stdlib cimport malloc, free, realloc
-from libc.stdint cimport uint8_t
-
-
-# JPEG XL #####################################################################
-
-from ._imagecodecs import jpeg8_decode, jpeg8_encode
+include '_shared.pxi'
 
 from brunsli cimport *
 
+from . import jpeg8_decode, jpeg8_encode
+
+
+class JPEGXL:
+    """JPEG XL Constants."""
+
+
+class JpegxlError(RuntimeError):
+    """JPEG XL Exceptions."""
+
+    def __init__(self, func, err):
+        # msg = {
+        #     BRUNSLI_OK: 'BRUNSLI_OK',
+        #     BRUNSLI_NON_REPRESENTABLE: 'BRUNSLI_NON_REPRESENTABLE',
+        #     BRUNSLI_MEMORY_ERROR: 'BRUNSLI_MEMORY_ERROR',
+        #     BRUNSLI_INVALID_PARAM: 'BRUNSLI_INVALID_PARAM',
+        #     BRUNSLI_COMPRESSION_ERROR: 'BRUNSLI_COMPRESSION_ERROR',
+        #     BRUNSLI_INVALID_BRN: 'BRUNSLI_INVALID_BRN',
+        #     BRUNSLI_DECOMPRESSION_ERROR: 'BRUNSLI_DECOMPRESSION_ERROR',
+        #     BRUNSLI_NOT_ENOUGH_DATA: 'BRUNSLI_NOT_ENOUGH_DATA',
+        # }.get(err, f'unknown error {err!r}')
+        msg = f'{func} returned {err}'
+        super().__init__(msg)
+
+
+def jpegxl_version():
+    """Return Brunsli library version string."""
+    # TODO: use version from header when available
+    return 'brunsli 0.1'
+
+
+def jpegxl_check(data):
+    """Return True if data likely contains a JPEG XL image."""
+
+
+def jpegxl_encode(data, level=None, colorspace=None, outcolorspace=None,
+                  subsampling=None, optimize=None, smoothing=None,
+                  out=None):
+    """Return JPEG XL image from numpy array.
+
+    """
+    cdef:
+        const uint8_t[::1] dst  # must be const to write to bytes
+        const uint8_t[::1] src
+        char* dstptr = NULL
+        ssize_t dstsize
+        size_t srcsize
+        brunsli_sink_t* sink = NULL
+        int ret
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if isinstance(data, numpy.ndarray):
+        src = jpeg8_encode(
+            data,
+            level=level,
+            colorspace=colorspace,
+            outcolorspace=outcolorspace,
+            subsampling=subsampling,
+            optimize=optimize,
+            smoothing=smoothing
+        )
+    else:
+        # existing JPEG stream
+        src = data
+    srcsize = src.size
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    sink = brunsli_sink_new(srcsize // 2)
+    try:
+        with nogil:
+            ret = EncodeBrunsli(srcsize, &src[0], sink, brunsli_sink_write)
+        if ret != 1:
+            raise JpegxlError('EncodeBrunsli', ret)
+        if out is None:
+            if dstsize < 0:
+                dstsize = sink.byteswritten
+                dstptr = <char*>sink.data
+            out = _create_output(outtype, dstsize, dstptr)
+        if dstptr == NULL:
+            dst = out
+            dstsize = dst.size
+            if <size_t>dstsize < sink.byteswritten:
+                raise ValueError('output too small')
+            memcpy(<void*>&dst[0], <void*>sink.data, sink.byteswritten)
+            del dst
+            out = _return_output(out, dstsize, sink.byteswritten, outgiven)
+    finally:
+        brunsli_sink_del(sink)
+    return out
+
+
+def jpegxl_decode(data, index=None, colorspace=None, outcolorspace=None,
+                  asjpeg=False, out=None):
+    """Return numpy array from JPEG XL image.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        size_t srcsize = <size_t>src.size
+        brunsli_sink_t* sink = brunsli_sink_new(srcsize * 2)
+        int ret
+
+    try:
+        with nogil:
+            ret = DecodeBrunsli(srcsize, &src[0], sink, brunsli_sink_write)
+        if ret != 1:
+            raise JpegxlError('DecodeBrunsli', ret)
+        out = jpeg8_decode(
+            <uint8_t[:sink.byteswritten]>sink.data,
+            index=index,
+            colorspace=colorspace,
+            outcolorspace=outcolorspace,
+            out=out
+        )
+    finally:
+        brunsli_sink_del(sink)
+    return out
+
 
 ctypedef struct brunsli_sink_t:
-    uint8_t *data
+    uint8_t* data
     size_t size
     size_t offset
     size_t byteswritten
 
 
-cdef brunsli_sink_t *brunsli_sink_new(size_t size):
+cdef brunsli_sink_t* brunsli_sink_new(size_t size):
     """Return new Brunsli sink."""
     cdef:
-        brunsli_sink_t *sink = <brunsli_sink_t*>malloc(sizeof(brunsli_sink_t))
+        brunsli_sink_t* sink = <brunsli_sink_t*>malloc(sizeof(brunsli_sink_t))
+
     if sink == NULL:
         raise MemoryError('failed to allocate brunsli_sink')
     sink.byteswritten = 0
@@ -89,21 +201,21 @@ cdef brunsli_sink_t *brunsli_sink_new(size_t size):
     return sink
 
 
-cdef brunsli_sink_del(brunsli_sink_t *sink):
+cdef brunsli_sink_del(brunsli_sink_t* sink):
     """Free Brunsli sink."""
     if sink != NULL:
         free(sink.data)
         free(sink)
 
 
-cdef size_t brunsli_sink_write(void *brunsli_sink_ptr,
-                               const uint8_t *src,
+cdef size_t brunsli_sink_write(void* brunsli_sink_ptr, const uint8_t* src,
                                size_t size) nogil:
     """Brunsli callback function for writing to sink."""
     cdef:
-        uint8_t *tmp
+        uint8_t* tmp
         size_t newsize
-        brunsli_sink_t *sink = <brunsli_sink_t*>brunsli_sink_ptr
+        brunsli_sink_t* sink = <brunsli_sink_t*>brunsli_sink_ptr
+
     if sink == NULL or size == 0 or sink.offset > sink.size:
         return 0
     if sink.offset + size > sink.size:
@@ -123,102 +235,3 @@ cdef size_t brunsli_sink_write(void *brunsli_sink_ptr,
     if sink.offset > sink.byteswritten:
         sink.byteswritten = sink.offset
     return size
-
-
-class JpegXlError(RuntimeError):
-    """JPEG-XL Exceptions."""
-    def __init__(self, func, err):
-        # msg = {
-        #     BRUNSLI_OK: 'BRUNSLI_OK',
-        #     BRUNSLI_NON_REPRESENTABLE: 'BRUNSLI_NON_REPRESENTABLE',
-        #     BRUNSLI_MEMORY_ERROR: 'BRUNSLI_MEMORY_ERROR',
-        #     BRUNSLI_INVALID_PARAM: 'BRUNSLI_INVALID_PARAM',
-        #     BRUNSLI_COMPRESSION_ERROR: 'BRUNSLI_COMPRESSION_ERROR',
-        #     BRUNSLI_INVALID_BRN: 'BRUNSLI_INVALID_BRN',
-        #     BRUNSLI_DECOMPRESSION_ERROR: 'BRUNSLI_DECOMPRESSION_ERROR',
-        #     BRUNSLI_NOT_ENOUGH_DATA: 'BRUNSLI_NOT_ENOUGH_DATA',
-        #     }.get(err, 'unknown error %i' % err)
-        msg = '%s returned %s' % (func, err)
-        RuntimeError.__init__(self, msg)
-
-
-def jpegxl_decode(data, colorspace=None, outcolorspace=None, asjpeg=False,
-                  out=None):
-    """Return numpy array from JPEG-XL image.
-
-    """
-    cdef:
-        const uint8_t[::1] src = data
-        size_t srcsize = <size_t>src.size
-        brunsli_sink_t *sink = brunsli_sink_new(srcsize * 2)
-        int ret
-    try:
-        with nogil:
-            ret = DecodeBrunsli(srcsize, &src[0], sink, brunsli_sink_write)
-        if ret != 1:
-            raise JpegXlError('DecodeBrunsli', ret)
-        out = jpeg8_decode(
-            <uint8_t[:sink.byteswritten]>sink.data,
-            colorspace=colorspace, outcolorspace=outcolorspace, out=out)
-    finally:
-        brunsli_sink_del(sink)
-    return out
-
-
-def jpegxl_encode(data, level=None, colorspace=None, outcolorspace=None,
-                  subsampling=None, optimize=None, smoothing=None, out=None):
-    """Return JPEG-XL image from numpy array.
-
-    """
-    cdef:
-        const uint8_t[::1] dst  # must be const to write to bytes
-        const uint8_t[::1] src
-        char *dstptr = NULL
-        ssize_t dstsize
-        size_t srcsize
-        brunsli_sink_t *sink = NULL
-        int ret
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
-    if isinstance(data, numpy.ndarray):
-        src = jpeg8_encode(data, level=level, colorspace=colorspace,
-                           outcolorspace=outcolorspace,
-                           subsampling=subsampling,
-                           optimize=optimize, smoothing=smoothing)
-    else:
-        # existing JPEG stream
-        src = data
-    srcsize = src.size
-
-    out, dstsize, outgiven, outtype = _parse_output(out)
-
-    sink = brunsli_sink_new(srcsize // 2)
-    try:
-        with nogil:
-            ret = EncodeBrunsli(srcsize, &src[0], sink, brunsli_sink_write)
-        if ret != 1:
-            raise JpegXlError('EncodeBrunsli', ret)
-        if out is None:
-            if dstsize < 0:
-                dstsize = sink.byteswritten
-                dstptr = <char*>sink.data
-            out = _create_output(outtype, dstsize, dstptr)
-        if dstptr == NULL:
-            dst = out
-            dstsize = dst.size
-            if <size_t>dstsize < sink.byteswritten:
-                raise ValueError('output too small')
-            memcpy(<void*>&dst[0], <void*>sink.data, sink.byteswritten)
-            del dst
-            out = _return_output(out, dstsize, sink.byteswritten, outgiven)
-    finally:
-        brunsli_sink_del(sink)
-    return out
-
-
-def jpegxl_version():
-    """Return Brunsli version string."""
-    # TODO: use version from headers when available
-    return 'brunsli 0.1'
