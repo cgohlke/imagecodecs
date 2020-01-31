@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # _zfp.pyx
 # distutils: language = c
 # cython: language_level = 3
@@ -7,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019, Christoph Gohlke
+# Copyright (c) 2019-2020, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -46,24 +45,45 @@
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.16
+:Version: 2020.1.31
 
 """
 
-__version__ = '2019.12.16'
+__version__ = '2020.1.31'
 
-include '_imagecodecs.pxi'
-
-from libc.stdint cimport uint8_t
-
-
-# ZFP #########################################################################
+include '_shared.pxi'
 
 from zfp cimport *
 
 
+class ZFP:
+    """ZFP Constants."""
+    EXEC_SERIAL = zfp_exec_serial
+    EXEC_OMPL = zfp_exec_omp
+    EXEC_CUDAL = zfp_exec_cuda
+    MODE_NULLL = zfp_mode_null
+    MODE_EXPERTL = zfp_mode_expert
+    MODE_FIXED_RATEL = zfp_mode_fixed_rate
+    MODE_FIXED_PRECISIONL = zfp_mode_fixed_precision
+    MODE_FIXED_ACCURACYL = zfp_mode_fixed_accuracy
+    MODE_REVERSIBLEL = zfp_mode_reversible
+
+
 class ZfpError(RuntimeError):
     """ZFP Exceptions."""
+
+
+def zfp_version():
+    """Return ZFP library version string."""
+    return 'zfp ' + ZFP_VERSION_STRING.decode()
+
+
+def zfp_check(const uint8_t[::1] data):
+    """Return True if data likely contains a ZFP array."""
+    cdef:
+        bytes sig = bytes(data[:3])
+
+    return sig == b'zfp'
 
 
 def zfp_encode(data, level=None, mode=None, execution=None, header=True,
@@ -77,9 +97,9 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         size_t byteswritten
         ssize_t dstsize
         ssize_t srcsize = src.size * src.itemsize
-        bitstream *stream = NULL
-        zfp_stream *zfp = NULL
-        zfp_field *field = NULL
+        bitstream* stream = NULL
+        zfp_stream* zfp = NULL
+        zfp_field* field = NULL
         zfp_type ztype
         zfp_mode zmode
         zfp_exec_policy zexec
@@ -241,7 +261,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def zfp_decode(data, shape=None, dtype=None, out=None):
+def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
     """Decompress ZFP stream to numpy array.
 
     """
@@ -249,9 +269,9 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
-        zfp_stream *zfp = NULL
-        bitstream *stream = NULL
-        zfp_field *field = NULL
+        zfp_stream* zfp = NULL
+        bitstream* stream = NULL
+        zfp_field* field = NULL
         zfp_type ztype
         ssize_t ndim
         size_t size
@@ -386,8 +406,3 @@ def zfp_decode(data, shape=None, dtype=None, out=None):
             stream_close(stream)
 
     return out
-
-
-def zfp_version():
-    """Return ZFP version string."""
-    return 'zfp ' + ZFP_VERSION_STRING.decode('utf-8')
