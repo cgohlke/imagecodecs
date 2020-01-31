@@ -1,32 +1,15 @@
 include LICENSE
 include README.rst
-# azure-pipelines.yaml
+include CHANGES.rst
+# include azure-pipelines.yaml
 # include pyproject.toml
 
-include imagecodecs/_imagecodecs.c
-include imagecodecs/_imagecodecs_lite.c
-include imagecodecs/_jpeg12.c
-include imagecodecs/_jpegls.c
-include imagecodecs/_jpegxl.c
-include imagecodecs/_zfp.c
-
-include imagecodecs/_imagecodecs.pyx
-include imagecodecs/_imagecodecs_lite.pyx
-include imagecodecs/_jpeg12.pyx
-include imagecodecs/_jpegls.pyx
-include imagecodecs/_jpegxl.pyx
-include imagecodecs/_zfp.pyx
+include imagecodecs/*.c
+include imagecodecs/*.h
+include imagecodecs/*.cpp
+include imagecodecs/*.pyx
 include imagecodecs/*.pxd
 include imagecodecs/*.pxi
-
-include imagecodecs/imagecodecs.c
-include imagecodecs/imagecodecs.h
-
-include imagecodecs/jpeg_sof3.cpp
-include imagecodecs/jpeg_sof3.h
-
-include imagecodecs/opj_color.cpp
-include imagecodecs/opj_color.h
 
 include imagecodecs/licenses/*
 include imagecodecs/patches/*
@@ -48,9 +31,11 @@ include tests/*.jls
 include tests/*.jxl
 include tests/*.tif
 include tests/*.webp
+include tests/tiff/*.*
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
 
+exclude tests/tiff/gray.movie.u1.tif
 exclude tests/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
@@ -60,4 +45,3 @@ recursive-exclude * *.py[co]
 recursive-exclude * *-
 recursive-exclude * *.html
 recursive-exclude * *Copy*.*
-
