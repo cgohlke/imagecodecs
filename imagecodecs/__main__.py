@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 # imagecodecs/__main__.py
 
-# Copyright (c) 2019, Christoph Gohlke
-# This source code is distributed under the 3-clause BSD license.
+# Copyright (c) 2019-2020, Christoph Gohlke
+# This source code is distributed under the BSD 3-Clause license.
 
 """Imagecodecs package command line script."""
 
@@ -10,24 +9,9 @@ import sys
 
 from matplotlib.pyplot import show
 
-from tifffile import imshow
+from tifffile import imshow, askopenfilename, Timer
 
-from ._utils import imread
-
-
-def askopenfilename(**kwargs):
-    """Return file name(s) from Tkinter's file open dialog."""
-    try:
-        from Tkinter import Tk
-        import tkFileDialog as filedialog
-    except ImportError:
-        from tkinter import Tk, filedialog
-    root = Tk()
-    root.withdraw()
-    root.update()
-    filenames = filedialog.askopenfilename(**kwargs)
-    root.destroy()
-    return filenames
+from .imagecodecs import imread
 
 
 def main(argv=None, verbose=True, codec=None):
@@ -36,7 +20,7 @@ def main(argv=None, verbose=True, codec=None):
         argv = sys.argv
 
     if len(argv) < 2:
-        filename = askopenfilename(title='Select a image file')
+        filename = askopenfilename(title='Select an image file')
         if not filename:
             print('No file selected')
             return -1
@@ -46,9 +30,13 @@ def main(argv=None, verbose=True, codec=None):
         print('Usage: imagecodecs filename')
         return -1
 
+    timer = Timer()
     try:
+        timer.start('Reading image')
         image, codec = imread(filename, return_codec=True)
+        print(timer)
     except ValueError as exception:
+        print('failed')
         image = None
         message = str(exception)
 
@@ -60,7 +48,7 @@ def main(argv=None, verbose=True, codec=None):
             print(message)
         return -1
     if verbose:
-        print("%s: %s %s" % (codec.__name__.upper(), image.shape, image.dtype))
+        print(f'{codec.__name__.upper()}: {image.shape} {image.dtype}')
 
     imshow(image, title=filename)
     show()
