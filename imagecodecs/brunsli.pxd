@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # brunsli.pxd
 # cython: language_level = 3
 
@@ -10,23 +9,25 @@ from libc.stdint cimport uint8_t
 cdef extern from 'brunsli/decode.h':
 
     ctypedef size_t (*DecodeBrunsliSink)(
-        void *sink,
-        const uint8_t *buf,
+        void* sink,
+        const uint8_t* buf,
         size_t size)
 
     int DecodeBrunsli(
         size_t size,
-        const uint8_t *data,
-        void *sink,
+        const uint8_t* data,
+        void* sink,
         DecodeBrunsliSink out_fun) nogil
+
 
 cdef extern from 'brunsli/decode.h':
 
     int EncodeBrunsli(
         size_t size,
-        const unsigned char *data,
-        void *sink,
+        const unsigned char* data,
+        void* sink,
         DecodeBrunsliSink out_fun) nogil
+
 
 # ctypedef enum brunsli_status:
 #     # defined in brunsli/status.h'
