@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # szlib.pxd
 # cython: language_level = 3
 
@@ -32,17 +31,17 @@ cdef extern from 'szlib.h':
         int pixels_per_scanline
 
     int SZ_BufftoBuffCompress(
-        void *dest,
-        size_t *destLen,
-        const void *source,
+        void* dest,
+        size_t* destLen,
+        const void* source,
         size_t sourceLen,
-        SZ_com_t *param) nogil
+        SZ_com_t* param) nogil
 
     int SZ_BufftoBuffDecompress(
-        void *dest,
-        size_t *destLen,
-        const void *source,
+        void* dest,
+        size_t* destLen,
+        const void* source,
         size_t sourceLen,
-        SZ_com_t *param) nogil
+        SZ_com_t* param) nogil
 
     int SZ_encoder_enabled() nogil
