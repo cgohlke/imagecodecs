@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # zstd.pxd
 # cython: language_level = 3
 
@@ -23,19 +22,19 @@ cdef extern from 'zstd.h':
     const char* ZSTD_versionString() nogil
 
     unsigned long long ZSTD_getFrameContentSize(
-        const void *src,
+        const void* src,
         size_t srcSize) nogil
 
     size_t ZSTD_decompress(
-        void *dst,
+        void* dst,
         size_t dstCapacity,
-        const void *src,
+        const void* src,
         size_t compressedSize) nogil
 
     size_t ZSTD_compress(
-        void *dst,
+        void* dst,
         size_t dstCapacity,
-        const void *src,
+        const void* src,
         size_t srcSize,
         int compressionLevel) nogil
 
