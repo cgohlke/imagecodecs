@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # imagecodecs.py
 
 # Copyright (c) 2008-2020, Christoph Gohlke
@@ -32,9 +31,15 @@
 
 """Image transformation, compression, and decompression codecs.
 
-This module implements limited functionality of the imagecodecs Cython
-extension modules using pure Python and 3rd party packages.
-The module is intended for testing and reference, not production code.
+Imagecodecs is a Python library that provides block-oriented, in-memory buffer
+transformation, compression, and decompression functions for use in the
+tifffile, czifile, and other scientific imaging modules.
+
+Decode and/or encode functions are implemented for Zlib (DEFLATE),
+ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC,
+NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000,
+JPEG LS, JPEG XR, JPEG XL, PackBits, Packed Integers, Delta, XOR Delta,
+Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -44,195 +49,624 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.31
+:Version: 2020.1.31
+
+Requirements
+------------
+This release has been tested with the following requirements and dependencies
+(other versions may work):
+
+* `CPython 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
+* `Numpy 1.16.6 <https://www.numpy.org>`_
+* `Cython 0.29.14 <https://cython.org>`_
+* `zlib 1.2.11 <https://github.com/madler/zlib>`_
+* `lz4 1.9.2 <https://github.com/lz4/lz4>`_
+* `zstd 1.4.4 <https://github.com/facebook/zstd>`_
+* `blosc 1.17.1 <https://github.com/Blosc/c-blosc>`_
+* `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
+* `liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
+* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
+* `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
+* `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
+* `libtiff 4.1.0 <https://gitlab.com/libtiff/libtiff>`_
+* `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+  (8 and 12-bit)
+* `charls 2.1.0 <https://github.com/team-charls/charls>`_
+* `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
+* `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
+* `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
+* `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `snappy 1.1.8 <https://github.com/google/snappy>`_
+* `zopfli-1.0.3 <https://github.com/google/zopfli>`_
+* `brotli 1.0.7 <https://github.com/google/brotli>`_
+* `brunsli 0.1 <https://github.com/google/brunsli>`_
+* `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
+* `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
+
+Required Python packages for testing (other versions may work):
+
+* `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
+* `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
+* `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
+* `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
+* `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
+* `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
+* `zopflipy 1.3 <https://github.com/hattya/zopflipy>`_
+* `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
+
+Notes
+-----
+The API is not stable yet and might change between revisions.
+
+Works on little-endian platforms only.
+
+Python 32-bit versions are deprecated. Python 2.7 and 3.5 are no longer
+supported.
+
+The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017
+and 2019 <https://support.microsoft.com/en-us/help/2977003/
+the-latest-supported-visual-c-downloads>`_ is required on Windows.
+
+Refer to the imagecodecs/licenses folder for 3rd party library licenses.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
+and `OpenJPEG's color.c
+<https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
+
+Build instructions and wheels for manylinux and macOS courtesy of
+`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
+
+To install the requirements for building imagecodecs from source code on
+latest Ubuntu Linux distributions, run:
+
+    ``sudo apt-get install build-essential python3-dev cython3
+    python3-setuptools python3-pip python3-wheel python3-numpy
+    python3-pytest python3-blosc python3-brotli python3-snappy python3-lz4
+    libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
+    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-turbo8-dev libjxr-dev
+    liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
+    libzopfli-dev libgif-dev libtiff-dev``
+
+Use the ``--skip-extension`` build options to skip building specific
+extensions. Use the ``--lite`` build option to only build extensions without
+3rd-party dependencies. Edit ``setup.py`` to modify other build options.
+
+Other Python packages and C libraries providing imaging or compression codecs:
+
+* `numcodecs <https://github.com/zarr-developers/numcodecs>`_
+* `Python zlib <https://docs.python.org/3/library/zlib.html>`_
+* `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
+* `Python lzma <https://docs.python.org/3/library/lzma.html>`_
+* `backports.lzma <https://github.com/peterjc/backports.lzma>`_
+* `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
+* `python-lzw <https://github.com/joeatwork/python-lzw>`_
+* `packbits <https://github.com/psd-tools/packbits>`_
+* `fpzip <https://github.com/seung-lab/fpzip>`_
+* `libmng <https://sourceforge.net/projects/libmng/>`_
+* `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
+* `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
+* `LERC <https://github.com/Esri/lerc>`_
 
 Revisions
 ---------
+2020.1.31
+    Pass 3468 tests.
+    Add GIF codec via giflib.
+    Add TIFF decoder via libtiff (WIP).
+    Add codec_check functions (WIP).
+    Fix formatting libjpeg error messages.
+    Use xfail in tests.
+    Load extensions on demand on Python >= 3.7.
+    Add build options to skip building specific extensions.
+    Split imagecodecs extension into individual extensions.
+    Move shared code into shared extension.
+    Rename imagecodecs_lite extension and imagecodecs C library to 'imcd'.
+    Remove support for Python 2.7 and 3.5.
 2019.12.31
-    Fix Pillow version.
+    Fix decoding of indexed PNG with transparency.
+    Last version to support Python 2.7 and 3.5.
 2019.12.16
-    Rename jxr and j2k codecs to jpegxr and jpeg2k.
-    Add zopfli codec via zopflipy package.
-    Add snappy codec via python-snappy package.
+    Add Zopfli codec.
+    Add Snappy codec.
+    Rename j2k codec to jpeg2k.
+    Rename jxr codec to jpegxr.
+    Use Debian's jxrlib.
+    Support pathlib and binary streams in imread and imwrite.
+    Move external C declarations to pxd files.
+    Move shared code to pxi file.
+    Update copyright notices.
 2019.12.10
-    Add brotli codec via Brotli package.
-    Add dummy dtype and jpegxl codecs.
+    Add version functions.
+    Add Brotli codec (WIP).
+    Add optional JPEG XL codec via Brunsli repacker (WIP).
+2019.12.3
+    Sync with imagecodecs-lite.
 2019.11.28
-    Add dummy AEC codec.
+    Add AEC codec via libaec (WIP).
+    Do not require scikit-image for testing.
+    Require CharLS 2.1.
 2019.11.18
-    Add Bitshuffle codec.
-    Fix doctests.
+    Add bitshuffle codec.
+    Fix formatting of unknown error numbers.
+    Fix test failures with official python-lzf.
 2019.11.5
-    Update dependencies.
+    Rebuild with updated dependencies.
 2019.5.22
-    Add ZFP codec via zfpy package.
+    Add optional YCbCr chroma subsampling to JPEG encoder.
+    Add default reversible mode to ZFP encoder.
+    Add imread and imwrite helper functions.
 2019.4.20
-    Include with imagecodecs-lite.
+    Fix setup requirements.
+2019.2.22
+    Move codecs without 3rd-party C library dependencies to imagecodecs_lite.
+2019.2.20
+    Rebuild with updated dependencies.
+2019.1.20
+    Add more pixel formats to JPEG XR codec.
+    Add JPEG XR encoder.
 2019.1.14
-    Add dummy ZFP codec.
-    Add numpy NPY and NPZ codec.
+    Add optional ZFP codec via zfp library (WIP).
+    Add numpy NPY and NPZ codecs.
+    Fix some static codechecker errors.
 2019.1.1
-    Update copyright year.
-2018.12.1
-    Use logging.warning instead of warnings.warn.
-2018.10.30
-    Check signatures before calling pil_decode.
-2018.10.28
-    Add dummy JpegLS codec.
-    Rename jpeg0xc3 to jpegsof3.
-2018.10.22
-    Add Blosc codec via blosc package.
-    Fix FutureWarning with numpy 1.15.
-2018.10.18
-    Use Pillow for decoding jpeg, png, j2k, and webp.
-2018.10.17
-    Add dummy jpeg0xc3 codec.
-2018.10.10
-    Add dummy PNG codec.
-    Improve Delta codecs.
-2018.9.30
-    Add LZF codec via python-lzf package.
-2018.9.22
-    Add dummy webp codec.
-2018.8.29
-    Add FloatPred, LZW, PackBits, PackInts decoders from tifffile.py module.
-    Use zlib, bz2, lzma, zstd, and lz4 modules for codecs.
+    ...
+
+Refer to the CHANGES file for older revisions.
 
 """
 
-from __future__ import division, print_function
+__version__ = '2020.1.31'
 
-__version__ = '2019.12.31.py'
-
+import os
 import sys
-import struct
-import logging
-import functools
-import zlib
 import io
+import importlib
 
 import numpy
 
-try:
-    import lzma
-except ImportError:
-    try:
-        from backports import lzma
-    except ImportError:
-        lzma = None
+# names of public attributes by module
+# will be updated with standard codec attributes
+_API = {
+    None: [
+        'imread',
+        'imwrite',
+        'version',
+        'DelayedImportError',
+        (
+            'none',
+            'numpy',
+            'jpeg',
+        )
+        ],
+    'imcd': [
+        'imcd_version',
+        'numpy_abi_version',
+        'cython_version',
+        (
+            'bitorder',
+            'delta',
+            'floatpred',
+            'lzw',
+            'packbits',
+            'packints',
+            'xor',
+        )
+        ],
+    'aec': [],
+    'bitshuffle': [],
+    'blosc': [],
+    'brotli': [],
+    'bz2': [],
+    'gif': [],
+    'jpeg2k': [],
+    'jpeg8': ['jpeg8_turbo_version'],
+    'jpeg12': ['jpeg12_turbo_version'],
+    'jpegls': [],
+    'jpegsof3': [],
+    'jpegxl': [],
+    'jpegxr': [],
+    'lz4': [],
+    'lzf': [],
+    'lzma': [],
+    'png': [],
+    'snappy': [],
+    # 'szip': [],
+    'tiff': [],
+    'webp': [],
+    'zfp': [],
+    'zlib': ['zlib_crc32'],
+    'zopfli': [],
+    'zstd': [],
+    # 'module': ['attribute1', 'attribute2', ('codec1', 'code2', )]
+}
 
-try:
-    import bz2
-except ImportError:
-    bz2 = None
+# map extra to existing attributes
+# e.g. keep deprecated names for older versions of tifffile and czifile
+_COMPATIBILITY = {
+    'JPEG': 'JPEG8',
+    'jpeg_check': 'jpeg8_check',
+    'jpeg_version': 'jpeg8_version',
+    'zopfli_check': 'zlib_check',
+    'zopfli_decode': 'zlib_decode',
+    'j2k_encode': 'jpeg2k_encode',
+    'j2k_decode': 'jpeg2k_decode',
+    'jxr_encode': 'jpegxr_encode',
+    'jxr_decode': 'jpegxr_decode',
+}
 
-try:
-    import zstd
-except ImportError:
-    zstd = None
+# map attribute names to module names
+_ATTRIBUTES = {}
 
-try:
-    import lz4
-    import lz4.block
-except ImportError:
-    lz4 = None
-
-try:
-    import lzf
-except ImportError:
-    lzf = None
-
-try:
-    import zfpy as zfp
-except ImportError:
-    zfp = None
-
-try:
-    import blosc
-except ImportError:
-    blosc = None
-
-try:
-    import brotli
-except ImportError:
-    brotli = None
-
-try:
-    import bitshuffle
-except ImportError:
-    bitshuffle = None
-
-try:
-    import snappy
-except ImportError:
-    snappy = None
-
-try:
-    import zopfli
-except ImportError:
-    zopfli = None
-
-try:
-    import PIL
-except ImportError:
-    PIL = None
+# map of codec names to module names
+_CODECS = {}
 
 
-def notimplemented(arg=False):
-    """Return function decorator that raises NotImplementedError if not arg.
+def _add_codec(module, codec=None, attributes=None):
+    """Register codec in global _API, _ATTRIBUTES, and _CODECS."""
+    if codec is None:
+        codec = module
+    if attributes is None:
+        attributes = (
+            f'{codec}_encode',
+            f'{codec}_decode',
+            f'{codec}_check',
+            f'{codec}_version',
+            f'{codec.capitalize()}Error',
+            f'{codec.upper()}',
+        )
+    if module in _API:
+        _API[module].extend(attributes)
+    else:
+        _API[module] = attributes
+    _ATTRIBUTES.update({attr: module for attr in _API[module]})
+    _CODECS[codec] = module
 
-    >>> @notimplemented
-    ... def test(): pass
-    >>> test()
-    Traceback (most recent call last):
-    ...
-    NotImplementedError: test not implemented
 
-    >>> @notimplemented(True)
-    ... def test(): pass
-    >>> test()
+def _register_codecs():
+    """Parse _API and register all codecs."""
+    for module, attributes in _API.items():
+        for attr in attributes.copy():
+            if isinstance(attr, tuple):
+                attributes.remove(attr)
+                for codec in attr:
+                    _add_codec(module, codec)
+                break
+        else:
+            _add_codec(module)
+
+
+def _load_all():
+    """Add all registered attributes to package namespace."""
+    for name in __dir__():
+        __getattr__(name)
+
+
+def __dir__():
+    """Module __dir__."""
+    return sorted(list(_ATTRIBUTES) + list(_COMPATIBILITY))
+
+
+def __getattr__(name):
+    """Load attribute's extension and add its attributes to package namespace.
 
     """
-    def wrapper(func):
-        @functools.wraps(func)
-        def notimplemented(*args, **kwargs):
-            raise NotImplementedError('%s not implemented' % func.__name__)
-        return notimplemented
+    name_ = name
+    name = _COMPATIBILITY.get(name, name)
 
-    if callable(arg):
-        return wrapper(arg)
-    if not arg:
-        return wrapper
+    if name not in _ATTRIBUTES:
+        raise AttributeError(
+            f"module 'imagecodecs' has no attribute {name!r}")
 
-    def nop(func):
-        return func
+    module_ = _ATTRIBUTES[name]
+    if module_ is None:
+        return None
+    else:
+        try:
+            module = importlib.import_module('._' + module_, 'imagecodecs')
+        except ImportError:
+            module = None
 
-    return nop
+    for n in _API[module_]:
+        if n in _COMPATIBILITY:
+            continue
+        attr = getattr(module, n, None)
+        if attr is None:
+            attr = _stub(n, module)
+        setattr(imagecodecs, n, attr)
+
+    attr = getattr(imagecodecs, name)
+    if name != name_:
+        setattr(imagecodecs, name_, attr)
+    return attr
 
 
-def version(astype=None):
-    """Return detailed version information."""
-    versions = (
-        ('imagecodecs.py', __version__),
-        ('numpy', numpy.__version__),
-        ('zlib', zlib.ZLIB_VERSION),
-        ('bz2', 'stdlib' if bz2 else 'n/a'),
-        ('lzma', getattr(lzma, '__version__', 'stdlib') if lzma else 'n/a'),
-        ('blosc', blosc.__version__ if blosc else 'n/a'),
-        ('zstd', zstd.version() if zstd else 'n/a'),
-        ('lz4', lz4.VERSION if lz4 else 'n/a'),
-        ('lzf', 'unknown' if lzf else 'n/a'),
-        ('snappy', 'unknown' if snappy else 'n/a'),
-        ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
-        ('zfpy', zfp.__version__ if zfp else 'n/a'),
-        ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
-        ('pillow', PIL.__version__ if PIL else 'n/a'),
-    )
-    if astype is str or astype is None:
-        return ', '.join('%s-%s' % (k, v) for k, v in versions)
+class DelayedImportError(ImportError):
+    def __init__(self, name):
+        msg = f"could not import name {name!r} from 'imagecodecs'"
+        super().__init__(msg)
+
+
+def _stub(name, module):
+    """Return stub function or class."""
+
+    if name.endswith('_version'):
+        if module is None:
+            def stub_version():
+                f"""Stub for imagecodecs.{name}."""
+                return f"{name[:-8]} n/a"
+        else:
+            def stub_version():
+                f"""Stub for imagecodecs.{name}."""
+                return f"{name[:-8]} unknow"
+
+        return stub_version
+
+    if name.endswith('_check'):
+        if module is None:
+            def stub_check(arg):
+                f"""Stub for imagecodecs.{name}."""
+                return False
+        else:
+            def stub_check(arg):
+                f"""Stub for imagecodecs.{name}."""
+                return None
+
+        return stub_check
+
+    if name.endswith('_decode'):
+        def stub_decode(*args, **kwargs):
+            f"""Stub for imagecodecs.{name}."""
+            raise DelayedImportError(name)
+
+        return stub_decode
+
+    if name.endswith('_encode'):
+        def stub_encode(*args, **kwargs):
+            f"""Stub for imagecodecs.{name}."""
+            raise DelayedImportError(name)
+
+        return stub_encode
+
+    if name.islower():
+        def stub_function(*args, **kwargs):
+            f"""Stub for imagecodecs.{name}."""
+            raise DelayedImportError(name)
+
+        return stub_function
+
+    if name.endswith('Error'):
+        class StubError(RuntimeError):
+            f"""Stub for imagecodecs.{name}."""
+
+            def __init__(self, *args, **kwargs):
+                raise DelayedImportError(name)
+
+        return StubError
+
+    class StubType(type):
+        def __getattr__(cls, arg):
+            raise DelayedImportError(name)
+
+        if module is None:
+            def __bool__(cls):
+                return False
+
+    if name.isupper():
+        class STUB(metaclass=StubType):
+            f"""Stub for imagecodecs.{name}."""
+
+        return STUB
+
+    class Stub(metaclass=StubType):
+        f"""Stub for imagecodecs.{name}."""
+
+    return Stub
+
+
+def _extensions():
+    """Return sorted list of extension names."""
+    return sorted(e for e in _API if e is not None)
+
+
+def version(astype=None, _versions_=[]):
+    """Return version information about all codecs and dependencies."""
+    if not _versions_:
+        _versions_.extend((
+            f'imagecodecs {__version__}',
+            imagecodecs.cython_version(),
+            imagecodecs.numpy_version(),
+            imagecodecs.numpy_abi_version(),
+            imagecodecs.imcd_version(),
+        ))
+        _versions_.extend(
+            sorted(set(
+                getattr(imagecodecs, v)()
+                for v in _ATTRIBUTES
+                if v.endswith('_version') and v not in (
+                    'imcd_version', 'numpy_abi_version', 'numpy_version',
+                    'cython_version', 'none_version')
+            )))
+
+    if astype is None or astype is str:
+        return ', '.join(ver.replace(' ', '-') for ver in _versions_)
     if astype is dict:
-        return dict(versions)
-    return versions
+        return dict(ver.split(' ') for ver in _versions_)
+    return tuple(_versions_)
+
+
+def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
+    """Return image data from file as numpy array."""
+    import pathlib
+    import mmap
+
+    codecs = []
+    if codec is None:
+        # find codec based on file extension
+        if isinstance(fileobj, (str, pathlib.Path)):
+            ext = os.path.splitext(str(fileobj))[-1][1:].lower()
+        else:
+            ext = None
+        if ext in _imcodecs():
+            codec = _imcodecs()[ext]
+            if codec == 'jpeg':
+                codecs.extend(('jpeg8', 'jpeg12', 'jpegls', 'jpegsof3'))
+            else:
+                codecs.append(codec)
+        # try other imaging codecs
+        codecs.extend(
+            c for c in (
+                'tiff', 'png', 'gif', 'webp', 'jpeg8', 'jpeg12', 'jpegsof3',
+                'jpeg2k', 'jpegls', 'jpegxr', 'jpegxl', 'zfp', 'numpy'
+            ) if c not in codecs
+        )
+    else:
+        # use provided codecs
+        if not isinstance(codec, (list, tuple)):
+            codec = [codec]
+        for c in codec:
+            if isinstance(c, str):
+                c = c.lower()
+                c = _imcodecs().get(c, c)
+            codecs.append(c)
+
+    offset = None
+    close = False
+    if isinstance(fileobj, mmap.mmap):
+        data = fileobj
+        offset = data.tell()
+    elif hasattr(fileobj, 'read'):
+        # binary stream: open file, BytesIO
+        data = fileobj.read()
+    elif isinstance(fileobj, (str, pathlib.Path)):
+        # TODO: support urllib.request.urlopen ?
+        # file name
+        with open(str(fileobj), 'rb') as fh:
+            if memmap:
+                offset = 0
+                close = True
+                data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+            else:
+                data = fh.read()
+    else:
+        # binary data
+        data = fileobj
+
+    exceptions = []
+    image = None
+    for codec in codecs:
+        if callable(codec):
+            func = codec
+        else:
+            try:
+                func = getattr(imagecodecs, codec + '_decode')
+            except Exception as exc:
+                exceptions.append(f'{repr(codec).upper()}: {exc}')
+                continue
+        try:
+            image = func(data, **kwargs)
+            if image.dtype == 'object':
+                image = None
+                raise ValueError('failed')
+            break
+        except DelayedImportError:
+            pass
+        except Exception as exc:
+            # raise
+            exceptions.append(f'{func.__name__.upper()}: {exc}')
+        if offset is not None:
+            data.seek(offset)
+
+    if close:
+        data.close()
+
+    if image is None:
+        raise ValueError('\n'.join(exceptions))
+
+    if return_codec:
+        return image, func
+    return image
+
+
+def imwrite(fileobj, data, codec=None, **kwargs):
+    """Write numpy array to image file."""
+    if codec is None:
+        # find codec based on file extension
+        import pathlib
+
+        if isinstance(fileobj, (str, pathlib.Path)):
+            ext = os.path.splitext(str(fileobj))[-1].lower()[1:]
+        else:
+            raise ValueError(f'no codec specified')
+
+        codec = _imcodecs().get(ext, ext)
+        try:
+            codec = getattr(imagecodecs, codec + '_encode')
+        except AttributeError as exc:
+            raise ValueError(f'invalid codec {codec!r}') from exc
+
+    elif isinstance(codec, str):
+        codec = codec.lower()
+        codec = _imcodecs().get(codec, codec)
+        try:
+            codec = getattr(imagecodecs, codec + '_encode')
+        except AttributeError as exc:
+            raise ValueError(f'invalid codec {codec!r}') from exc
+
+    elif not callable(codec):
+        raise ValueError(f'invalid codec {codec!r}')
+
+    data = codec(data, **kwargs)
+    if hasattr(fileobj, 'write'):
+        # binary stream: open file, BytesIO
+        fileobj.write(data)
+    else:
+        # file name
+        with open(str(fileobj), 'wb') as fh:
+            fh.write(data)
+
+
+def _imcodecs(_codecs_={}):
+    """Return map of image file extensions to codec names."""
+    if not _codecs_:
+        codecs = {
+            'numpy': ('npy', 'npz'),
+            'zfp': ('zfp', ),
+            'gif': ('gif', ),
+            'png': ('png', ),
+            'webp': ('webp', ),
+            'tiff': ('tif', 'tiff', 'tf8', 'tf2', 'btf'),
+            'jpeg': ('jpg', 'jpeg', 'jpe', 'jfif', 'jif'),
+            'jpegls': ('jls', ),
+            'jpegxl': ('jxl', 'brn'),
+            'jpegxr': ('jxr', 'hdp', 'wdp'),
+            'jpeg2k': ('j2k', 'jp2', 'j2c', 'jpc', 'jpx', 'jpf'),
+            # 'jpeg8': ('jpg8', 'jpeg8'),
+            # 'jpeg12': ('jpg12', 'jpeg12'),
+            # 'jpegsof3': ('jsof3', 'jpegsof3', 'jpeg0xc3')
+        }
+        _codecs_.update(
+            (ext, codec) for codec, exts in codecs.items() for ext in exts
+        )
+    return _codecs_
+
+
+NONE = True
+NoneError = RuntimeError
+
+
+def none_version():
+    """Return empty version string."""
+    return ''
+
+
+def none_check(data):
+    """Return True if data likely contains Template data."""
 
 
 def none_decode(data, *args, **kwargs):
@@ -245,10 +679,30 @@ def none_encode(data, *args, **kwargs):
     return data
 
 
+NUMPY = True
+NumpyError = RuntimeError
+
+
+def numpy_version():
+    """Return numpy version string."""
+    return f'numpy {numpy.__version__}'
+
+
+def numpy_check(data):
+    """Return True if data likely contains NPY or NPZ data."""
+    with io.BytesIO(data) as fh:
+        data = fh.read(64)
+    magic = b'\x93NUMPY'
+    return data.startswith(magic) or (data.startswith(b'PK') and magic in data)
+
+
 def numpy_decode(data, index=0, out=None, **kwargs):
     """Decode NPY and NPZ."""
     with io.BytesIO(data) as fh:
-        out = numpy.load(fh, **kwargs)
+        try:
+            out = numpy.load(fh, **kwargs)
+        except ValueError as exc:
+            raise ValueError('not a numpy array') from exc
         if hasattr(out, 'files'):
             try:
                 index = out.files[index]
@@ -258,748 +712,93 @@ def numpy_decode(data, index=0, out=None, **kwargs):
     return out
 
 
-def numpy_encode(data, level=None, out=None, **kwargs):
+def numpy_encode(data, level=None, out=None):
     """Encode NPY and NPZ."""
     with io.BytesIO() as fh:
         if level:
-            numpy.savez_compressed(fh, data, **kwargs)
+            numpy.savez_compressed(fh, data)
         else:
-            numpy.save(fh, data, **kwargs)
+            numpy.save(fh, data)
         fh.seek(0)
         out = fh.read()
     return out
 
 
-def delta_encode(data, axis=-1, out=None):
-    """Encode Delta."""
-    if isinstance(data, (bytes, bytearray)):
-        data = numpy.frombuffer(data, dtype='u1')
-        diff = numpy.diff(data, axis=0)
-        return numpy.insert(diff, 0, data[0]).tobytes()
+JpegError = RuntimeError
 
-    dtype = data.dtype
-    if dtype.kind == 'f':
-        data = data.view('u%i' % dtype.itemsize)
 
-    diff = numpy.diff(data, axis=axis)
-    key = [slice(None)] * data.ndim
-    key[axis] = 0
-    diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
-
-    if dtype.kind == 'f':
-        return diff.view(dtype)
-    return diff
-
-
-def delta_decode(data, axis=-1, out=None):
-    """Decode Delta."""
-    if out is not None and not out.flags.writeable:
-        out = None
-
-    if isinstance(data, (bytes, bytearray)):
-        data = numpy.frombuffer(data, dtype='u1')
-        return numpy.cumsum(data, axis=0, dtype='u1', out=out).tobytes()
-
-    if data.dtype.kind == 'f':
-        view = data.view('u%i' % data.dtype.itemsize)
-        view = numpy.cumsum(view, axis=axis, dtype=view.dtype)
-        return view.view(data.dtype)
-    return numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
-
-
-def xor_encode(data, axis=-1, out=None):
-    """Encode XOR delta."""
-    if isinstance(data, (bytes, bytearray)):
-        data = numpy.frombuffer(data, dtype='u1')
-        xor = numpy.bitwise_xor(data[1:], data[:-1])
-        return numpy.insert(xor, 0, data[0]).tobytes()
-
-    dtype = data.dtype
-    if dtype.kind == 'f':
-        data = data.view('u%i' % dtype.itemsize)
-
-    key = [slice(None)] * data.ndim
-    key[axis] = 0
-    key0 = [slice(None)] * data.ndim
-    key0[axis] = slice(1, None, None)
-    key1 = [slice(None)] * data.ndim
-    key1[axis] = slice(0, -1, None)
-
-    key = tuple(key)
-    key0 = tuple(key0)
-    key1 = tuple(key1)
-
-    xor = numpy.bitwise_xor(data[key0], data[key1])
-    xor = numpy.insert(xor, 0, data[key], axis=axis)
-
-    if dtype.kind == 'f':
-        return xor.view(dtype)
-    return xor
-
-
-def xor_decode(data, axis=-1, out=None):
-    """Decode XOR delta."""
-    if isinstance(data, (bytes, bytearray)):
-        prev = data[0]
-        b = [chr(prev)]
-        for c in data[1:]:
-            prev = c ^ prev
-            b.append(chr(prev))
-        return ''.join(b).encode('latin1')
-    raise NotImplementedError()
-
-
-def floatpred_decode(data, axis=-2, out=None):
-    """Decode floating point horizontal differencing.
-
-    The TIFF predictor type 3 reorders the bytes of the image values and
-    applies horizontal byte differencing to improve compression of floating
-    point images. The ordering of interleaved color channels is preserved.
-
-    Parameters
-    ----------
-    data : numpy.ndarray
-        The image to be decoded. The dtype must be a floating point.
-        The shape must include the number of contiguous samples per pixel
-        even if 1.
-
-    """
-    # logging.warning('using numpy FloatPred decoder')
-    if axis != -2:
-        raise NotImplementedError('axis %i != -2' % axis)
-    shape = data.shape
-    dtype = data.dtype
-    if len(shape) < 3:
-        raise ValueError('invalid data shape')
-    if dtype.char not in 'dfe':
-        raise ValueError('not a floating point image')
-    littleendian = data.dtype.byteorder == '<' or (
-        sys.byteorder == 'little' and data.dtype.byteorder == '=')
-    # undo horizontal byte differencing
-    data = data.view('uint8')
-    data.shape = shape[:-2] + (-1,) + shape[-1:]
-    numpy.cumsum(data, axis=-2, dtype='uint8', out=data)
-    # reorder bytes
-    if littleendian:
-        data.shape = shape[:-2] + (-1,) + shape[-2:]
-    data = numpy.swapaxes(data, -3, -2)
-    data = numpy.swapaxes(data, -2, -1)
-    data = data[..., ::-1]
-    # back to float
-    data = numpy.ascontiguousarray(data)
-    data = data.view(dtype)
-    data.shape = shape
-    return data
-
-
-@notimplemented
-def floatpred_encode(data, axis=-1, out=None):
-    """Encode Floating Point Predictor."""
-
-
-def bitorder_decode(data, out=None, _bitorder=[]):
-    """Reverse bits in each byte of byte string or numpy array.
-
-    Decode data where pixels with lower column values are stored in the
-    lower-order bits of the bytes (TIFF FillOrder is LSB2MSB).
-
-    Parameters
-    ----------
-    data : byte string or ndarray
-        The data to be bit reversed. If byte string, a new bit-reversed byte
-        string is returned. Numpy arrays are bit-reversed in-place.
-
-    Examples
-    --------
-    >>> bitorder_decode(b'\\x01\\x64')
-    b'\\x80&'
-    >>> data = numpy.array([1, 666], dtype='uint16')
-    >>> bitorder_decode(data)
-    array([  128, 16473], dtype=uint16)
-    >>> data
-    array([  128, 16473], dtype=uint16)
-
-    """
-    if not _bitorder:
-        _bitorder.append(
-            b'\x00\x80@\xc0 \xa0`\xe0\x10\x90P\xd00\xb0p\xf0\x08\x88H\xc8('
-            b'\xa8h\xe8\x18\x98X\xd88\xb8x\xf8\x04\x84D\xc4$\xa4d\xe4\x14'
-            b'\x94T\xd44\xb4t\xf4\x0c\x8cL\xcc,\xacl\xec\x1c\x9c\\\xdc<\xbc|'
-            b'\xfc\x02\x82B\xc2"\xa2b\xe2\x12\x92R\xd22\xb2r\xf2\n\x8aJ\xca*'
-            b'\xaaj\xea\x1a\x9aZ\xda:\xbaz\xfa\x06\x86F\xc6&\xa6f\xe6\x16'
-            b'\x96V\xd66\xb6v\xf6\x0e\x8eN\xce.\xaen\xee\x1e\x9e^\xde>\xbe~'
-            b'\xfe\x01\x81A\xc1!\xa1a\xe1\x11\x91Q\xd11\xb1q\xf1\t\x89I\xc9)'
-            b'\xa9i\xe9\x19\x99Y\xd99\xb9y\xf9\x05\x85E\xc5%\xa5e\xe5\x15'
-            b'\x95U\xd55\xb5u\xf5\r\x8dM\xcd-\xadm\xed\x1d\x9d]\xdd=\xbd}'
-            b'\xfd\x03\x83C\xc3#\xa3c\xe3\x13\x93S\xd33\xb3s\xf3\x0b\x8bK'
-            b'\xcb+\xabk\xeb\x1b\x9b[\xdb;\xbb{\xfb\x07\x87G\xc7\'\xa7g\xe7'
-            b'\x17\x97W\xd77\xb7w\xf7\x0f\x8fO\xcf/\xafo\xef\x1f\x9f_'
-            b'\xdf?\xbf\x7f\xff')
-        _bitorder.append(numpy.frombuffer(_bitorder[0], dtype='uint8'))
-    try:
-        view = data.view('uint8')
-        numpy.take(_bitorder[1], view, out=view)
-        return data
-    except AttributeError:
-        return data.translate(_bitorder[0])
-    except ValueError:
-        raise NotImplementedError('slices of arrays not supported')
-    return None
-
-
-bitorder_encode = bitorder_decode
-
-
-@notimplemented
-def packbits_encode(data, level=None, out=None):
-    """Compress PackBits."""
-
-
-def packbits_decode(encoded, out=None):
-    r"""Decompress PackBits encoded byte string.
-
-    >>> packbits_decode(b'\x80\x80')  # NOP
-    b''
-    >>> packbits_decode(b'\x02123')
-    b'123'
-    >>> packbits_decode(
-    ...   b'\xfe\xaa\x02\x80\x00\x2a\xfd\xaa\x03\x80\x00\x2a\x22\xf7\xaa')[:-4]
-    b'\xaa\xaa\xaa\x80\x00*\xaa\xaa\xaa\xaa\x80\x00*"\xaa\xaa\xaa\xaa\xaa\xaa'
-
-    """
-    # logging.warning('using pure Python PackBits decoder')
-    out = []
-    out_extend = out.extend
-    i = 0
-    try:
-        while True:
-            n = ord(encoded[i:i+1]) + 1
-            i += 1
-            if n > 129:
-                # replicate
-                out_extend(encoded[i:i+1] * (258 - n))
-                i += 1
-            elif n < 129:
-                # literal
-                out_extend(encoded[i:i+n])
-                i += n
-    except TypeError:
-        pass
-    return b''.join(out) if sys.version[0] == '2' else bytes(out)
-
-
-@notimplemented
-def lzw_encode(data, level=None, out=None):
-    """Compress LZW."""
-
-
-def lzw_decode(encoded, buffersize=0, out=None):
-    r"""Decompress LZW (Lempel-Ziv-Welch) encoded TIFF strip (byte string).
-
-    The strip must begin with a CLEAR code and end with an EOI code.
-
-    This implementation of the LZW decoding algorithm is described in TIFF v6
-    and is not compatible with old style LZW compressed files like
-    quad-lzw.tif.
-
-    >>> lzw_decode(b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
-    ...            b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02')
-    b'say hammer yo hammer mc hammer go hammer'
-
-    """
-    # logging.warning('using pure Python LZW decoder')
-    len_encoded = len(encoded)
-    bitcount_max = len_encoded * 8
-    unpack = struct.unpack
-
-    if sys.version[0] == '2':
-        newtable = [chr(i) for i in range(256)]
-    else:
-        newtable = [bytes([i]) for i in range(256)]
-    newtable.extend((0, 0))
-
-    def next_code():
-        """Return integer of 'bitw' bits at 'bitcount' position in encoded."""
-        start = bitcount // 8
-        s = encoded[start:start+4]
-        try:
-            code = unpack('>I', s)[0]
-        except Exception:
-            code = unpack('>I', s + b'\x00'*(4-len(s)))[0]
-        code <<= bitcount % 8
-        code &= mask
-        return code >> shr
-
-    switchbits = {  # code: bit-width, shr-bits, bit-mask
-        255: (9, 23, int(9*'1'+'0'*23, 2)),
-        511: (10, 22, int(10*'1'+'0'*22, 2)),
-        1023: (11, 21, int(11*'1'+'0'*21, 2)),
-        2047: (12, 20, int(12*'1'+'0'*20, 2)), }
-    bitw, shr, mask = switchbits[255]
-    bitcount = 0
-
-    if len_encoded < 4:
-        raise ValueError('strip must be at least 4 characters long')
-
-    if next_code() != 256:
-        raise ValueError('strip must begin with CLEAR code')
-
-    code = 0
-    oldcode = 0
-    result = []
-    result_append = result.append
-    while True:
-        code = next_code()  # ~5% faster when inlining this function
-        bitcount += bitw
-        if code == 257 or bitcount >= bitcount_max:  # EOI
-            break
-        if code == 256:  # CLEAR
-            table = newtable[:]
-            table_append = table.append
-            lentable = 258
-            bitw, shr, mask = switchbits[255]
-            code = next_code()
-            bitcount += bitw
-            if code == 257:  # EOI
-                break
-            result_append(table[code])
-        else:
-            if code < lentable:
-                decoded = table[code]
-                newcode = table[oldcode] + decoded[:1]
-            else:
-                newcode = table[oldcode]
-                newcode += newcode[:1]
-                decoded = newcode
-            result_append(decoded)
-            table_append(newcode)
-            lentable += 1
-        oldcode = code
-        if lentable in switchbits:
-            bitw, shr, mask = switchbits[lentable]
-
-    if code != 257:
-        logging.warning('unexpected end of LZW stream (code %i)', code)
-
-    return b''.join(result)
-
-
-@notimplemented
-def packints_encode(*args, **kwargs):
-    """Pack integers."""
-
-
-def packints_decode(data, dtype, numbits, runlen=0, out=None):
-    """Decompress byte string to array of integers of any bit size <= 32.
-
-    This Python implementation is slow and only handles itemsizes 1, 2, 4, 8,
-    16, 32, and 64.
-
-    Parameters
-    ----------
-    data : byte str
-        Data to decompress.
-    dtype : numpy.dtype or str
-        A numpy boolean or integer type.
-    numbits : int
-        Number of bits per integer.
-    runlen : int
-        Number of consecutive integers, after which to start at next byte.
-
-    Examples
-    --------
-    >>> packints_decode(b'a', 'B', 1)
-    array([0, 1, 1, 0, 0, 0, 0, 1], dtype=uint8)
-    >>> packints_decode(b'ab', 'B', 2)
-    array([1, 2, 0, 1, 1, 2, 0, 2], dtype=uint8)
-
-    """
-    # logging.warning('using pure Python PackInts decoder')
-    if numbits == 1:  # bitarray
-        data = numpy.frombuffer(data, '|B')
-        data = numpy.unpackbits(data)
-        if runlen % 8:
-            data = data.reshape(-1, runlen + (8 - runlen % 8))
-            data = data[:, :runlen].reshape(-1)
-        return data.astype(dtype)
-
-    dtype = numpy.dtype(dtype)
-    if numbits in (8, 16, 32, 64):
-        return numpy.frombuffer(data, dtype)
-    if numbits not in (1, 2, 4, 8, 16, 32):
-        raise ValueError('itemsize not supported: %i' % numbits)
-    if dtype.kind not in 'biu':
-        raise ValueError('invalid dtype')
-
-    itembytes = next(i for i in (1, 2, 4, 8) if 8 * i >= numbits)
-    if itembytes != dtype.itemsize:
-        raise ValueError('dtype.itemsize too small')
-    if runlen == 0:
-        runlen = (8 * len(data)) // numbits
-    skipbits = runlen * numbits % 8
-    if skipbits:
-        skipbits = 8 - skipbits
-    shrbits = itembytes*8 - numbits
-    bitmask = int(numbits*'1'+'0'*shrbits, 2)
-    dtypestr = '>' + dtype.char  # dtype always big-endian?
-
-    unpack = struct.unpack
-    size = runlen * (len(data)*8 // (runlen*numbits + skipbits))
-    result = numpy.empty((size,), dtype)
-    bitcount = 0
-    for i in range(size):
-        start = bitcount // 8
-        s = data[start:start+itembytes]
-        try:
-            code = unpack(dtypestr, s)[0]
-        except Exception:
-            code = unpack(dtypestr, s + b'\x00'*(itembytes-len(s)))[0]
-        code <<= bitcount % 8
-        code &= bitmask
-        result[i] = code >> shrbits
-        bitcount += numbits
-        if (i+1) % runlen == 0:
-            bitcount += skipbits
-    return result
-
-
-@notimplemented(bitshuffle)
-def bitshuffle_encode(data, level=1, itemsize=1, blocksize=0, out=None):
-    """Bitshuffle."""
-    if isinstance(data, numpy.ndarray):
-        return bitshuffle.bitshuffle(data, blocksize)
-    data = numpy.frombuffer(data, dtype='uint%i' % (itemsize * 8))
-    data = bitshuffle.bitshuffle(data, blocksize)
-    return data.tobytes()
-
-
-@notimplemented(bitshuffle)
-def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
-    """Bitunshuffle."""
-    if isinstance(data, numpy.ndarray):
-        return bitshuffle.bitunshuffle(data, blocksize)
-    data = numpy.frombuffer(data, dtype='uint%i' % (itemsize * 8))
-    data = bitshuffle.bitunshuffle(data, blocksize)
-    return data.tobytes()
-
-
-def zlib_encode(data, level=6, out=None):
-    """Compress Zlib DEFLATE."""
-    return zlib.compress(data, level)
-
-
-def zlib_decode(data, out=None):
-    """Decompress Zlib DEFLATE."""
-    return zlib.decompress(data)
-
-
-@notimplemented(bz2)
-def bz2_encode(data, level=9, out=None):
-    """Compress BZ2."""
-    return bz2.compress(data, level)
-
-
-@notimplemented(bz2)
-def bz2_decode(data, out=None):
-    """Decompress BZ2."""
-    return bz2.decompress(data)
-
-
-@notimplemented(blosc)
-def blosc_encode(data, level=None, compressor='blosclz', numthreads=1,
-                 typesize=8, blocksize=0, shuffle=None, out=None):
-    """Compress Blosc."""
-    if shuffle is None:
-        shuffle = blosc.SHUFFLE
-    if level is None:
-        level = 9
-    return blosc.compress(data, typesize=typesize, clevel=level,
-                          shuffle=shuffle, cname=compressor)
-
-
-@notimplemented(blosc)
-def blosc_decode(data, out=None):
-    """Decompress Blosc."""
-    return blosc.decompress(data)
-
-
-@notimplemented(lzma)
-def lzma_encode(data, level=5, out=None):
-    """Compress LZMA."""
-    return lzma.compress(data, level)
-
-
-@notimplemented(lzma)
-def lzma_decode(data, out=None):
-    """Decompress LZMA."""
-    return lzma.decompress(data)
-
-
-@notimplemented(zstd)
-def zstd_encode(data, level=5, out=None):
-    """Compress ZStandard."""
-    return zstd.compress(data, level)
-
-
-@notimplemented(zstd)
-def zstd_decode(data, out=None):
-    """Decompress ZStandard."""
-    return zstd.decompress(data)
-
-
-@notimplemented(brotli)
-def brotli_encode(data, level=11, mode=0, lgwin=22, out=None):
-    """Compress Brotli."""
-    return brotli.compress(data, quality=level, mode=mode, lgwin=lgwin)
-
-
-@notimplemented(brotli)
-def brotli_decode(data, out=None):
-    """Decompress Brotli."""
-    return brotli.decompress(data)
-
-
-@notimplemented(snappy)
-def snappy_encode(data, level=None, out=None):
-    """Compress Snappy."""
-    return snappy.compress(data)
-
-
-@notimplemented(snappy)
-def snappy_decode(data, out=None):
-    """Decompress Snappy."""
-    return snappy.decompress(data)
-
-
-@notimplemented(zopfli)
-def zopfli_encode(data, level=None, out=None):
-    """Compress Zopfli."""
-    c = zopfli.ZopfliCompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
-    return c.compress(data) + c.flush()
-
-
-@notimplemented(zopfli)
-def zopfli_decode(data, out=None):
-    """Compress Zopfli."""
-    d = zopfli.ZopfliDecompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
-    return d.decompress(data) + d.flush()
-
-
-@notimplemented(lzf)
-def lzf_encode(data, level=None, header=False, out=None):
-    """Compress LZF."""
-    return lzf.compress(data)
-
-
-@notimplemented(lzf)
-def lzf_decode(data, header=False, out=None):
-    """Decompress LZF."""
-    return lzf.decompress(data)
-
-
-@notimplemented(zfp)
-def zfp_encode(data, level=None, mode=None, execution=None, header=True,
-               out=None):
-    kwargs = {'write_header': header}
-    if mode in (None, zfp.mode_null, 'R', 'reversible'):  # zfp.mode_reversible
-        pass
-    elif mode in (zfp.mode_fixed_precision, 'p', 'precision'):
-        kwargs['precision'] = -1 if level is None else level
-    elif mode in (zfp.mode_fixed_rate, 'r', 'rate'):
-        kwargs['rate'] = -1 if level is None else level
-    elif mode in (zfp.mode_fixed_accuracy, 'a', 'accuracy'):
-        kwargs['tolerance'] = -1 if level is None else level
-    elif mode in (zfp.mode_expert, 'c', 'expert'):
-        minbits, maxbits, maxprec, minexp = level
-        raise NotImplementedError()
-    return zfp.compress_numpy(data, **kwargs)
-
-
-@notimplemented(zfp)
-def zfp_decode(data, shape=None, dtype=None, out=None):
-    """Decompress ZFP."""
-    return zfp.decompress_numpy(data)
-
-
-@notimplemented(bitshuffle)
-def bitshuffle_lz4_encode(data, level=1, blocksize=0, out=None):
-    """Compress LZ4 with Bitshuffle."""
-    return bitshuffle.compress_lz4(data, blocksize)
-
-
-@notimplemented(bitshuffle)
-def bitshuffle_lz4_decode(data, shape, dtype, blocksize=0, out=None):
-    """Decompress LZ4 with Bitshuffle."""
-    return bitshuffle.decompress_lz4(data, shape, dtype, blocksize)
-
-
-@notimplemented(lz4)
-def lz4_encode(data, level=1, header=False, out=None):
-    """Compress LZ4."""
-    return lz4.block.compress(data, store_size=header)
-
-
-@notimplemented(lz4)
-def lz4_decode(data, header=False, out=None):
-    """Decompress LZ4."""
-    if header:
-        return lz4.block.decompress(data)
-    if isinstance(out, int):
-        return lz4.block.decompress(data, uncompressed_size=out)
-    outsize = max(24, 24 + 255 * (len(data) - 10))  # ugh
-    return lz4.block.decompress(data, uncompressed_size=outsize)
-
-
-@notimplemented(PIL)
-def pil_decode(data, out=None):
-    """Decode image data using PIL."""
-    return numpy.asarray(PIL.Image.open(io.BytesIO(data)))
-
-
-@notimplemented(PIL)
 def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
-                outcolorspace=None, out=None):
-    """Decode JPEG."""
-    jpeg8_decode(data, tables=tables, colorspace=colorspace,
-                 outcolorspace=outcolorspace, out=out)
+                outcolorspace=None, shape=None, out=None):
+    """Decode JPEG 8-bit, 12-bit, SOF3, LS, or XL.
+
+    """
+    if bitspersample is None:
+        try:
+            return imagecodecs.jpeg8_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
+        except Exception as exc:
+            msg = str(exc)
+            if 'Empty JPEG image' in msg:
+                # TODO: handle Hamamatsu NDPI slides with dimensions > 65500
+                raise exc
+            if 'Unsupported JPEG data precision' in msg:
+                return imagecodecs.jpeg12_decode(
+                    data, tables=tables, colorspace=colorspace,
+                    outcolorspace=outcolorspace, shape=shape, out=out)
+            if 'SOF type' in msg:
+                return imagecodecs.jpegsof3_decode(data, out=out)
+            # Unsupported marker type
+            try:
+                return imagecodecs.jpegls_decode(data, out=out)
+            except Exception:
+                return imagecodecs.jpegxl_decode(data, out=out)
+    try:
+        if bitspersample == 8:
+            return imagecodecs.jpeg8_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
+        if bitspersample == 12:
+            return imagecodecs.jpeg12_decode(
+                data, tables=tables, colorspace=colorspace,
+                outcolorspace=outcolorspace, shape=shape, out=out)
+        try:
+            return imagecodecs.jpegls_decode(data, out=out)
+        except Exception:
+            return imagecodecs.jpegsof3_decode(data, out=out)
+    except Exception as exc:
+        msg = str(exc)
+        if 'Empty JPEG image' in msg:
+            raise exc
+        if 'SOF type' in msg:
+            return imagecodecs.jpegsof3_decode(data, out=out)
+        try:
+            return imagecodecs.jpegls_decode(data, out=out)
+        except Exception:
+            return imagecodecs.jpegxl_decode(data, out=out)
 
 
-@notimplemented
-def jpeg_encode(*args, **kwargs):
-    """Encode JPEG."""
+def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
+                subsampling=None, optimize=None, smoothing=None, out=None):
+    """Encode JPEG 8-bit or 12-bit.
+
+    """
+    if data.dtype == numpy.uint8:
+        func = imagecodecs.jpeg8_encode
+    elif data.dtype == numpy.uint16:
+        func = imagecodecs.jpeg12_encode
+    else:
+        raise ValueError(f'invalid data type {data.dtype}')
+    return func(data, level=level, colorspace=colorspace,
+                outcolorspace=outcolorspace, subsampling=subsampling,
+                optimize=optimize, smoothing=smoothing, out=out)
 
 
-@notimplemented(PIL)
-def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
-                 out=None):
-    """Decode JPEG 8-bit."""
-    if data[:3] != b'\xff\xd8\xff':
-        raise ValueError('not a JPEG image')
-    if tables or colorspace or outcolorspace:
-        raise NotImplementedError(
-            'JPEG tables, colorspace, and outcolorspace otions not supported')
-    return pil_decode(data)
+# initialize package
 
+imagecodecs = sys.modules['imagecodecs']
 
-@notimplemented
-def jpeg8_encode(*args, **kwargs):
-    """Encode JPEG 8-bit."""
+_register_codecs()
 
-
-@notimplemented
-def jpeg12_decode(*args, **kwargs):
-    """Decode JPEG 12-bit."""
-
-
-@notimplemented
-def jpeg12_encode(*args, **kwargs):
-    """Encode JPEG 12-bit."""
-
-
-@notimplemented
-def jpegls_decode(*args, **kwargs):
-    """Decode JPEG LS."""
-
-
-@notimplemented
-def jpegls_encode(*args, **kwargs):
-    """Encode JPEG LS."""
-
-
-@notimplemented
-def jpegxp_decode(*args, **kwargs):
-    """Decode JPEG XP."""
-
-
-@notimplemented
-def jpegxp_encode(*args, **kwargs):
-    """Encode JPEG XP."""
-
-
-@notimplemented
-def jpegsof3_decode(*args, **kwargs):
-    """Decode JPEG SOF3."""
-
-
-@notimplemented
-def jpegsof3_encode(*args, **kwargs):
-    """Encode JPEG SOF3."""
-
-
-@notimplemented(PIL)
-def jpeg2k_decode(data, verbose=0, out=None):
-    """Decode JPEG 2000."""
-    if (
-        data[:4] != b'\xff\x4f\xff\x51' and data[:4] != b'\x0d\x0a\x87\x0a' and
-        data[:12] != b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
-    ):
-        raise ValueError('not a JPEG 2000 image')
-    return pil_decode(data)
-
-
-@notimplemented
-def jpeg2k_encode(*args, **kwargs):
-    """Encode JPEG 2000."""
-
-
-@notimplemented
-def jpegxr_decode(*args, **kwargs):
-    """Decode JPEG XR."""
-
-
-@notimplemented
-def jpegxr_encode(*args, **kwargs):
-    """Encode JPEG XR."""
-
-
-@notimplemented(PIL)
-def webp_decode(data, out=None):
-    """Decode WebP."""
-    if data[:4] != b'RIFF' or data[8:12] != b'WEBP':
-        raise ValueError('not a WebP image')
-    return pil_decode(data)
-
-
-@notimplemented
-def webp_encode(*args, **kwargs):
-    """Encode WebP."""
-
-
-@notimplemented(PIL)
-def png_decode(data, out=None):
-    """Decode PNG."""
-    if data[:8] != b'\x89PNG\r\n\x1a\n':
-        raise ValueError('not a PNG image')
-    return pil_decode(data)
-
-
-@notimplemented
-def png_encode(*args, **kwargs):
-    """Encode PNG."""
-
-
-@notimplemented
-def aec_decode(*args, **kwargs):
-    """Decode AEC."""
-
-
-@notimplemented
-def aec_encode(*args, **kwargs):
-    """Encode AEC."""
-
-
-@notimplemented
-def dtype_decode(*args, **kwargs):
-    """Convert dtype."""
-
-
-@notimplemented
-def dtype_encode(*args, **kwargs):
-    """Convert dtype."""
-
-
-if __name__ == '__main__':
-    import doctest
-    print(version())
-    numpy.set_printoptions(suppress=True, precision=2)
-    doctest.testmod()
+if sys.version_info < (3, 7):
+    _load_all()
