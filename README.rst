@@ -7,8 +7,8 @@ tifffile, czifile, and other scientific imaging modules.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE),
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC,
-NPY, PNG, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000, JPEG LS,
-JPEG XR, JPEG XL, PackBits, Packed Integers, Delta, XOR Delta,
+NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000,
+JPEG LS, JPEG XR, JPEG XL, PackBits, Packed Integers, Delta, XOR Delta,
 Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :Author:
@@ -19,14 +19,14 @@ Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2019.12.31
+:Version: 2020.1.31
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 2.7.17, 3.5.4, 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
+* `CPython 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
 * `Numpy 1.16.6 <https://www.numpy.org>`_
 * `Cython 0.29.14 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
@@ -38,6 +38,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
+* `libtiff 4.1.0 <https://gitlab.com/libtiff/libtiff>`_
 * `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
@@ -50,6 +51,7 @@ This release has been tested with the following requirements and dependencies
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.7 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
+* `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
@@ -63,7 +65,6 @@ Required Python packages for testing (other versions may work):
 * `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
 * `zopflipy 1.3 <https://github.com/hattya/zopflipy>`_
-* `backports.lzma 0.0.14 <https://github.com/peterjc/backports.lzma>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
@@ -72,11 +73,12 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 2.7, 3.5, and 32-bit are deprecated.
+Python 32-bit versions are deprecated. Python 2.7 and 3.5 are no longer
+supported.
 
-The `Microsoft Visual C++ Redistributable Packages
-<https://support.microsoft.com/en-us/help/2977003/
-the-latest-supported-visual-c-downloads>`_ are required on Windows.
+The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017
+and 2019 <https://support.microsoft.com/en-us/help/2977003/
+the-latest-supported-visual-c-downloads>`_ is required on Windows.
 
 Refer to the imagecodecs/licenses folder for 3rd party library licenses.
 
@@ -88,7 +90,7 @@ and `OpenJPEG's color.c
 <https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
-`Grzegorz Bokota <https://github.com/Czaki>`_.
+`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
 
 To install the requirements for building imagecodecs from source code on
 latest Ubuntu Linux distributions, run:
@@ -99,30 +101,44 @@ latest Ubuntu Linux distributions, run:
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-turbo8-dev libjxr-dev
     liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
-    libzopfli-dev``
+    libzopfli-dev libgif-dev libtiff-dev``
 
-The imagecodecs package can be challenging to build from source code. Consider
-using the `imagecodecs-lite <https://pypi.org/project/imagecodecs-lite/>`_
-package instead, which does not depend on external third-party C libraries
-and provides a subset of image codecs for the tifffile library:
-LZW, PackBits, Delta, XOR Delta, Packed Integers, Floating Point Predictor,
-and Bitorder reversal.
+Use the ``--skip-extension`` build options to skip building specific
+extensions. Use the ``--lite`` build option to only build extensions without
+3rd-party dependencies. Edit ``setup.py`` to modify other build options.
 
-Other Python packages providing imaging or compression codecs:
+Other Python packages and C libraries providing imaging or compression codecs:
 
 * `numcodecs <https://github.com/zarr-developers/numcodecs>`_
 * `Python zlib <https://docs.python.org/3/library/zlib.html>`_
 * `Python bz2 <https://docs.python.org/3/library/bz2.html>`_
 * `Python lzma <https://docs.python.org/3/library/lzma.html>`_
+* `backports.lzma <https://github.com/peterjc/backports.lzma>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
 * `fpzip <https://github.com/seung-lab/fpzip>`_
+* `libmng <https://sourceforge.net/projects/libmng/>`_
+* `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
+* `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
+* `LERC <https://github.com/Esri/lerc>`_
 
 Revisions
 ---------
+2020.1.31
+    Pass 3468 tests.
+    Add GIF codec via giflib.
+    Add TIFF decoder via libtiff (WIP).
+    Add codec_check functions (WIP).
+    Fix formatting libjpeg error messages.
+    Use xfail in tests.
+    Load extensions on demand on Python >= 3.7.
+    Add build options to skip building specific extensions.
+    Split imagecodecs extension into individual extensions.
+    Move shared code into shared extension.
+    Rename imagecodecs_lite extension and imagecodecs C library to 'imcd'.
+    Remove support for Python 2.7 and 3.5.
 2019.12.31
-    Pass 3288 tests.
     Fix decoding of indexed PNG with transparency.
     Last version to support Python 2.7 and 3.5.
 2019.12.16
@@ -169,62 +185,6 @@ Revisions
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
-    Update copyright year.
-    Do not install package if Cython extension fails to build.
-    Fix compiler warnings.
-2018.12.16
-    Reallocate LZW buffer on demand.
-    Ignore integer type output arguments for codecs returning images.
-2018.12.12
-    Enable decoding of subsampled J2K images via conversion to RGB.
-    Enable decoding of large JPEG using patched libjpeg-turbo.
-    Switch to Cython 0.29, language_level=3.
-2018.12.1
-    Add J2K encoder (WIP).
-    Use ZStd content size 1 MB if it cannot be determined.
-    Use logging.warning instead of warnings.warn or print.
-2018.11.8
-    Decode LSB style LZW.
-    Fix last byte not written by LZW decoder (bug fix).
-    Permit unknown colorspaces in JPEG codecs (e.g. CFA used in TIFF).
-2018.10.30
-    Add JPEG 8-bit and 12-bit encoders.
-    Improve color space handling in JPEG codecs.
-2018.10.28
-    Rename jpeg0xc3 to jpegsof3.
-    Add optional JPEG LS codec via CharLS.
-    Fix missing alpha values in jxr_decode.
-    Fix decoding JPEG SOF3 with multiple DHTs.
-2018.10.22
-    Add Blosc codec via libblosc.
-2018.10.21
-    Builds on Ubuntu 18.04 WSL.
-    Include liblzf in srcdist.
-    Do not require CreateDecoderFromBytes patch to jxrlib.
-2018.10.18
-    Improve jpeg_decode wrapper.
-2018.10.17
-    Add JPEG SOF3 decoder based on jpg_0XC3.cpp.
-2018.10.10
-    Add PNG codec via libpng.
-    Add option to specify output colorspace in JPEG decoder.
-    Fix Delta codec for floating point numbers.
-    Fix XOR Delta codec.
-2018.9.30
-    Add LZF codec via liblzf.
-2018.9.22
-    Add WebP codec via libwebp.
-2018.8.29
-    Add PackBits encoder.
-2018.8.22
-    Add link library version information.
-    Add option to specify size of LZW buffer.
-    Add JPEG 2000 decoder via OpenJPEG.
-    Add XOR Delta codec.
-2018.8.16
-    Link to libjpeg-turbo.
-    Support Python 2.7 and Visual Studio 2008.
-2018.8.10
-    Initial alpha release.
-    Add LZW, PackBits, PackInts and FloatPred decoders from tifffile.c module.
-    Add JPEG and JPEG XR decoders from czifile.pyx module.
+    ...
+
+Refer to the CHANGES file for older revisions.
