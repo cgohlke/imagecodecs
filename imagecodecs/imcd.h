@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2020.1.31"
+#define IMCD_VERSION "2020.2.18"
 
 #include <stdint.h>
 
@@ -86,6 +86,7 @@ typedef SSIZE_T ssize_t;
 #define IMCD_LZW_NOTIMPLEMENTED -11
 #define IMCD_LZW_BUFFER_TOO_SMALL -12
 #define IMCD_LZW_TABLE_TOO_SMALL -13
+#define IMCD_LZW_CORRUPT -14
 
 /* Function declarations */
 
