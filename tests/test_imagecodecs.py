@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.2.18
 
 """
 
@@ -584,6 +584,18 @@ def test_floatpred(planar, endian, output, codec):
                     out = numpy.empty_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
+
+
+@pytest.mark.skipif(not imagecodecs.LZW, reason='LZW missing')
+def test_lzw_corrupt():
+    """Test LZW decoder with corrupt stream."""
+    # reported by S Richter on 2020.2.17
+    fname = datafiles('corrupt.lzw.bin')
+    with open(fname, 'rb') as fh:
+        encoded = fh.read()
+    assert imagecodecs.lzw_check(encoded)
+    with pytest.raises(RuntimeError):
+        imagecodecs.lzw_decode(encoded, out=655360)
 
 
 @pytest.mark.skipif(not imagecodecs.LZW, reason='LZW missing')
