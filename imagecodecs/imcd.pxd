@@ -1,7 +1,7 @@
 # imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2020.1.31` library.
+# Cython declarations for the `imcd 2020.2.18` library.
 # https://www.lfd.uci.edu/~gohlke/
 
 from libc.stdint cimport uint8_t
@@ -20,6 +20,7 @@ cdef extern from 'imcd.h':
     int IMCD_LZW_NOTIMPLEMENTED
     int IMCD_LZW_BUFFER_TOO_SMALL
     int IMCD_LZW_TABLE_TOO_SMALL
+    int IMCD_LZW_CORRUPT
 
     char IMCD_BOC
     int SSIZE_MAX
