@@ -1,7 +1,11 @@
 Revisions
 ---------
+2020.2.18
+    Pass 3469 tests.
+    Fix segfault when decoding corrupted LZW segments.
+    Work around Cython raises AttributeError when using incompatible numpy.
+    Raise ValueError if in-place decoding is not possible (except floatpred).
 2020.1.31
-    Pass 3468 tests.
     Add GIF codec via giflib.
     Add TIFF decoder via libtiff (WIP).
     Add codec_check functions (WIP).
