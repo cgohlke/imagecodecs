@@ -30,24 +30,26 @@ cdef extern from 'zopfli/zopfli.h':
         size_t* outsize) nogil
 
 
-cdef extern from 'zopfli/zlib_container.h':
-
-    void ZopfliZlibCompress(
-        const ZopfliOptions* options,
-        const unsigned char* src,
-        size_t insize,
-        unsigned char** out,
-        size_t* outsize) nogil
-
-
-cdef extern from 'zopfli/gzip_container.h':
-
-    void ZopfliGzipCompress(
-        const ZopfliOptions* options,
-        const unsigned char* src,
-        size_t insize,
-        unsigned char** out,
-        size_t* outsize) nogil
+# zlib_container.h and gzip_container.h missing in Arch Linux
+#
+# cdef extern from 'zopfli/zlib_container.h':
+#
+#     void ZopfliZlibCompress(
+#         const ZopfliOptions* options,
+#         const unsigned char* src,
+#         size_t insize,
+#         unsigned char** out,
+#         size_t* outsize) nogil
+#
+#
+# cdef extern from 'zopfli/gzip_container.h':
+#
+#     void ZopfliGzipCompress(
+#         const ZopfliOptions* options,
+#         const unsigned char* src,
+#         size_t insize,
+#         unsigned char** out,
+#         size_t* outsize) nogil
 
 
 # zopflipng_lib.h missing in Debian
