@@ -1213,6 +1213,10 @@ ssize_t imcd_lzw_decode_size(
             dstsize += table[code].len;
             buffersize += table[oldcode].len + 1;
         }
+        else if (code > tablesize) {
+            /* return dstsize; */
+            return IMCD_LZW_CORRUPT;
+        }
         else {
             /* code is not in table */
             dstsize += table[oldcode].len + 1;
@@ -1430,6 +1434,10 @@ ssize_t imcd_lzw_decode(
             else {
                 *buffer++ = table[code].buf[0];
             }
+        }
+        else if (code > tablesize) {
+            /* return dstsize - remaining; */
+            return IMCD_LZW_CORRUPT;
         }
         else {
             /* code is not in table */
