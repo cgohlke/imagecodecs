@@ -58,7 +58,7 @@ cdef extern from 'gif_lib.h':
     int D_GIF_ERR_IMAGE_DEFECT
     int D_GIF_ERR_EOF_TOO_SOON
 
-    #define GIF_ASPECT_RATIO(n)	((n)+15.0/64.0)
+    # define GIF_ASPECT_RATIO(n) ((n)+15.0/64.0)
 
     ctypedef unsigned char GifPixelType
     ctypedef unsigned char* GifRowType
