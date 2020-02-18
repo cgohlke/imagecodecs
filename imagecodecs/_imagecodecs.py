@@ -43,11 +43,11 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.2.18
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.2.18'
 
 import sys
 import struct
