@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.2.18
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.2.18'
 
 include '_shared.pxi'
 
@@ -85,6 +85,7 @@ class ImcdError(RuntimeError):
             IMCD_LZW_NOTIMPLEMENTED: 'IMCD_LZW_NOTIMPLEMENTED',
             IMCD_LZW_BUFFER_TOO_SMALL: 'IMCD_LZW_BUFFER_TOO_SMALL',
             IMCD_LZW_TABLE_TOO_SMALL: 'IMCD_LZW_TABLE_TOO_SMALL',
+            IMCD_LZW_CORRUPT: 'IMCD_LZW_CORRUPT',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -404,7 +405,12 @@ cdef _floatpred(data, int axis, out, int decode):
     if not isinstance(data, numpy.ndarray) or data.dtype.kind != 'f':
         raise ValueError('not a floating-point numpy array')
 
-    if out is None or out is data:
+    # this needs to pass silently in tifffile
+    # if data is out:
+    #     raise ValueError('cannot decode in-place')
+    # TODO: support in-place decoding
+
+    if out is None or data is out:
         out = numpy.empty_like(data)
     else:
         if not isinstance(out, numpy.ndarray):
@@ -637,9 +643,12 @@ def packbits_encode(data, level=None, out=None):
         if data.strides[axis] != 1:
             raise ValueError('data array is not contiguous along last axis')
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
-    if out is None or out is data:
+    if out is None:
         if dstsize < 0:
             if isarray:
                 srcsize = data.shape[axis]
@@ -703,9 +712,12 @@ def packbits_decode(data, out=None):
         ssize_t dstsize
         ssize_t ret = 0
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
-    if out is None or out is data:
+    if out is None:
         if dstsize < 0:
             with nogil:
                 dstsize = imcd_packbits_size(&src[0], srcsize)
@@ -756,6 +768,9 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         ssize_t skipbits, i
         ssize_t ret = 0
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     if numbits < 1 or (numbits > 32 and numbits != 64):
         raise ValueError('numbits out of range')
 
@@ -782,7 +797,7 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
         dstsize = <ssize_t>(<uint64_t>runlen * ((<uint64_t>srcsize * 8)
                             / <uint64_t>dstsize))
 
-    if out is None or out is data:
+    if out is None:
         out = numpy.empty(dstsize, dtype)
     else:
         if out.dtype != dtype or out.size < dstsize:
@@ -853,13 +868,16 @@ def lzw_decode(data, buffersize=0, out=None):
         ssize_t ret = 0
         imcd_lzw_handle_t* handle = NULL
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     handle = imcd_lzw_new(buffersize)
     if handle == NULL:
         raise LzwError('imcd_lzw_new', None)
     try:
-        if out is None or out is data:
+        if out is None:
             if dstsize < 0:
                 with nogil:
                     dstsize = imcd_lzw_decode_size(handle, &src[0], srcsize)
