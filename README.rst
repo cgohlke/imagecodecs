@@ -19,7 +19,7 @@ Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.2.18
 
 Requirements
 ------------
@@ -28,7 +28,7 @@ This release has been tested with the following requirements and dependencies
 
 * `CPython 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
 * `Numpy 1.16.6 <https://www.numpy.org>`_
-* `Cython 0.29.14 <https://cython.org>`_
+* `Cython 0.29.15 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.2 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.4 <https://github.com/facebook/zstd>`_
@@ -56,7 +56,7 @@ This release has been tested with the following requirements and dependencies
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2019.7.26 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2020.2.16 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
@@ -125,8 +125,12 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2020.2.18
+    Pass 3469 tests.
+    Fix segfault when decoding corrupted LZW segments.
+    Work around Cython raises AttributeError when using incompatible numpy.
+    Raise ValueError if in-place decoding is not possible (except floatpred).
 2020.1.31
-    Pass 3468 tests.
     Add GIF codec via giflib.
     Add TIFF decoder via libtiff (WIP).
     Add codec_check functions (WIP).
