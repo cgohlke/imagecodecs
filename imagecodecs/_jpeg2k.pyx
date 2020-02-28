@@ -122,8 +122,7 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype in (numpy.int8, numpy.int16, numpy.int32,
-                       numpy.uint8, numpy.uint16, numpy.uint32)
+        data.dtype in (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16)
         and data.ndim in (2, 3)
         and numpy.PyArray_ISCONTIGUOUS(data)
     ):
