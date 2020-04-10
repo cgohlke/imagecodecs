@@ -1,0 +1,13 @@
+diff --git a/include/Lerc_c_api.h b/include/Lerc_c_api.h
+index f83838f..875036c 100644
+--- a/include/Lerc_c_api.h
++++ b/include/Lerc_c_api.h
+@@ -28,7 +28,7 @@ Contributors:  Thomas Maurer
+ extern "C" {
+ #endif
+ 
+-#if defined(_MSC_VER)
++#if defined(_MSC_VER_DLL)
+   #define LERCDLL_API __declspec(dllexport)
+ #elif __GNUC__ >= 4
+   #define LERCDLL_API __attribute__((visibility("default")))
