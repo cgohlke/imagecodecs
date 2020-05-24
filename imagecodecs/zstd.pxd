@@ -1,7 +1,7 @@
 # zstd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zstd 1.4.4` library (aka Zstandard).
+# Cython declarations for the `zstd 1.4.5` library (aka Zstandard).
 # https://github.com/facebook/zstd
 
 cdef extern from 'zstd.h':
