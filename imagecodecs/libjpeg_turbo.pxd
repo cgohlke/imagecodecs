@@ -158,3 +158,6 @@ cdef extern from 'jpeglib.h':
         jpeg_compress_struct*,
         JSAMPARRAY,
         JDIMENSION) nogil
+
+
+# TODO: add missing declarations
