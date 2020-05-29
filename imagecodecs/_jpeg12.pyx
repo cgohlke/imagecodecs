@@ -45,15 +45,20 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.5.28
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.5.28'
 
 include '_shared.pxi'
 
-from libjpeg_turbo cimport *
+# DEF HAVE_LIBJPEG_TURBO = True
+
+IF HAVE_LIBJPEG_TURBO:
+    from libjpeg_turbo cimport *
+ELSE:
+    from libjpeg cimport *
 
 from cython.operator cimport dereference as deref
 
@@ -68,17 +73,18 @@ class JPEG12:
     CS_YCbCr = JCS_YCbCr
     CS_CMYK = JCS_CMYK
     CS_YCCK = JCS_YCCK
-    CS_EXT_RGB = JCS_EXT_RGB
-    CS_EXT_RGBX = JCS_EXT_RGBX
-    CS_EXT_BGR = JCS_EXT_BGR
-    CS_EXT_BGRX = JCS_EXT_BGRX
-    CS_EXT_XBGR = JCS_EXT_XBGR
-    CS_EXT_XRGB = JCS_EXT_XRGB
-    CS_EXT_RGBA = JCS_EXT_RGBA
-    CS_EXT_BGRA = JCS_EXT_BGRA
-    CS_EXT_ABGR = JCS_EXT_ABGR
-    CS_EXT_ARGB = JCS_EXT_ARGB
-    CS_RGB565 = JCS_RGB565
+    IF HAVE_LIBJPEG_TURBO:
+        CS_EXT_RGB = JCS_EXT_RGB
+        CS_EXT_RGBX = JCS_EXT_RGBX
+        CS_EXT_BGR = JCS_EXT_BGR
+        CS_EXT_BGRX = JCS_EXT_BGRX
+        CS_EXT_XBGR = JCS_EXT_XBGR
+        CS_EXT_XRGB = JCS_EXT_XRGB
+        CS_EXT_RGBA = JCS_EXT_RGBA
+        CS_EXT_BGRA = JCS_EXT_BGRA
+        CS_EXT_ABGR = JCS_EXT_ABGR
+        CS_EXT_ARGB = JCS_EXT_ARGB
+        CS_RGB565 = JCS_RGB565
 
 
 class Jpeg12Error(RuntimeError):
@@ -87,14 +93,12 @@ class Jpeg12Error(RuntimeError):
 
 def jpeg12_version():
     """Return libjpeg12 library version string."""
-    return 'libjpeg12 {:.1f}'.format(JPEG_LIB_VERSION / 10.0)
-
-
-def jpeg12_turbo_version():
-    """Return libjpeg-turbo library version string."""
-    ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
-    return 'libjpeg12_turbo {}.{}.{}'.format(
-        int(ver[:1]), int(ver[3:4]), int(ver[6:]))
+    IF HAVE_LIBJPEG_TURBO:
+        ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
+        return 'libjpeg12_turbo {}.{}.{}/{:.1f}'.format(
+            int(ver[:1]), int(ver[3:4]), int(ver[6:]), JPEG_LIB_VERSION / 10.0)
+    ELSE:
+        return f'libjpeg12 {JPEG_LIB_VERSION_MAJOR}.{JPEG_LIB_VERSION_MINOR}'
 
 
 def jpeg12_check(const uint8_t[::1] data):
@@ -382,61 +386,93 @@ cdef void my_output_message(jpeg_common_struct* cinfo) nogil:
 
 def _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
-    return {
-        'GRAY': JCS_GRAYSCALE,
-        'GRAYSCALE': JCS_GRAYSCALE,
-        'MINISWHITE': JCS_GRAYSCALE,
-        'MINISBLACK': JCS_GRAYSCALE,
-        'RGB': JCS_RGB,
-        'RGBA': JCS_EXT_RGBA,
-        'CMYK': JCS_CMYK,
-        'YCCK': JCS_YCCK,
-        'YCBCR': JCS_YCbCr,
-        'UNKNOWN': JCS_UNKNOWN,
-        None: JCS_UNKNOWN,
-        JCS_UNKNOWN: JCS_UNKNOWN,
-        JCS_GRAYSCALE: JCS_GRAYSCALE,
-        JCS_RGB: JCS_RGB,
-        JCS_YCbCr: JCS_YCbCr,
-        JCS_CMYK: JCS_CMYK,
-        JCS_YCCK: JCS_YCCK,
-        JCS_EXT_RGB: JCS_EXT_RGB,
-        JCS_EXT_RGBX: JCS_EXT_RGBX,
-        JCS_EXT_BGR: JCS_EXT_BGR,
-        JCS_EXT_BGRX: JCS_EXT_BGRX,
-        JCS_EXT_XBGR: JCS_EXT_XBGR,
-        JCS_EXT_XRGB: JCS_EXT_XRGB,
-        JCS_EXT_RGBA: JCS_EXT_RGBA,
-        JCS_EXT_BGRA: JCS_EXT_BGRA,
-        JCS_EXT_ABGR: JCS_EXT_ABGR,
-        JCS_EXT_ARGB: JCS_EXT_ARGB,
-        JCS_RGB565: JCS_RGB565,
-    }.get(colorspace, JCS_UNKNOWN)
+    IF HAVE_LIBJPEG_TURBO:
+        jcs = {
+            None: JCS_UNKNOWN,
+            'UNKNOWN': JCS_UNKNOWN,
+            'GRAY': JCS_GRAYSCALE,
+            'GRAYSCALE': JCS_GRAYSCALE,
+            'MINISWHITE': JCS_GRAYSCALE,
+            'MINISBLACK': JCS_GRAYSCALE,
+            'RGB': JCS_RGB,
+            'CMYK': JCS_CMYK,
+            'YCCK': JCS_YCCK,
+            'YCBCR': JCS_YCbCr,
+            'RGBA': JCS_EXT_RGBA,
+            JCS_UNKNOWN: JCS_UNKNOWN,
+            JCS_GRAYSCALE: JCS_GRAYSCALE,
+            JCS_RGB: JCS_RGB,
+            JCS_YCbCr: JCS_YCbCr,
+            JCS_CMYK: JCS_CMYK,
+            JCS_YCCK: JCS_YCCK,
+            JCS_EXT_RGB: JCS_EXT_RGB,
+            JCS_EXT_RGBX: JCS_EXT_RGBX,
+            JCS_EXT_BGR: JCS_EXT_BGR,
+            JCS_EXT_BGRX: JCS_EXT_BGRX,
+            JCS_EXT_XBGR: JCS_EXT_XBGR,
+            JCS_EXT_XRGB: JCS_EXT_XRGB,
+            JCS_EXT_RGBA: JCS_EXT_RGBA,
+            JCS_EXT_BGRA: JCS_EXT_BGRA,
+            JCS_EXT_ABGR: JCS_EXT_ABGR,
+            JCS_EXT_ARGB: JCS_EXT_ARGB,
+            JCS_RGB565: JCS_RGB565,
+        }
+    ELSE:
+        jcs = {
+            None: JCS_UNKNOWN,
+            'UNKNOWN': JCS_UNKNOWN,
+            'GRAY': JCS_GRAYSCALE,
+            'GRAYSCALE': JCS_GRAYSCALE,
+            'MINISWHITE': JCS_GRAYSCALE,
+            'MINISBLACK': JCS_GRAYSCALE,
+            'RGB': JCS_RGB,
+            'CMYK': JCS_CMYK,
+            'YCCK': JCS_YCCK,
+            'YCBCR': JCS_YCbCr,
+            JCS_UNKNOWN: JCS_UNKNOWN,
+            JCS_GRAYSCALE: JCS_GRAYSCALE,
+            JCS_RGB: JCS_RGB,
+            JCS_YCbCr: JCS_YCbCr,
+            JCS_CMYK: JCS_CMYK,
+            JCS_YCCK: JCS_YCCK,
+        }
+    return jcs.get(colorspace, JCS_UNKNOWN)
 
 
 def _jcs_colorspace_samples(colorspace):
     """Return expected number of samples in colorspace."""
     three = (3,)
     four = (4,)
-    return {
-        JCS_UNKNOWN: (1, 2, 3, 4),
-        JCS_GRAYSCALE: (1,),
-        JCS_RGB: three,
-        JCS_YCbCr: three,
-        JCS_CMYK: four,
-        JCS_YCCK: four,
-        JCS_EXT_RGB: three,
-        JCS_EXT_RGBX: four,
-        JCS_EXT_BGR: three,
-        JCS_EXT_BGRX: four,
-        JCS_EXT_XBGR: four,
-        JCS_EXT_XRGB: four,
-        JCS_EXT_RGBA: four,
-        JCS_EXT_BGRA: four,
-        JCS_EXT_ABGR: four,
-        JCS_EXT_ARGB: four,
-        JCS_RGB565: three,
-    }[colorspace]
+    IF HAVE_LIBJPEG_TURBO:
+        jcs = {
+            JCS_UNKNOWN: (1, 2, 3, 4),
+            JCS_GRAYSCALE: (1,),
+            JCS_RGB: three,
+            JCS_YCbCr: three,
+            JCS_CMYK: four,
+            JCS_YCCK: four,
+            JCS_EXT_RGB: three,
+            JCS_EXT_RGBX: four,
+            JCS_EXT_BGR: three,
+            JCS_EXT_BGRX: four,
+            JCS_EXT_XBGR: four,
+            JCS_EXT_XRGB: four,
+            JCS_EXT_RGBA: four,
+            JCS_EXT_BGRA: four,
+            JCS_EXT_ABGR: four,
+            JCS_EXT_ARGB: four,
+            JCS_RGB565: three,
+        }
+    ELSE:
+        jcs = {
+            JCS_UNKNOWN: (1, 2, 3, 4),
+            JCS_GRAYSCALE: (1,),
+            JCS_RGB: three,
+            JCS_YCbCr: three,
+            JCS_CMYK: four,
+            JCS_YCCK: four,
+        }
+    return jcs[colorspace]
 
 
 def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
