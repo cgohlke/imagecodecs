@@ -33,13 +33,13 @@
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in the
-tifffile, czifile, and other scientific imaging modules.
+tifffile, czifile, and other scientific image input/output modules.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE),
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC,
-NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3, JPEG 2000,
-JPEG LS, JPEG XR, JPEG XL, PackBits, Packed Integers, Delta, XOR Delta,
-Floating Point Predictor, Bitorder reversal, and Bitshuffle.
+LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3 (LJPEG),
+JPEG 2000, JPEG LS, JPEG XR, JPEG XL, PackBits, Packed Integers, Delta,
+XOR Delta, Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -49,28 +49,29 @@ Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2020.2.18
+:Version: 2020.5.30
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.6.8, 3.7.6, 3.8.1 64-bit <https://www.python.org>`_
-* `Numpy 1.16.6 <https://www.numpy.org>`_
-* `Cython 0.29.15 <https://cython.org>`_
+* `CPython 3.6.8, 3.7.7, 3.8.3 64-bit <https://www.python.org>`_
+* `Numpy 1.16.6, 1.18.4 <https://www.numpy.org>`_
+* `Cython 0.29.19 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.2 <https://github.com/lz4/lz4>`_
-* `zstd 1.4.4 <https://github.com/facebook/zstd>`_
-* `blosc 1.17.1 <https://github.com/Blosc/c-blosc>`_
+* `zstd 1.4.5 <https://github.com/facebook/zstd>`_
+* `blosc 1.18.1 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
-* `liblzma 5.2.4 <https://github.com/xz-mirror/xz>`_
+* `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
 * `libtiff 4.1.0 <https://gitlab.com/libtiff/libtiff>`_
 * `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
+* `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
@@ -82,15 +83,16 @@ This release has been tested with the following requirements and dependencies
 * `brotli 1.0.7 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
+* `lerc 2.1 <https://github.com/Esri/lerc>`_
 * `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2020.2.16 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2020.5.30 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.4.4 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.4.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
@@ -122,20 +124,38 @@ and `OpenJPEG's color.c
 Build instructions and wheels for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
 
-To install the requirements for building imagecodecs from source code on
-latest Ubuntu Linux distributions, run:
+Update pip and setuptools to the latest version before installing imagecodecs:
+
+    ``python -m pip install --upgrade pip setuptools``
+
+Install imagecodecs using precompiled wheels:
+
+    ``python -m pip install --upgrade imagecodecs``
+
+Install the requirements for building imagecodecs from source code on
+latest Ubuntu Linux distributions:
 
     ``sudo apt-get install build-essential python3-dev cython3
     python3-setuptools python3-pip python3-wheel python3-numpy
     python3-pytest python3-blosc python3-brotli python3-snappy python3-lz4
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
-    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-turbo8-dev libjxr-dev
+    libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-dev libjxr-dev
     liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
     libzopfli-dev libgif-dev libtiff-dev``
 
-Use the ``--skip-extension`` build options to skip building specific
-extensions. Use the ``--lite`` build option to only build extensions without
-3rd-party dependencies. Edit ``setup.py`` to modify other build options.
+Use the ``--lite`` build option to only build extensions without 3rd-party
+dependencies. Use the ``--skip-extension`` build options to skip building
+specific extensions, e.g.:
+
+    ``python -m pip install imagecodecs --global-option="build_ext"
+    --global-option="--skip-bitshuffle"``
+
+The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, and ``lerc`` extensions are
+disabled by default when building from source.
+
+To modify other build settings such as library names and compiler arguments,
+provide a ``imagecodecs_distributor_setup.customize_build`` function, which
+will be imported and executed during setup. See ``setup.py`` for examples.
 
 Other Python packages and C libraries providing imaging or compression codecs:
 
@@ -151,12 +171,15 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `libmng <https://sourceforge.net/projects/libmng/>`_
 * `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
 * `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
-* `LERC <https://github.com/Esri/lerc>`_
 
 Revisions
 ---------
+2020.5.30
+    Pass 4563 tests.
+    Add LERC codec via ESRI's lerc library.
+    Enable building JPEG extensions with libjpeg >= 8.
+    Enable distributors to modify build settings.
 2020.2.18
-    Pass 3469 tests.
     Fix segfault when decoding corrupted LZW segments.
     Work around Cython raises AttributeError when using incompatible numpy.
     Raise ValueError if in-place decoding is not possible (except floatpred).
@@ -225,7 +248,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2020.2.18'
+__version__ = '2020.5.30'
 
 import os
 import sys
@@ -235,7 +258,7 @@ import importlib
 import numpy
 
 # names of public attributes by module
-# will be updated with standard codec attributes
+# will be updated with standard attributes
 _API = {
     None: [
         'imread',
@@ -269,12 +292,13 @@ _API = {
     'bz2': [],
     'gif': [],
     'jpeg2k': [],
-    'jpeg8': ['jpeg8_turbo_version'],
-    'jpeg12': ['jpeg12_turbo_version'],
+    'jpeg8': [],
+    'jpeg12': [],
     'jpegls': [],
     'jpegsof3': [],
     'jpegxl': [],
     'jpegxr': [],
+    'lerc': [],
     'lz4': [],
     'lzf': [],
     'lzma': [],
@@ -532,7 +556,7 @@ def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
         codecs.extend(
             c for c in (
                 'tiff', 'png', 'gif', 'webp', 'jpeg8', 'jpeg12', 'jpegsof3',
-                'jpeg2k', 'jpegls', 'jpegxr', 'jpegxl', 'zfp', 'numpy'
+                'jpeg2k', 'jpegls', 'jpegxr', 'jpegxl', 'zfp', 'lerc', 'numpy'
             ) if c not in codecs
         )
     else:
@@ -612,7 +636,7 @@ def imwrite(fileobj, data, codec=None, **kwargs):
         if isinstance(fileobj, (str, pathlib.Path)):
             ext = os.path.splitext(str(fileobj))[-1].lower()[1:]
         else:
-            raise ValueError(f'no codec specified')
+            raise ValueError('no codec specified')
 
         codec = _imcodecs().get(ext, ext)
         try:
@@ -650,15 +674,16 @@ def _imcodecs(_codecs_={}):
             'gif': ('gif', ),
             'png': ('png', ),
             'webp': ('webp', ),
+            'lerc': ('lerc1', 'lerc2'),
             'tiff': ('tif', 'tiff', 'tf8', 'tf2', 'btf'),
-            'jpeg': ('jpg', 'jpeg', 'jpe', 'jfif', 'jif'),
+            'jpeg': ('jpg', 'jpeg', 'jpe', 'jfif', 'jif', 'ljpeg'),
             'jpegls': ('jls', ),
             'jpegxl': ('jxl', 'brn'),
             'jpegxr': ('jxr', 'hdp', 'wdp'),
             'jpeg2k': ('j2k', 'jp2', 'j2c', 'jpc', 'jpx', 'jpf'),
             # 'jpeg8': ('jpg8', 'jpeg8'),
             # 'jpeg12': ('jpg12', 'jpeg12'),
-            # 'jpegsof3': ('jsof3', 'jpegsof3', 'jpeg0xc3')
+            # 'jpegsof3': ('ljpeg', 'jsof3', 'jpegsof3', 'jpeg0xc3')
         }
         _codecs_.update(
             (ext, codec) for codec, exts in codecs.items() for ext in exts
