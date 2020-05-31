@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.2.18
+:Version: 2020.5.30
 
 """
 
@@ -100,7 +100,7 @@ def test_module_exist(name):
         return
     if not IS_CG and not IS_CI:
         pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif name == 'jpeg12' and IS_CI:
+    elif name in ('jpeg12', 'lerc') and IS_CI:
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
@@ -345,6 +345,13 @@ def test_packbits(codec, data):
         except AssertionError:
             # roundtrip
             assert decode(encode(uncompressed)) == uncompressed
+
+
+@pytest.mark.parametrize('data', range(len(PACKBITS_DATA)))
+def test_packbits_py(data):
+    """Test pure Python PackBits decoder."""
+    uncompressed, compressed = PACKBITS_DATA[data]
+    assert _imagecodecs.packbits_decode(compressed) == uncompressed
 
 
 @pytest.mark.skipif(not imagecodecs.PACKBITS, reason='Packbits missing')
@@ -1370,6 +1377,64 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     else:
         atol = 20
     assert_allclose(data, decoded, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.LERC, reason='lerc missing')
+# @pytest.mark.parametrize('version', [None, 3])
+@pytest.mark.parametrize('level', [None, 0.02])
+@pytest.mark.parametrize('planarconfig', [None, 'separate'])
+@pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', ['gray', 'rgb', 'rgba', 'channels', 'stack'])
+@pytest.mark.parametrize('dtype', ['uint8', 'int8', 'uint16', 'int32',
+                                   'float32', 'float64'])
+def test_lerc(dtype, itype, enout, deout, planarconfig, level, version=None):
+    """Test LERC codec."""
+    if version is not None and version < 4 and itype != 'gray':
+        pytest.xfail("lerc version doesn't support these cases")
+    decode = imagecodecs.lerc_decode
+    encode = imagecodecs.lerc_encode
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    data = image_data(itype, dtype)
+    shape = data.shape
+    if level is not None and dtype.kind != 'f':
+        level = level * 256
+
+    kwargs = dict(level=level, version=version, planarconfig=planarconfig)
+    encoded = encode(data, **kwargs)
+
+    assert imagecodecs.lerc_check(encoded)
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        encoded = numpy.empty(len(encoded), 'uint8')
+        encode(data, out=encoded, **kwargs)
+    elif enout == 'bytearray':
+        encoded = bytearray(len(encoded))
+        encode(data, out=encoded, **kwargs)
+
+    if deout == 'new':
+        decoded = decode(encoded)
+    elif deout == 'out':
+        decoded = numpy.empty(shape, dtype)
+        if planarconfig is None:
+            out = numpy.squeeze(decoded)
+        else:
+            out = decoded
+        decode(encoded, out=out)
+    elif deout == 'bytearray':
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
+        decoded = decode(encoded, out=decoded)
+        decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
+
+    if itype == 'gray':
+        decoded = decoded.reshape(shape)
+
+    if level is None:
+        level = 0.00001 if dtype.kind == 'f' else 0
+    assert_allclose(data, decoded, atol=level, rtol=0)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXR, reason='jpegxr missing')
