@@ -1,7 +1,11 @@
 Revisions
 ---------
+2020.5.30
+    Pass 4563 tests.
+    Add LERC codec via ESRI's lerc library.
+    Enable building JPEG extensions with libjpeg >= 8.
+    Enable distributors to modify build settings.
 2020.2.18
-    Pass 3469 tests.
     Fix segfault when decoding corrupted LZW segments.
     Work around Cython raises AttributeError when using incompatible numpy.
     Raise ValueError if in-place decoding is not possible (except floatpred).
