@@ -14,8 +14,8 @@ include imagecodecs/*.pxi
 include imagecodecs/licenses/*
 include imagecodecs/patches/*
 
-include bitshuffle-0.3.5/*
-include liblzf-3.6/*
+include 3rdparty/*
+include 3rdparty/*/*
 
 include tests/*.py
 include tests/*.txt
