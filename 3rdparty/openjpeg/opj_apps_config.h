@@ -1,0 +1,1 @@
+#define OPJ_HAVE_LIBLCMS2
