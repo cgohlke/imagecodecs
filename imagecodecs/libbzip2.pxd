@@ -43,11 +43,30 @@ cdef extern from 'bzlib.h':
         bz_stream* strm,
         int blockSize100k,
         int verbosity,
-        int workFactor) nogil
+        int workFactor
+    ) nogil
 
-    int BZ2_bzCompress(bz_stream* strm, int action) nogil
-    int BZ2_bzCompressEnd(bz_stream* strm) nogil
-    int BZ2_bzDecompressInit(bz_stream* strm, int verbosity, int small) nogil
-    int BZ2_bzDecompress(bz_stream* strm) nogil
-    int BZ2_bzDecompressEnd(bz_stream* strm) nogil
+    int BZ2_bzCompress(
+        bz_stream* strm,
+        int action
+    ) nogil
+
+    int BZ2_bzCompressEnd(
+        bz_stream* strm
+    ) nogil
+
+    int BZ2_bzDecompressInit(
+        bz_stream* strm,
+        int verbosity,
+        int small
+    ) nogil
+
+    int BZ2_bzDecompress(
+        bz_stream* strm
+    ) nogil
+
+    int BZ2_bzDecompressEnd(
+        bz_stream* strm
+    ) nogil
+
     const char* BZ2_bzlibVersion() nogil
