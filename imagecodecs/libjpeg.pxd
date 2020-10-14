@@ -114,39 +114,80 @@ cdef extern from 'jpeglib.h':
         JDIMENSION jpeg_height
         boolean do_fancy_downsampling
 
-    jpeg_error_mgr* jpeg_std_error(jpeg_error_mgr*) nogil
-    void jpeg_create_decompress(jpeg_decompress_struct*) nogil
-    void jpeg_destroy_decompress(jpeg_decompress_struct*) nogil
-    int jpeg_read_header(jpeg_decompress_struct*, boolean) nogil
-    boolean jpeg_start_decompress(jpeg_decompress_struct*) nogil
-    boolean jpeg_finish_decompress(jpeg_decompress_struct*) nogil
+    jpeg_error_mgr* jpeg_std_error(
+        jpeg_error_mgr*
+    ) nogil
+
+    void jpeg_create_decompress(
+        jpeg_decompress_struct*
+    ) nogil
+
+    void jpeg_destroy_decompress(
+        jpeg_decompress_struct*
+    ) nogil
+
+    int jpeg_read_header(
+        jpeg_decompress_struct*,
+        boolean
+    ) nogil
+
+    boolean jpeg_start_decompress(
+        jpeg_decompress_struct*
+    ) nogil
+
+    boolean jpeg_finish_decompress(
+        jpeg_decompress_struct*
+    ) nogil
 
     JDIMENSION jpeg_read_scanlines(
         jpeg_decompress_struct*,
         JSAMPARRAY,
-        JDIMENSION) nogil
+        JDIMENSION
+    ) nogil
 
     void jpeg_mem_src(
         jpeg_decompress_struct*,
         unsigned char*,
-        unsigned long) nogil
+        unsigned long
+    ) nogil
 
     void jpeg_mem_dest(
         jpeg_compress_struct*,
         unsigned char**,
-        unsigned long*) nogil
+        unsigned long*
+    ) nogil
 
-    void jpeg_create_compress(jpeg_compress_struct*) nogil
-    void jpeg_destroy_compress(jpeg_compress_struct*) nogil
-    void jpeg_set_defaults(jpeg_compress_struct*) nogil
-    void jpeg_set_quality(jpeg_compress_struct*, int, boolean) nogil
-    void jpeg_start_compress(jpeg_compress_struct*, boolean) nogil
-    void jpeg_finish_compress(jpeg_compress_struct*) nogil
+    void jpeg_create_compress(
+        jpeg_compress_struct*
+    ) nogil
+
+    void jpeg_destroy_compress(
+        jpeg_compress_struct*
+    ) nogil
+
+    void jpeg_set_defaults(
+        jpeg_compress_struct*
+    ) nogil
+
+    void jpeg_set_quality(
+        jpeg_compress_struct*,
+        int,
+        boolean
+    ) nogil
+
+    void jpeg_start_compress(
+        jpeg_compress_struct*,
+        boolean
+    ) nogil
+
+    void jpeg_finish_compress(
+        jpeg_compress_struct*
+    ) nogil
 
     JDIMENSION jpeg_write_scanlines(
         jpeg_compress_struct*,
         JSAMPARRAY,
-        JDIMENSION) nogil
-
+        JDIMENSION
+    ) nogil
 
 # TODO: add missing declarations
