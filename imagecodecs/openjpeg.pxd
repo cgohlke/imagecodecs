@@ -132,67 +132,147 @@ cdef extern from 'openjpeg.h':
         OPJ_BYTE* icc_profile_buf
         OPJ_UINT32 icc_profile_len
 
-    ctypedef OPJ_SIZE_T(*opj_stream_read_fn)(void*, OPJ_SIZE_T, void*)
-    ctypedef OPJ_SIZE_T(*opj_stream_write_fn)(void*, OPJ_SIZE_T, void*)
-    ctypedef OPJ_OFF_T(*opj_stream_skip_fn)(OPJ_OFF_T, void*)
-    ctypedef OPJ_BOOL(*opj_stream_seek_fn)(OPJ_OFF_T, void*)
-    ctypedef void(*opj_stream_free_user_data_fn)(void*)
-    ctypedef void(*opj_msg_callback)(const char* msg, void* client_data)
+    ctypedef OPJ_SIZE_T(*opj_stream_read_fn)(
+        void*,
+        OPJ_SIZE_T,
+        void*
+    )
 
-    opj_stream_t* opj_stream_default_create(OPJ_BOOL p_is_input) nogil
-    opj_codec_t* opj_create_compress(OPJ_CODEC_FORMAT format) nogil
-    opj_codec_t* opj_create_decompress(OPJ_CODEC_FORMAT format) nogil
-    void opj_destroy_codec(opj_codec_t* p_codec) nogil
-    void opj_set_default_encoder_parameters(opj_cparameters_t*) nogil
-    void opj_set_default_decoder_parameters(opj_dparameters_t* params) nogil
-    void opj_image_destroy(opj_image_t* image) nogil
-    void* opj_image_data_alloc(OPJ_SIZE_T size) nogil
-    void opj_image_data_free(void* ptr) nogil
-    void opj_stream_destroy(opj_stream_t* p_stream) nogil
-    void color_sycc_to_rgb(opj_image_t* img) nogil
-    void color_apply_icc_profile(opj_image_t* image) nogil
-    void color_cielab_to_rgb(opj_image_t* image) nogil
-    void color_cmyk_to_rgb(opj_image_t* image) nogil
-    void color_esycc_to_rgb(opj_image_t* image) nogil
+    ctypedef OPJ_SIZE_T(*opj_stream_write_fn)(
+        void*,
+        OPJ_SIZE_T,
+        void*
+    )
+
+    ctypedef OPJ_OFF_T(*opj_stream_skip_fn)(
+        OPJ_OFF_T,
+        void*
+    )
+
+    ctypedef OPJ_BOOL(*opj_stream_seek_fn)(
+        OPJ_OFF_T,
+        void*
+    )
+
+    ctypedef void(*opj_stream_free_user_data_fn)(
+        void*
+    )
+
+    ctypedef void(*opj_msg_callback)(
+        const char* msg,
+        void* client_data
+    )
+
+    opj_stream_t* opj_stream_default_create(
+        OPJ_BOOL p_is_input
+    ) nogil
+
+    opj_codec_t* opj_create_compress(
+        OPJ_CODEC_FORMAT format
+    ) nogil
+
+    opj_codec_t* opj_create_decompress(
+        OPJ_CODEC_FORMAT format
+    ) nogil
+
+    void opj_destroy_codec(
+        opj_codec_t* p_codec
+    ) nogil
+
+    void opj_set_default_encoder_parameters(
+        opj_cparameters_t*
+    ) nogil
+
+    void opj_set_default_decoder_parameters(
+        opj_dparameters_t* params
+    ) nogil
+
+    void opj_image_destroy(
+        opj_image_t* image
+    ) nogil
+
+    void* opj_image_data_alloc(
+        OPJ_SIZE_T size
+    ) nogil
+
+    void opj_image_data_free(
+        void* ptr
+    ) nogil
+
+    void opj_stream_destroy(
+        opj_stream_t* p_stream
+    ) nogil
+
+    void color_sycc_to_rgb(
+        opj_image_t* img
+    ) nogil
+
+    void color_apply_icc_profile(
+        opj_image_t* image
+    ) nogil
+
+    void color_cielab_to_rgb(
+        opj_image_t* image
+    ) nogil
+
+    void color_cmyk_to_rgb(
+        opj_image_t* image
+    ) nogil
+
+    void color_esycc_to_rgb(
+        opj_image_t* image
+    ) nogil
+
     const char* opj_version() nogil
 
-    OPJ_BOOL opj_encode(opj_codec_t* p_codec, opj_stream_t* p_stream) nogil
+    OPJ_BOOL opj_encode(
+        opj_codec_t* p_codec,
+        opj_stream_t* p_stream
+    ) nogil
 
     opj_image_t* opj_image_tile_create(
         OPJ_UINT32 numcmpts,
         opj_image_cmptparm_t* cmptparms,
-        OPJ_COLOR_SPACE clrspc) nogil
+        OPJ_COLOR_SPACE clrspc
+    ) nogil
 
     OPJ_BOOL opj_setup_encoder(
         opj_codec_t* p_codec,
         opj_cparameters_t* parameters,
-        opj_image_t* image) nogil
+        opj_image_t* image
+    ) nogil
 
     OPJ_BOOL opj_start_compress(
         opj_codec_t* p_codec,
         opj_image_t* p_image,
-        opj_stream_t* p_stream) nogil
+        opj_stream_t* p_stream
+    ) nogil
 
     OPJ_BOOL opj_end_compress(
         opj_codec_t* p_codec,
-        opj_stream_t* p_stream) nogil
+        opj_stream_t* p_stream
+    ) nogil
 
     OPJ_BOOL opj_end_decompress(
         opj_codec_t* p_codec,
-        opj_stream_t* p_stream) nogil
+        opj_stream_t* p_stream
+    ) nogil
 
     OPJ_BOOL opj_setup_decoder(
         opj_codec_t* p_codec,
-        opj_dparameters_t* params) nogil
+        opj_dparameters_t* params
+    ) nogil
 
     OPJ_BOOL opj_codec_set_threads(
         opj_codec_t* p_codec,
-        int num_threads) nogil
+        int num_threads
+    ) nogil
 
     OPJ_BOOL opj_read_header(
         opj_stream_t* p_stream,
         opj_codec_t* p_codec,
-        opj_image_t** p_image) nogil
+        opj_image_t** p_image
+    ) nogil
 
     OPJ_BOOL opj_set_decode_area(
         opj_codec_t* p_codec,
@@ -200,70 +280,98 @@ cdef extern from 'openjpeg.h':
         OPJ_INT32 p_start_x,
         OPJ_INT32 p_start_y,
         OPJ_INT32 p_end_x,
-        OPJ_INT32 p_end_y) nogil
+        OPJ_INT32 p_end_y
+    ) nogil
 
     OPJ_BOOL opj_set_info_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
-        void* p_user_data) nogil
+        void* p_user_data
+    ) nogil
 
     OPJ_BOOL opj_set_warning_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
-        void* p_user_data) nogil
+        void* p_user_data
+    ) nogil
 
     OPJ_BOOL opj_set_error_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
-        void* p_user_data) nogil
+        void* p_user_data
+    ) nogil
 
     OPJ_BOOL opj_decode(
         opj_codec_t* p_decompressor,
         opj_stream_t* p_stream,
-        opj_image_t* p_image) nogil
+        opj_image_t* p_image
+    ) nogil
 
     opj_image_t* opj_image_create(
         OPJ_UINT32 numcmpts,
         opj_image_cmptparm_t* cmptparms,
-        OPJ_COLOR_SPACE clrspc) nogil
+        OPJ_COLOR_SPACE clrspc
+    ) nogil
 
     void opj_stream_set_read_function(
         opj_stream_t* p_stream,
-        opj_stream_read_fn p_func) nogil
+        opj_stream_read_fn p_func
+    ) nogil
 
     void opj_stream_set_write_function(
         opj_stream_t* p_stream,
-        opj_stream_write_fn p_func) nogil
+        opj_stream_write_fn p_func
+    ) nogil
 
     void opj_stream_set_seek_function(
         opj_stream_t* p_stream,
-        opj_stream_seek_fn p_func) nogil
+        opj_stream_seek_fn p_func
+    ) nogil
 
     void opj_stream_set_skip_function(
         opj_stream_t* p_stream,
-        opj_stream_skip_fn p_func) nogil
+        opj_stream_skip_fn p_func
+    ) nogil
 
     void opj_stream_set_user_data(
         opj_stream_t* p_stream,
         void* p_data,
-        opj_stream_free_user_data_fn p_func) nogil
+        opj_stream_free_user_data_fn p_func
+    ) nogil
 
     void opj_stream_set_user_data_length(
         opj_stream_t* p_stream,
-        OPJ_UINT64 data_length) nogil
+        OPJ_UINT64 data_length
+    ) nogil
 
     OPJ_BOOL opj_write_tile(
         opj_codec_t* p_codec,
         OPJ_UINT32 p_tile_index,
         OPJ_BYTE* p_data,
         OPJ_UINT32 p_data_size,
-        opj_stream_t* p_stream) nogil
+        opj_stream_t* p_stream
+    ) nogil
 
 
-cdef extern from 'opj_color.h':
+cdef extern from 'color.h':
     # this header is not part of the public OpenJPEG interface
-    void color_sycc_to_rgb(opj_image_t* img) nogil
-    void color_apply_icc_profile(opj_image_t* image) nogil
-    void color_cielab_to_rgb(opj_image_t* image) nogil
-    void color_cmyk_to_rgb(opj_image_t* image) nogil
-    void color_esycc_to_rgb(opj_image_t* image) nogil
+
+    void color_sycc_to_rgb(
+        opj_image_t* img
+    ) nogil
+
+    void color_apply_icc_profile(
+        opj_image_t* image
+    ) nogil
+
+    void color_cielab_to_rgb(
+        opj_image_t* image
+    ) nogil
+
+    void color_cmyk_to_rgb(
+        opj_image_t* image
+    ) nogil
+
+    void color_esycc_to_rgb(
+        opj_image_t* image
+    ) nogil
