@@ -36,11 +36,36 @@ cdef extern from 'libaec.h':
         unsigned int flags
         # internal_state* state
 
-    int aec_encode_init(aec_stream* strm) nogil
-    int aec_encode_c 'aec_encode' (aec_stream* strm, int flush) nogil
-    int aec_encode_end(aec_stream* strm) nogil
-    int aec_decode_init(aec_stream* strm) nogil
-    int aec_decode_c 'aec_decode' (aec_stream* strm, int flush) nogil
-    int aec_decode_end(aec_stream* strm) nogil
-    int aec_buffer_encode(aec_stream* strm) nogil
-    int aec_buffer_decode(aec_stream* strm) nogil
+    int aec_encode_init(
+        aec_stream* strm
+    ) nogil
+
+    int aec_encode_c 'aec_encode' (
+        aec_stream* strm,
+        int flush
+    ) nogil
+
+    int aec_encode_end(
+        aec_stream* strm
+    ) nogil
+
+    int aec_decode_init(
+        aec_stream* strm
+    ) nogil
+
+    int aec_decode_c 'aec_decode' (
+        aec_stream* strm,
+        int flush
+    ) nogil
+
+    int aec_decode_end(
+        aec_stream* strm
+    ) nogil
+
+    int aec_buffer_encode(
+        aec_stream* strm
+    ) nogil
+
+    int aec_buffer_decode(
+        aec_stream* strm
+    ) nogil
