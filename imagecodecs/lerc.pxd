@@ -1,7 +1,7 @@
 # lerc.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `LERC 2.1` library.
+# Cython declarations for the `LERC 2.2` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h':
@@ -17,7 +17,8 @@ cdef extern from 'Lerc_c_api.h':
         int nBands,
         const unsigned char* pValidBytes,
         double maxZErr,
-        unsigned int* numBytes) nogil
+        unsigned int* numBytes
+    ) nogil
 
     lerc_status lerc_encode_c 'lerc_encode'(
         const void* pData,
@@ -30,7 +31,8 @@ cdef extern from 'Lerc_c_api.h':
         double maxZErr,
         unsigned char* pOutBuffer,
         unsigned int outBufferSize,
-        unsigned int* nBytesWritten) nogil
+        unsigned int* nBytesWritten
+    ) nogil
 
     lerc_status lerc_computeCompressedSizeForVersion(
         const void* pData,
@@ -42,7 +44,8 @@ cdef extern from 'Lerc_c_api.h':
         int nBands,
         const unsigned char* pValidBytes,
         double maxZErr,
-        unsigned int* numBytes) nogil
+        unsigned int* numBytes
+    ) nogil
 
     lerc_status lerc_encodeForVersion(
         const void* pData,
@@ -56,7 +59,8 @@ cdef extern from 'Lerc_c_api.h':
         double maxZErr,
         unsigned char* pOutBuffer,
         unsigned int outBufferSize,
-        unsigned int* nBytesWritten) nogil
+        unsigned int* nBytesWritten
+    ) nogil
 
     lerc_status lerc_getBlobInfo(
         const unsigned char* pLercBlob,
@@ -64,7 +68,8 @@ cdef extern from 'Lerc_c_api.h':
         unsigned int* infoArray,
         double* dataRangeArray,
         int infoArraySize,
-        int dataRangeArraySize) nogil
+        int dataRangeArraySize
+    ) nogil
 
     lerc_status lerc_decode_c 'lerc_decode'(
         const unsigned char* pLercBlob,
@@ -75,7 +80,8 @@ cdef extern from 'Lerc_c_api.h':
         int nRows,
         int nBands,
         unsigned int dataType,
-        void* pData) nogil
+        void* pData
+    ) nogil
 
     lerc_status lerc_decodeToDouble(
         const unsigned char* pLercBlob,
@@ -85,7 +91,8 @@ cdef extern from 'Lerc_c_api.h':
         int nCols,
         int nRows,
         int nBands,
-        double* pData) nogil
+        double* pData
+    ) nogil
 
 
 # cdef extern from 'Lerc_types.h':  # C++ header
