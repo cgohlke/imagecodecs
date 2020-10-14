@@ -83,16 +83,19 @@ cdef extern from 'lzma.h':
     lzma_ret lzma_easy_encoder(
         lzma_stream *strm,
         uint32_t preset,
-        lzma_check_t check) nogil
+        lzma_check_t check
+    ) nogil
 
     lzma_ret lzma_stream_decoder(
         lzma_stream *strm,
         uint64_t memlimit,
-        uint32_t flags) nogil
+        uint32_t flags
+    ) nogil
 
     lzma_ret lzma_stream_footer_decode(
         lzma_stream_flags *options,
-        const uint8_t *src) nogil
+        const uint8_t *src
+    ) nogil
 
     lzma_ret lzma_index_buffer_decode(
         lzma_index** i,
@@ -100,11 +103,31 @@ cdef extern from 'lzma.h':
         const lzma_allocator* allocator,
         const uint8_t* src,
         size_t* in_pos,
-        size_t in_size) nogil
+        size_t in_size
+    ) nogil
 
-    lzma_ret lzma_code(lzma_stream* strm, lzma_action action) nogil
-    void lzma_end(lzma_stream* strm) nogil
-    size_t lzma_stream_buffer_bound(size_t uncompressed_size) nogil
-    lzma_vli lzma_index_uncompressed_size(const lzma_index* i) nogil
-    lzma_index* lzma_index_init(const lzma_allocator* allocator) nogil
-    void lzma_index_end(lzma_index* i, const lzma_allocator* allocator) nogil
+    lzma_ret lzma_code(
+        lzma_stream* strm,
+        lzma_action action
+    ) nogil
+
+    void lzma_end(
+        lzma_stream* strm
+    ) nogil
+
+    size_t lzma_stream_buffer_bound(
+        size_t uncompressed_size
+    ) nogil
+
+    lzma_vli lzma_index_uncompressed_size(
+        const lzma_index* i
+    ) nogil
+
+    lzma_index* lzma_index_init(
+        const lzma_allocator* allocator
+    ) nogil
+
+    void lzma_index_end(
+        lzma_index* i,
+        const lzma_allocator* allocator
+    ) nogil
