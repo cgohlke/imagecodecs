@@ -35,13 +35,15 @@ cdef extern from 'szlib.h':
         size_t* destLen,
         const void* source,
         size_t sourceLen,
-        SZ_com_t* param) nogil
+        SZ_com_t* param
+    ) nogil
 
     int SZ_BufftoBuffDecompress(
         void* dest,
         size_t* destLen,
         const void* source,
         size_t sourceLen,
-        SZ_com_t* param) nogil
+        SZ_com_t* param
+    ) nogil
 
     int SZ_encoder_enabled() nogil
