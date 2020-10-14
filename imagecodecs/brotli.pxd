@@ -13,8 +13,15 @@ cdef extern from 'brotli/types.h':
     BROTLI_BOOL BROTLI_TRUE
     BROTLI_BOOL BROTLI_FALSE
 
-    ctypedef void* (*brotli_alloc_func)(void* opaque, size_t size) nogil
-    ctypedef void (*brotli_free_func)(void* opaque, void* address) nogil
+    ctypedef void* (*brotli_alloc_func)(
+        void* opaque, 
+        size_t size
+    ) nogil
+    
+    ctypedef void (*brotli_free_func)(
+        void* opaque, 
+        void* address
+    ) nogil
 
 
 cdef extern from 'brotli/decode.h':
@@ -38,20 +45,25 @@ cdef extern from 'brotli/decode.h':
     BROTLI_BOOL BrotliDecoderSetParameter(
         BrotliDecoderState* state,
         BrotliDecoderParameter param,
-        uint32_t value) nogil
+        uint32_t value
+    ) nogil
 
     BrotliDecoderState* BrotliDecoderCreateInstance(
         brotli_alloc_func alloc_func,
         brotli_free_func free_func,
-        void* opaque) nogil
+        void* opaque
+    ) nogil
 
-    void BrotliDecoderDestroyInstance(BrotliDecoderState* state) nogil
+    void BrotliDecoderDestroyInstance(
+        BrotliDecoderState* state
+    ) nogil
 
     BrotliDecoderResult BrotliDecoderDecompress(
         size_t encoded_size,
         const uint8_t* encoded_buffer,
         size_t* decoded_size,
-        uint8_t* decoded_buffer) nogil
+        uint8_t* decoded_buffer
+    ) nogil
 
     BrotliDecoderResult BrotliDecoderDecompressStream(
         BrotliDecoderState* state,
@@ -59,23 +71,33 @@ cdef extern from 'brotli/decode.h':
         const uint8_t** next_in,
         size_t* available_out,
         uint8_t** next_out,
-        size_t* total_out) nogil
+        size_t* total_out
+    ) nogil
 
     BROTLI_BOOL BrotliDecoderHasMoreOutput(
-        const BrotliDecoderState* state) nogil
+        const BrotliDecoderState* state
+    ) nogil
 
     const uint8_t* BrotliDecoderTakeOutput(
         BrotliDecoderState* state,
-        size_t* size) nogil
+        size_t* size
+    ) nogil
 
-    BROTLI_BOOL BrotliDecoderIsUsed(const BrotliDecoderState* state) nogil
+    BROTLI_BOOL BrotliDecoderIsUsed(
+        const BrotliDecoderState* state
+    ) nogil
 
-    BROTLI_BOOL BrotliDecoderIsFinished(const BrotliDecoderState* state) nogil
+    BROTLI_BOOL BrotliDecoderIsFinished(
+        const BrotliDecoderState* state
+    ) nogil
 
     BrotliDecoderErrorCode BrotliDecoderGetErrorCode(
-        const BrotliDecoderState* state) nogil
+        const BrotliDecoderState* state
+    ) nogil
 
-    const char* BrotliDecoderErrorString(BrotliDecoderErrorCode c) nogil
+    const char* BrotliDecoderErrorString(
+        BrotliDecoderErrorCode c
+    ) nogil
 
     uint32_t BrotliDecoderVersion() nogil
 
@@ -122,16 +144,22 @@ cdef extern from 'brotli/encode.h':
     BROTLI_BOOL BrotliEncoderSetParameter(
         BrotliEncoderState* state,
         BrotliEncoderParameter param,
-        uint32_t value) nogil
+        uint32_t value
+    ) nogil
 
     BrotliEncoderState* BrotliEncoderCreateInstance(
         brotli_alloc_func alloc_func,
         brotli_free_func free_func,
-        void* opaque) nogil
+        void* opaque
+    ) nogil
 
-    void BrotliEncoderDestroyInstance(BrotliEncoderState* state) nogil
+    void BrotliEncoderDestroyInstance(
+        BrotliEncoderState* state
+    ) nogil
 
-    size_t BrotliEncoderMaxCompressedSize(size_t input_size) nogil
+    size_t BrotliEncoderMaxCompressedSize(
+        size_t input_size
+    ) nogil
 
     BROTLI_BOOL BrotliEncoderCompress(
         int quality,
@@ -140,7 +168,8 @@ cdef extern from 'brotli/encode.h':
         size_t input_size,
         const uint8_t* input_buffer,
         size_t* encoded_size,
-        uint8_t* encoded_buffer) nogil
+        uint8_t* encoded_buffer
+    ) nogil
 
     BROTLI_BOOL BrotliEncoderCompressStream(
         BrotliEncoderState* state,
@@ -149,14 +178,21 @@ cdef extern from 'brotli/encode.h':
         const uint8_t** next_in,
         size_t* available_out,
         uint8_t** next_out,
-        size_t* total_out) nogil
+        size_t* total_out
+    ) nogil
 
-    BROTLI_BOOL BrotliEncoderIsFinished(BrotliEncoderState* state) nogil
+    BROTLI_BOOL BrotliEncoderIsFinished(
+        BrotliEncoderState* state
+    ) nogil
 
-    BROTLI_BOOL BrotliEncoderHasMoreOutput(BrotliEncoderState* state) nogil
+    BROTLI_BOOL BrotliEncoderHasMoreOutput(
+        BrotliEncoderState* state
+    ) nogil
 
     const uint8_t* BrotliEncoderTakeOutput(
         BrotliEncoderState* state,
-        size_t* size) nogil
+        size_t* size
+    ) nogil
 
-    uint32_t BrotliEncoderVersion() nogil
+    uint32_t BrotliEncoderVersion(
+    ) nogil
