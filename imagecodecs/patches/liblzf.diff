@@ -1,0 +1,33 @@
+diff --git a/lzfP.h b/lzfP.h
+index 7b7feda..e4926ef 100644
+--- a/lzfP.h
++++ b/lzfP.h
+@@ -141,7 +141,7 @@ using namespace std;
+ #endif
+ 
+ #ifndef LZF_USE_OFFSETS
+-# if defined (WIN32)
++# if defined (_WIN32)
+ #  define LZF_USE_OFFSETS defined(_M_X64)
+ # else
+ #  if __cplusplus > 199711L
+diff --git a/lzf_c.c b/lzf_c.c
+index bc07084..de2b8d7 100644
+--- a/lzf_c.c
++++ b/lzf_c.c
+@@ -119,8 +119,13 @@ lzf_compress (const void *const in_data, unsigned int in_len,
+    * and fails to support both assumptions is windows 64 bit, we make a
+    * special workaround for it.
+    */
+-#if defined (WIN32) && defined (_M_X64)
+-  unsigned _int64 off; /* workaround for missing POSIX compliance */
++#if defined (_WIN32) && defined (_M_X64)
++  /* workaround for missing POSIX compliance */
++  #if __GNUC__
++    unsigned long long off;
++  #else
++    unsigned __int64 off;
++  #endif
+ #else
+   unsigned long off;
+ #endif
