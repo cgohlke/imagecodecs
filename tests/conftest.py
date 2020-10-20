@@ -14,6 +14,6 @@ def pytest_report_header(config):
             imagecodecs.__path__[0],
             imagecodecs.version(),
             _imagecodecs.version(),
-            )
+        )
     except Exception as exc:
         return f'pytest_report_header failed: {exc!s}'
