@@ -19,7 +19,9 @@ cdef extern from 'zopfli/zopfli.h':
         ZOPFLI_FORMAT_ZLIB
         ZOPFLI_FORMAT_DEFLATE
 
-    void ZopfliInitOptions(ZopfliOptions* options) nogil
+    void ZopfliInitOptions(
+        ZopfliOptions* options
+    ) nogil
 
     void ZopfliCompress(
         const ZopfliOptions* options,
@@ -27,7 +29,8 @@ cdef extern from 'zopfli/zopfli.h':
         const unsigned char* src,
         size_t insize,
         unsigned char** out,
-        size_t* outsize) nogil
+        size_t* outsize
+    ) nogil
 
 
 # zlib_container.h and gzip_container.h missing in Arch Linux
@@ -39,7 +42,8 @@ cdef extern from 'zopfli/zopfli.h':
 #         const unsigned char* src,
 #         size_t insize,
 #         unsigned char** out,
-#         size_t* outsize) nogil
+#         size_t* outsize
+#     ) nogil
 #
 #
 # cdef extern from 'zopfli/gzip_container.h':
@@ -49,7 +53,8 @@ cdef extern from 'zopfli/zopfli.h':
 #         const unsigned char* src,
 #         size_t insize,
 #         unsigned char** out,
-#         size_t* outsize) nogil
+#         size_t* outsize
+#     ) nogil
 
 
 # zopflipng_lib.h missing in Debian
@@ -81,7 +86,9 @@ cdef extern from 'zopfli/zopfli.h':
 #         int num_iterations_large
 #         int block_split_strategy
 #
-#     void CZopfliPNGSetDefaults(CZopfliPNGOptions* png_options) nogil
+#     void CZopfliPNGSetDefaults(
+#         CZopfliPNGOptions* png_options
+#     ) nogil
 #
 #     int CZopfliPNGOptimize(
 #         const unsigned char* origpng,
@@ -89,4 +96,5 @@ cdef extern from 'zopfli/zopfli.h':
 #         const CZopfliPNGOptions* png_options,
 #         int verbose,
 #         unsigned char** resultpng,
-#         size_t* resultpng_size) nogil
+#         size_t* resultpng_size
+#     ) nogil
