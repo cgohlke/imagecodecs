@@ -7,6 +7,8 @@ import numpy
 cimport numpy
 cimport cython
 
+from ._shared import _log_warning, _set_attributes
+
 from ._shared cimport (
     _parse_output,
     _create_output,
@@ -18,10 +20,9 @@ from ._shared cimport (
     _default_value
 )
 
-from ._shared import _log_warning, _set_attributes
-
 from libc.string cimport memset, memcpy, memmove
 from libc.stdlib cimport malloc, free, realloc
+
 from libc.stdint cimport (
     int8_t,
     uint8_t,
@@ -33,7 +34,8 @@ from libc.stdint cimport (
     uint64_t,
     UINT16_MAX,
     UINT32_MAX,
-    UINT64_MAX
+    UINT64_MAX,
+    SIZE_MAX,
 )
 
 numpy.import_array()
