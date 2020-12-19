@@ -1,7 +1,7 @@
 # libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.1.0` library.
+# Cython declarations for the `libtiff 4.2.0` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stdio cimport FILE
@@ -156,7 +156,8 @@ cdef extern from 'tiffio.h':
         uint32,
         int32,
         int32,
-        unsigned char*) nogil
+        unsigned char*
+    ) nogil
 
     ctypedef void (*tileSeparateRoutine)(
         TIFFRGBAImage*,
@@ -170,16 +171,19 @@ cdef extern from 'tiffio.h':
         unsigned char*,
         unsigned char*,
         unsigned char*,
-        unsigned char*) nogil
+        unsigned char*
+    ) nogil
 
     ctypedef int (*TIFFRGBAImage_get_func)(
         TIFFRGBAImage*,
         uint32*,
         uint32,
-        uint32) nogil
+        uint32
+    ) nogil
 
     ctypedef void (*TIFFRGBAImage_put_any_func)(
-        TIFFRGBAImage*) nogil
+        TIFFRGBAImage*
+    ) nogil
 
     cdef union TIFFRGBAImage_put_union:
         TIFFRGBAImage_put_any_func any
@@ -215,7 +219,8 @@ cdef extern from 'tiffio.h':
 
     ctypedef int (*TIFFInitMethod)(
         TIFF*,
-        int) nogil
+        int
+    ) nogil
 
     ctypedef struct TIFFCodec:
         char* name
@@ -225,42 +230,51 @@ cdef extern from 'tiffio.h':
     ctypedef void (*TIFFErrorHandler)(
         const char*,
         const char*,
-        va_list) nogil
+        va_list
+    ) nogil
 
     ctypedef void (*TIFFErrorHandlerExt)(
         thandle_t,
         char*,
         char*,
-        va_list) nogil
+        va_list
+    ) nogil
 
     ctypedef tmsize_t (*TIFFReadWriteProc)(
         thandle_t,
         void*,
-        tmsize_t) nogil
+        tmsize_t
+    ) nogil
 
     ctypedef toff_t (*TIFFSeekProc)(
         thandle_t,
         toff_t,
-        int) nogil
+        int
+    ) nogil
 
     ctypedef int (*TIFFCloseProc)(
-        thandle_t) nogil
+        thandle_t
+    ) nogil
 
     ctypedef toff_t (*TIFFSizeProc)(
-        thandle_t) nogil
+        thandle_t
+    ) nogil
 
     ctypedef int (*TIFFMapFileProc)(
         thandle_t,
         void** base,
-        toff_t* size) nogil
+        toff_t* size
+    ) nogil
 
     ctypedef void (*TIFFUnmapFileProc)(
         thandle_t,
         void* base,
-        toff_t size) nogil
+        toff_t size
+    ) nogil
 
     ctypedef void (*TIFFExtendProc)(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFGetR(int) nogil
     int TIFFGetG(int) nogil
@@ -269,56 +283,71 @@ cdef extern from 'tiffio.h':
 
     char* TIFFGetVersion() nogil
 
-    TIFFCodec* TIFFFindCODEC(uint16) nogil
+    TIFFCodec* TIFFFindCODEC(
+        uint16
+    ) nogil
 
     TIFFCodec* TIFFRegisterCODEC(
         uint16,
         char*,
-        TIFFInitMethod) nogil
+        TIFFInitMethod
+    ) nogil
 
     void TIFFUnRegisterCODEC(
-        TIFFCodec*) nogil
+        TIFFCodec*
+    ) nogil
 
     int TIFFIsCODECConfigured(
-        uint16) nogil
+        uint16
+    ) nogil
 
-    TIFFCodec* TIFFGetConfiguredCODECs() nogil
+    TIFFCodec* TIFFGetConfiguredCODECs(
+    ) nogil
 
     void* _TIFFmalloc(
-        tmsize_t s) nogil
+        tmsize_t s
+    ) nogil
 
     void* _TIFFcalloc(
         tmsize_t nmemb,
-        tmsize_t siz) nogil
+        tmsize_t siz
+    ) nogil
 
     void* _TIFFrealloc(
         void* p,
-        tmsize_t s) nogil
+        tmsize_t s
+    ) nogil
 
     void _TIFFmemset(
         void* p,
         int v,
-        tmsize_t c) nogil
+        tmsize_t c
+    ) nogil
 
     void _TIFFmemcpy(
         void* d,
         void* s,
-        tmsize_t c) nogil
+        tmsize_t c
+    ) nogil
 
     int _TIFFmemcmp(
         void* p1,
         void* p2,
-        tmsize_t c) nogil
+        tmsize_t c
+    ) nogil
 
     void _TIFFfree(
-        void* p) nogil
+        void* p
+    ) nogil
 
     int TIFFGetTagListCount(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint32 TIFFGetTagListEntry(
         TIFF*,
-        int tag_index) nogil
+        int tag_index
+    ) nogil
 
     ctypedef struct TIFFField:
         pass
@@ -329,48 +358,60 @@ cdef extern from 'tiffio.h':
     TIFFField* TIFFFindField(
         TIFF*,
         uint32,
-        TIFFDataType) nogil
+        TIFFDataType
+    ) nogil
 
     TIFFField* TIFFFieldWithTag(
         TIFF*,
-        uint32) nogil
+        uint32
+    ) nogil
 
     TIFFField* TIFFFieldWithName(
         TIFF*,
-        char*) nogil
+        char*
+    ) nogil
 
     uint32 TIFFFieldTag(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     char* TIFFFieldName(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     TIFFDataType TIFFFieldDataType(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     int TIFFFieldPassCount(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     int TIFFFieldReadCount(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     int TIFFFieldWriteCount(
-        TIFFField*) nogil
+        TIFFField*
+    ) nogil
 
     ctypedef int (*TIFFVSetMethod)(
         TIFF*,
         uint32,
-        va_list) nogil
+        va_list
+    ) nogil
 
     ctypedef int (*TIFFVGetMethod)(
         TIFF*,
         uint32,
-        va_list) nogil
+        va_list
+    ) nogil
 
     ctypedef void (*TIFFPrintMethod)(
         TIFF*,
         FILE*,
-        long) nogil
+        long
+    ) nogil
 
     ctypedef struct TIFFTagMethods:
         TIFFVSetMethod vsetfield
@@ -378,300 +419,382 @@ cdef extern from 'tiffio.h':
         TIFFPrintMethod printdir
 
     TIFFTagMethods* TIFFAccessTagMethods(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     void* TIFFGetClientInfo(
         TIFF*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFSetClientInfo(
         TIFF*,
         void*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFCleanup(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     void TIFFClose(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     int TIFFFlush(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     int TIFFFlushData(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     int TIFFGetField(
         TIFF* tif,
         uint32 tag,
-        ...) nogil
+        ...
+    ) nogil
 
     int TIFFVGetField(
         TIFF* tif,
         uint32 tag,
-        va_list ap) nogil
+        va_list ap
+    ) nogil
 
     int TIFFGetFieldDefaulted(
         TIFF* tif,
         uint32 tag,
-        ...) nogil
+        ...
+    ) nogil
 
     int TIFFVGetFieldDefaulted(
         TIFF* tif,
         uint32 tag,
-        va_list ap) nogil
+        va_list ap
+    ) nogil
 
     int TIFFReadDirectory(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     int TIFFReadCustomDirectory(
         TIFF* tif,
         toff_t diroff,
-        TIFFFieldArray* infoarray) nogil
+        TIFFFieldArray* infoarray
+    ) nogil
 
     int TIFFReadEXIFDirectory(
         TIFF* tif,
-        toff_t diroff) nogil
+        toff_t diroff
+    ) nogil
 
     uint64 TIFFScanlineSize64(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     tmsize_t TIFFScanlineSize(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     uint64 TIFFRasterScanlineSize64(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     tmsize_t TIFFRasterScanlineSize(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     uint64 TIFFStripSize64(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     tmsize_t TIFFStripSize(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     uint64 TIFFRawStripSize64(
         TIFF* tif,
-        uint32 strip) nogil
+        uint32 strip
+    ) nogil
 
     tmsize_t TIFFRawStripSize(
         TIFF* tif,
-        uint32 strip) nogil
+        uint32 strip
+    ) nogil
 
     uint64 TIFFVStripSize64(
         TIFF* tif,
-        uint32 nrows) nogil
+        uint32 nrows
+    ) nogil
 
     tmsize_t TIFFVStripSize(
         TIFF* tif,
-        uint32 nrows) nogil
+        uint32 nrows
+    ) nogil
 
     uint64 TIFFTileRowSize64(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     tmsize_t TIFFTileRowSize(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     uint64 TIFFTileSize64(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     tmsize_t TIFFTileSize(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     uint64 TIFFVTileSize64(
         TIFF* tif,
-        uint32 nrows) nogil
+        uint32 nrows
+    ) nogil
 
     tmsize_t TIFFVTileSize(
         TIFF* tif,
-        uint32 nrows) nogil
+        uint32 nrows
+    ) nogil
 
     uint32 TIFFDefaultStripSize(
         TIFF* tif,
-        uint32 request) nogil
+        uint32 request
+    ) nogil
 
     void TIFFDefaultTileSize(
         TIFF*,
         uint32*,
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     int TIFFFileno(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFSetFileno(
         TIFF*,
-        int) nogil
+        int
+    ) nogil
 
     thandle_t TIFFClientdata(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     thandle_t TIFFSetClientdata(
         TIFF*,
-        thandle_t) nogil
+        thandle_t
+    ) nogil
 
     int TIFFGetMode(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFSetMode(
         TIFF*,
-        int) nogil
+        int
+    ) nogil
 
     int TIFFIsTiled(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFIsByteSwapped(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFIsUpSampled(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFIsMSB2LSB(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFIsBigEndian(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFReadWriteProc TIFFGetReadProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFReadWriteProc TIFFGetWriteProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFSeekProc TIFFGetSeekProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFCloseProc TIFFGetCloseProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFSizeProc TIFFGetSizeProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFMapFileProc TIFFGetMapFileProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     TIFFUnmapFileProc TIFFGetUnmapFileProc(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint32 TIFFCurrentRow(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint16 TIFFCurrentDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint16 TIFFNumberOfDirectories(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint64 TIFFCurrentDirOffset(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint32 TIFFCurrentStrip(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     uint32 TIFFCurrentTile(
-        TIFF* tif) nogil
+        TIFF* tif
+    ) nogil
 
     int TIFFReadBufferSetup(
         TIFF* tif,
         void* bp,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     int TIFFWriteBufferSetup(
         TIFF* tif,
         void* bp,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     int TIFFSetupStrips(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFWriteCheck(
         TIFF*,
         int,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFFreeDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFCreateDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFCreateCustomDirectory(
         TIFF*,
-        TIFFFieldArray*) nogil
+        TIFFFieldArray*
+    ) nogil
 
     int TIFFCreateEXIFDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFLastDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFSetDirectory(
         TIFF*,
-        uint16) nogil
+        uint16
+    ) nogil
 
     int TIFFSetSubDirectory(
         TIFF*,
-        uint64) nogil
+        uint64
+    ) nogil
 
     int TIFFUnlinkDirectory(
         TIFF*,
-        uint16) nogil
+        uint16
+    ) nogil
 
     int TIFFSetField(
         TIFF*,
-        uint32) nogil
+        uint32,
+        ...
+    ) nogil
 
     int TIFFVSetField(
         TIFF*,
         uint32,
-        va_list) nogil
+        va_list
+    ) nogil
 
     int TIFFUnsetField(
         TIFF*,
-        uint32) nogil
+        uint32
+    ) nogil
 
     int TIFFWriteDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFWriteCustomDirectory(
         TIFF*,
-        uint64*) nogil
+        uint64*
+    ) nogil
 
     int TIFFCheckpointDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFRewriteDirectory(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFDeferStrileArrayWriting(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     int TIFFForceStrileArrayWriting(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     void TIFFPrintDirectory(
         TIFF*,
         FILE*,
-        long) nogil
+        long
+    ) nogil
 
     int TIFFReadScanline(
         TIFF* tif,
         void* buf,
         uint32 row,
-        uint16 sample) nogil
+        uint16 sample
+    ) nogil
 
     int TIFFWriteScanline(
         TIFF* tif,
         void* buf,
         uint32 row,
-        uint16 sample) nogil
+        uint16 sample
+    ) nogil
 
     int TIFFReadRGBAImage(
         TIFF*,
         uint32,
         uint32,
         uint32*,
-        int) nogil
+        int
+    ) nogil
 
     int TIFFReadRGBAImageOriented(
         TIFF*,
@@ -679,59 +802,70 @@ cdef extern from 'tiffio.h':
         uint32,
         uint32*,
         int,
-        int) nogil
+        int
+    ) nogil
 
     int TIFFReadRGBAStrip(
         TIFF*,
         uint32,
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     int TIFFReadRGBATile(
         TIFF*,
         uint32,
         uint32,
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     int TIFFReadRGBAStripExt(
         TIFF*,
         uint32,
         uint32*,
-        int stop_on_error) nogil
+        int stop_on_error
+    ) nogil
 
     int TIFFReadRGBATileExt(
         TIFF*,
         uint32,
         uint32,
         uint32*,
-        int stop_on_error) nogil
+        int stop_on_error
+    ) nogil
 
     int TIFFRGBAImageOK(
         TIFF*,
-        char [1024]) nogil
+        char [1024]
+    ) nogil
 
     int TIFFRGBAImageBegin(
         TIFFRGBAImage*,
         TIFF*,
         int,
-        char [1024]) nogil
+        char [1024]
+    ) nogil
 
     int TIFFRGBAImageGet(
         TIFFRGBAImage*,
         uint32*,
         uint32,
-        uint32) nogil
+        uint32
+    ) nogil
 
     void TIFFRGBAImageEnd(
-        TIFFRGBAImage*) nogil
+        TIFFRGBAImage*
+    ) nogil
 
     TIFF* TIFFOpen(
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     TIFF* TIFFFdOpen(
         int,
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     TIFF* TIFFClientOpen(
         char*,
@@ -743,64 +877,79 @@ cdef extern from 'tiffio.h':
         TIFFCloseProc,
         TIFFSizeProc,
         TIFFMapFileProc,
-        TIFFUnmapFileProc) nogil
+        TIFFUnmapFileProc
+    ) nogil
 
     char* TIFFFileName(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     char* TIFFSetFileName(
         TIFF*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFError(
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFErrorExt(
         thandle_t,
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFWarning(
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     void TIFFWarningExt(
         thandle_t,
         char*,
-        char*) nogil
+        char*
+    ) nogil
 
     TIFFErrorHandler TIFFSetErrorHandler(
-        TIFFErrorHandler) nogil
+        TIFFErrorHandler
+    ) nogil
 
     TIFFErrorHandlerExt TIFFSetErrorHandlerExt(
-        TIFFErrorHandlerExt) nogil
+        TIFFErrorHandlerExt
+    ) nogil
 
     TIFFErrorHandler TIFFSetWarningHandler(
-        TIFFErrorHandler) nogil
+        TIFFErrorHandler
+    ) nogil
 
     TIFFErrorHandlerExt TIFFSetWarningHandlerExt(
-        TIFFErrorHandlerExt) nogil
+        TIFFErrorHandlerExt
+    ) nogil
 
     TIFFExtendProc TIFFSetTagExtender(
-        TIFFExtendProc) nogil
+        TIFFExtendProc
+    ) nogil
 
     uint32 TIFFComputeTile(
         TIFF* tif,
         uint32 x,
         uint32 y,
         uint32 z,
-        uint16 s) nogil
+        uint16 s
+    ) nogil
 
     int TIFFCheckTile(
         TIFF* tif,
         uint32 x,
         uint32 y,
         uint32 z,
-        uint16 s) nogil
+        uint16 s
+    ) nogil
 
     uint32 TIFFNumberOfTiles(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     tmsize_t TIFFReadTile(
         TIFF* tif,
@@ -808,7 +957,8 @@ cdef extern from 'tiffio.h':
         uint32 x,
         uint32 y,
         uint32 z,
-        uint16 s) nogil
+        uint16 s
+    ) nogil
 
     tmsize_t TIFFWriteTile(
         TIFF* tif,
@@ -816,39 +966,46 @@ cdef extern from 'tiffio.h':
         uint32 x,
         uint32 y,
         uint32 z,
-        uint16 s) nogil
+        uint16 s
+    ) nogil
 
     uint32 TIFFComputeStrip(
         TIFF*,
         uint32,
-        uint16) nogil
+        uint16
+    ) nogil
 
     uint32 TIFFNumberOfStrips(
-        TIFF*) nogil
+        TIFF*
+    ) nogil
 
     tmsize_t TIFFReadEncodedStrip(
         TIFF* tif,
         uint32 strip,
         void* buf,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     tmsize_t TIFFReadRawStrip(
         TIFF* tif,
         uint32 strip,
         void* buf,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     tmsize_t TIFFReadEncodedTile(
         TIFF* tif,
         uint32 tile,
         void* buf,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     tmsize_t TIFFReadRawTile(
         TIFF* tif,
         uint32 tile,
         void* buf,
-        tmsize_t size) nogil
+        tmsize_t size
+    ) nogil
 
     int TIFFReadFromUserBuffer(
         TIFF* tif,
@@ -856,151 +1013,187 @@ cdef extern from 'tiffio.h':
         void* inbuf,
         tmsize_t insize,
         void* outbuf,
-        tmsize_t outsize) nogil
+        tmsize_t outsize
+    ) nogil
 
     tmsize_t TIFFWriteEncodedStrip(
         TIFF* tif,
         uint32 strip,
         void* data,
-        tmsize_t cc) nogil
+        tmsize_t cc
+    ) nogil
 
     tmsize_t TIFFWriteRawStrip(
         TIFF* tif,
         uint32 strip,
         void* data,
-        tmsize_t cc) nogil
+        tmsize_t cc
+    ) nogil
 
     tmsize_t TIFFWriteEncodedTile(
         TIFF* tif,
         uint32 tile,
         void* data,
-        tmsize_t cc) nogil
+        tmsize_t cc
+    ) nogil
 
     tmsize_t TIFFWriteRawTile(
         TIFF* tif,
         uint32 tile,
         void* data,
-        tmsize_t cc) nogil
+        tmsize_t cc
+    ) nogil
 
     int TIFFDataWidth(
-        TIFFDataType) nogil
+        TIFFDataType
+    ) nogil
 
     void TIFFSetWriteOffset(
         TIFF* tif,
-        toff_t off) nogil
+        toff_t off
+    ) nogil
 
     void TIFFSwabShort(
-        uint16*) nogil
+        uint16*
+    ) nogil
 
     void TIFFSwabLong(
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     void TIFFSwabLong8(
-        uint64*) nogil
+        uint64*
+    ) nogil
 
     void TIFFSwabFloat(
-        float*) nogil
+        float*
+    ) nogil
 
     void TIFFSwabDouble(
-        double*) nogil
+        double*
+    ) nogil
 
     void TIFFSwabArrayOfShort(
         uint16* wp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFSwabArrayOfTriples(
         uint8* tp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFSwabArrayOfLong(
         uint32* lp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFSwabArrayOfLong8(
         uint64* lp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFSwabArrayOfFloat(
         float* fp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFSwabArrayOfDouble(
         double* dp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     void TIFFReverseBits(
         uint8* cp,
-        tmsize_t n) nogil
+        tmsize_t n
+    ) nogil
 
     unsigned char* TIFFGetBitRevTable(
-        int) nogil
+        int
+    ) nogil
 
     uint64 TIFFGetStrileOffset(
         TIFF* tif,
-        uint32 strile) nogil
+        uint32 strile
+    ) nogil
 
     uint64 TIFFGetStrileByteCount(
         TIFF* tif,
-        uint32 strile) nogil
+        uint32 strile
+    ) nogil
 
     uint64 TIFFGetStrileOffsetWithErr(
         TIFF* tif,
         uint32 strile,
-        int* pbErr) nogil
+        int* pbErr
+    ) nogil
 
     uint64 TIFFGetStrileByteCountWithErr(
         TIFF* tif,
         uint32 strile,
-        int* pbErr) nogil
+        int* pbErr
+    ) nogil
 
     double LogL16toY(
-        int) nogil
+        int
+    ) nogil
 
     double LogL10toY(
-        int) nogil
+        int
+    ) nogil
 
     void XYZtoRGB24(
         float*,
-        uint8*) nogil
+        uint8*
+    ) nogil
 
     int uv_decode(
         double*,
         double*,
-        int) nogil
+        int
+    ) nogil
 
     void LogLuv24toXYZ(
         uint32,
-        float*) nogil
+        float*
+    ) nogil
 
     void LogLuv32toXYZ(
         uint32,
-        float*) nogil
+        float*
+    ) nogil
 
     int LogL16fromY(
         double,
-        int) nogil
+        int
+    ) nogil
 
     int LogL10fromY(
         double,
-        int) nogil
+        int
+    ) nogil
 
     int uv_encode(
         double,
         double,
-        int) nogil
+        int
+    ) nogil
 
     uint32 LogLuv24fromXYZ(
         float*,
-        int) nogil
+        int
+    ) nogil
 
     uint32 LogLuv32fromXYZ(
         float*,
-        int) nogil
+        int
+    ) nogil
 
     int TIFFCIELabToRGBInit(
         TIFFCIELabToRGB*,
         TIFFDisplay*,
-        float*) nogil
+        float*
+    ) nogil
 
     void TIFFCIELabToXYZ(
         TIFFCIELabToRGB*,
@@ -1009,7 +1202,8 @@ cdef extern from 'tiffio.h':
         int32,
         float*,
         float*,
-        float*) nogil
+        float*
+    ) nogil
 
     void TIFFXYZToRGB(
         TIFFCIELabToRGB*,
@@ -1018,12 +1212,14 @@ cdef extern from 'tiffio.h':
         float,
         uint32*,
         uint32*,
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     int TIFFYCbCrToRGBInit(
         TIFFYCbCrToRGB*,
         float*,
-        float*) nogil
+        float*
+    ) nogil
 
     void TIFFYCbCrtoRGB(
         TIFFYCbCrToRGB*,
@@ -1032,7 +1228,8 @@ cdef extern from 'tiffio.h':
         int32,
         uint32*,
         uint32*,
-        uint32*) nogil
+        uint32*
+    ) nogil
 
     # ctypedef struct TIFFFieldInfo:
     #     ttag_t field_tag
@@ -1264,6 +1461,7 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_STRIPROWCOUNTS
     int TIFFTAG_XMLPACKET
     int TIFFTAG_OPIIMAGEID
+    int TIFFTAG_TIFFANNOTATIONDATA
     int TIFFTAG_REFPTS
     int TIFFTAG_REGIONTACKPOINT
     int TIFFTAG_REGIONWARPCORNERS
@@ -1283,7 +1481,19 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_CFAREPEATPATTERNDIM
     int TIFFTAG_CFAPATTERN
     int TIFFTAG_COPYRIGHT
+    int	TIFFTAG_MD_FILETAG
+    int	TIFFTAG_MD_SCALEPIXEL
+    int	TIFFTAG_MD_COLORTABLE
+    int	TIFFTAG_MD_LABNAME
+    int	TIFFTAG_MD_SAMPLEINFO
+    int	TIFFTAG_MD_PREPDATE
+    int	TIFFTAG_MD_PREPTIME
+    int	TIFFTAG_MD_FILEUNITS
     int TIFFTAG_RICHTIFFIPTC
+    int	TIFFTAG_INGR_PACKET_DATA_TAG
+    int	TIFFTAG_INGR_FLAG_REGISTERS
+    int	TIFFTAG_IRASB_TRANSORMATION_MATRIX
+    int	TIFFTAG_MODELTIEPOINTTAG
     int TIFFTAG_IT8SITE
     int TIFFTAG_IT8COLORSEQUENCE
     int TIFFTAG_IT8HEADER
@@ -1302,6 +1512,7 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_IT8TRAPINDICATOR
     int TIFFTAG_IT8CMYKEQUIVALENT
     int TIFFTAG_FRAMECOUNT
+    int TIFFTAG_MODELTRANSFORMATIONTAG
     int TIFFTAG_PHOTOSHOP
     int TIFFTAG_EXIFIFD
     int TIFFTAG_ICCPROFILE
@@ -1314,7 +1525,14 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_FAXDCS
     int TIFFTAG_STONITS
     int TIFFTAG_FEDEX_EDR
+    int TIFFTAG_IMAGESOURCEDATA
     int TIFFTAG_INTEROPERABILITYIFD
+    int	TIFFTAG_GDAL_METADATA
+    int	TIFFTAG_GDAL_NODATA
+    int	TIFFTAG_OCE_SCANJOB_DESCRIPTION
+    int	TIFFTAG_OCE_APPLICATION_SELECTOR
+    int	TIFFTAG_OCE_IDENTIFICATION_NUMBER
+    int	TIFFTAG_OCE_IMAGELOGIC_CHARACTERISTICS
     int TIFFTAG_LERC_PARAMETERS
     int TIFFTAG_DNGVERSION
     int TIFFTAG_DNGBACKWARDVERSION
@@ -1364,6 +1582,11 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_ASSHOTPREPROFILEMATRIX
     int TIFFTAG_CURRENTICCPROFILE
     int TIFFTAG_CURRENTPREPROFILEMATRIX
+    int TIFFTAG_RPCCOEFFICIENT
+    int	TIFFTAG_ALIAS_LAYER_METADATA
+    int TIFFTAG_TIFF_RSID
+    int TIFFTAG_GEO_METADATA
+    int TIFFTAG_EXTRACAMERAPROFILES
     int TIFFTAG_DCSHUESHIFTVALUES
     # pseudo tags
     int TIFFTAG_FAXMODE
@@ -1435,6 +1658,7 @@ cdef extern from 'tiffio.h':
     int EXIFTAG_EXPOSUREPROGRAM
     int EXIFTAG_SPECTRALSENSITIVITY
     int EXIFTAG_ISOSPEEDRATINGS
+    int EXIFTAG_PHOTOGRAPHICSENSITIVITY
     int EXIFTAG_OECF
     int EXIFTAG_EXIFVERSION
     int EXIFTAG_DATETIMEORIGINAL
@@ -1486,3 +1710,61 @@ cdef extern from 'tiffio.h':
     int EXIFTAG_DEVICESETTINGDESCRIPTION
     int EXIFTAG_SUBJECTDISTANCERANGE
     int EXIFTAG_IMAGEUNIQUEID
+    int EXIFTAG_SENSITIVITYTYPE
+    int EXIFTAG_STANDARDOUTPUTSENSITIVITY
+    int EXIFTAG_RECOMMENDEDEXPOSUREINDEX
+    int EXIFTAG_ISOSPEED
+    int EXIFTAG_ISOSPEEDLATITUDEYYY
+    int EXIFTAG_ISOSPEEDLATITUDEZZZ
+    int EXIFTAG_OFFSETTIME
+    int EXIFTAG_OFFSETTIMEORIGINAL
+    int EXIFTAG_OFFSETTIMEDIGITIZED
+    int EXIFTAG_TEMPERATURE
+    int EXIFTAG_HUMIDITY
+    int EXIFTAG_PRESSURE
+    int EXIFTAG_WATERDEPTH
+    int EXIFTAG_ACCELERATION
+    int EXIFTAG_CAMERAELEVATIONANGLE
+    int EXIFTAG_CAMERAOWNERNAME
+    int EXIFTAG_BODYSERIALNUMBER
+    int EXIFTAG_LENSSPECIFICATION
+    int EXIFTAG_LENSMAKE
+    int EXIFTAG_LENSMODEL
+    int EXIFTAG_LENSSERIALNUMBER
+    int EXIFTAG_GAMMA
+    int EXIFTAG_COMPOSITEIMAGE
+    int EXIFTAG_SOURCEIMAGENUMBEROFCOMPOSITEIMAGE
+    int EXIFTAG_SOURCEEXPOSURETIMESOFCOMPOSITEIMAGE
+
+    # EXIF-GPS tags  (Version 2.31, July 2016)
+    int GPSTAG_VERSIONID
+    int GPSTAG_LATITUDEREF
+    int GPSTAG_LATITUDE
+    int GPSTAG_LONGITUDEREF
+    int GPSTAG_LONGITUDE
+    int GPSTAG_ALTITUDEREF
+    int GPSTAG_ALTITUDE
+    int GPSTAG_TIMESTAMP
+    int GPSTAG_SATELLITES
+    int GPSTAG_STATUS
+    int GPSTAG_MEASUREMODE
+    int GPSTAG_DOP
+    int GPSTAG_SPEEDREF
+    int GPSTAG_SPEED
+    int GPSTAG_TRACKREF
+    int GPSTAG_TRACK
+    int GPSTAG_IMGDIRECTIONREF
+    int GPSTAG_IMGDIRECTION
+    int GPSTAG_MAPDATUM
+    int GPSTAG_DESTLATITUDEREF
+    int GPSTAG_DESTLATITUDE
+    int GPSTAG_DESTLONGITUDEREF
+    int GPSTAG_DESTLONGITUDE
+    int GPSTAG_DESTBEARINGREF
+    int GPSTAG_DESTBEARING
+    int GPSTAG_DESTDISTANCEREF
+    int GPSTAG_DESTDISTANCE
+    int GPSTAG_PROCESSINGMETHOD
+    int GPSTAG_AREAINFORMATION
+    int GPSTAG_DATESTAMP
+    int GPSTAG_DIFFERENTIAL
