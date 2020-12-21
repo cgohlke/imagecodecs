@@ -148,22 +148,34 @@ cdef extern from 'windowsmediaphoto.h':
     ERR WMP_errIncorrectCodecSubVersion
 
     ctypedef ERR (*WMPStream_CloseFunction)(
-        WMPStream**) nogil
+        WMPStream**
+    ) nogil
 
     ctypedef ERR (*WMPStream_ReadFunction)(
-        WMPStream*, void* pv, size_t c) nogil
+        WMPStream*,
+        void* pv,
+        size_t c
+    ) nogil
 
     ctypedef ERR (*WMPStream_WriteFunction)(
-        WMPStream*, const void* pv, size_t c) nogil
+        WMPStream*,
+        const void* pv,
+        size_t c
+    ) nogil
 
     ctypedef ERR (*WMPStream_SetPosFunction)(
-        WMPStream*, size_t offPos) nogil
+        WMPStream*,
+        size_t offPos
+    ) nogil
 
     ctypedef ERR (*WMPStream_GetPosFunction)(
-        WMPStream*, size_t* poffPos) nogil
+        WMPStream*,
+        size_t* poffPos
+    ) nogil
 
     ctypedef Bool (*WMPStream_EOSFunction)(
-        WMPStream*) nogil
+        WMPStream*
+    ) nogil
 
     cdef struct WMPStream_buf:
         U8* pbBuf
@@ -188,11 +200,22 @@ cdef extern from 'windowsmediaphoto.h':
     ERR CreateWS_File(
         WMPStream** ppWS,
         const char* szFilename,
-        const char* szMode) nogil
+        const char* szMode
+    ) nogil
 
-    ERR CloseWS_File(WMPStream** ppWS) nogil
-    ERR CreateWS_Memory(WMPStream** ppWS, void* pv, size_t cb) nogil
-    ERR CloseWS_Memory(WMPStream** ppWS) nogil
+    ERR CloseWS_File(
+        WMPStream** ppWS
+    ) nogil
+
+    ERR CreateWS_Memory(
+        WMPStream** ppWS,
+        void* pv,
+        size_t cb
+    ) nogil
+
+    ERR CloseWS_Memory(
+        WMPStream** ppWS
+    ) nogil
 
     ctypedef struct CWMImageInfo:
         size_t cWidth
@@ -262,29 +285,43 @@ cdef extern from 'windowsmediaphoto.h':
     Int ImageStrEncInit(
         CWMImageInfo* pII,
         CWMIStrCodecParam* pSCP,
-        CTXSTRCODEC* pctxSC) nogil
+        CTXSTRCODEC* pctxSC
+    ) nogil
 
     Int ImageStrEncEncode(
         CTXSTRCODEC ctxSC,
-        const CWMImageBufferInfo* pBI) nogil
+        const CWMImageBufferInfo* pBI
+    ) nogil
 
-    Int ImageStrEncTerm(CTXSTRCODEC ctxSC) nogil
+    Int ImageStrEncTerm(
+        CTXSTRCODEC ctxSC
+    ) nogil
 
-    Int ImageStrDecGetInfo(CWMImageInfo* pII, CWMIStrCodecParam* pSCP) nogil
+    Int ImageStrDecGetInfo(
+        CWMImageInfo* pII,
+        CWMIStrCodecParam* pSCP
+    ) nogil
 
     Int ImageStrDecInit(
         CWMImageInfo* pII,
         CWMIStrCodecParam* pSCP,
-        CTXSTRCODEC* pctxSC) nogil
+        CTXSTRCODEC* pctxSC
+    ) nogil
 
     Int ImageStrDecDecode(
         CTXSTRCODEC ctxSC,
         const CWMImageBufferInfo* pBI,
         # size_t* pcDecodedLines  # ifdef REENTRANT_MODE
-        ) nogil
+    ) nogil
 
-    Int ImageStrDecTerm(CTXSTRCODEC ctxSC) nogil
-    Int WMPhotoValidate(CWMImageInfo* pII, CWMIStrCodecParam *pSCP) nogil
+    Int ImageStrDecTerm(
+        CTXSTRCODEC ctxSC
+    ) nogil
+
+    Int WMPhotoValidate(
+        CWMImageInfo* pII,
+        CWMIStrCodecParam *pSCP
+    ) nogil
 
     ctypedef struct CWMTranscodingParam:
         size_t cLeftX
@@ -300,7 +337,8 @@ cdef extern from 'windowsmediaphoto.h':
     Int WMPhotoTranscode(
         WMPStream* pStreamDec,
         WMPStream* pStreamEnc,
-        CWMTranscodingParam* pParam) nogil
+        CWMTranscodingParam* pParam
+    ) nogil
 
     ctypedef struct CWMDetilingParam:
         size_t cWidth
@@ -315,7 +353,9 @@ cdef extern from 'windowsmediaphoto.h':
         void* pImage
         size_t cbStride
 
-    Int WMPhotoDetile(CWMDetilingParam* pParam) nogil
+    Int WMPhotoDetile(
+        CWMDetilingParam* pParam
+    ) nogil
 
 
 cdef extern from 'guiddef.h':
@@ -323,7 +363,10 @@ cdef extern from 'guiddef.h':
     ctypedef struct GUID:
         pass
 
-    int IsEqualGUID(GUID*, GUID*) nogil
+    int IsEqualGUID(
+        GUID*,
+        GUID*
+    ) nogil
 
 
 cdef extern from 'JXRMeta.h':
@@ -612,45 +655,85 @@ cdef extern from 'JXRGlue.h':
         U32 uBitsPerSample
         U32 uSampleFormat
 
-    ERR GetImageEncodeIID(const char* szExt, const PKIID** ppIID) nogil
-    ERR GetImageDecodeIID(const char* szExt, const PKIID** ppIID) nogil
-    ERR PixelFormatLookup(PKPixelInfo* pPI, U8 uLookupType) nogil
-    PKPixelFormatGUID* GetPixelFormatFromHash(const U8 uPFHash) nogil
+    ERR GetImageEncodeIID(
+        const char* szExt,
+        const PKIID** ppIID
+    ) nogil
+
+    ERR GetImageDecodeIID(
+        const char* szExt,
+        const PKIID** ppIID
+    ) nogil
+
+    ERR PixelFormatLookup(
+        PKPixelInfo* pPI,
+        U8 uLookupType
+    ) nogil
+
+    PKPixelFormatGUID* GetPixelFormatFromHash(
+        const U8 uPFHash
+    ) nogil
 
     # PKImageDecode
 
     ctypedef ERR (*PKImageDecode_InitializeFunction)(
-        PKImageDecode*, WMPStream* pStream) nogil
+        PKImageDecode*,
+        WMPStream* pStream
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetPixelFormatFunction)(
-        PKImageDecode*, PKPixelFormatGUID*) nogil
+        PKImageDecode*,
+        PKPixelFormatGUID*
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetSizeFunction)(
-        PKImageDecode*, I32*, I32*) nogil
+        PKImageDecode*,
+        I32*,
+        I32*
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetResolutionFunction)(
-        PKImageDecode*, Float*, Float*) nogil
+        PKImageDecode*,
+        Float*,
+        Float*
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetColorContextFunction)(
-        PKImageDecode* pID, U8* pbColorContext, U32* pcbColorContext) nogil
+        PKImageDecode* pID,
+        U8* pbColorContext,
+        U32* pcbColorContext
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetDescriptiveMetadataFunction)(
-        PKImageDecode* pIE, DESCRIPTIVEMETADATA* pDescMetadata) nogil
+        PKImageDecode* pIE,
+        DESCRIPTIVEMETADATA* pDescMetadata
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetRawStreamFunction)(
-        PKImageDecode*, WMPStream**) nogil
+        PKImageDecode*,
+        WMPStream**
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_CopyFunction)(
-        PKImageDecode*, const PKRect*, U8*, U32) nogil
+        PKImageDecode*,
+        const PKRect*,
+        U8*,
+        U32
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_GetFrameCountFunction)(
-        PKImageDecode*, U32*) nogil
+        PKImageDecode*,
+        U32*
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_SelectFrameFunction)(
-        PKImageDecode*, U32) nogil
+        PKImageDecode*,
+        U32
+    ) nogil
 
     ctypedef ERR (*PKImageDecode_ReleaseFunction)(
-        PKImageDecode**) nogil
+        PKImageDecode**
+    ) nogil
 
     ctypedef struct PKImageDecode_WMP:
         WmpDEMisc wmiDEMisc
@@ -700,106 +783,159 @@ cdef extern from 'JXRGlue.h':
         U32 cFrame
         PKImageDecode_WMP WMP
 
-    ERR PKImageDecode_Create_WMP(PKImageDecode** ppID) nogil
+    ERR PKImageDecode_Create_WMP(
+        PKImageDecode** ppID
+    ) nogil
 
     ERR PKImageDecode_Initialize(
         PKImageDecode* pID,
-        WMPStream* pStream) nogil
+        WMPStream* pStream
+    ) nogil
 
     ERR PKImageDecode_GetPixelFormat(
         PKImageDecode* pID,
-        PKPixelFormatGUID* pPF) nogil
+        PKPixelFormatGUID* pPF
+    ) nogil
 
     ERR PKImageDecode_GetSize(
         PKImageDecode* pID,
         I32* piWidth,
-        I32* piHeight) nogil
+        I32* piHeight
+    ) nogil
 
     ERR PKImageDecode_GetResolution(
         PKImageDecode* pID,
         Float* pfrX,
-        Float* pfrY) nogil
+        Float* pfrY
+    ) nogil
 
     ERR PKImageDecode_GetColorContext(
         PKImageDecode* pID,
         U8* pbColorContext,
-        U32* pcbColorContext) nogil
+        U32* pcbColorContext
+    ) nogil
 
     ERR PKImageDecode_GetDescriptiveMetadata(
         PKImageDecode* pID,
-        DESCRIPTIVEMETADATA* pDescMetadata) nogil
+        DESCRIPTIVEMETADATA* pDescMetadata
+    ) nogil
 
     ERR PKImageDecode_Copy(
         PKImageDecode* pID,
         const PKRect* pRect,
         U8* pb,
-        U32 cbStride) nogil
+        U32 cbStride
+    ) nogil
 
     ERR PKImageDecode_GetFrameCount(
         PKImageDecode* pID,
-        U32* puCount) nogil
+        U32* puCount
+    ) nogil
 
     ERR PKImageDecode_SelectFrame(
         PKImageDecode* pID,
-        U32 uFrame) nogil
+        U32 uFrame
+    ) nogil
 
     ERR PKCodecFactory_CreateDecoderFromFile(
         const char* szFilename,
-        PKImageDecode** ppDecoder) nogil
+        PKImageDecode** ppDecoder
+    ) nogil
 
-    ERR PKImageDecode_Create(PKImageDecode** ppID) nogil
+    ERR PKImageDecode_Create(
+        PKImageDecode** ppID
+    ) nogil
 
-    ERR PKImageDecode_Release(PKImageDecode** ppID) nogil
+    ERR PKImageDecode_Release(
+        PKImageDecode** ppID
+    ) nogil
 
     # PKImageEncode
 
     ctypedef ERR (*PKImageEncode_InitializeFunction)(
-        PKImageEncode*, WMPStream*, void*, size_t) nogil
+        PKImageEncode*,
+        WMPStream*,
+        void*,
+        size_t
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_TerminateFunction)(
-        PKImageEncode*) nogil
+        PKImageEncode*
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_SetPixelFormatFunction)(
-        PKImageEncode*, PKPixelFormatGUID) nogil
+        PKImageEncode*,
+        PKPixelFormatGUID
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_SetSizeFunction)(
-        PKImageEncode*, I32, I32) nogil
+        PKImageEncode*,
+        I32,
+        I32
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_SetResolutionFunction)(
-        PKImageEncode*, Float, Float) nogil
+        PKImageEncode*,
+        Float,
+        Float
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_SetColorContextFunction)(
-        PKImageEncode* pIE, const U8* pbColorContext,
-        U32 cbColorContext) nogil
+        PKImageEncode* pIE,
+        const U8* pbColorContext,
+        U32 cbColorContext
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_SetDescriptiveMetadataFunction)(
         PKImageEncode* pIE,
-        const DESCRIPTIVEMETADATA* pDescMetadata) nogil
+        const DESCRIPTIVEMETADATA* pDescMetadata
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_WritePixelsFunction)(
-        PKImageEncode*, U32, U8*, U32) nogil
+        PKImageEncode*,
+        U32,
+        U8*,
+        U32
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_WriteSourceFunction)(
-        PKImageEncode*, PKFormatConverter*, PKRect*) nogil
+        PKImageEncode*,
+        PKFormatConverter*,
+        PKRect*
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_WritePixelsBandedBeginFunction)(
-        PKImageEncode* pEncoder, WMPStream* pPlanarAlphaTempFile) nogil
+        PKImageEncode* pEncoder,
+        WMPStream* pPlanarAlphaTempFile
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_WritePixelsBandedFunction)(
-        PKImageEncode* pEncoder, U32 cLines, U8* pbPixels, U32 cbStride,
-        Bool fLastCall) nogil
+        PKImageEncode* pEncoder,
+        U32 cLines,
+        U8* pbPixels,
+        U32 cbStride,
+        Bool fLastCall
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_WritePixelsBandedEndFunction)(
-        PKImageEncode* pEncoder) nogil
+        PKImageEncode* pEncoder
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_TranscodeFunction)(
-        PKImageEncode*, PKImageDecode*, CWMTranscodingParam*) nogil
+        PKImageEncode*,
+        PKImageDecode*,
+        CWMTranscodingParam*
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_CreateNewFrameFunction)(
-        PKImageEncode*, void*, size_t) nogil
+        PKImageEncode*,
+        void*,
+        size_t
+    ) nogil
 
     ctypedef ERR (*PKImageEncode_ReleaseFunction)(
-        PKImageEncode**) nogil
+        PKImageEncode**
+    ) nogil
 
     ctypedef enum BANDEDENCSTATE:
         BANDEDENCSTATE_UNINITIALIZED
@@ -869,86 +1005,110 @@ cdef extern from 'JXRGlue.h':
         Bool bWMP
         PKImageEncode_WMP WMP
 
-    ERR PKImageEncode_Create_WMP(PKImageEncode** ppIE) nogil
+    ERR PKImageEncode_Create_WMP(
+        PKImageEncode** ppIE
+    ) nogil
 
     ERR PKImageEncode_Initialize(
         PKImageEncode* pIE,
         WMPStream* pStream,
         void* pvParam,
-        size_t cbParam) nogil
+        size_t cbParam
+    ) nogil
 
-    ERR PKImageEncode_Terminate(PKImageEncode* pIE) nogil
+    ERR PKImageEncode_Terminate(
+        PKImageEncode* pIE
+    ) nogil
 
     ERR PKImageEncode_SetPixelFormat(
         PKImageEncode* pIE,
-        PKPixelFormatGUID enPixelFormat) nogil
+        PKPixelFormatGUID enPixelFormat
+    ) nogil
 
     ERR PKImageEncode_SetSize(
         PKImageEncode* pIE,
         I32 iWidth,
-        I32 iHeight) nogil
+        I32 iHeight
+    ) nogil
 
     ERR PKImageEncode_SetResolution(
         PKImageEncode* pIE,
         Float rX,
-        Float rY) nogil
+        Float rY
+    ) nogil
 
     ERR PKImageEncode_SetColorContext(
         PKImageEncode* pIE,
         const U8* pbColorContext,
-        U32 cbColorContext) nogil
+        U32 cbColorContext
+    ) nogil
 
     ERR PKImageEncode_SetDescriptiveMetadata(
         PKImageEncode* pIE,
-        const DESCRIPTIVEMETADATA* pDescMetadata) nogil
+        const DESCRIPTIVEMETADATA* pDescMetadata
+    ) nogil
 
     ERR PKImageEncode_WritePixels(
         PKImageEncode* pIE,
         U32 cLine,
         U8* pbPixel,
-        U32 cbStride) nogil
+        U32 cbStride
+    ) nogil
 
     ERR PKImageEncode_CreateNewFrame(
         PKImageEncode* pIE,
         void* pvParam,
-        size_t cbParam) nogil
+        size_t cbParam
+    ) nogil
 
     ERR PKImageEncode_Release(
-        PKImageEncode** ppIE) nogil
+        PKImageEncode** ppIE
+    ) nogil
 
     ERR PKImageEncode_SetXMPMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbXMPMetadata,
-        U32 cbXMPMetadata) nogil
+        U32 cbXMPMetadata
+    ) nogil
 
     ERR PKImageEncode_SetEXIFMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbEXIFMetadata,
-        U32 cbEXIFMetadata) nogil
+        U32 cbEXIFMetadata
+    ) nogil
 
     ERR PKImageEncode_SetGPSInfoMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbGPSInfoMetadata,
-        U32 cbGPSInfoMetadata) nogil
+        U32 cbGPSInfoMetadata
+    ) nogil
 
     ERR PKImageEncode_SetIPTCNAAMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbIPTCNAAMetadata,
-        U32 cbIPTCNAAMetadata) nogil
+        U32 cbIPTCNAAMetadata
+    ) nogil
 
     ERR PKImageEncode_SetPhotoshopMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbPhotoshopMetadata,
-        U32 cbPhotoshopMetadata) nogil
+        U32 cbPhotoshopMetadata
+    ) nogil
 
-    ERR PKImageEncode_Create(PKImageEncode** ppIE) nogil
+    ERR PKImageEncode_Create(
+        PKImageEncode** ppIE
+    ) nogil
 
-    void FreeDescMetadata(DPKPROPVARIANT* pvar) nogil
+    void FreeDescMetadata(
+        DPKPROPVARIANT* pvar
+    ) nogil
 
     # PKStream
 
     ctypedef ERR (*PKStream_InitializeFromFilenameFunction)(
-        const char*, ULong) nogil
+        const char*,
+        ULong
+    ) nogil
 
     ctypedef ERR (*PKStream_ReleaseFunction)() nogil
 
@@ -960,16 +1120,22 @@ cdef extern from 'JXRGlue.h':
     # PKFactory
 
     ctypedef ERR (*PKFactory_CreateCodecFunction)(
-        const PKIID*, void**) nogil
+        const PKIID*,
+        void**
+    ) nogil
 
     ctypedef ERR (*PKFactory_CreateFormatConverterFunction)(
-        PKFormatConverter**) nogil
+        PKFormatConverter**
+    ) nogil
 
     ctypedef ERR (*PKFactory_ReleaseFunction)(
-        PKCodecFactory**) nogil
+        PKCodecFactory**
+    ) nogil
 
     ctypedef ERR (*PKFactory_CreateDecoderFromFileFunction)(
-        const char*, PKImageDecode**) nogil
+        const char*,
+        PKImageDecode**
+    ) nogil
 
     ctypedef struct PKFactory:
         PKFactory_CreateCodecFunction CreateCodec
@@ -977,23 +1143,38 @@ cdef extern from 'JXRGlue.h':
         PKFactory_CreateFormatConverterFunction CreateFormatConverter
         PKFactory_ReleaseFunction Release
 
-    ERR PKCreateFactory_CreateStream(PKStream** ppStream) nogil
-    ERR PKCreateFactory_Release(PKFactory** ppFactory) nogil
-    # extern ERR PKCreateFactory(PKFactory**, U32) nogil
+    ERR PKCreateFactory_CreateStream(
+        PKStream** ppStream
+    ) nogil
+
+    ERR PKCreateFactory_Release(
+        PKFactory** ppFactory
+    ) nogil
+
+    # extern ERR PKCreateFactory(
+    #     PKFactory**,
+    #     U32
+    # ) nogil
 
     # PKCodecFactory
 
     ctypedef ERR (*PKCodecFactory_CreateCodecFunction)(
-        const PKIID*, void**) nogil
+        const PKIID*,
+        void**
+    ) nogil
 
     ctypedef ERR (*PKCodecFactory_CreateDecoderFromFileFunction)(
-        const char*, PKImageDecode**) nogil
+        const char*,
+        PKImageDecode**
+    ) nogil
 
     ctypedef ERR (*PKCodecFactory_CreateFormatConverterFunction)(
-        PKFormatConverter**) nogil
+        PKFormatConverter**
+    ) nogil
 
     ctypedef ERR (*PKCodecFactory_ReleaseFunction)(
-        PKCodecFactory**) nogil
+        PKCodecFactory**
+    ) nogil
 
     ctypedef struct PKCodecFactory:
         PKCodecFactory_CreateCodecFunction CreateCodec
@@ -1001,40 +1182,75 @@ cdef extern from 'JXRGlue.h':
         PKCodecFactory_CreateFormatConverterFunction CreateFormatConverter
         PKCodecFactory_ReleaseFunction Release
 
-    # extern ERR PKCreateCodecFactory(PKCodecFactory**, U32) nogil
-    ERR PKCreateCodecFactory_Release(PKCodecFactory**) nogil
-    ERR PKCodecFactory_CreateCodec(const PKIID* iid, void** ppv) nogil
+    # extern ERR PKCreateCodecFactory(
+    #     PKCodecFactory**,
+    #     U32
+    # ) nogil
+
+    ERR PKCreateCodecFactory_Release(
+        PKCodecFactory**
+    ) nogil
+
+    ERR PKCodecFactory_CreateCodec(
+        const PKIID* iid,
+        void** ppv
+    ) nogil
 
     # PKFormatConverter
 
     ctypedef ERR (*PKFormatConverter_InitializeFunction)(
-        PKFormatConverter*, PKImageDecode*, char* pExt,
-        PKPixelFormatGUID) nogil
+        PKFormatConverter*,
+        PKImageDecode*,
+        char* pExt,
+        PKPixelFormatGUID
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_InitializeConvertFunction)(
-        PKFormatConverter* pFC, const PKPixelFormatGUID enPFFrom,
-        char* pExt, PKPixelFormatGUID enPFTTo) nogil
+        PKFormatConverter* pFC,
+        const PKPixelFormatGUID enPFFrom,
+        char* pExt,
+        PKPixelFormatGUID enPFTTo
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_GetPixelFormatFunction)(
-        PKFormatConverter*, PKPixelFormatGUID*) nogil
+        PKFormatConverter*,
+        PKPixelFormatGUID*
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_GetSourcePixelFormatFunction)(
-        PKFormatConverter*, PKPixelFormatGUID*) nogil
+        PKFormatConverter*,
+        PKPixelFormatGUID*
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_GetSizeFunction)(
-        PKFormatConverter*, I32*, I32*) nogil
+        PKFormatConverter*,
+        I32*,
+        I32*
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_GetResolutionFunction)(
-        PKFormatConverter*, Float*, Float*) nogil
+        PKFormatConverter*,
+        Float*,
+        Float*
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_CopyFunction)(
-        PKFormatConverter*, const PKRect*, U8*, U32) nogil
+        PKFormatConverter*,
+        const PKRect*,
+        U8*,
+        U32
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_ConvertFunction)(
-        PKFormatConverter*, const PKRect*, U8*, U32) nogil
+        PKFormatConverter*,
+        const PKRect*,
+        U8*,
+        U32
+    ) nogil
 
     ctypedef ERR (*PKFormatConverter_ReleaseFunction)(
-        PKFormatConverter**) nogil
+        PKFormatConverter**
+    ) nogil
 
     ctypedef struct PKFormatConverter:
         PKFormatConverter_InitializeFunction Initialize
@@ -1052,68 +1268,97 @@ cdef extern from 'JXRGlue.h':
     ERR PKImageEncode_Transcode(
         PKImageEncode* pIE,
         PKFormatConverter* pFC,
-        PKRect* pRect) nogil
+        PKRect* pRect
+    ) nogil
 
     ERR PKImageEncode_WriteSource(
         PKImageEncode* pIE,
         PKFormatConverter* pFC,
-        PKRect* pRect) nogil
+        PKRect* pRect
+    ) nogil
 
     ERR PKFormatConverter_Initialize(
         PKFormatConverter* pFC,
         PKImageDecode* pID,
         char* pExt,
-        PKPixelFormatGUID enPF) nogil
+        PKPixelFormatGUID enPF
+    ) nogil
 
     ERR PKFormatConverter_InitializeConvert(
         PKFormatConverter* pFC,
         const PKPixelFormatGUID enPFFrom,
-        char* pExt, PKPixelFormatGUID enPFTo) nogil
+        char* pExt,
+        PKPixelFormatGUID enPFTo
+    ) nogil
 
     ERR PKFormatConverter_GetPixelFormat(
         PKFormatConverter* pFC,
-        PKPixelFormatGUID* pPF) nogil
+        PKPixelFormatGUID* pPF
+    ) nogil
 
     ERR PKFormatConverter_GetSourcePixelFormat(
         PKFormatConverter* pFC,
-        PKPixelFormatGUID* pPF) nogil
+        PKPixelFormatGUID* pPF
+    ) nogil
 
     ERR PKFormatConverter_GetSize(
         PKFormatConverter* pFC,
         I32* piWidth,
-        I32* piHeight) nogil
+        I32* piHeight
+    ) nogil
 
     ERR PKFormatConverter_GetResolution(
         PKFormatConverter* pFC,
         Float* pfrX,
-        Float* pfrY) nogil
+        Float* pfrY
+    ) nogil
 
     ERR PKFormatConverter_Copy(
         PKFormatConverter* pFC,
         const PKRect* pRect,
         U8* pb,
-        U32 cbStride) nogil
+        U32 cbStride
+    ) nogil
 
     ERR PKFormatConverter_Convert(
         PKFormatConverter* pFC,
         const PKRect*
         pRect,
         U8* pb,
-        U32 cbStride) nogil
+        U32 cbStride
+    ) nogil
 
     ERR PKFormatConverter_EnumConversions(
         const PKPixelFormatGUID* pguidSourcePF,
         const U32 iIndex,
-        const PKPixelFormatGUID** ppguidTargetPF) nogil
+        const PKPixelFormatGUID** ppguidTargetPF
+    ) nogil
 
     ERR PKCodecFactory_CreateFormatConverter(
-        PKFormatConverter** ppFConverter) nogil
+        PKFormatConverter** ppFConverter
+    ) nogil
 
-    ERR PKFormatConverter_Release(PKFormatConverter** ppFC) nogil
+    ERR PKFormatConverter_Release(
+        PKFormatConverter** ppFC
+    ) nogil
 
     # Memory
 
-    ERR PKAlloc(void** ppv, size_t cb) nogil
-    ERR PKFree(void** ppv) nogil
-    ERR PKAllocAligned(void** ppv, size_t cb, size_t iAlign) nogil
-    ERR PKFreeAligned(void** ppv) nogil
+    ERR PKAlloc(
+        void** ppv,
+        size_t cb
+    ) nogil
+
+    ERR PKFree(
+        void** ppv
+    ) nogil
+
+    ERR PKAllocAligned(
+        void** ppv,
+        size_t cb,
+        size_t iAlign
+    ) nogil
+
+    ERR PKFreeAligned(
+        void** ppv
+    ) nogil
