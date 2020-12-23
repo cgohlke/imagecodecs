@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -89,7 +89,7 @@ def lzf_encode(data, level=None, header=False, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if srcsize > 2**31:
+    if srcsize >= 2 ** 31:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -107,21 +107,21 @@ def lzf_encode(data, level=None, header=False, out=None):
     dst = out
     dstsize = dst.size - offset
 
-    if dst.size > 2**31:
+    if dst.size >= 2 ** 31:
         raise ValueError('output too large')
 
     with nogil:
         ret = lzf_compress(
-            <void*>&src[0],
-            <unsigned int>srcsize,
-            <void*>&dst[offset],
-            <unsigned int>dstsize
+            <void*> &src[0],
+            <unsigned int> srcsize,
+            <void*> &dst[offset],
+            <unsigned int> dstsize
         )
     if ret == 0:
         raise LzfError('lzf_compress returned 0')
 
     if header:
-        pdst = <uint8_t*>&dst[0]
+        pdst = <uint8_t*> &dst[0]
         pdst[0] = srcsize & 255
         pdst[1] = (srcsize >> 8) & 255
         pdst[2] = (srcsize >> 16) & 255
@@ -146,7 +146,7 @@ def lzf_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2**31:
+    if srcsize >= 2 ** 31:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -162,17 +162,17 @@ def lzf_decode(data, header=False, out=None):
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int>dst.size
+    dstsize = <int> dst.size
 
-    if dst.size > 2**31:
+    if dst.size >= 2 ** 31:
         raise ValueError('output too large')
 
     with nogil:
         ret = lzf_decompress(
-            <void*>&src[offset],
-            <unsigned int>(srcsize - offset),
-            <void*>&dst[0],
-            <unsigned int>dstsize
+            <void*> &src[offset],
+            <unsigned int> (srcsize - offset),
+            <void*> &dst[0],
+            <unsigned int> dstsize
         )
     if ret == 0:
         raise LzfError(f'lzf_decompress returned {ret}')
