@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,6 +58,7 @@ from zopfli cimport *
 
 class ZOPFLI:
     """Zopfli Constants."""
+
     FORMAT_GZIP = ZOPFLI_FORMAT_GZIP
     FORMAT_ZLIB = ZOPFLI_FORMAT_ZLIB
     FORMAT_DEFLATE = ZOPFLI_FORMAT_DEFLATE
@@ -98,27 +99,30 @@ def zopfli_encode(data, level=None, out=None, **kwargs):
     ZopfliInitOptions(&options)
     if kwargs:
         if 'format' in kwargs:
-            format = <ZopfliFormat><int>(
-                _default_value(kwargs['format'], 1, 0, 2))
+            format = <ZopfliFormat> <int> (
+                _default_value(kwargs['format'], 1, 0, 2)
+            )
         if 'verbose' in kwargs:
             options.verbose = bool(kwargs['verbose'])
         if 'verbose_more' in kwargs:
             options.verbose_more = bool(kwargs['verbose_more'])
         if 'numiterations' in kwargs:
             options.numiterations = _default_value(
-                kwargs['numiterations'], 15, 1, 255)
+                kwargs['numiterations'], 15, 1, 255
+            )
         if 'blocksplitting' in kwargs:
             options.blocksplitting = bool(kwargs['blocksplitting'])
         if 'blocksplittingmax' in kwargs:
             options.blocksplittingmax = _default_value(
-                kwargs['blocksplittingmax'], 15, 0, 2**15)
+                kwargs['blocksplittingmax'], 15, 0, 2 ** 15 - 1
+            )
 
     with nogil:
         ZopfliCompress(
             &options,
             format,
-            <const unsigned char*>&src[0],
-            <size_t>srcsize,
+            <const unsigned char*> &src[0],
+            <size_t> srcsize,
             &buffer,
             &outsize
         )
@@ -127,16 +131,16 @@ def zopfli_encode(data, level=None, out=None, **kwargs):
 
     try:
         if out is None:
-            if dstsize >= 0 and dstsize < <ssize_t>outsize:
+            if dstsize >= 0 and dstsize < <ssize_t> outsize:
                 raise RuntimeError('output too small')
-            dstsize = <ssize_t>outsize
-            out = _create_output(outtype, dstsize, <const char*>buffer)
+            dstsize = <ssize_t> outsize
+            out = _create_output(outtype, dstsize, <const char*> buffer)
         else:
             dst = out
             dstsize = dst.size
-            if dstsize < <ssize_t>outsize:
+            if dstsize < <ssize_t> outsize:
                 raise RuntimeError('output too small')
-            memcpy(<void*>&dst[0], <const void*>buffer, outsize)
+            memcpy(<void*> &dst[0], <const void*> buffer, outsize)
             del dst
     finally:
         free(buffer)
