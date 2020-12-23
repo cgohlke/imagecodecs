@@ -13,6 +13,7 @@ try:
     import pip
     from packaging.version import parse
     import platform
+
     if parse(pip.__version__) < parse('19.0') and platform.system() == 'Linux':
         print('Installing imagecodecs wheels requires pip >= 19.0')
 except ImportError:
@@ -31,14 +32,21 @@ version += ('.' + buildnumber) if buildnumber else ''
 
 description = re.search(r'"""(.*)\.(?:\r\n|\r|\n)', code).groups()[0]
 
-readme = re.search(r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}__version__',
-                   code, re.MULTILINE | re.DOTALL).groups()[0]
+readme = re.search(
+    r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}__version__',
+    code,
+    re.MULTILINE | re.DOTALL,
+).groups()[0]
 
-readme = '\n'.join([description, '=' * len(description)] +
-                   readme.splitlines()[1:])
+readme = '\n'.join(
+    [description, '=' * len(description)] + readme.splitlines()[1:]
+)
 
-license = re.search(r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""', code,
-                    re.MULTILINE | re.DOTALL).groups()[0]
+license = re.search(
+    r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
+    code,
+    re.MULTILINE | re.DOTALL,
+).groups()[0]
 
 license = license.replace('# ', '').replace('#', '')
 
@@ -48,8 +56,11 @@ if 'sdist' in sys.argv:
     with open('README.rst', 'w') as fh:
         fh.write(readme)
 
-    license = re.search(r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
-                        code, re.MULTILINE | re.DOTALL).groups()[0]
+    license = re.search(
+        r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
+        code,
+        re.MULTILINE | re.DOTALL,
+    ).groups()[0]
 
     license = license.replace('# ', '').replace('#', '')
 
@@ -57,17 +68,38 @@ if 'sdist' in sys.argv:
         fh.write('BSD 3-Clause License\n\n')
         fh.write(license)
 
-    revisions = re.search(r'(?:\r\n|\r|\n){2}(Revisions.*)   \.\.\.', readme,
-                          re.MULTILINE | re.DOTALL).groups()[0].strip()
+    revisions = (
+        re.search(
+            r'(?:\r\n|\r|\n){2}(Revisions.*)   \.\.\.',
+            readme,
+            re.MULTILINE | re.DOTALL,
+        )
+        .groups()[0]
+        .strip()
+    )
 
     with open('CHANGES.rst', 'r') as fh:
         old = fh.read()
 
-    d = revisions.splitlines()[-1]
-    old = old.split(d)[-1]
+    old = old.split(revisions.splitlines()[-1])[-1]
     with open('CHANGES.rst', 'w') as fh:
         fh.write(revisions.strip())
         fh.write(old)
+
+
+def ext(**kwargs):
+    """Return Extension arguments."""
+    d = dict(
+        sources=[],
+        include_dirs=[],
+        library_dirs=[],
+        libraries=[],
+        define_macros=[],
+        extra_compile_args=[],
+        cython_compile_env={},
+    )
+    d.update(kwargs)
+    return d
 
 
 OPTIONS = {
@@ -80,66 +112,63 @@ OPTIONS = {
 }
 
 EXTENSIONS = {
-    'shared': dict(),
-    'imcd': dict(sources=['imagecodecs/imcd.c']),
-    'aec': dict(libraries=['aec']),
-    'bitshuffle': dict(
+    'shared': ext(),
+    'imcd': ext(sources=['imagecodecs/imcd.c']),
+    'aec': ext(libraries=['aec']),
+    'avif': ext(libraries=['avif']),
+    # 'exr': ext(
+    #     sources=['3rdparty/tinyexr/tinyexr.cc'],
+    #     include_dirs=['3rdparty/tinyexr'],
+    # ),
+    'bitshuffle': ext(
         sources=[
-            'bitshuffle-0.3.5/bitshuffle_core.c',
-            'bitshuffle-0.3.5/iochain.c',
-            ],
-        include_dirs=['bitshuffle-0.3.5']
-        ),
-    'blosc': dict(libraries=['blosc']),
-    'brotli': dict(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
-    'bz2': dict(libraries=['bz2']),
-    'gif': dict(libraries=['gif']),
-    'jpeg2k': dict(
-        sources=['imagecodecs/opj_color.c'],
+            '3rdparty/bitshuffle/bitshuffle_core.c',
+            '3rdparty/bitshuffle/iochain.c',
+        ],
+        include_dirs=['3rdparty/bitshuffle'],
+    ),
+    'blosc': ext(libraries=['blosc']),
+    'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
+    'bz2': ext(libraries=['bz2']),
+    'deflate': ext(libraries=['deflate']),
+    'gif': ext(libraries=['gif']),
+    'jpeg2k': ext(
+        sources=['3rdparty/openjpeg/color.c'],
+        include_dirs=['3rdparty/openjpeg'],
         libraries=['openjp2', 'lcms2'],
-        define_macros=[('OPJ_HAVE_LIBLCMS2', 1)]
-        ),
-    'jpeg8': dict(
-        libraries=['jpeg'],
-        cython_compile_env={'HAVE_LIBJPEG_TURBO': True}
-        ),
-    'jpeg12': dict(
+    ),
+    'jpeg8': ext(
+        libraries=['jpeg'], cython_compile_env={'HAVE_LIBJPEG_TURBO': True}
+    ),
+    'jpeg12': ext(
         libraries=['jpeg12'],
         define_macros=[('BITS_IN_JSAMPLE', 12)],
-        cython_compile_env={'HAVE_LIBJPEG_TURBO': True}
-        ),
-    'jpegls': dict(libraries=['charls']),
-    'jpegsof3': dict(sources=['imagecodecs/jpegsof3.cpp']),
-    'jpegxl': dict(libraries=['brunslidec-c', 'brunslienc-c']),
-    'jpegxr': dict(
+        cython_compile_env={'HAVE_LIBJPEG_TURBO': True},
+    ),
+    'jpegls': ext(libraries=['charls']),
+    'jpegsof3': ext(sources=['imagecodecs/jpegsof3.cpp']),
+    'jpegxl': ext(libraries=['brunslidec-c', 'brunslienc-c']),
+    'jpegxr': ext(
         libraries=['jpegxr', 'jxrglue'],
-        define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else []
-        ),
-    'lerc': dict(libraries=['lerc']),
-    'lz4': dict(libraries=['lz4']),
-    'lzf': dict(
-        sources=['liblzf-3.6/lzf_c.c', 'liblzf-3.6/lzf_d.c'],
-        include_dirs=['liblzf-3.6']
-        ),
-    'lzma': dict(libraries=['lzma']),
-    'png': dict(libraries=['png', 'z']),
-    'snappy': dict(libraries=['snappy']),
-    # 'szip': dict(libraries=['libaec']),
-    'tiff': dict(libraries=['tiff']),
-    'webp': dict(libraries=['webp']),
-    'zfp': dict(libraries=['zfp']),
-    'zlib': dict(libraries=['z']),
-    'zopfli': dict(libraries=['zopfli']),
-    'zstd': dict(libraries=['zstd']),
-    # 'template': dict(
-    #     sources=[],
-    #     include_dirs=[],
-    #     library_dirs=[],
-    #     libraries=[],
-    #     define_macros=[],
-    #     extra_compile_args=[],
-    #     cython_compile_env={}
-    #     ),
+        define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
+    ),
+    'lerc': ext(libraries=['lerc']),
+    'lz4': ext(libraries=['lz4']),
+    'lz4f': ext(libraries=['lz4']),
+    'lzf': ext(
+        sources=['3rdparty/liblzf/lzf_c.c', '3rdparty/liblzf/lzf_d.c'],
+        include_dirs=['3rdparty/liblzf'],
+    ),
+    'lzma': ext(libraries=['lzma']),
+    'png': ext(libraries=['png', 'z']),
+    'snappy': ext(libraries=['snappy']),
+    # 'szip': ext(libraries=['libaec']),
+    'tiff': ext(libraries=['tiff']),
+    'webp': ext(libraries=['webp']),
+    'zfp': ext(libraries=['zfp']),
+    'zlib': ext(libraries=['z']),
+    'zopfli': ext(libraries=['zopfli']),
+    'zstd': ext(libraries=['zstd']),
 }
 
 
@@ -147,20 +176,25 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     """Customize build for common platforms: recent Debian, arch..."""
     import platform
 
+    del EXTENSIONS['avif']  # libavif library not commonly available
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
-    del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
-    del EXTENSIONS['jpegxl']  # Brunsli library not commonly available
     del EXTENSIONS['lerc']  # LERC library not commonly available
-    del EXTENSIONS['zfp']  # ZFP library not commonly available
+    del EXTENSIONS['lz4f']  # requires static linking
 
     if 'arch' in platform.platform():
         del EXTENSIONS['zopfli']  # zopfli/zopfli.h does not exist
+    else:
+        del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
+        del EXTENSIONS['jpegxl']  # Brunsli library not commonly available
+        del EXTENSIONS['zfp']  # ZFP library not commonly available
 
     if sys.platform == 'win32':
         EXTENSIONS['bz2']['libraries'] = ['libbz2']
     else:
-        EXTENSIONS['jpeg2k']['include_dirs'] = ['/usr/include/openjpeg-2.3']
-        EXTENSIONS['jpegxr']['include_dirs'] = ['/usr/include/jxrlib']
+        EXTENSIONS['jpeg2k']['include_dirs'].append(
+            '/usr/include/openjpeg-2.3'
+        )
+        EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
 
 
 def customize_build_cg(EXTENSIONS, OPTIONS):
@@ -170,54 +204,70 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     OPTIONS['include_dirs'].append(INCLIB)
     OPTIONS['library_dirs'].append(INCLIB)
 
-    EXTENSIONS['aec'] = dict(libraries=['libaec'])
-    EXTENSIONS['bz2'] = dict(libraries=['libbz2'])
-    EXTENSIONS['lzf'] = dict(libraries=['lzf'])
-    EXTENSIONS['gif'] = dict(libraries=['libgif'])
-    # EXTENSIONS['szip'] = dict(libraries=['libaec'])
-    EXTENSIONS['zstd'] = dict(libraries=['zstd_static'])
-    EXTENSIONS['jpegls']['define_macros'] = [('CHARLS_STATIC', 1)]
-    EXTENSIONS['jpeg2k']['define_macros'] += [('OPJ_STATIC', 1)]
-    EXTENSIONS['jpeg2k']['include_dirs'] = [INCLIB + 'openjpeg-2.3']
-    EXTENSIONS['jpegxr']['include_dirs'] = [INCLIB + 'jxrlib']
+    EXTENSIONS['aec']['libraries'] = ['libaec']
+    EXTENSIONS['bz2']['libraries'] = ['libbz2']
+    EXTENSIONS['lzf']['libraries'] = ['lzf']
+    EXTENSIONS['gif']['libraries'] = ['libgif']
+    # EXTENSIONS['szip']['libraries'] = ['libaec']
+    EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
+    EXTENSIONS['avif']['libraries'] = ['avif', 'aom', 'libdav1d']
+    EXTENSIONS['zstd']['libraries'] = ['zstd_static']
+    EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
+    EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
+    EXTENSIONS['jpeg2k']['include_dirs'].append(INCLIB + 'openjpeg-2.3')
+    EXTENSIONS['jpegxr']['include_dirs'].append(INCLIB + 'jxrlib')
+    # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
+    # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
     EXTENSIONS['zfp']['extra_compile_args'] = ['/openmp']
-    EXTENSIONS['blosc'] = dict(
-        libraries=['libblosc', 'zlib', 'lz4', 'snappy', 'zstd_static']
-    )
-    EXTENSIONS['brotli'] = dict(
-        libraries=[
-            'brotlienc-static', 'brotlidec-static', 'brotlicommon-static'
-        ]
-    )
-    EXTENSIONS['lzma'] = dict(
-        libraries=['lzma-static'],
-        define_macros=[('LZMA_API_STATIC', 1)]
-    )
-    EXTENSIONS['tiff'] = dict(
-        libraries=[
-            'tiff', 'z', 'jpeg', 'png', 'webp', 'zstd_static', 'lzma-static',
-        ],
-        define_macros=[('LZMA_API_STATIC', 1)]
-    )
-    EXTENSIONS['jpegxl'] = dict(
-        libraries=[
-            'brunslidec-c', 'brunslienc-c',
-            # static linking
-            'brunslidec-static', 'brunslienc-static', 'brunslicommon-static',
-            # vendored brotli currently used for compressing metadata
-            'brunsli_brotlidec-static',
-            'brunsli_brotlienc-static',
-            'brunsli_brotlicommon-static',
-        ]
-    )
+    EXTENSIONS['blosc']['libraries'] = [
+        'libblosc',
+        'zlib',
+        'lz4',
+        'snappy',
+        'zstd_static',
+    ]
+    EXTENSIONS['brotli']['libraries'] = [
+        'brotlienc-static',
+        'brotlidec-static',
+        'brotlicommon-static',
+    ]
+    EXTENSIONS['lzma']['libraries'] = ['lzma-static']
+    EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
+    EXTENSIONS['tiff']['libraries'] = [
+        'tiff',
+        'z',
+        'jpeg',
+        'png',
+        'webp',
+        'zstd_static',
+        'lzma-static',
+        'libdeflatestatic',
+    ]
+    EXTENSIONS['tiff']['define_macros'].append(('LZMA_API_STATIC', 1))
+    EXTENSIONS['jpegxl']['libraries'] = [
+        'brunslidec-c',
+        'brunslienc-c',
+        # static linking
+        'brunslidec-static',
+        'brunslienc-static',
+        'brunslicommon-static',
+        # vendored brotli currently used for compressing metadata
+        'brunsli_brotlidec-static',
+        'brunsli_brotlienc-static',
+        'brunsli_brotlicommon-static',
+    ]
 
 
 def customize_build_ci(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's CI environment."""
+
+    del EXTENSIONS['avif']
+    del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
+    del EXTENSIONS['lz4f']
 
     if not os.environ.get('SKIP_OMP', False):
-        EXTENSIONS['zfp']['extra_compile_args'] = ['-fopenmp']
+        EXTENSIONS['zfp']['extra_compile_args'].append('-fopenmp')
 
     base_path = os.environ.get(
         'BASE_PATH', os.path.dirname(os.path.abspath(__file__))
@@ -226,9 +276,11 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         base_path, 'build_utils/libs_build/include'
     )
     OPTIONS['library_dirs'] = [
-        x for x in os.environ.get(
+        x
+        for x in os.environ.get(
             'LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')
-        ).split(':') if x
+        ).split(':')
+        if x
     ]
 
     if os.path.exists(include_base_path):
@@ -268,34 +320,39 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
 def customize_build_cf(EXTENSIONS, OPTIONS):
     """Customize build for conda-forge."""
 
-    library_inc = os.environ.get('LIBRARY_INC', '')
-
+    del EXTENSIONS['avif']
+    del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['lerc']
+    del EXTENSIONS['lz4f']
     del EXTENSIONS['zfp']
 
-    # build jpeg8 against libjpeg instead of libjpeg_turbo
+    # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     OPTIONS['cythonize'] = True
     EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
 
-    EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
-    EXTENSIONS['jpegxr']['include_dirs'] = [
-        os.path.join(library_inc, 'jpegxr')
-    ]
-
     if sys.platform == 'win32':
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
-        EXTENSIONS['jpeg2k']['include_dirs'] = [
+        EXTENSIONS['jpeg2k']['include_dirs'].append(
             os.path.join(
-                library_inc, 'openjpeg-' + os.environ.get('openjpeg', '2.3')
+                os.environ['LIBRARY_INC'],
+                'openjpeg-' + os.environ.get('openjpeg', '2.3'),
             )
-        ]
+        )
         EXTENSIONS['jpegls']['libraries'] = ['charls-2-x64']
         EXTENSIONS['lz4']['libraries'] = ['liblz4']
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
         EXTENSIONS['png']['libraries'] = ['libpng', 'z']
         EXTENSIONS['webp']['libraries'] = ['libwebp']
+        EXTENSIONS['jpegxr']['include_dirs'].append(
+            os.path.join(os.environ['LIBRARY_INC'], 'jxrlib')
+        )
+        EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
+    else:
+        EXTENSIONS['jpegxr']['include_dirs'].append(
+            os.path.join(os.environ['PREFIX'], 'include', 'jxrlib')
+        )
 
 
 # customize builds based on environment
@@ -304,10 +361,10 @@ try:
 except ImportError:
     if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
         customize_build = customize_build_cg
+    elif os.environ.get('CONDA_BUILD', ''):
+        customize_build = customize_build_cf
     elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
         customize_build = customize_build_ci
-    elif os.environ.get('LIBRARY_INC', ''):
-        customize_build = customize_build_cf
     else:
         customize_build = customize_build_default
 
@@ -318,6 +375,7 @@ customize_build(EXTENSIONS, OPTIONS)
 # https://github.com/pypa/setuptools/issues/1317
 try:
     import Cython  # noqa
+
     EXT = '.pyx'
 except ImportError:
     if OPTIONS['cythonize']:
@@ -335,11 +393,14 @@ class build_ext(_build_ext):
     Cythonize with compile time macros.
 
     """
+
     user_options = _build_ext.user_options + (
-        [('lite', None, 'only build the _imcd extension')] +
-        [(f'skip-{name}', None, f'do not build the _{name} extension')
-         for name in EXTENSIONS]
-        )
+        [('lite', None, 'only build the _imcd extension')]
+        + [
+            (f'skip-{name}', None, f'do not build the _{name} extension')
+            for name in EXTENSIONS
+        ]
+    )
 
     def initialize_options(self):
         for name in EXTENSIONS:
@@ -353,9 +414,8 @@ class build_ext(_build_ext):
         # remove extensions based on user_options
         for ext in self.extensions.copy():
             name = ext.name.rsplit('_', 1)[-1]
-            if (
-                (self.lite and name not in ('imcd', 'shared')) or
-                getattr(self, f'skip_{name}', False)
+            if (self.lite and name not in ('imcd', 'shared')) or getattr(
+                self, f'skip_{name}', False
             ):
                 print(f'skipping {ext.name!r} extension (deselected)')
                 self.extensions.remove(ext)
@@ -368,11 +428,13 @@ class build_ext(_build_ext):
         else:
             setattr(__builtins__, '__NUMPY_SETUP__', False)
         import numpy
+
         self.include_dirs.append(numpy.get_include())
 
         # Cythonize with compile time macros
         if Cython is not None and self.distribution.ext_modules:
             from Cython.Build.Dependencies import cythonize
+
             for i, ext in enumerate(self.extensions):
                 name = ext.name.rsplit('_', 1)[-1]
                 cyenv = EXTENSIONS[name].get('cython_compile_env', {})
@@ -381,23 +443,23 @@ class build_ext(_build_ext):
                         ext,
                         include_path=ext.include_dirs,
                         compile_time_env=cyenv,
-                        force=OPTIONS['cythonize']
+                        force=OPTIONS['cythonize'],
                     )
 
 
 def extension(name):
     """Return setuptools Extension."""
-    e = EXTENSIONS[name]
+    ext = EXTENSIONS[name]
     return Extension(
         f'imagecodecs._{name}',
-        sources=[f'imagecodecs/_{name}' + EXT] + e.get('sources', []),
-        include_dirs=OPTIONS['include_dirs'] + e.get('include_dirs', []),
-        library_dirs=OPTIONS['library_dirs'] + e.get('library_dirs', []),
-        libraries=OPTIONS['libraries'] + e.get('libraries', []),
-        define_macros=OPTIONS['define_macros'] + e.get('define_macros', []),
+        sources=[f'imagecodecs/_{name}' + EXT] + ext['sources'],
+        include_dirs=OPTIONS['include_dirs'] + ext['include_dirs'],
+        library_dirs=OPTIONS['library_dirs'] + ext['library_dirs'],
+        libraries=OPTIONS['libraries'] + ext['libraries'],
+        define_macros=OPTIONS['define_macros'] + ext['define_macros'],
         extra_compile_args=(
-            OPTIONS['extra_compile_args'] + e.get('extra_compile_args', [])
-        )
+            OPTIONS['extra_compile_args'] + ext['extra_compile_args']
+        ),
     )
 
 
@@ -408,20 +470,39 @@ setup(
     long_description=readme,
     author='Christoph Gohlke',
     author_email='cgohlke@uci.edu',
+    license='BSD',
     url='https://www.lfd.uci.edu/~gohlke/',
-    python_requires='>=3.6',
+    project_urls={
+        'Bug Tracker': 'https://github.com/cgohlke/imagecodecs/issues',
+        'Source Code': 'https://github.com/cgohlke/imagecodecs',
+        # 'Documentation': 'https://',
+    },
+    python_requires='>=3.7',
     install_requires=['numpy>=1.15.1'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.15'],  # 'cython>=0.29.19'
-    extras_require={'all': ['matplotlib>=3.1', 'tifffile>=2020.5.25']},
-    tests_require=['pytest', 'tifffile', 'czifile', 'blosc', 'zstd', 'lz4',
-                   'python-lzf', 'bitshuffle', 'zopflipy'],  # zfpy, brotli
+    setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # 'cython>=0.29.21'
+    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2020.12.8']},
+    tests_require=[
+        'pytest',
+        'tifffile',
+        'czifile',
+        'blosc',
+        'zstd',
+        'lz4',
+        'python-lzf',
+        'bitshuffle',
+        'zopflipy',
+        # zfpy,
+        # brotli,
+        # deflate,
+        # pytinyexr,
+    ],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
     entry_points={
-        'console_scripts': ['imagecodecs=imagecodecs.__main__:main']},
+        'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
+    },
     ext_modules=[extension(name) for name in sorted(EXTENSIONS)],
     cmdclass={'build_ext': build_ext},
-    license='BSD',
     zip_safe=False,
     platforms=['any'],
     classifiers=[
@@ -433,7 +514,6 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
