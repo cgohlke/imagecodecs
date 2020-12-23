@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -90,9 +90,15 @@ def jpegxl_check(data):
     """Return True if data likely contains a JPEG XL image."""
 
 
-def jpegxl_encode(data, level=None, colorspace=None, outcolorspace=None,
-                  subsampling=None, optimize=None, smoothing=None,
-                  out=None):
+def jpegxl_encode(
+    data, level=None,
+    colorspace=None,
+    outcolorspace=None,
+    subsampling=None,
+    optimize=None,
+    smoothing=None,
+    out=None
+):
     """Return JPEG XL image from numpy array.
 
     """
@@ -134,14 +140,14 @@ def jpegxl_encode(data, level=None, colorspace=None, outcolorspace=None,
         if out is None:
             if dstsize < 0:
                 dstsize = sink.byteswritten
-                dstptr = <char*>sink.data
+                dstptr = <char*> sink.data
             out = _create_output(outtype, dstsize, dstptr)
         if dstptr == NULL:
             dst = out
             dstsize = dst.size
-            if <size_t>dstsize < sink.byteswritten:
+            if <size_t> dstsize < sink.byteswritten:
                 raise ValueError('output too small')
-            memcpy(<void*>&dst[0], <void*>sink.data, sink.byteswritten)
+            memcpy(<void*> &dst[0], <void*> sink.data, sink.byteswritten)
             del dst
             out = _return_output(out, dstsize, sink.byteswritten, outgiven)
     finally:
@@ -149,14 +155,20 @@ def jpegxl_encode(data, level=None, colorspace=None, outcolorspace=None,
     return out
 
 
-def jpegxl_decode(data, index=None, colorspace=None, outcolorspace=None,
-                  asjpeg=False, out=None):
+def jpegxl_decode(
+    data,
+    index=None,
+    colorspace=None,
+    outcolorspace=None,
+    asjpeg=False,
+    out=None
+):
     """Return numpy array from JPEG XL image.
 
     """
     cdef:
         const uint8_t[::1] src = data
-        size_t srcsize = <size_t>src.size
+        size_t srcsize = <size_t> src.size
         brunsli_sink_t* sink = brunsli_sink_new(srcsize * 2)
         int ret
 
@@ -166,7 +178,7 @@ def jpegxl_decode(data, index=None, colorspace=None, outcolorspace=None,
         if ret != 1:
             raise JpegxlError('DecodeBrunsli', ret)
         out = jpeg8_decode(
-            <uint8_t[:sink.byteswritten]>sink.data,
+            <uint8_t[:sink.byteswritten]> sink.data,
             index=index,
             colorspace=colorspace,
             outcolorspace=outcolorspace,
@@ -187,14 +199,14 @@ ctypedef struct brunsli_sink_t:
 cdef brunsli_sink_t* brunsli_sink_new(size_t size):
     """Return new Brunsli sink."""
     cdef:
-        brunsli_sink_t* sink = <brunsli_sink_t*>malloc(sizeof(brunsli_sink_t))
+        brunsli_sink_t* sink = <brunsli_sink_t*> malloc(sizeof(brunsli_sink_t))
 
     if sink == NULL:
         raise MemoryError('failed to allocate brunsli_sink')
     sink.byteswritten = 0
     sink.size = size
     sink.offset = 0
-    sink.data = <uint8_t*>malloc(size)
+    sink.data = <uint8_t*> malloc(size)
     if sink.data == NULL:
         free(sink)
         raise MemoryError('failed to allocate brunsli_sink.data')
@@ -208,29 +220,32 @@ cdef brunsli_sink_del(brunsli_sink_t* sink):
         free(sink)
 
 
-cdef size_t brunsli_sink_write(void* brunsli_sink_ptr, const uint8_t* src,
-                               size_t size) nogil:
+cdef size_t brunsli_sink_write(
+    void* brunsli_sink_ptr,
+    const uint8_t* src,
+    size_t size
+) nogil:
     """Brunsli callback function for writing to sink."""
     cdef:
         uint8_t* tmp
         size_t newsize
-        brunsli_sink_t* sink = <brunsli_sink_t*>brunsli_sink_ptr
+        brunsli_sink_t* sink = <brunsli_sink_t*> brunsli_sink_ptr
 
     if sink == NULL or size == 0 or sink.offset > sink.size:
         return 0
     if sink.offset + size > sink.size:
         # output stream too small; realloc
         newsize = sink.offset + size
-        if newsize <= sink.size * 1.25:
+        if newsize <= <size_t> (<double> sink.size * 1.25):
             # moderate upsize: overallocate
             newsize = newsize + newsize // 4
             newsize = (((newsize - 1) // 4096) + 1) * 4096
-        tmp = <uint8_t*>realloc(<void*>sink.data, newsize)
+        tmp = <uint8_t*> realloc(<void*> sink.data, newsize)
         if tmp == NULL:
             return 0
         sink.data = tmp
         sink.size = newsize
-    memcpy(<void*>&(sink.data[sink.offset]), <const void*>src, size)
+    memcpy(<void*> &(sink.data[sink.offset]), <const void*> src, size)
     sink.offset += size
     if sink.offset > sink.byteswritten:
         sink.byteswritten = sink.offset
