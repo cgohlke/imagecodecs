@@ -62,7 +62,7 @@ cdef _parse_output(out, ssize_t outsize=-1, outgiven=False, outtype=bytes):
     """
     if out is None:
         # create new bytes output
-        return out, outsize, outgiven, outtype
+        return out, outsize, bool(outgiven), outtype
     if out is bytes:
         # create new bytes output
         out = None
@@ -75,12 +75,14 @@ cdef _parse_output(out, ssize_t outsize=-1, outgiven=False, outtype=bytes):
         # create new bytes output of expected length
         outsize = out
         out = None
+    # elif isinstance(out, bytes):
+    #     raise TypeError("'bytes' object does not support item assignment")
     else:
         # use provided output buffer
         # outsize = len(out)
         # outtype = type(out)
         outgiven = True
-    return out, outsize, outgiven, outtype
+    return out, outsize, bool(outgiven), outtype
 
 
 cdef object _create_output(object out, ssize_t size, const char* string=NULL):
@@ -90,7 +92,7 @@ cdef object _create_output(object out, ssize_t size, const char* string=NULL):
     Return NULL on failure.
 
     """
-    if PyBytes_Check(out):
+    if out == bytes or PyBytes_Check(out):
         return PyBytes_FromStringAndSize(string, size)
     return PyByteArray_FromStringAndSize(string, size)
 
@@ -272,4 +274,5 @@ def _set_attributes(cls=None, name=None, **kwargs):
 def _log_warning(msg, *args, **kwargs):
     """Logs a message with level WARNING."""
     import logging
+
     logging.getLogger('imagecodecs').warning(msg, *args, **kwargs)
