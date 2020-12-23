@@ -49,11 +49,11 @@ The format is identified by a Start of Frame (SOF) code 0xC3.
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -130,7 +130,7 @@ def jpegsof3_decode(data, index=None, out=None):
 
     with nogil:
         ret = decode_jpegsof3(
-            <unsigned char*>&src[0],
+            <unsigned char*> &src[0],
             srcsize,
             NULL,
             0,
@@ -154,13 +154,13 @@ def jpegsof3_decode(data, index=None, out=None):
 
     out = _create_array(out, shape, dtype)
     dst = out
-    dstsize = dst.size * dst.itemsize
+    dstsize = dst.nbytes
 
     with nogil:
         ret = decode_jpegsof3(
-            <unsigned char*>&src[0],
+            <unsigned char*> &src[0],
             srcsize,
-            <unsigned char*>dst.data,
+            <unsigned char*> dst.data,
             dstsize,
             &dimX,
             &dimY,
