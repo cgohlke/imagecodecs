@@ -76,42 +76,45 @@ void imcd_swapbytes(
     ssize_t i;
     switch (itemsize)
     {
-    case 2: {
-        d16 = (uint16_t*)src;
-        for (i = 0; i < srcsize; i++) {
-            *d16 = SWAP2BYTES(*d16);
-            d16++;
+        case 2: {
+            d16 = (uint16_t*)src;
+            for (i = 0; i < srcsize; i++) {
+                *d16 = SWAP2BYTES(*d16);
+                d16++;
+            }
+            break;
         }
-        break; }
-    case 4: {
-        d32 = (uint32_t*)src;
-        for (i = 0; i < srcsize; i++) {
-            *d32 = SWAP4BYTES(*d32);
-            d32++;
+        case 4: {
+            d32 = (uint32_t*)src;
+            for (i = 0; i < srcsize; i++) {
+                *d32 = SWAP4BYTES(*d32);
+                d32++;
+            }
+            break;
         }
-        break; }
-    case 8: {
-        d64 = (uint64_t*)src;
-        for (i = 0; i < srcsize; i++) {
-            *d64 = SWAP8BYTES(*d64);
-            d64++;
+        case 8: {
+            d64 = (uint64_t*)src;
+            for (i = 0; i < srcsize; i++) {
+                *d64 = SWAP8BYTES(*d64);
+                d64++;
+            }
+            break;
         }
-        break; }
     }
 }
 
 
 /* Return mask for number of bits. */
-uint8_t imcd_bitmask(const int numbits)
+uint8_t imcd_bitmask(const int bps)
 {
     uint8_t result = 0;
     uint8_t power = 1;
     int i;
-    for (i = 0; i < numbits; i++) {
+    for (i = 0; i < bps; i++) {
         result += power;
         power *= 2;
     }
-    return result << (8 - numbits);
+    return result << (8 - bps);
 }
 
 
@@ -129,7 +132,8 @@ uint8_t imcd_bitmask(const int numbits)
                 sum += qsrc[i];  \
                 qsrc[i] = sum;  \
             }  \
-        } else {  \
+        }  \
+        else {  \
             *(dtype*)dstptr = sum;  \
             for (i = 1; i < size; i++) {  \
                 dstptr += stride;  \
@@ -138,7 +142,8 @@ uint8_t imcd_bitmask(const int numbits)
                 *(dtype*)dstptr = sum;  \
             }  \
         }  \
-    } else {  \
+    }  \
+    else {  \
         dtype src0, src1;  \
         src0 = *(dtype*)srcptr;  \
         *(dtype*)dstptr = src0;  \
@@ -181,20 +186,20 @@ ssize_t imcd_delta(
 
     switch (itemsize)
     {
-    case 1:
-        DELTA(uint8_t);
-        break;
-    case 2:
-        DELTA(uint16_t);
-        break;
-    case 4:
-        DELTA(uint32_t);
-        break;
-    case 8:
-        DELTA(uint64_t);
-        break;
-    default:
-        return IMCD_VALUE_ERROR;
+        case 1:
+            DELTA(uint8_t);
+            break;
+        case 2:
+            DELTA(uint16_t);
+            break;
+        case 4:
+            DELTA(uint32_t);
+            break;
+        case 8:
+            DELTA(uint64_t);
+            break;
+        default:
+            return IMCD_VALUE_ERROR;
     }
     return size;
 }
@@ -229,65 +234,65 @@ ssize_t imcd_diff(
 
     switch (itemtype)
     {
-    case 'B':
-    case 'u':
-    {
-        switch (itemsize)
+        case 'B':
+        case 'u':
         {
-        case 1:
-            DELTA(uint8_t);
+            switch (itemsize)
+            {
+                case 1:
+                    DELTA(uint8_t);
+                    break;
+                case 2:
+                    DELTA(uint16_t);
+                    break;
+                case 4:
+                    DELTA(uint32_t);
+                    break;
+                case 8:
+                    DELTA(uint64_t);
+                    break;
+                default:
+                    return IMCD_VALUE_ERROR;
+            }
             break;
-        case 2:
-            DELTA(uint16_t);
-            break;
-        case 4:
-            DELTA(uint32_t);
-            break;
-        case 8:
-            DELTA(uint64_t);
-            break;
-        default:
-            return IMCD_VALUE_ERROR;
         }
-        break;
-    }
-    case 'b':
-    case 'i':
-    {
-        switch (itemsize)
+        case 'b':
+        case 'i':
         {
-        case 1:
-            DELTA(int8_t);
+            switch (itemsize)
+            {
+                case 1:
+                    DELTA(int8_t);
+                    break;
+                case 2:
+                    DELTA(int16_t);
+                    break;
+                case 4:
+                    DELTA(int32_t);
+                    break;
+                case 8:
+                    DELTA(int64_t);
+                    break;
+                default:
+                    return IMCD_VALUE_ERROR;
+            }
             break;
-        case 2:
-            DELTA(int16_t);
-            break;
-        case 4:
-            DELTA(int32_t);
-            break;
-        case 8:
-            DELTA(int64_t);
-            break;
-        default:
-            return IMCD_VALUE_ERROR;
         }
-        break;
-    }
-    case 'f':
-    {
-        switch (itemsize)
+        case 'f':
         {
-        case 4:
-            DELTA(float);
+            switch (itemsize)
+            {
+                case 4:
+                    DELTA(float);
+                    break;
+                case 8:
+                    DELTA(double);
+                    break;
+                default:
+                    return IMCD_VALUE_ERROR;
+            }
             break;
-        case 8:
-            DELTA(double);
-            break;
-        default:
-            return IMCD_VALUE_ERROR;
         }
-        break;
-    }
     }
     return size;
 }
@@ -306,7 +311,8 @@ ssize_t imcd_diff(
             for (i = 1; i < size; i++) {  \
                 prev = psrc[i] ^= prev;  \
             }  \
-        } else {  \
+        }  \
+        else {  \
             *(dtype*)dstptr = prev = (*(dtype*)srcptr);  \
             for (i = 1; i < size; i++) {  \
                 dstptr += stride;  \
@@ -314,7 +320,8 @@ ssize_t imcd_diff(
                 *(dtype*)dstptr = prev = (*(dtype*)srcptr) ^ prev;  \
             }  \
         }  \
-    } else {  \
+    }  \
+    else {  \
         *(dtype*)dstptr = prev = (*(dtype*)srcptr);  \
         for (i = 1; i < size; i++) {  \
             dstptr += stride;  \
@@ -355,20 +362,20 @@ ssize_t imcd_xor(
 
     switch (itemsize)
     {
-    case 1:
-        XOR(uint8_t);
-        break;
-    case 2:
-        XOR(uint16_t);
-        break;
-    case 4:
-        XOR(uint32_t);
-        break;
-    case 8:
-        XOR(uint64_t);
-        break;
-    default:
-        return IMCD_VALUE_ERROR;
+        case 1:
+            XOR(uint8_t);
+            break;
+        case 2:
+            XOR(uint16_t);
+            break;
+        case 4:
+            XOR(uint32_t);
+            break;
+        case 8:
+            XOR(uint64_t);
+            break;
+        default:
+            return IMCD_VALUE_ERROR;
     }
     return size;
 }
@@ -575,7 +582,8 @@ ssize_t imcd_packbits_size(
                 n = (ssize_t)(srcend - srcptr);
             srcptr += n;
             dstsize += n;
-        } else if (n > 129) {
+        }
+        else if (n > 129) {
             /* replicate */
             srcptr++;
             dstsize += 258 - n;
@@ -620,7 +628,8 @@ ssize_t imcd_packbits_decode(
             while (n--) {
                 *dstptr++ = *srcptr++;
             }
-        } else if (n > 129) {
+        }
+        else if (n > 129) {
             /* replicate */
             const uint8_t e = *srcptr++;
             n = 258 - n;
@@ -789,7 +798,7 @@ ssize_t imcd_packints_decode(
     const ssize_t srcsize,  /** size of src in bytes */
     uint8_t* dst,  /** buffer to store unpacked items */
     const ssize_t dstsize,   /** number of items to unpack */
-    const int numbits  /** number of bits in integer */
+    const int bps  /** number of bits in integer */
     )
 {
     ssize_t i, j, k;
@@ -801,105 +810,108 @@ ssize_t imcd_packints_decode(
     }
 
     /* Input validation is done in wrapper function */
-    itemsize = (ssize_t)(ceil(numbits / 8.0));
+    itemsize = (ssize_t)(ceil(bps / 8.0));
     itemsize = itemsize < 3 ? itemsize : itemsize > 4 ? 8 : 4;
-    switch (numbits)
+    switch (bps)
     {
-    case 8:
-    case 16:
-    case 32:
-    case 64:
-        memcpy(dst, src, dstsize * itemsize);
-        return dstsize;
-    case 1:
-        for (i = 0, j = 0; i < dstsize/8; i++) {
-            value = src[i];
-            dst[j++] = (value & (uint8_t)(128)) >> 7;
-            dst[j++] = (value & (uint8_t)(64)) >> 6;
-            dst[j++] = (value & (uint8_t)(32)) >> 5;
-            dst[j++] = (value & (uint8_t)(16)) >> 4;
-            dst[j++] = (value & (uint8_t)(8)) >> 3;
-            dst[j++] = (value & (uint8_t)(4)) >> 2;
-            dst[j++] = (value & (uint8_t)(2)) >> 1;
-            dst[j++] = (value & (uint8_t)(1));
-        }
-        if (dstsize % 8) {
-            value = src[i];
-            switch (dstsize % 8) {
-            case 7: dst[j+6] = (value & (uint8_t)(2)) >> 1;
-            case 6: dst[j+5] = (value & (uint8_t)(4)) >> 2;
-            case 5: dst[j+4] = (value & (uint8_t)(8)) >> 3;
-            case 4: dst[j+3] = (value & (uint8_t)(16)) >> 4;
-            case 3: dst[j+2] = (value & (uint8_t)(32)) >> 5;
-            case 2: dst[j+1] = (value & (uint8_t)(64)) >> 6;
-            case 1: dst[j] = (value & (uint8_t)(128)) >> 7;
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+            memcpy(dst, src, dstsize * itemsize);
+            return dstsize;
+        case 1:
+            for (i = 0, j = 0; i < dstsize/8; i++) {
+                value = src[i];
+                dst[j++] = (value & (uint8_t)(128)) >> 7;
+                dst[j++] = (value & (uint8_t)(64)) >> 6;
+                dst[j++] = (value & (uint8_t)(32)) >> 5;
+                dst[j++] = (value & (uint8_t)(16)) >> 4;
+                dst[j++] = (value & (uint8_t)(8)) >> 3;
+                dst[j++] = (value & (uint8_t)(4)) >> 2;
+                dst[j++] = (value & (uint8_t)(2)) >> 1;
+                dst[j++] = (value & (uint8_t)(1));
             }
-        }
-        return dstsize;
-    case 2:
-        for (i = 0, j = 0; i < dstsize/4; i++) {
-            value = src[i];
-            dst[j++] = (value & (uint8_t)(192)) >> 6;
-            dst[j++] = (value & (uint8_t)(48)) >> 4;
-            dst[j++] = (value & (uint8_t)(12)) >> 2;
-            dst[j++] = (value & (uint8_t)(3));
-        }
-        if (dstsize % 4) {
-            value = src[i];
-            switch (dstsize % 4) {
-            case 3: dst[j+2] = (value & (uint8_t)(12)) >> 2;
-            case 2: dst[j+1] = (value & (uint8_t)(48)) >> 4;
-            case 1: dst[j] = (value & (uint8_t)(192)) >> 6;
+            if (dstsize % 8) {
+                value = src[i];
+                switch (dstsize % 8)
+                {
+                    case 7: dst[j+6] = (value & (uint8_t)(2)) >> 1;
+                    case 6: dst[j+5] = (value & (uint8_t)(4)) >> 2;
+                    case 5: dst[j+4] = (value & (uint8_t)(8)) >> 3;
+                    case 4: dst[j+3] = (value & (uint8_t)(16)) >> 4;
+                    case 3: dst[j+2] = (value & (uint8_t)(32)) >> 5;
+                    case 2: dst[j+1] = (value & (uint8_t)(64)) >> 6;
+                    case 1: dst[j] = (value & (uint8_t)(128)) >> 7;
+                }
             }
-        }
-        return dstsize;
-    case 4:
-        for (i = 0, j = 0; i < dstsize/2; i++) {
-            value = src[i];
-            dst[j++] = (value & (uint8_t)(240)) >> 4;
-            dst[j++] = (value & (uint8_t)(15));
-        }
-        if (dstsize % 2) {
-            value = src[i];
-            dst[j] = (value & (uint8_t)(240)) >> 4;
-        }
-        return dstsize;
-    case 24:
-        j = k = 0;
-        for (i = 0; i < dstsize; i++) {
-            dst[j++] = 0;
-            dst[j++] = src[k++];
-            dst[j++] = src[k++];
-            dst[j++] = src[k++];
-        }
-        return dstsize;
+            return dstsize;
+        case 2:
+            for (i = 0, j = 0; i < dstsize/4; i++) {
+                value = src[i];
+                dst[j++] = (value & (uint8_t)(192)) >> 6;
+                dst[j++] = (value & (uint8_t)(48)) >> 4;
+                dst[j++] = (value & (uint8_t)(12)) >> 2;
+                dst[j++] = (value & (uint8_t)(3));
+            }
+            if (dstsize % 4) {
+                value = src[i];
+                switch (dstsize % 4)
+                {
+                    case 3: dst[j+2] = (value & (uint8_t)(12)) >> 2;
+                    case 2: dst[j+1] = (value & (uint8_t)(48)) >> 4;
+                    case 1: dst[j] = (value & (uint8_t)(192)) >> 6;
+                }
+            }
+            return dstsize;
+        case 4:
+            for (i = 0, j = 0; i < dstsize/2; i++) {
+                value = src[i];
+                dst[j++] = (value & (uint8_t)(240)) >> 4;
+                dst[j++] = (value & (uint8_t)(15));
+            }
+            if (dstsize % 2) {
+                value = src[i];
+                dst[j] = (value & (uint8_t)(240)) >> 4;
+            }
+            return dstsize;
+        case 24:
+            j = k = 0;
+            for (i = 0; i < dstsize; i++) {
+                dst[j++] = 0;
+                dst[j++] = src[k++];
+                dst[j++] = src[k++];
+                dst[j++] = src[k++];
+            }
+            return dstsize;
     }
     /* 3, 5, 6, 7 */
-    if (numbits < 8) {
+    if (bps < 8) {
         int shr = 16;
         u_uint16_t value, mask, tmp;
         j = k = 0;
         value.b[IMCD_MSB] = src[j++];
         value.b[IMCD_LSB] = src[j++];
-        mask.b[IMCD_MSB] = imcd_bitmask(numbits);
+        mask.b[IMCD_MSB] = imcd_bitmask(bps);
         mask.b[IMCD_LSB] = 0;
         for (i = 0; i < dstsize; i++) {
-            shr -= numbits;
+            shr -= bps;
             tmp.i = (value.i & mask.i) >> shr;
             dst[k++] = tmp.b[IMCD_LSB];
-            if (shr < numbits) {
+            if (shr < bps) {
                 value.b[IMCD_MSB] = value.b[IMCD_LSB];
                 value.b[IMCD_LSB] = src[j++];
-                mask.i <<= 8 - numbits;
+                mask.i <<= 8 - bps;
                 shr += 8;
-            } else {
-                mask.i >>= numbits;
+            }
+            else {
+                mask.i >>= bps;
             }
         }
         return dstsize;
     }
     /* 9, 10, 11, 12, 13, 14, 15 */
-    if (numbits < 16) {
+    if (bps < 16) {
         int shr = 32;
         u_uint32_t value, mask, tmp;
         mask.i = 0;
@@ -909,22 +921,22 @@ ssize_t imcd_packints_decode(
             value.b[i] = src[j++];
         }
         mask.b[3] = 0xFF;
-        mask.b[2] = imcd_bitmask(numbits-8);
+        mask.b[2] = imcd_bitmask(bps-8);
         for (i = 0; i < dstsize; i++) {
-            shr -= numbits;
+            shr -= bps;
             tmp.i = (value.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
             dst[k++] = tmp.b[1];
-            if (shr < numbits) {
+            if (shr < bps) {
                 value.b[3] = value.b[1];
                 value.b[2] = value.b[0];
                 value.b[1] = j < srcsize ? src[j++] : 0;
                 value.b[0] = j < srcsize ? src[j++] : 0;
-                mask.i <<= 16 - numbits;
+                mask.i <<= 16 - bps;
                 shr += 16;
             }
             else {
-                mask.i >>= numbits;
+                mask.i >>= bps;
             }
         }
 #else
@@ -933,7 +945,7 @@ ssize_t imcd_packints_decode(
         return dstsize;
     }
     /* 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 */
-    if (numbits < 32) {
+    if (bps < 32) {
         int shr = 64;
         u_uint64_t value, mask, tmp;
         mask.i = 0;
@@ -944,16 +956,16 @@ ssize_t imcd_packints_decode(
         }
         mask.b[7] = 0xFF;
         mask.b[6] = 0xFF;
-        mask.b[5] = numbits > 23 ? 0xFF : imcd_bitmask(numbits - 16);
-        mask.b[4] = numbits < 24 ? 0x00 : imcd_bitmask(numbits - 24);
+        mask.b[5] = bps > 23 ? 0xFF : imcd_bitmask(bps - 16);
+        mask.b[4] = bps < 24 ? 0x00 : imcd_bitmask(bps - 24);
         for (i = 0; i < dstsize; i++) {
-            shr -= numbits;
+            shr -= bps;
             tmp.i = (value.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
             dst[k++] = tmp.b[1];
             dst[k++] = tmp.b[2];
             dst[k++] = tmp.b[3];
-            if (shr < numbits) {
+            if (shr < bps) {
                 value.b[7] = value.b[3];
                 value.b[6] = value.b[2];
                 value.b[5] = value.b[1];
@@ -962,11 +974,11 @@ ssize_t imcd_packints_decode(
                 value.b[2] = j < srcsize ? src[j++] : 0;
                 value.b[1] = j < srcsize ? src[j++] : 0;
                 value.b[0] = j < srcsize ? src[j++] : 0;
-                mask.i <<= 32 - numbits;
+                mask.i <<= 32 - bps;
                 shr += 32;
             }
             else {
-                mask.i >>= numbits;
+                mask.i >>= bps;
             }
         }
 #else
@@ -975,6 +987,27 @@ ssize_t imcd_packints_decode(
         return dstsize;
     }
     return IMCD_ERROR;
+}
+
+
+/* Pack sequence of 1-32 bit integers.
+
+*/
+ssize_t imcd_packints_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,  /** size of src in bytes */
+    uint8_t* dst,  /** buffer to store packed items */
+    const ssize_t dstsize,   /** number of items to pack */
+    const int bps  /** number of bits in integer */
+)
+{
+    if (srcsize == 0) {
+        return 0;
+    }
+
+    /* Input validation is done in wrapper function */
+
+    return IMCD_NOTIMPLEMENTED_ERROR;
 }
 
 
@@ -1029,15 +1062,17 @@ imcd_lzw_handle_t* imcd_lzw_new(ssize_t buffersize)
 {
     /* TODO: check alignment of structs */
     imcd_lzw_handle_t* handle = NULL;
-    ssize_t size = (sizeof(imcd_lzw_handle_t)
-                    + sizeof(imcd_lzw_table_t) * LZW_TABLESIZE);
+    ssize_t size = (
+        sizeof(imcd_lzw_handle_t) + sizeof(imcd_lzw_table_t) * LZW_TABLESIZE
+    );
 
     handle = (imcd_lzw_handle_t*)malloc(size);
     if (handle == NULL) {
         return NULL;
     }
-    handle->table = (imcd_lzw_table_t*)((char*)handle
-                     + sizeof(imcd_lzw_handle_t));
+    handle->table = (
+        imcd_lzw_table_t*)((char*)handle + sizeof(imcd_lzw_handle_t)
+    );
     handle->buffer = NULL;
     handle->buffersize = 0;
 
@@ -1228,30 +1263,30 @@ ssize_t imcd_lzw_decode_size(
             /* early change */
             switch (tablesize)
             {
-            case 511:
-                bitw = 10; shr = 22; mask = 4290772992u;
-                break;
-            case 1023:
-                bitw = 11; shr = 21; mask = 4292870144u;
-                break;
-            case 2047:
-                bitw = 12; shr = 20; mask = 4293918720u;
+                case 511:
+                    bitw = 10; shr = 22; mask = 4290772992u;
+                    break;
+                case 1023:
+                    bitw = 11; shr = 21; mask = 4292870144u;
+                    break;
+                case 2047:
+                    bitw = 12; shr = 20; mask = 4293918720u;
             }
         }
         else {
             /* late change */
             switch (tablesize)
             {
-            case 512:
-                bitw = 10; mask = 1023;
-                break;
-            case 1024:
-                bitw = 11; mask = 2047;
-                break;
-            case 2048:
-                bitw = 12; mask = 4095;
-                break;
-            /* continue with 12-bit for tablesize >= 4096 */
+                case 512:
+                    bitw = 10; mask = 1023;
+                    break;
+                case 1024:
+                    bitw = 11; mask = 2047;
+                    break;
+                case 2048:
+                    bitw = 12; mask = 4095;
+                    break;
+                /* continue with 12-bit for tablesize >= 4096 */
             }
         }
 
@@ -1379,8 +1414,10 @@ ssize_t imcd_lzw_decode(
                 const uint8_t* oldbuffer = handle->buffer;
                 const ssize_t bufferlen = buffer - oldbuffer;
 
-                if (_lzw_alloc_buffer(handle,
-                                      handle->buffersize - buffersize) <= 0)
+                if (
+                    _lzw_alloc_buffer(handle, handle->buffersize - buffersize)
+                    <= 0
+                    )
                 {
                     return IMCD_MEMORY_ERROR;
                 }
@@ -1388,6 +1425,7 @@ ssize_t imcd_lzw_decode(
                     /* correct pointers */
                     uint32_t i;
                     const ssize_t bufferdiff = handle->buffer - oldbuffer;
+
                     for (i = 256; i < tablesize; i++) {
                         if ((table[i].buf >= oldbuffer) &&
                             (table[i].buf < buffer))
@@ -1396,8 +1434,8 @@ ssize_t imcd_lzw_decode(
                         }
                     }
                 }
-                buffersize = handle->buffersize - bufferlen -
-                             table[oldcode].len - 1;
+                buffersize =
+                    handle->buffersize - bufferlen - table[oldcode].len - 1;
                 buffer = handle->buffer + bufferlen;
             }
 
@@ -1466,38 +1504,38 @@ ssize_t imcd_lzw_decode(
             }
         }
         table[tablesize++].len = table[oldcode].len + 1;
+        oldcode = code;
 
         /* increase bit-width if necessary */
         if (msb) {
             /* early change */
             switch (tablesize)
             {
-            case 511:
-                bitw = 10; shr = 22; mask = 4290772992u;
-                break;
-            case 1023:
-                bitw = 11; shr = 21; mask = 4292870144u;
-                break;
-            case 2047:
-                bitw = 12; shr = 20; mask = 4293918720u;
+                case 511:
+                    bitw = 10; shr = 22; mask = 4290772992u;
+                    break;
+                case 1023:
+                    bitw = 11; shr = 21; mask = 4292870144u;
+                    break;
+                case 2047:
+                    bitw = 12; shr = 20; mask = 4293918720u;
             }
         }
         else {
             /* late change */
             switch (tablesize)
             {
-            case 512:
-                bitw = 10; mask = 1023;
-                break;
-            case 1024:
-                bitw = 11; mask = 2047;
-                break;
-            case 2048:
-                bitw = 12; mask = 4095;
-                break;
+                case 512:
+                    bitw = 10; mask = 1023;
+                    break;
+                case 1024:
+                    bitw = 11; mask = 2047;
+                    break;
+                case 2048:
+                    bitw = 12; mask = 4095;
+                    break;
             }
         }
-        oldcode = code;
     }
 
     return dstsize;
