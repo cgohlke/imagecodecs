@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,6 +58,7 @@ from blosc cimport *
 
 class BLOSC:
     """Blosc Constants."""
+
     SHUFFLE = BLOSC_SHUFFLE
     NOSHUFFLE = BLOSC_NOSHUFFLE
 
@@ -75,8 +76,16 @@ def blosc_check(data):
     """Return True if data likely contains Blosc data."""
 
 
-def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
-                 blocksize=0, shuffle=None, numthreads=1, out=None):
+def blosc_encode(
+    data,
+    level=None,
+    compressor='blosclz',
+    typesize=8,
+    blocksize=0,
+    shuffle=None,
+    numthreads=1,
+    out=None
+):
     """Encode Blosc.
 
     """
@@ -124,11 +133,11 @@ def blosc_encode(data, level=None, compressor='blosclz', typesize=8,
             clevel,
             doshuffle,
             typesize_,
-            <size_t>srcsize,
-            <const void*>&src[0],
-            <void*>&dst[0],
-            <size_t>dstsize,
-            <const char*>compressor_,
+            <size_t> srcsize,
+            <const void*> &src[0],
+            <void*> &dst[0],
+            <size_t> dstsize,
+            <const char*> compressor_,
             blocksize_,
             numinternalthreads
         )
@@ -160,14 +169,14 @@ def blosc_decode(data, numthreads=1, out=None):
     if out is None:
         if dstsize < 0:
             blosc_cbuffer_sizes(
-                <const void*>&src[0],
+                <const void*> &src[0],
                 &nbytes,
                 &cbytes,
                 &blocksize
             )
             if nbytes == 0 and blocksize == 0:
                 raise BloscError('invalid blosc data')
-            dstsize = <ssize_t>nbytes
+            dstsize = <ssize_t> nbytes
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -175,8 +184,8 @@ def blosc_decode(data, numthreads=1, out=None):
 
     with nogil:
         ret = blosc_decompress_ctx(
-            <const void*>&src[0],
-            <void*>&dst[0],
+            <const void*> &src[0],
+            <void*> &dst[0],
             dstsize,
             numinternalthreads
         )
