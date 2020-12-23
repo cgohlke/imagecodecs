@@ -1,7 +1,7 @@
 # jpegsof3.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jpegsof3 2020.1.31` library.
+# Cython declarations for the `jpegsof3 2020.12.22` library.
 
 cdef extern from 'jpegsof3.h':
 
@@ -27,4 +27,5 @@ cdef extern from 'jpegsof3.h':
         int* dimX,
         int* dimY,
         int* bits,
-        int* frames) nogil
+        int* frames
+    ) nogil
