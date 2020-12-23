@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -91,7 +91,7 @@ def snappy_encode(data, level=None, out=None):
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
-        size_t output_length = snappy_max_compressed_length(<size_t>srcsize)
+        size_t output_length = snappy_max_compressed_length(<size_t> srcsize)
         snappy_status ret
         char* buffer = NULL
 
@@ -103,39 +103,39 @@ def snappy_encode(data, level=None, out=None):
     if out is None:
         # override any provided output size
         if dstsize < 0:
-            dstsize = <ssize_t>output_length
+            dstsize = <ssize_t> output_length
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
 
-    if <size_t>dstsize < output_length:
+    if <size_t> dstsize < output_length:
         # snappy_compress requires at least (32+len(data)+len(data)/6) bytes
         with nogil:
-            buffer = <char*>malloc(output_length)
+            buffer = <char*> malloc(output_length)
             if buffer == NULL:
                 raise MemoryError('failed to allocate buffer')
             ret = snappy_compress(
-                <const char*>&src[0],
-                <size_t>srcsize,
+                <const char*> &src[0],
+                <size_t> srcsize,
                 buffer,
                 &output_length
             )
             if ret != SNAPPY_OK:
                 free(buffer)
                 raise SnappyError('snappy_compress', ret)
-            if <size_t>dstsize < output_length:
+            if <size_t> dstsize < output_length:
                 free(buffer)
                 raise SnappyError('snappy_compress', SNAPPY_BUFFER_TOO_SMALL)
-            memcpy(<void*>&dst[0], buffer, output_length)
+            memcpy(<void*> &dst[0], buffer, output_length)
             free(buffer)
     else:
         with nogil:
-            output_length = <size_t>dstsize
+            output_length = <size_t> dstsize
             ret = snappy_compress(
-                <const char*>&src[0],
-                <size_t>srcsize,
-                <char*>&dst[0],
+                <const char*> &src[0],
+                <size_t> srcsize,
+                <char*> &dst[0],
                 &output_length
             )
         if ret != SNAPPY_OK:
@@ -166,24 +166,24 @@ def snappy_decode(data, out=None):
     if out is None:
         if dstsize < 0:
             ret = snappy_uncompressed_length(
-                <const char*>&src[0],
-                <size_t>srcsize,
+                <const char*> &src[0],
+                <size_t> srcsize,
                 &result
             )
             if ret != SNAPPY_OK:
                 raise SnappyError('snappy_uncompressed_length', ret)
-            dstsize = <ssize_t>result
+            dstsize = <ssize_t> result
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    output_length = <size_t>dstsize
+    output_length = <size_t> dstsize
 
     with nogil:
         ret = snappy_uncompress(
-            <const char*>&src[0],
-            <size_t>srcsize,
-            <char*>&dst[0],
+            <const char*> &src[0],
+            <size_t> srcsize,
+            <char*> &dst[0],
             &output_length
         )
     if ret != SNAPPY_OK:
