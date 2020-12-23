@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,15 +58,16 @@ from zfp cimport *
 
 class ZFP:
     """ZFP Constants."""
+
     EXEC_SERIAL = zfp_exec_serial
-    EXEC_OMPL = zfp_exec_omp
-    EXEC_CUDAL = zfp_exec_cuda
-    MODE_NULLL = zfp_mode_null
-    MODE_EXPERTL = zfp_mode_expert
-    MODE_FIXED_RATEL = zfp_mode_fixed_rate
-    MODE_FIXED_PRECISIONL = zfp_mode_fixed_precision
-    MODE_FIXED_ACCURACYL = zfp_mode_fixed_accuracy
-    MODE_REVERSIBLEL = zfp_mode_reversible
+    EXEC_OMP = zfp_exec_omp
+    EXEC_CUDA = zfp_exec_cuda
+    MODE_NULL = zfp_mode_null
+    MODE_EXPERT = zfp_mode_expert
+    MODE_FIXED_RATE = zfp_mode_fixed_rate
+    MODE_FIXED_PRECISION = zfp_mode_fixed_precision
+    MODE_FIXED_ACCURACY = zfp_mode_fixed_accuracy
+    MODE_REVERSIBLE = zfp_mode_reversible
 
 
 class ZfpError(RuntimeError):
@@ -86,9 +87,15 @@ def zfp_check(const uint8_t[::1] data):
     return sig == b'zfp'
 
 
-def zfp_encode(data, level=None, mode=None, execution=None, header=True,
-               out=None):
-    """Compress numpy array to ZFP stream.
+def zfp_encode(
+    data,
+    level=None,
+    mode=None,
+    execution=None,
+    header=True,
+    out=None
+):
+    """Return ZFP stream from numpy array.
 
     """
     cdef:
@@ -96,7 +103,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         const uint8_t[::1] dst  # must be const to write to bytes
         size_t byteswritten
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         bitstream* stream = NULL
         zfp_stream* zfp = NULL
         zfp_field* field = NULL
@@ -128,29 +135,29 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         raise ValueError('data type not supported by ZFP')
 
     if ndim == 1:
-        nx = <uint>data.shape[0]
-        sx = <int>(data.strides[0] // itemsize)
+        nx = <uint> data.shape[0]
+        sx = <int> (data.strides[0] // itemsize)
     elif ndim == 2:
-        ny = <uint>data.shape[0]
-        nx = <uint>data.shape[1]
-        sy = <int>(data.strides[0] // itemsize)
-        sx = <int>(data.strides[1] // itemsize)
+        ny = <uint> data.shape[0]
+        nx = <uint> data.shape[1]
+        sy = <int> (data.strides[0] // itemsize)
+        sx = <int> (data.strides[1] // itemsize)
     elif ndim == 3:
-        nz = <uint>data.shape[0]
-        ny = <uint>data.shape[1]
-        nx = <uint>data.shape[2]
-        sz = <int>(data.strides[0] // itemsize)
-        sy = <int>(data.strides[1] // itemsize)
-        sx = <int>(data.strides[2] // itemsize)
+        nz = <uint> data.shape[0]
+        ny = <uint> data.shape[1]
+        nx = <uint> data.shape[2]
+        sz = <int> (data.strides[0] // itemsize)
+        sy = <int> (data.strides[1] // itemsize)
+        sx = <int> (data.strides[2] // itemsize)
     elif ndim == 4:
-        nw = <uint>data.shape[0]
-        nz = <uint>data.shape[1]
-        ny = <uint>data.shape[2]
-        nx = <uint>data.shape[3]
-        sw = <int>(data.strides[0] // itemsize)
-        sz = <int>(data.strides[1] // itemsize)
-        sy = <int>(data.strides[2] // itemsize)
-        sx = <int>(data.strides[3] // itemsize)
+        nw = <uint> data.shape[0]
+        nz = <uint> data.shape[1]
+        ny = <uint> data.shape[2]
+        nx = <uint> data.shape[3]
+        sw = <int> (data.strides[0] // itemsize)
+        sz = <int> (data.strides[1] // itemsize)
+        sy = <int> (data.strides[2] // itemsize)
+        sx = <int> (data.strides[3] // itemsize)
     else:
         raise ValueError('data shape not supported by ZFP')
 
@@ -186,22 +193,22 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
             raise ZfpError('zfp_stream_open failed')
 
         if ndim == 1:
-            field = zfp_field_1d(<void*>src.data, ztype, nx)
+            field = zfp_field_1d(<void*> src.data, ztype, nx)
             if field == NULL:
                 raise ZfpError('zfp_field_1d failed')
             zfp_field_set_stride_1d(field, sx)
         elif ndim == 2:
-            field = zfp_field_2d(<void*>src.data, ztype, nx, ny)
+            field = zfp_field_2d(<void*> src.data, ztype, nx, ny)
             if field == NULL:
                 raise ZfpError('zfp_field_2d failed')
             zfp_field_set_stride_2d(field, sx, sy)
         elif ndim == 3:
-            field = zfp_field_3d(<void*>src.data, ztype, nx, ny, nz)
+            field = zfp_field_3d(<void*> src.data, ztype, nx, ny, nz)
             if field == NULL:
                 raise ZfpError('zfp_field_3d failed')
             zfp_field_set_stride_3d(field, sx, sy, sz)
         elif ndim == 4:
-            field = zfp_field_4d(<void*>src.data, ztype, nx, ny, nz, nw)
+            field = zfp_field_4d(<void*> src.data, ztype, nx, ny, nz, nw)
             if field == NULL:
                 raise ZfpError('zfp_field_4d failed')
             zfp_field_set_stride_4d(field, sx, sy, sz, sw)
@@ -226,10 +233,10 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size * dst.itemsize
+        dstsize = dst.nbytes
 
         with nogil:
-            stream = stream_open(<void*>&dst[0], dstsize)
+            stream = stream_open(<void*> &dst[0], dstsize)
             if stream == NULL:
                 raise ZfpError('stream_open failed')
 
@@ -298,19 +305,19 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
     if ndim == -1:
         pass
     elif ndim == 1:
-        nx = <uint>shape[0]
+        nx = <uint> shape[0]
     elif ndim == 2:
-        nx = <uint>shape[1]
-        ny = <uint>shape[0]
+        nx = <uint> shape[1]
+        ny = <uint> shape[0]
     elif ndim == 3:
-        nx = <uint>shape[2]
-        ny = <uint>shape[1]
-        nz = <uint>shape[0]
+        nx = <uint> shape[2]
+        ny = <uint> shape[1]
+        nz = <uint> shape[0]
     elif ndim == 4:
-        nx = <uint>shape[3]
-        ny = <uint>shape[2]
-        nz = <uint>shape[1]
-        nw = <uint>shape[0]
+        nx = <uint> shape[3]
+        ny = <uint> shape[2]
+        nz = <uint> shape[1]
+        nw = <uint> shape[0]
     else:
         raise ValueError('shape not supported by ZFP')
 
@@ -334,7 +341,7 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
         if field == NULL:
             raise ZfpError('zfp_field_alloc failed')
 
-        stream = stream_open(<void*>&src[0], srcsize)
+        stream = stream_open(<void*> &src[0], srcsize)
         if stream == NULL:
             raise ZfpError('stream_open failed')
 
@@ -391,7 +398,7 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
         dst = out
 
         with nogil:
-            zfp_field_set_pointer(field, <void*>dst.data)
+            zfp_field_set_pointer(field, <void*> dst.data)
             size = zfp_decompress(zfp, field)
 
         if size == 0:
