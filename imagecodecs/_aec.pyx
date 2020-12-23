@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,6 +58,7 @@ from libaec cimport *
 
 class AEC:
     """AEC Constants."""
+
     DATA_SIGNED = AEC_DATA_SIGNED
     DATA_3BYTE = AEC_DATA_3BYTE
     DATA_PREPROCESS = AEC_DATA_PREPROCESS
@@ -90,8 +91,15 @@ def aec_check(data):
     """Return True if data likely contains AEC data."""
 
 
-def aec_encode(data, level=None, bitspersample=None, flags=None,
-               blocksize=None, rsi=None, out=None):
+def aec_encode(
+    data,
+    level=None,
+    bitspersample=None,
+    flags=None,
+    blocksize=None,
+    rsi=None,
+    out=None
+):
     """Compress AEC.
 
     """
@@ -143,9 +151,9 @@ def aec_encode(data, level=None, bitspersample=None, flags=None,
     try:
         with nogil:
             memset(&strm, 0, sizeof(aec_stream))
-            strm.next_in = <unsigned char*>&src[0]
+            strm.next_in = <unsigned char*> &src[0]
             strm.avail_in = srcsize
-            strm.next_out = <unsigned char*>&dst[0]
+            strm.next_out = <unsigned char*> &dst[0]
             strm.avail_out = dstsize
             strm.bits_per_sample = bits_per_sample
             strm.block_size = block_size
@@ -160,8 +168,8 @@ def aec_encode(data, level=None, bitspersample=None, flags=None,
             if ret != AEC_OK:
                 raise AecError('aec_encode', ret)
 
-            byteswritten = <ssize_t>strm.total_out
-            if strm.total_in != <size_t>srcsize:
+            byteswritten = <ssize_t> strm.total_out
+            if strm.total_in != <size_t> srcsize:
                 raise ValueError('output buffer too small')
     finally:
         ret = aec_encode_end(&strm)
@@ -172,8 +180,14 @@ def aec_encode(data, level=None, bitspersample=None, flags=None,
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
-               out=None):
+def aec_decode(
+    data,
+    bitspersample=None,
+    flags=None,
+    blocksize=None,
+    rsi=None,
+    out=None
+):
     """Decompress AEC.
 
     """
@@ -226,14 +240,14 @@ def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
         dst = out
     except ValueError:
         dst = numpy.ravel(out).view('uint8')
-    dstsize = <int>dst.size
+    dstsize = <int> dst.size
 
     try:
         with nogil:
             memset(&strm, 0, sizeof(aec_stream))
-            strm.next_in = <unsigned char*>&src[0]
+            strm.next_in = <unsigned char*> &src[0]
             strm.avail_in = srcsize
-            strm.next_out = <unsigned char*>&dst[0]
+            strm.next_out = <unsigned char*> &dst[0]
             strm.avail_out = dstsize
             strm.bits_per_sample = bits_per_sample
             strm.block_size = block_size
@@ -248,8 +262,8 @@ def aec_decode(data, bitspersample=None, flags=None, blocksize=None, rsi=None,
             if ret != AEC_OK:
                 raise AecError('aec_decode', ret)
 
-            byteswritten = <ssize_t>strm.total_out
-            if strm.total_in != <size_t>srcsize:
+            byteswritten = <ssize_t> strm.total_out
+            if strm.total_in != <size_t> srcsize:
                 raise ValueError('output buffer too small')
     finally:
         ret = aec_decode_end(&strm)
