@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.2.18
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.2.18'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -156,14 +156,10 @@ cdef _delta(data, int axis, out, int decode):
 
         if out is None:
             out = numpy.empty_like(data)
-        else:
-            if not isinstance(out, numpy.ndarray):
-                raise ValueError('output is not a numpy array')
-            if (
-                data.shape != out.shape or
-                data.dtype.itemsize != out.dtype.itemsize
-            ):
-                raise ValueError('output is not compatible with data array')
+        elif not isinstance(out, numpy.ndarray):
+            raise ValueError('output is not a numpy array')
+        elif out.shape != data.shape or out.itemsize != data.itemsize:
+            raise ValueError('output is not compatible with data array')
 
         if axis < 0:
             axis = data.ndim + axis
@@ -183,10 +179,10 @@ cdef _delta(data, int axis, out, int decode):
                 srcptr = numpy.PyArray_ITER_DATA(srciter)
                 dstptr = numpy.PyArray_ITER_DATA(dstiter)
                 ret = imcd_delta(
-                    <void*>srcptr,
+                    <void*> srcptr,
                     srcsize,
                     srcstride,
-                    <void*>dstptr,
+                    <void*> dstptr,
                     dstsize,
                     dststride,
                     itemsize,
@@ -218,10 +214,10 @@ cdef _delta(data, int axis, out, int decode):
 
     with nogil:
         ret = imcd_delta(
-            <void*>&src[0],
+            <void*> &src[0],
             srcsize,
             srcstride,
-            <void*>&dst[0],
+            <void*> &dst[0],
             dstsize,
             dststride,
             itemsize,
@@ -278,11 +274,10 @@ cdef _xor(data, int axis, out, int decode):
 
         if out is None:
             out = numpy.empty_like(data)
-        else:
-            if not isinstance(out, numpy.ndarray):
-                raise ValueError('output is not a numpy array')
-            if data.shape != out.shape or data.dtype != out.dtype:
-                raise ValueError('output is not compatible with data array')
+        elif not isinstance(out, numpy.ndarray):
+            raise ValueError('output is not a numpy array')
+        elif out.shape != data.shape or out.itemsize != data.itemsize:
+            raise ValueError('output is not compatible with data array')
 
         if axis < 0:
             axis = data.ndim + axis
@@ -303,10 +298,10 @@ cdef _xor(data, int axis, out, int decode):
                 srcptr = numpy.PyArray_ITER_DATA(srciter)
                 dstptr = numpy.PyArray_ITER_DATA(dstiter)
                 ret = imcd_xor(
-                    <void*>srcptr,
+                    <void*> srcptr,
                     srcsize,
                     srcstride,
-                    <void*>dstptr,
+                    <void*> dstptr,
                     dstsize,
                     dststride,
                     itemsize,
@@ -338,10 +333,10 @@ cdef _xor(data, int axis, out, int decode):
 
     with nogil:
         ret = imcd_xor(
-            <void*>&src[0],
+            <void*> &src[0],
             srcsize,
             srcstride,
-            <void*>&dst[0],
+            <void*> &dst[0],
             dstsize,
             dststride,
             itemsize,
@@ -412,11 +407,10 @@ cdef _floatpred(data, int axis, out, int decode):
 
     if out is None or data is out:
         out = numpy.empty_like(data)
-    else:
-        if not isinstance(out, numpy.ndarray):
-            raise ValueError('output is not a numpy array')
-        if out.shape != data.shape or out.itemsize != data.itemsize:
-            raise ValueError('output is not compatible with data array')
+    elif not isinstance(out, numpy.ndarray):
+        raise ValueError('output is not a numpy array')
+    elif out.shape != data.shape or out.itemsize != data.itemsize:
+        raise ValueError('output is not compatible with data array')
 
     ndim = data.ndim
     axis = axis % ndim
@@ -433,7 +427,7 @@ cdef _floatpred(data, int axis, out, int decode):
     if src.dtype.byteorder == '=':
         byteorder = IMCD_BOC
     else:
-        byteorder = <char>ord(src.dtype.byteorder)
+        byteorder = <char> ord(src.dtype.byteorder)
 
     srciter = numpy.PyArray_IterAllButAxis(src, &axis)
     dstiter = numpy.PyArray_IterAllButAxis(dst, &axis)
@@ -452,10 +446,10 @@ cdef _floatpred(data, int axis, out, int decode):
             srcptr = numpy.PyArray_ITER_DATA(srciter)
             dstptr = numpy.PyArray_ITER_DATA(dstiter)
             ret = imcd_floatpred(
-                <void*>srcptr,
+                <void*> srcptr,
                 srcsize,
                 srcstride,
-                <void*>dstptr,
+                <void*> dstptr,
                 dstsize,
                 dststride,
                 itemsize,
@@ -507,16 +501,16 @@ def bitorder_encode(data, out=None):
                 raise ValueError('data is not writable')
 
             if numpy.PyArray_ISCONTIGUOUS(data):
-                srcptr = <uint8_t*>numpy.PyArray_DATA(data)
+                srcptr = <uint8_t*> numpy.PyArray_DATA(data)
                 srcsize = data.size * itemsize
                 srcstride = itemsize
                 with nogil:
                     imcd_bitorder(
-                        <uint8_t*>srcptr,
+                        <uint8_t*> srcptr,
                         srcsize,
                         srcstride,
                         itemsize,
-                        <uint8_t*>dstptr,
+                        <uint8_t*> dstptr,
                         dstsize,
                         dststride
                     )
@@ -527,13 +521,13 @@ def bitorder_encode(data, out=None):
             srcstride = data.strides[axis]
             with nogil:
                 while numpy.PyArray_ITER_NOTDONE(srciter):
-                    srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
+                    srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
                     imcd_bitorder(
-                        <uint8_t*>srcptr,
+                        <uint8_t*> srcptr,
                         srcsize,
                         srcstride,
                         itemsize,
-                        <uint8_t*>dstptr,
+                        <uint8_t*> dstptr,
                         dstsize,
                         dststride
                     )
@@ -542,11 +536,10 @@ def bitorder_encode(data, out=None):
 
         if out is None:
             out = numpy.empty_like(data)
-        else:
-            if not isinstance(out, numpy.ndarray):
-                raise ValueError('output is not a numpy array')
-            if data.shape != out.shape or itemsize != out.dtype.itemsize:
-                raise ValueError('output is not compatible with data array')
+        elif not isinstance(out, numpy.ndarray):
+            raise ValueError('output is not a numpy array')
+        elif data.shape != out.shape or itemsize != out.dtype.itemsize:
+            raise ValueError('output is not compatible with data array')
         srciter = numpy.PyArray_IterAllButAxis(data, &axis)
         dstiter = numpy.PyArray_IterAllButAxis(out, &axis)
         srcsize = data.shape[axis] * itemsize
@@ -555,14 +548,14 @@ def bitorder_encode(data, out=None):
         dststride = out.strides[axis]
         with nogil:
             while numpy.PyArray_ITER_NOTDONE(srciter):
-                srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
-                dstptr = <uint8_t*>numpy.PyArray_ITER_DATA(dstiter)
+                srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
+                dstptr = <uint8_t*> numpy.PyArray_ITER_DATA(dstiter)
                 imcd_bitorder(
-                    <uint8_t*>srcptr,
+                    <uint8_t*> srcptr,
                     srcsize,
                     srcstride,
                     itemsize,
-                    <uint8_t*>dstptr,
+                    <uint8_t*> dstptr,
                     dstsize,
                     dststride
                 )
@@ -578,11 +571,11 @@ def bitorder_encode(data, out=None):
         srcsize = src.size
         with nogil:
             imcd_bitorder(
-                <uint8_t*>&src[0],
+                <uint8_t*> &src[0],
                 srcsize,
                 1,
                 1,
-                <uint8_t*>&src[0],
+                <uint8_t*> &src[0],
                 srcsize,
                 1
             )
@@ -596,11 +589,11 @@ def bitorder_encode(data, out=None):
     dstsize = dst.size
     with nogil:
         imcd_bitorder(
-            <uint8_t*>&src[0],
+            <uint8_t*> &src[0],
             srcsize,
             1,
             1,
-            <uint8_t*>&dst[0],
+            <uint8_t*> &dst[0],
             dstsize,
             1
         )
@@ -667,11 +660,11 @@ def packbits_encode(data, level=None, out=None):
         dstptr = &dst[0]
         with nogil:
             while numpy.PyArray_ITER_NOTDONE(srciter):
-                srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
+                srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
                 ret = imcd_packbits_encode(
                     srcptr,
                     srcsize,
-                    <uint8_t*>dstptr,
+                    <uint8_t*> dstptr,
                     dstsize
                 )
                 if ret < 0:
@@ -690,7 +683,7 @@ def packbits_encode(data, level=None, out=None):
             ret = imcd_packbits_encode(
                 &src[0],
                 srcsize,
-                <uint8_t*>&dst[0],
+                <uint8_t*> &dst[0],
                 dstsize
             )
     if ret < 0:
@@ -732,7 +725,7 @@ def packbits_decode(data, out=None):
         ret = imcd_packbits_decode(
             &src[0],
             srcsize,
-            <uint8_t*>&dst[0],
+            <uint8_t*> &dst[0],
             dstsize
         )
     if ret < 0:
@@ -750,16 +743,19 @@ packints_version = imcd_version
 packints_check = imcd_check
 
 
-def packints_encode(*args, **kwargs):
+def packints_encode(data, int bitspersample, int axis=-1, out=None):
     """Pack integers."""
+
     raise NotImplementedError('packints_encode')
 
 
-def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
+def packints_decode(
+    data, dtype, int bitspersample, ssize_t runlen=0, out=None
+):
     """Unpack groups of bits in byte sequence into numpy array."""
     cdef:
         const uint8_t[::1] src = data
-        uint8_t* srcptr = <uint8_t*>&src[0]
+        uint8_t* srcptr = <uint8_t*> &src[0]
         uint8_t* dstptr = NULL
         ssize_t srcsize = src.size
         ssize_t dstsize = 0
@@ -771,56 +767,61 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if numbits < 1 or (numbits > 32 and numbits != 64):
-        raise ValueError('numbits out of range')
+    if bitspersample < 1 or (bitspersample > 32 and bitspersample != 64):
+        raise ValueError('bitspersample out of range')
 
-    bytesize = <ssize_t>ceil(numbits / 8.0)
+    bytesize = <ssize_t> ceil(bitspersample / 8.0)
     itemsize = bytesize if bytesize < 3 else (8 if bytesize > 4 else 4)
 
-    if srcsize > <ssize_t>SSIZE_MAX / itemsize:
+    if srcsize > <ssize_t> SSIZE_MAX / itemsize:
         raise ValueError('data size out of range')
 
     dtype = numpy.dtype(dtype)
     if dtype.itemsize != itemsize:
-        raise ValueError('dtype.itemsize does not fit numbits')
+        raise ValueError('dtype.itemsize does not fit bitspersample')
 
     if runlen == 0:
-        runlen = <ssize_t>((<uint64_t>srcsize * 8) / <uint64_t>numbits)
+        runlen = <ssize_t> (
+            (<uint64_t> srcsize * 8) / <uint64_t> bitspersample
+        )
 
-    skipbits = <ssize_t>((<uint64_t>runlen * <uint64_t>numbits) % 8)
+    skipbits = <ssize_t> ((<uint64_t> runlen * <uint64_t> bitspersample) % 8)
     if skipbits > 0:
         skipbits = 8 - skipbits
 
-    dstsize = <ssize_t>(<uint64_t>runlen * <uint64_t>numbits
-                        + <uint64_t>skipbits)
+    dstsize = <ssize_t> (
+        <uint64_t> runlen * <uint64_t> bitspersample + <uint64_t> skipbits
+    )
     if dstsize > 0:
-        dstsize = <ssize_t>(<uint64_t>runlen * ((<uint64_t>srcsize * 8)
-                            / <uint64_t>dstsize))
+        dstsize = <ssize_t> (
+            <uint64_t> runlen * ((<uint64_t> srcsize * 8) / <uint64_t> dstsize)
+        )
 
     if out is None:
         out = numpy.empty(dstsize, dtype)
-    else:
-        if out.dtype != dtype or out.size < dstsize:
-            raise ValueError('invalid output size or dtype')
-        if not numpy.PyArray_ISCONTIGUOUS(out):
-            raise ValueError('output array is not contiguous')
+    elif out.dtype != dtype or out.size < dstsize:
+        raise ValueError('invalid output size or dtype')
+    elif not numpy.PyArray_ISCONTIGUOUS(out):
+        raise ValueError('output array is not contiguous')
     if dstsize == 0:
         return out
 
-    dstptr = <uint8_t*>numpy.PyArray_DATA(out)
-    srcsize = <ssize_t>((<uint64_t>runlen * <uint64_t>numbits
-                        + <uint64_t>skipbits) / 8)
+    dstptr = <uint8_t*> numpy.PyArray_DATA(out)
+    srcsize = <ssize_t> (
+        (<uint64_t> runlen * <uint64_t> bitspersample + <uint64_t> skipbits)
+        / 8
+    )
 
     with nogil:
         # work around "Converting to Python object not allowed without gil"
         # for i in range(0, dstsize, runlen):
         for i from 0 <= i < dstsize by runlen:
             ret = imcd_packints_decode(
-                <const uint8_t*>srcptr,
+                <const uint8_t*> srcptr,
                 srcsize,
                 dstptr,
                 runlen,
-                numbits
+                bitspersample
             )
             if ret < 0:
                 break
@@ -830,11 +831,11 @@ def packints_decode(data, dtype, int numbits, ssize_t runlen=0, out=None):
     if ret < 0:
         raise PackintsError('imcd_packints_decode', ret)
 
-    if not dtype.isnative and numbits % 8:
+    if not dtype.isnative and bitspersample % 8:
         itemsize = dtype.itemsize
-        dstptr = <uint8_t*>numpy.PyArray_DATA(out)
+        dstptr = <uint8_t*> numpy.PyArray_DATA(out)
         with nogil:
-            imcd_swapbytes(<void*>dstptr, dstsize, itemsize)
+            imcd_swapbytes(<void*> dstptr, dstsize, itemsize)
 
     return out
 
@@ -893,7 +894,7 @@ def lzw_decode(data, buffersize=0, out=None):
                 handle,
                 &src[0],
                 srcsize,
-                <uint8_t*>&dst[0],
+                <uint8_t*> &dst[0],
                 dstsize
             )
         if ret < 0:
