@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,6 +58,7 @@ from jxrlib cimport *
 
 class JPEGXR:
     """JPEG XR Constants."""
+
     # Photometric Interpretation
     PI_W0 = PK_PI_W0
     PI_B0 = PK_PI_B0
@@ -114,9 +115,15 @@ def jpegxr_check(data):
     """Return True if data likely contains a JPEG XR image."""
 
 
-def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
-                  resolution=None, out=None):
-    """Encode numpy array to JPEG XR image.
+def jpegxr_encode(
+    data,
+    level=None,
+    photometric=None,
+    hasalpha=None,
+    resolution=None,
+    out=None
+):
+    """Return JPEG XR image from numpy array.
 
     """
     cdef:
@@ -125,7 +132,7 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
         const uint8_t[::1] dst  # must be const to write to bytes
         U8* outbuffer = NULL
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         size_t byteswritten = 0
         ssize_t samples
         int pi = jxr_encode_photometric(photometric)
@@ -143,8 +150,9 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
         ERR err
 
     if (
-        dtype not in (numpy.uint8, numpy.uint16, numpy.bool,
-                      numpy.float16, numpy.float32)
+        dtype not in (
+            numpy.uint8, numpy.uint16, numpy.bool, numpy.float16, numpy.float32
+        )
         and data.ndim in (2, 3)
         and numpy.PyArray_ISCONTIGUOUS(data)
     ):
@@ -153,9 +161,9 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
     if resolution:
         rx, ry = resolution
 
-    width = <I32>data.shape[1]
-    height = <I32>data.shape[0]
-    stride = <U32>data.strides[0]
+    width = <I32> data.shape[1]
+    height = <I32> data.shape[0]
+    stride = <U32> data.strides[0]
     samples = 1 if data.ndim == 2 else data.shape[2]
 
     if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
@@ -165,7 +173,7 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
         if data.ndim != 2:
             raise ValueError('invalid data shape, strides, or dtype')
         src = numpy.packbits(data, axis=-1)
-        stride = <U32>src.strides[0]
+        stride = <U32> src.strides[0]
         srcsize //= 8
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -175,12 +183,12 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
             dstsize = (((dstsize - 1) // 4096) + 1) * 4096
         elif dstsize < 4096:
             dstsize = 4096
-        outbuffer = <U8*>malloc(dstsize)
+        outbuffer = <U8*> malloc(dstsize)
         if outbuffer == NULL:
             raise MemoryError('failed to allocate ouput buffer')
     else:
         dst = out
-        dstsize = dst.size * dst.itemsize
+        dstsize = dst.nbytes
 
     try:
         with nogil:
@@ -194,12 +202,12 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
                 raise JpegxrError('PixelFormatLookup', err)
 
             if outbuffer == NULL:
-                err = CreateWS_Memory(&stream, <void*>&dst[0], dstsize)
+                err = CreateWS_Memory(&stream, <void*> &dst[0], dstsize)
                 if err:
                     raise JpegxrError('CreateWS_Memory', err)
                 stream.Write = WriteWS_Memory
             else:
-                err = CreateWS_Memory(&stream, <void*>outbuffer, dstsize)
+                err = CreateWS_Memory(&stream, <void*> outbuffer, dstsize)
                 if err:
                     raise JpegxrError('CreateWS_Memory', err)
                 stream.Write = WriteWS_Realloc
@@ -223,7 +231,8 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
                 &pixelinfo,
                 quality,
                 alpha,
-                pi)
+                pi
+            )
 
             err = encoder.SetPixelFormat(encoder, pixelformat)
             if err:
@@ -237,7 +246,7 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
             if err:
                 raise JpegxrError('PKImageEncode_SetResolution', err)
 
-            err = encoder.WritePixels(encoder, height, <U8*>src.data, stride)
+            err = encoder.WritePixels(encoder, height, <U8*> src.data, stride)
             if err:
                 raise JpegxrError('PKImageEncode_WritePixels', err)
 
@@ -259,7 +268,9 @@ def jpegxr_encode(data, level=None, photometric=None, hasalpha=None,
             stream.Close(&stream)
 
     if outbuffer != NULL:
-        out = _create_output(outtype, <ssize_t>byteswritten, <char*>outbuffer)
+        out = _create_output(
+            outtype, <ssize_t> byteswritten, <char*> outbuffer
+        )
         free(outbuffer)
         return out
 
@@ -295,9 +306,10 @@ def jpegxr_decode(data, index=None, out=None):
     try:
         with nogil:
             err = PKCodecFactory_CreateDecoderFromBytes(
-                <void*>&src[0],
+                <void*> &src[0],
                 srcsize,
-                &decoder)
+                &decoder
+            )
             if err:
                 raise JpegxrError('PKCodecFactory_CreateDecoderFromBytes', err)
 
@@ -334,21 +346,22 @@ def jpegxr_decode(data, index=None, out=None):
                 dtype = numpy.PyArray_DescrNewFromType(typenum)
                 out = _create_array(out, shape, dtype)
                 dst = out
-                dstsize = dst.size * dst.itemsize
+                dstsize = dst.nbytes
 
             rect.X = 0
             rect.Y = 0
-            rect.Width = <I32>dst.shape[1]
-            rect.Height = <I32>dst.shape[0]
-            stride = <U32>dst.strides[0]
+            rect.Width = <I32> dst.shape[1]
+            rect.Height = <I32> dst.shape[0]
+            stride = <U32> dst.strides[0]
 
-            memset(<void*>dst.data, 0, dstsize)  # TODO: still necessary?
+            memset(<void*> dst.data, 0, dstsize)  # TODO: still necessary?
             # TODO: check alignment issues
             err = PKFormatConverter_Copy(
                 converter,
                 &rect,
-                <U8*>dst.data,
-                stride)
+                <U8*> dst.data,
+                stride
+            )
         if err:
             raise JpegxrError('PKFormatConverter_Copy', err)
 
@@ -397,8 +410,8 @@ cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
         else:
             # major upsize: resize to exact size
             newsize = newsize + 1
-        pWS.state.buf.pbBuf = <U8*>realloc(
-            <void*>pWS.state.buf.pbBuf,
+        pWS.state.buf.pbBuf = <U8*> realloc(
+            <void*> pWS.state.buf.pbBuf,
             newsize)
         if pWS.state.buf.pbBuf == NULL:
             return WMP_errOutOfMemory
@@ -408,7 +421,7 @@ cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
     pWS.state.buf.cbCur += cb
 
     # keep track of bytes written
-    if pWS.state.buf.cbCur > pWS.state.buf.cbBufCount:
+    if pWS.state.buf.cbCur >  pWS.state.buf.cbBufCount:
         pWS.state.buf.cbBufCount = pWS.state.buf.cbCur
 
     return WMP_errSuccess
@@ -420,8 +433,11 @@ cdef Bool EOSWS_Realloc(WMPStream* pWS) nogil:
     return 1
 
 
-cdef ERR PKCodecFactory_CreateDecoderFromBytes(void* bytes, size_t len,
-                                               PKImageDecode** ppDecode) nogil:
+cdef ERR PKCodecFactory_CreateDecoderFromBytes(
+    void* bytes,
+    size_t len,
+    PKImageDecode** ppDecode
+) nogil:
     """Create PKImageDecode from byte string."""
     cdef:
         char* pExt = NULL
@@ -439,7 +455,7 @@ cdef ERR PKCodecFactory_CreateDecoderFromBytes(void* bytes, size_t len,
     if err:
         return err
     # create decoder
-    err = PKCodecFactory_CreateCodec(pIID, <void**>ppDecode)
+    err = PKCodecFactory_CreateCodec(pIID, <void**> ppDecode)
     if err:
         return err
     # attach stream to decoder
@@ -451,8 +467,12 @@ cdef ERR PKCodecFactory_CreateDecoderFromBytes(void* bytes, size_t len,
     return WMP_errSuccess
 
 
-cdef ERR jxr_decode_guid(PKPixelFormatGUID* pixelformat, int* typenum,
-                         ssize_t* samples, U8* alpha) nogil:
+cdef ERR jxr_decode_guid(
+    PKPixelFormatGUID* pixelformat,
+    int* typenum,
+    ssize_t* samples,
+    U8* alpha
+) nogil:
     """Return dtype, samples, alpha from GUID.
 
     Change pixelformat to output format in-place.
@@ -561,10 +581,6 @@ cdef ERR jxr_decode_guid(PKPixelFormatGUID* pixelformat, int* typenum,
     typenum[0] = numpy.NPY_UINT16
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGray):
         return WMP_errSuccess
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGB101010):
-        pixelformat[0] = GUID_PKPixelFormat48bppRGB
-        samples[0] = 3
-        return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGB):
         samples[0] = 3
         return WMP_errSuccess
@@ -582,6 +598,11 @@ cdef ERR jxr_decode_guid(PKPixelFormatGUID* pixelformat, int* typenum,
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat80bppCMYKAlpha):
         alpha[0] = 2
         samples[0] = 5
+        return WMP_errSuccess
+
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGB101010):
+        pixelformat[0] = GUID_PKPixelFormat48bppRGB
+        samples[0] = 3
         return WMP_errSuccess
 
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bpp3Channels):
@@ -664,11 +685,41 @@ cdef ERR jxr_decode_guid(PKPixelFormatGUID* pixelformat, int* typenum,
         samples[0] = 4
         return WMP_errSuccess
 
+    # fixed to float32
+    typenum[0] = numpy.NPY_FLOAT32
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGrayFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGBFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+        samples[0] = 4
+        return WMP_errSuccess
+
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+        samples[0] = 3
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
+        pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+        samples[0] = 4
+        return WMP_errSuccess
+
     return WMP_errUnsupportedFormat
 
 
-cdef PKPixelFormatGUID jxr_encode_guid(numpy.dtype dtype, ssize_t samples,
-                                       int photometric, int* alpha) nogil:
+cdef PKPixelFormatGUID jxr_encode_guid(
+    numpy.dtype dtype,
+    ssize_t samples,
+    int photometric,
+    int* alpha
+) nogil:
     """Return pixel format GUID from dtype, samples, and photometric."""
     cdef:
         int typenum = dtype.type_num
@@ -811,45 +862,56 @@ cdef int* DPK_QPS_420 = [
     66, 65, 70, 72, 72, 77, 59, 58, 63, 64, 63, 68, 52, 51, 57, 56, 56, 61, 48,
     48, 54, 51, 50, 55, 43, 44, 48, 46, 46, 49, 37, 37, 42, 38, 38, 43, 26, 28,
     31, 27, 28, 31, 16, 17, 22, 16, 17, 21, 10, 11, 13, 10, 10, 13, 5, 5, 6, 5,
-    5, 6, 2, 2, 3, 2, 2, 2]
+    5, 6, 2, 2, 3, 2, 2, 2
+]
 
 cdef int* DPK_QPS_8 = [
     67, 79, 86, 72, 90, 98, 59, 74, 80, 64, 83, 89, 53, 68, 75, 57, 76, 83, 49,
     64, 71, 53, 70, 77, 45, 60, 67, 48, 67, 74, 40, 56, 62, 42, 59, 66, 33, 49,
     55, 35, 51, 58, 27, 44, 49, 28, 45, 50, 20, 36, 42, 20, 38, 44, 13, 27, 34,
-    13, 28, 34, 7, 17, 21, 8, 17, 21, 2, 5, 6, 2, 5, 6]
+    13, 28, 34, 7, 17, 21, 8, 17, 21, 2, 5, 6, 2, 5, 6
+]
 
 cdef int* DPK_QPS_16 = [
     197, 203, 210, 202, 207, 213, 174, 188, 193, 180, 189, 196, 152, 167, 173,
     156, 169, 174, 135, 152, 157, 137, 153, 158, 119, 137, 141, 119, 138, 142,
     102, 120, 125, 100, 120, 124, 82, 98, 104, 79, 98, 103, 60, 76, 81, 58, 76,
-    81, 39, 52, 58, 36, 52, 58, 16, 27, 33, 14, 27, 33, 5, 8, 9, 4, 7, 8]
+    81, 39, 52, 58, 36, 52, 58, 16, 27, 33, 14, 27, 33, 5, 8, 9, 4, 7, 8
+]
 
 cdef int* DPK_QPS_16f = [
     148, 177, 171, 165, 187, 191, 133, 155, 153, 147, 172, 181, 114, 133, 138,
     130, 157, 167, 97, 118, 120, 109, 137, 144, 76, 98, 103, 85, 115, 121, 63,
     86, 91, 62, 96, 99, 46, 68, 71, 43, 73, 75, 29, 48, 52, 27, 48, 51, 16, 30,
-    35, 14, 29, 34, 8, 14, 17, 7,  13, 17, 3, 5, 7, 3, 5, 6]
+    35, 14, 29, 34, 8, 14, 17, 7,  13, 17, 3, 5, 7, 3, 5, 6
+]
 
 cdef int* DPK_QPS_32f = [
     194, 206, 209, 204, 211, 217, 175, 187, 196, 186, 193, 205, 157, 170, 177,
     167, 180, 190, 133, 152, 156, 144, 163, 168, 116, 138, 142, 117, 143, 148,
     98, 120, 123,  96, 123, 126, 80, 99, 102, 78, 99, 102, 65, 79, 84, 63, 79,
-    84, 48, 61, 67, 45, 60, 66, 27, 41, 46, 24, 40, 45, 3, 22, 24,  2, 21, 22]
+    84, 48, 61, 67, 45, 60, 66, 27, 41, 46, 24, 40, 45, 3, 22, 24,  2, 21, 22
+]
 
 
 cdef U8 jxr_quantization(int* qps, double quality, ssize_t i) nogil:
     """Return quantization from DPK_QPS table."""
     cdef:
-        ssize_t qi = <ssize_t>(10.0 * quality)
-        double qf = 10.0 * quality - <double>qi
+        ssize_t qi = <ssize_t> (10.0 * quality)
+        double qf = 10.0 * quality - <double> qi
         int* qps0 = qps + qi * 6
         int* qps1 = qps0 + 6
-    return <U8>(<double>qps0[i] * (1.0 - qf) + <double>qps1[i] * qf + 0.5)
+
+    return <U8> (<double> qps0[i] * (1.0 - qf) + <double> qps1[i] * qf + 0.5)
 
 
-cdef ERR jxr_set_encoder(CWMIStrCodecParam* wmiscp, PKPixelInfo* pixelinfo,
-                         double quality, int alpha, int pi) nogil:
+cdef ERR jxr_set_encoder(
+    CWMIStrCodecParam* wmiscp,
+    PKPixelInfo* pixelinfo,
+    double quality,
+    int alpha,
+    int pi
+) nogil:
     """Set encoder compression parameters from level argument and pixel format.
 
     Code and tables adapted from jxrlib's JxrEncApp.c.
@@ -895,15 +957,15 @@ cdef ERR jxr_set_encoder(CWMIStrCodecParam* wmiscp, PKPixelInfo* pixelinfo,
 
     # bit depth
     if pixelinfo.bdBitDepth == BD_1:
-        wmiscp.uiDefaultQPIndex = <U8>(8 - 5.0 * quality + 0.5)
+        wmiscp.uiDefaultQPIndex = <U8> (8 - 5.0 * quality + 0.5)
     else:
         # remap [0.8, 0.866, 0.933, 1.0] to [0.8, 0.9, 1.0, 1.1]
         # to use 8-bit DPK QP table (0.933 == Photoshop JPEG 100)
         if (
-            quality > 0.8 and
-            pixelinfo.bdBitDepth == BD_8 and
-            wmiscp.cfColorFormat != YUV_420 and
-            wmiscp.cfColorFormat != YUV_422
+            quality > 0.8
+            and pixelinfo.bdBitDepth == BD_8
+            and wmiscp.cfColorFormat != YUV_420
+            and wmiscp.cfColorFormat != YUV_422
         ):
             quality = 0.8 + (quality - 0.8) * 1.5
 
@@ -927,3 +989,13 @@ cdef ERR jxr_set_encoder(CWMIStrCodecParam* wmiscp, PKPixelInfo* pixelinfo,
 
     return WMP_errSuccess
 
+
+cdef pixelformat_str(PKPixelFormatGUID* pf):
+    """Return PKPixelFormatGUID as string."""
+    return (
+        'PKPixelFormatGUID '
+        f'{(<unsigned long *> pf)[0]:#08x}, '
+        f'{(<unsigned long *> pf)[1]:#08x}, '
+        f'{(<unsigned long *> pf)[2]:#08x}, '
+        f'{(<unsigned long *> pf)[3]:#08x}'
+    )
