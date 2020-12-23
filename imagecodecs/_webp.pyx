@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -96,13 +96,13 @@ def webp_check(const uint8_t[::1] data):
 
 
 def webp_encode(data, level=None, out=None):
-    """Encode numpy array to WebP image.
+    """Return WebP image from numpy array.
 
     """
     cdef:
         const uint8_t[:, :, :] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        uint8_t* srcptr = <uint8_t*>&src[0, 0, 0]
+        uint8_t* srcptr = <uint8_t*> &src[0, 0, 0]
         uint8_t* output
         ssize_t dstsize
         size_t ret = 0
@@ -133,34 +133,38 @@ def webp_encode(data, level=None, out=None):
         if lossless:
             if rgba:
                 ret = WebPEncodeLosslessRGBA(
-                    <const uint8_t*>srcptr,
+                    <const uint8_t*> srcptr,
                     width,
                     height,
                     stride,
-                    &output)
+                    &output
+                )
             else:
                 ret = WebPEncodeLosslessRGB(
-                    <const uint8_t*>srcptr,
+                    <const uint8_t*> srcptr,
                     width,
                     height,
                     stride,
-                    &output)
+                    &output
+                )
         elif rgba:
             ret = WebPEncodeRGBA(
-                <const uint8_t*>srcptr,
+                <const uint8_t*> srcptr,
                 width,
                 height,
                 stride,
                 quality_factor,
-                &output)
+                &output
+            )
         else:
             ret = WebPEncodeRGB(
-                <const uint8_t*>srcptr,
+                <const uint8_t*> srcptr,
                 width,
                 height,
                 stride,
                 quality_factor,
-                &output)
+                &output
+            )
 
     if ret <= 0:
         raise WebpError('WebPEncode', ret)
@@ -174,12 +178,12 @@ def webp_encode(data, level=None, out=None):
 
     dst = out
     dstsize = dst.size
-    if <size_t>dstsize < ret:
+    if <size_t> dstsize < ret:
         raise RuntimeError('output too small')
 
     with nogil:
-        memcpy(<void*>&dst[0], <const void*>output, ret)
-        WebPFree(<void*>output)
+        memcpy(<void*> &dst[0], <const void*> output, ret)
+        WebPFree(<void*> output)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -203,21 +207,21 @@ def webp_decode(data, index=None, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    ret = <int>WebPGetFeatures(&src[0], <size_t>srcsize, &features)
+    ret = <int> WebPGetFeatures(&src[0], <size_t> srcsize, &features)
     if ret != VP8_STATUS_OK:
         raise WebpError('WebPGetFeatures', ret)
 
     # TODO: support features.has_animation
 
     if features.has_alpha:
-        shape = (features.height, features.width, 4)
+        shape = features.height, features.width, 4
     else:
-        shape = (features.height, features.width, 3)
+        shape = features.height, features.width, 3
 
     out = _create_array(out, shape, numpy.uint8, strides=(None, shape[2], 1))
     dst = out
     dstsize = dst.shape[0] * dst.strides[0]
-    output_stride = <int>dst.strides[0]
+    output_stride = <int> dst.strides[0]
 
     with nogil:
         if features.has_alpha:
