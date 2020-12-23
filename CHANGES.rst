@@ -1,7 +1,16 @@
 Revisions
 ---------
+2020.12.22
+    Pass 4758 tests.
+    Add AVIF codec via libavif (WIP).
+    Add DEFLATE/Zlib and GZIP codecs via libdeflate.
+    Add LZ4F codec.
+    Add high compression mode option to lz4_encode.
+    Convert JPEG XR 16 and 32-bit fixed point pixel types to float32.
+    Fix JPEG 2000 lossy encoding.
+    Fix GIF disposal handling.
+    Remove support for Python 3.6 (NEP 29).
 2020.5.30
-    Pass 4563 tests.
     Add LERC codec via ESRI's lerc library.
     Enable building JPEG extensions with libjpeg >= 8.
     Enable distributors to modify build settings.
