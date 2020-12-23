@@ -63,7 +63,7 @@ typedef SSIZE_T ssize_t;
 #endif
 
 
-#define JPEGSOF3_VERSION "2020.1.31"
+#define JPEGSOF3_VERSION "2020.12.22"
 
 #define JPEGSOF3_OK 0
 #define JPEGSOF3_INVALID_OUTPUT -1
@@ -90,7 +90,8 @@ int decode_jpegsof3(
     int* dimX,
     int* dimY,
     int* bits,
-    int* frames);
+    int* frames
+);
 
 #ifdef  __cplusplus
 }
