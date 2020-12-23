@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -106,23 +106,24 @@ def zlib_encode(data, level=None, out=None):
     if out is None and dstsize < 0:
         # use Python's zlib module
         import zlib
+
         return zlib.compress(data, compresslevel)
         # TODO: use zlib streaming API
         # return _zlib_compress(src, compresslevel, outtype)
 
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError()
+            raise NotImplementedError
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    dstlen = <unsigned long>dstsize
-    srclen = <unsigned long>srcsize
+    dstlen = <unsigned long> dstsize
+    srclen = <unsigned long> srcsize
 
     with nogil:
         ret = compress2(
-            <Bytef*>&dst[0],
+            <Bytef*> &dst[0],
             &dstlen,
             &src[0],
             srclen,
@@ -155,23 +156,24 @@ def zlib_decode(data, out=None):
     if out is None and dstsize < 0:
         # use Python's zlib module
         import zlib
+
         return zlib.decompress(data)
         # TODO: use zlib streaming API
         # return _zlib_decompress(src, outtype)
 
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError()
+            raise NotImplementedError
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    dstlen = <unsigned long>dstsize
-    srclen = <unsigned long>srcsize
+    dstlen = <unsigned long> dstsize
+    srclen = <unsigned long> srcsize
 
     with nogil:
         ret = uncompress2(
-            <Bytef*>&dst[0],
+            <Bytef*> &dst[0],
             &dstlen,
             &src[0],
             &srclen
@@ -187,10 +189,10 @@ def zlib_crc32(data):
     """Return cyclic redundancy checksum CRC-32 of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        uInt srcsize = <uInt>src.size
+        uInt srcsize = <uInt> src.size
         uLong crc = 0
 
     with nogil:
         crc = crc32(crc, NULL, 0)
-        crc = crc32(crc, <Bytef*>&src[0], srcsize)
+        crc = crc32(crc, <Bytef*> &src[0], srcsize)
     return int(crc)
