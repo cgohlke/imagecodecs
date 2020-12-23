@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -76,10 +76,14 @@ def template_check(const uint8_t[::1] data):
 
 
 def template_encode(data, level=None, out=None):
-    """Compress Template."""
+    """Compress Template.
+
+    """
     raise NotImplementedError('template_encode')
 
 
 def template_decode(data, index=None, out=None):
-    """Decompress Template."""
+    """Decompress Template.
+
+    """
     raise NotImplementedError('template_decode')
