@@ -56,7 +56,7 @@ This file contains the following changes, mostly to the
 
 The changes are released under the BSD 3-Clause License:
 
-Copyright (c) 2018-2019, Christoph Gohlke
+Copyright (c) 2018-2020, Christoph Gohlke
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -459,8 +459,8 @@ int decode_jpegsof3(
     // NEXT: unpad data - delete byte that follows $FF
     ssize_t lIncI = lRawPos;  // input position
     ssize_t lIncO = lRawPos;  // output position
-    int lIsRestartSegments = 0;
-    UNUSED(lIsRestartSegments);
+    // int lIsRestartSegments = 0;
+    // UNUSED(lIsRestartSegments);
 
     do {
         lRawRA[lIncO] = lRawRA[lIncI];  // crash when using read-only input
@@ -472,9 +472,9 @@ int decode_jpegsof3(
                 // end of padding
                 lIncO = -666;
             }
-            else {
-                lIsRestartSegments = lRawRA[lIncI + 1];
-            }
+            // else {
+            //     lIsRestartSegments = lRawRA[lIncI + 1];
+            // }
         }
         lIncI++;
         lIncO++;
