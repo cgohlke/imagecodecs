@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -80,7 +80,8 @@ class BitshuffleError(RuntimeError):
 def bitshuffle_version():
     """Return Bitshuffle library version string."""
     return 'bitshuffle {}.{}.{}'.format(
-        BSHUF_VERSION_MAJOR, BSHUF_VERSION_MINOR, BSHUF_VERSION_POINT)
+        BSHUF_VERSION_MAJOR, BSHUF_VERSION_MINOR, BSHUF_VERSION_POINT
+    )
 
 
 def bitshuffle_check(data):
@@ -108,12 +109,12 @@ def bitshuffle_encode(data, level=None, itemsize=1, blocksize=0, out=None):
         out = _create_array(out, data.shape, data.dtype)
         ndarr = out
         srcsize = data.size
-        elem_size = <size_t>data.itemsize
+        elem_size = <size_t> data.itemsize
         with nogil:
             ret = bshuf_bitshuffle(
-                <void*>&src[0],
-                <void*>ndarr.data,
-                <size_t>srcsize,
+                <void*> &src[0],
+                <void*> ndarr.data,
+                <size_t> srcsize,
                 elem_size,
                 block_size
             )
@@ -144,9 +145,9 @@ def bitshuffle_encode(data, level=None, itemsize=1, blocksize=0, out=None):
 
     with nogil:
         ret = bshuf_bitshuffle(
-            <void*>&src[0],
-            <void*>&dst[0],
-            <size_t>srcsize / elem_size,
+            <void*> &src[0],
+            <void*> &dst[0],
+            <size_t> srcsize / elem_size,
             elem_size,
             block_size
         )
@@ -154,7 +155,7 @@ def bitshuffle_encode(data, level=None, itemsize=1, blocksize=0, out=None):
         raise BitshuffleError('bshuf_bitshuffle', ret)
 
     del dst
-    return _return_output(out, dstsize, ret, outgiven)
+    return _return_output(out, dstsize, <ssize_t> ret, outgiven)
 
 
 def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
@@ -178,12 +179,12 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
         out = _create_array(out, data.shape, data.dtype)
         ndarr = out
         srcsize = data.size
-        elem_size = <size_t>data.itemsize
+        elem_size = <size_t> data.itemsize
         with nogil:
             ret = bshuf_bitunshuffle(
-                <void*>&src[0],
-                <void*>ndarr.data,
-                <size_t>srcsize,
+                <void*> &src[0],
+                <void*> ndarr.data,
+                <size_t> srcsize,
                 elem_size,
                 block_size
             )
@@ -214,9 +215,9 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
 
     with nogil:
         ret = bshuf_bitunshuffle(
-            <void*>&src[0],
-            <void*>&dst[0],
-            <size_t>srcsize / elem_size,
+            <void*> &src[0],
+            <void*> &dst[0],
+            <size_t> srcsize / elem_size,
             elem_size,
             block_size
         )
@@ -224,4 +225,4 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
         raise BitshuffleError('bshuf_bitunshuffle', ret)
 
     del dst
-    return _return_output(out, dstsize, ret, outgiven)
+    return _return_output(out, dstsize, <ssize_t> ret, outgiven)
