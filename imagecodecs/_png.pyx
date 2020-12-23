@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -78,36 +78,36 @@ def png_check(const uint8_t[::1] data):
 
 
 def png_encode(data, level=None, out=None):
-    """Encode numpy array to PNG image.
+    """Return PNG image from numpy array.
 
     """
     cdef:
         numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
-        png_bytep rowptr = <png_bytep>&src.data[0]
+        png_bytep rowptr = <png_bytep> &src.data[0]
         int color_type
         int bit_depth = src.itemsize * 8
-        int samples = <int>src.shape[2] if src.ndim == 3 else 1
+        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int compresslevel = _default_value(level, 5, 0, 10)
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp image = NULL  # row pointers
-        png_uint_32 width = <png_uint_32>src.shape[1]
-        png_uint_32 height = <png_uint_32>src.shape[0]
+        png_uint_32 width = <png_uint_32> src.shape[1]
+        png_uint_32 height = <png_uint_32> src.shape[0]
         png_uint_32 row
 
     if not (
         data.dtype in (numpy.uint8, numpy.uint16)
         and data.ndim in (2, 3)
-        and data.shape[0] < 2**31 - 1
-        and data.shape[1] < 2**31 - 1
+        and data.shape[0] < 2 ** 31
+        and data.shape[1] < 2 ** 31
         and samples <= 4
         and data.strides[data.ndim-1] == data.itemsize
-        and (data.ndim == 2 or data.strides[1] == samples*data.itemsize)
+        and (data.ndim == 2 or data.strides[1] == samples * data.itemsize)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
@@ -125,13 +125,13 @@ def png_encode(data, level=None, out=None):
         mempng.owner = 0
 
     dst = out
-    dstsize = dst.size * dst.itemsize
+    dstsize = dst.nbytes
 
     try:
         with nogil:
 
-            mempng.data = <png_bytep>&dst[0]
-            mempng.size = <png_size_t>dstsize
+            mempng.data = <png_bytep> &dst[0]
+            mempng.size = <png_size_t> dstsize
             mempng.offset = 0
 
             if samples == 1:
@@ -156,7 +156,7 @@ def png_encode(data, level=None, out=None):
 
             png_set_write_fn(
                 png_ptr,
-                <png_voidp>&mempng,
+                <png_voidp> &mempng,
                 png_write_data_fn,
                 png_output_flush_fn
             )
@@ -182,7 +182,7 @@ def png_encode(data, level=None, out=None):
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
-            image = <png_bytepp>malloc(sizeof(png_bytep) * height)
+            image = <png_bytepp> malloc(sizeof(png_bytep) * height)
             if image == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
@@ -213,7 +213,7 @@ def png_decode(data, index=None, out=None):
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         int samples = 0
         mempng_t mempng
         png_structp png_ptr = NULL
@@ -237,7 +237,7 @@ def png_decode(data, index=None, out=None):
 
     try:
         with nogil:
-            mempng.data = <png_bytep>&src[0]
+            mempng.data = <png_bytep> &src[0]
             mempng.size = srcsize
             mempng.offset = 8
             mempng.owner = 0
@@ -254,7 +254,7 @@ def png_decode(data, index=None, out=None):
             if info_ptr == NULL:
                 raise PngError('png_create_info_struct returned NULL')
 
-            png_set_read_fn(png_ptr, <png_voidp>&mempng, png_read_data_fn)
+            png_set_read_fn(png_ptr, <png_voidp> &mempng, png_read_data_fn)
             png_set_sig_bytes(png_ptr, 8)
             png_read_info(png_ptr, info_ptr)
             ret = png_get_IHDR(
@@ -301,8 +301,9 @@ def png_decode(data, index=None, out=None):
 
             png_read_update_info(png_ptr, info_ptr)
 
-            samples = <int>(
-                png_get_rowbytes(png_ptr, info_ptr) / (width * itemsize))
+            samples = <int> (
+                png_get_rowbytes(png_ptr, info_ptr) / (width * itemsize)
+            )
 
         dtype = numpy.dtype(f'u{itemsize}')
         if samples > 1:
@@ -314,15 +315,15 @@ def png_decode(data, index=None, out=None):
 
         out = _create_array(out, shape, dtype, strides)
         dst = out
-        rowptr = <png_bytep>&dst.data[0]
+        rowptr = <png_bytep> &dst.data[0]
         rowstride = dst.strides[0]
 
         with nogil:
-            image = <png_bytepp>malloc(sizeof(png_bytep) * height)
+            image = <png_bytepp> malloc(sizeof(png_bytep) * height)
             if image == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
-                image[row] = <png_bytep>rowptr
+                image[row] = <png_bytep> rowptr
                 rowptr += rowstride
             png_read_image(png_ptr, image)
 
@@ -337,13 +338,17 @@ def png_decode(data, index=None, out=None):
     return out
 
 
-cdef void png_error_callback(png_structp png_ptr,
-                             png_const_charp msg) with gil:
+cdef void png_error_callback(
+    png_structp png_ptr,
+    png_const_charp msg
+) with gil:
     raise PngError(msg.decode().strip())
 
 
-cdef void png_warn_callback(png_structp png_ptr,
-                            png_const_charp msg) with gil:
+cdef void png_warn_callback(
+    png_structp png_ptr,
+    png_const_charp msg
+) with gil:
     _log_warning('PNG %s', msg.decode().strip())
 
 
@@ -354,12 +359,14 @@ ctypedef struct mempng_t:
     int owner
 
 
-cdef void png_read_data_fn(png_structp png_ptr,
-                           png_bytep dst,
-                           png_size_t size) nogil:
+cdef void png_read_data_fn(
+    png_structp png_ptr,
+    png_bytep dst,
+    png_size_t size
+) nogil:
     """PNG read callback function."""
     cdef:
-        mempng_t* mempng = <mempng_t*>png_get_io_ptr(png_ptr)
+        mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
 
     if mempng == NULL:
         return
@@ -369,18 +376,20 @@ cdef void png_read_data_fn(png_structp png_ptr,
         # size = mempng.size - mempng.offset
         raise PngError(f'PNG input stream too small {mempng.size}')
     memcpy(
-        <void*>dst,
-        <const void*>&(mempng.data[mempng.offset]),
+        <void*> dst,
+        <const void*> &(mempng.data[mempng.offset]),
         size)
     mempng.offset += size
 
 
-cdef void png_write_data_fn(png_structp png_ptr,
-                            png_bytep src,
-                            png_size_t size) nogil:
+cdef void png_write_data_fn(
+    png_structp png_ptr,
+    png_bytep src,
+    png_size_t size
+) nogil:
     """PNG write callback function."""
     cdef:
-        mempng_t* mempng = <mempng_t*>png_get_io_ptr(png_ptr)
+        mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
         ssize_t newsize
         png_bytep tmp
 
@@ -392,18 +401,18 @@ cdef void png_write_data_fn(png_structp png_ptr,
         if not mempng.owner:
             raise PngError(f'PNG output stream too small {mempng.size}')
         newsize = mempng.offset + size
-        if newsize <= mempng.size * 1.25:
+        if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
             newsize = newsize + newsize // 4
             newsize = (((newsize - 1) // 4096) + 1) * 4096
-        tmp = <png_bytep>realloc(<void*>mempng.data, newsize)
+        tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
             raise MemoryError('png_write_data_fn realloc failed')
         mempng.data = tmp
         mempng.size = newsize
     memcpy(
-        <void*>&(mempng.data[mempng.offset]),
-        <const void*>src,
+        <void*> &(mempng.data[mempng.offset]),
+        <const void*> src,
         size)
     mempng.offset += size
 
