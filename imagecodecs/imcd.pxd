@@ -1,7 +1,7 @@
 # imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2020.2.18` library.
+# Cython declarations for the `imcd 2020.12.22` library.
 # https://www.lfd.uci.edu/~gohlke/
 
 from libc.stdint cimport uint8_t
@@ -33,7 +33,8 @@ cdef extern from 'imcd.h':
         const ssize_t dstsize,
         const ssize_t dststride,
         const ssize_t itemsize,
-        const int decode) nogil
+        const int decode
+    ) nogil
 
     ssize_t imcd_xor(
         void* src,
@@ -43,7 +44,8 @@ cdef extern from 'imcd.h':
         const ssize_t dstsize,
         const ssize_t dststride,
         const ssize_t itemsize,
-        const int decode) nogil
+        const int decode
+    ) nogil
 
     ssize_t imcd_floatpred(
         void* src,
@@ -55,7 +57,8 @@ cdef extern from 'imcd.h':
         const ssize_t itemsize,
         const ssize_t samples,
         const char byteorder,
-        const int decode) nogil
+        const int decode
+    ) nogil
 
     ssize_t imcd_bitorder(
         uint8_t* src,
@@ -64,53 +67,76 @@ cdef extern from 'imcd.h':
         const ssize_t itemsize,
         uint8_t* dst,
         const ssize_t dstsize,
-        const ssize_t dststride) nogil
+        const ssize_t dststride
+    ) nogil
 
     ssize_t imcd_packbits_size(
         const uint8_t* src,
-        const ssize_t srcsize) nogil
+        const ssize_t srcsize
+    ) nogil
 
     ssize_t imcd_packbits_decode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
-        const ssize_t dstsize) nogil
+        const ssize_t dstsize
+    ) nogil
 
     ssize_t imcd_packbits_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
-        const ssize_t dstsize) nogil
+        const ssize_t dstsize
+    ) nogil
 
     ssize_t imcd_packints_decode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize,
-        const int numbits) nogil
+        const int bps
+    ) nogil
+
+    ssize_t imcd_packints_encode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t dstsize,
+        const int bps
+    ) nogil
 
     void imcd_swapbytes(
         void* src,
         const ssize_t srcsize,
-        const ssize_t itemsize) nogil
+        const ssize_t itemsize
+    ) nogil
 
     ctypedef struct imcd_lzw_handle_t:
         pass
 
-    imcd_lzw_handle_t* imcd_lzw_new(ssize_t buffersize) nogil
+    imcd_lzw_handle_t* imcd_lzw_new(
+        ssize_t buffersize
+    ) nogil
 
-    void imcd_lzw_del(imcd_lzw_handle_t* handle) nogil
+    void imcd_lzw_del(
+        imcd_lzw_handle_t* handle
+    ) nogil
 
     ssize_t imcd_lzw_decode_size(
         imcd_lzw_handle_t* handle,
         const uint8_t* src,
-        const ssize_t srcsize) nogil
+        const ssize_t srcsize
+    ) nogil
 
     ssize_t imcd_lzw_decode(
         imcd_lzw_handle_t* handle,
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
-        const ssize_t dstsize) nogil
+        const ssize_t dstsize
+    ) nogil
 
-    bint imcd_lzw_check(const uint8_t* src, const ssize_t size) nogil
+    bint imcd_lzw_check(
+        const uint8_t* src,
+        const ssize_t size
+    ) nogil
