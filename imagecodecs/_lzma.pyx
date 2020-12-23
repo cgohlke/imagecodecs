@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -85,7 +85,8 @@ class LzmaError(RuntimeError):
 def lzma_version():
     """Return liblzma library version string."""
     return 'liblzma {}.{}.{}'.format(
-        LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH)
+        LZMA_VERSION_MAJOR, LZMA_VERSION_MINOR, LZMA_VERSION_PATCH
+    )
 
 
 def lzma_check(const uint8_t[::1] data):
@@ -129,13 +130,13 @@ def lzma_encode(data, level=None, out=None):
     try:
         with nogil:
             strm.next_in = &src[0]
-            strm.avail_in = <size_t>srcsize
-            strm.next_out = <uint8_t*>&dst[0]
-            strm.avail_out = <size_t>dstsize
+            strm.avail_in = <size_t> srcsize
+            strm.next_out = <uint8_t*> &dst[0]
+            strm.avail_out = <size_t> dstsize
             ret = lzma_code(&strm, LZMA_RUN)
             if ret == LZMA_OK or ret == LZMA_STREAM_END:
                 ret = lzma_code(&strm, LZMA_FINISH)
-            dstlen = dstsize - <ssize_t>strm.avail_out
+            dstlen = dstsize - <ssize_t> strm.avail_out
         if ret != LZMA_STREAM_END:
             raise LzmaError('lzma_code', ret)
     finally:
@@ -179,11 +180,11 @@ def lzma_decode(data, out=None):
     try:
         with nogil:
             strm.next_in = &src[0]
-            strm.avail_in = <size_t>srcsize
-            strm.next_out = <uint8_t*>&dst[0]
-            strm.avail_out = <size_t>dstsize
+            strm.avail_in = <size_t> srcsize
+            strm.next_out = <uint8_t*> &dst[0]
+            strm.avail_out = <size_t> dstsize
             ret = lzma_code(&strm, LZMA_RUN)
-            dstlen = dstsize - <ssize_t>strm.avail_out
+            dstlen = dstsize - <ssize_t> strm.avail_out
         if ret != LZMA_OK and ret != LZMA_STREAM_END:
             raise LzmaError('lzma_code', ret)
     finally:
@@ -226,4 +227,4 @@ def _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
         usize = lzma_index_uncompressed_size(index)
     finally:
         lzma_index_end(index, NULL)
-    return <ssize_t>usize
+    return <ssize_t> usize
