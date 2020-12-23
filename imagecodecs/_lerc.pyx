@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.4.10
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.4.10'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -62,6 +62,7 @@ class LERC:
 
 class LercError(RuntimeError):
     """LERC Exceptions."""
+
     def __init__(self, func, err):
         msg = {
             Ok: 'Ok',
@@ -76,7 +77,7 @@ class LercError(RuntimeError):
 
 def lerc_version():
     """Return LERC library version string."""
-    return 'lerc 2.1'
+    return 'lerc 2.2'
 
 
 def lerc_check(const uint8_t[::1] data):
@@ -87,9 +88,16 @@ def lerc_check(const uint8_t[::1] data):
     return sig[:5] == b'Lerc2' or sig[:9] == b'CntZImage'
 
 
-def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
-                out=None):
-    """Compress LERC."""
+def lerc_encode(
+    data, level=None,
+    mask=None,
+    version=None,
+    planarconfig=None,
+    out=None
+):
+    """Compress LERC.
+
+    """
     cdef:
         numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -130,24 +138,24 @@ def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
         raise ValueError('data type not supported by LERC')
 
     if ndim == 2:
-        nRows = <int>data.shape[0]
-        nCols = <int>data.shape[1]
+        nRows = <int> data.shape[0]
+        nCols = <int> data.shape[1]
     elif ndim == 3:
         if planarconfig is None or planarconfig in ('contig', 'CONTIG', 1):
-            nRows = <int>data.shape[0]
-            nCols = <int>data.shape[1]
-            nDim = <int>data.shape[2]
+            nRows = <int> data.shape[0]
+            nCols = <int> data.shape[1]
+            nDim = <int> data.shape[2]
         else:
-            nBands = <int>data.shape[0]
-            nRows = <int>data.shape[1]
-            nCols = <int>data.shape[2]
+            nBands = <int> data.shape[0]
+            nRows = <int> data.shape[1]
+            nCols = <int> data.shape[2]
     elif ndim == 4:
-        nBands = <int>data.shape[0]
-        nRows = <int>data.shape[1]
-        nCols = <int>data.shape[2]
-        nDim = <int>data.shape[3]
+        nBands = <int> data.shape[0]
+        nRows = <int> data.shape[1]
+        nCols = <int> data.shape[2]
+        nDim = <int> data.shape[3]
     elif ndim == 1:
-        nCols = <int>data.shape[0]
+        nCols = <int> data.shape[0]
     else:
         raise ValueError('data shape not supported by LERC')
 
@@ -155,7 +163,7 @@ def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
     if out is None:
         if dstsize < 0:
             ret = lerc_computeCompressedSizeForVersion(
-                <const void*>src.data,
+                <const void*> src.data,
                 iversion,
                 dataType,
                 nDim,
@@ -168,16 +176,16 @@ def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
             )
             if ret != 0:
                 raise LercError('lerc_computeCompressedSizeForVersion', ret)
-            dstsize = <ssize_t>blobSize
+            dstsize = <ssize_t> blobSize
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size * dst.itemsize
-    blobSize = <unsigned int>dstsize
+    dstsize = dst.nbytes
+    blobSize = <unsigned int> dstsize
 
     with nogil:
         ret = lerc_encodeForVersion(
-            <const void*>src.data,
+            <const void*> src.data,
             iversion,
             dataType,
             nDim,
@@ -186,7 +194,7 @@ def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
             nBands,
             pValidBytes,
             maxZErr,
-            <unsigned char*>&dst[0],
+            <unsigned char*> &dst[0],
             blobSize,
             &nBytesWritten
         )
@@ -194,11 +202,13 @@ def lerc_encode(data, level=None, mask=None, version=None, planarconfig=None,
         raise LercError('lerc_encodeForVersion', ret)
 
     del dst
-    return _return_output(out, dstsize, <ssize_t>nBytesWritten, outgiven)
+    return _return_output(out, dstsize, <ssize_t> nBytesWritten, outgiven)
 
 
 def lerc_decode(data, index=None, mask=None, out=None):
-    """Decompress LERC."""
+    """Decompress LERC.
+
+    """
     cdef:
         numpy.ndarray dst
         numpy.ndarray valid
@@ -227,8 +237,8 @@ def lerc_decode(data, index=None, mask=None, out=None):
         data[0] = data[0]
 
     ret = lerc_getBlobInfo(
-        <const unsigned char*>&src[0],
-        <unsigned int>srcsize,
+        <const unsigned char*> &src[0],
+        <unsigned int> srcsize,
         &infoArray[0],
         &dataRangeArray[0],
         8,
@@ -246,7 +256,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
     nValidPixels = infoArray[6]
     blobSize = infoArray[7]
 
-    if srcsize < <ssize_t>blobSize:
+    if srcsize < <ssize_t> blobSize:
         raise RuntimeError('incomplete blob')
 
     if dataType == dt_char:
@@ -270,13 +280,13 @@ def lerc_decode(data, index=None, mask=None, out=None):
 
     if nBands > 1:
         if nDim > 1:
-            shape = (nBands, nRows, nCols, nDim)
+            shape = nBands, nRows, nCols, nDim
         else:
-            shape = (nBands, nRows, nCols)
+            shape = nBands, nRows, nCols
     elif nDim > 1:
-        shape = (nRows, nCols, nDim)
+        shape = nRows, nCols, nDim
     else:
-        shape = (nRows, nCols)
+        shape = nRows, nCols
 
     out = _create_array(out, shape, dtype, None, nValidPixels != nRows * nCols)
     dst = out
@@ -286,11 +296,11 @@ def lerc_decode(data, index=None, mask=None, out=None):
             mask = None
         mask = _create_array(mask, (nRows, nCols), numpy.bool)
         valid = mask
-        pValidBytes = <unsigned char*>valid.data
+        pValidBytes = <unsigned char*> valid.data
 
     with nogil:
         ret = lerc_decode_c(
-            <const unsigned char*>&src[0],
+            <const unsigned char*> &src[0],
             blobSize,
             pValidBytes,
             nDim,
@@ -298,7 +308,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
             nRows,
             nBands,
             dataType,
-            <void*>dst.data
+            <void*> dst.data
         )
     if ret != 0:
         raise LercError('lerc_decode', ret)
