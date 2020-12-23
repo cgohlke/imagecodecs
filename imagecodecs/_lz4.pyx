@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -59,6 +59,11 @@ from lz4 cimport *
 class LZ4:
     """LZ4 Constants."""
 
+    CLEVEL_MIN = LZ4HC_CLEVEL_MIN
+    CLEVEL_DEFAULT = LZ4HC_CLEVEL_DEFAULT
+    CLEVEL_OPT_MIN = LZ4HC_CLEVEL_OPT_MIN
+    CLEVEL_MAX = LZ4HC_CLEVEL_MAX
+
 
 class Lz4Error(RuntimeError):
     """LZ4 Exceptions."""
@@ -67,14 +72,15 @@ class Lz4Error(RuntimeError):
 def lz4_version():
     """Return LZ4 library version string."""
     return 'lz4 {}.{}.{}'.format(
-        LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR, LZ4_VERSION_RELEASE)
+        LZ4_VERSION_MAJOR, LZ4_VERSION_MINOR, LZ4_VERSION_RELEASE
+    )
 
 
 def lz4_check(data):
     """Return True if data likely contains LZ4 data."""
 
 
-def lz4_encode(data, level=None, header=False, out=None):
+def lz4_encode(data, level=None, hc=False, header=False, out=None):
     """Compress LZ4.
 
     """
@@ -86,7 +92,7 @@ def lz4_encode(data, level=None, header=False, out=None):
         int offset = 4 if header else 0
         int ret
         uint8_t* pdst
-        int acceleration = _default_value(level, 1, 1, 1000)
+        int acceleration, compressionlevel
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -106,24 +112,41 @@ def lz4_encode(data, level=None, header=False, out=None):
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int>dst.size - offset
+    dstsize = <int> dst.size - offset
 
-    if dst.size > 2**31:
+    if dst.size >= 2 ** 31:
         raise ValueError('output too large')
 
-    with nogil:
-        ret = LZ4_compress_fast(
-            <char*>&src[0],
-            <char*>&dst[offset],
-            srcsize,
-            dstsize,
-            acceleration
+    if hc:
+        compressionlevel = _default_value(
+            level, LZ4HC_CLEVEL_DEFAULT, LZ4HC_CLEVEL_MIN, LZ4HC_CLEVEL_MAX
         )
-    if ret <= 0:
-        raise Lz4Error(f'LZ4_compress_fast returned {ret}')
+        with nogil:
+            ret = LZ4_compress_HC(
+                <const char*> &src[0],
+                <char*> &dst[offset],
+                srcsize,
+                dstsize,
+                compressionlevel
+            )
+            if ret <= 0:
+                raise Lz4Error(f'LZ4_compress_HC returned {ret}')
+
+    else:
+        acceleration = _default_value(level, 1, 1, 65537)
+        with nogil:
+            ret = LZ4_compress_fast(
+                <const char*> &src[0],
+                <char*> &dst[offset],
+                srcsize,
+                dstsize,
+                acceleration
+            )
+            if ret <= 0:
+                raise Lz4Error(f'LZ4_compress_fast returned {ret}')
 
     if header:
-        pdst = <uint8_t*>&dst[0]
+        pdst = <uint8_t*> &dst[0]
         pdst[0] = srcsize & 255
         pdst[1] = (srcsize >> 8) & 255
         pdst[2] = (srcsize >> 16) & 255
@@ -140,7 +163,7 @@ def lz4_decode(data, header=False, out=None):
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        int srcsize = <int>src.size
+        int srcsize = <int> src.size
         int dstsize
         int offset = 4 if header else 0
         int ret
@@ -148,7 +171,7 @@ def lz4_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > 2**31:
+    if src.size >= 2 ** 31:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -160,21 +183,22 @@ def lz4_decode(data, header=False, out=None):
 
     if out is None:
         if dstsize < 0:
+            # TODO: use streaming API
             dstsize = max(24, 24 + 255 * (srcsize - offset - 10))  # ugh
-            if dstsize < 0:
-                raise Lz4Error(f'invalid output size {dstsize}')
+            # if dstsize < 0:
+            #     raise Lz4Error(f'invalid output size {dstsize}')
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int>dst.size
+    dstsize = <int> dst.size
 
-    if dst.size > 2**31:
+    if dst.size >= 2 ** 31:
         raise ValueError('output too large')
 
     with nogil:
         ret = LZ4_decompress_safe(
-            <char*>&src[offset],
-            <char*>&dst[0],
+            <char*> &src[offset],
+            <char*> &dst[0],
             srcsize - offset,
             dstsize
         )
