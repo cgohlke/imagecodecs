@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -119,7 +119,7 @@ def bz2_encode(data, level=None, out=None):
 
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError()
+            raise NotImplementedError
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -132,17 +132,17 @@ def bz2_encode(data, level=None, out=None):
 
     try:
         with nogil:
-            strm.next_in = <char*>&src[0]
-            strm.avail_in = <unsigned int>srcsize
-            strm.next_out = <char*>&dst[0]
-            strm.avail_out = <unsigned int>dstsize
+            strm.next_in = <char*> &src[0]
+            strm.avail_in = <unsigned int> srcsize
+            strm.next_out = <char*> &dst[0]
+            strm.avail_out = <unsigned int> dstsize
             # while True
             ret = BZ2_bzCompress(&strm, BZ_FINISH)
             #    if ret == BZ_STREAM_END:
             #        break
             #    elif ret != BZ_OK:
             #        break
-            dstlen = dstsize - <ssize_t>strm.avail_out
+            dstlen = dstsize - <ssize_t> strm.avail_out
         if ret != BZ_STREAM_END:
             raise Bz2Error('BZ2_bzCompress', ret)
     finally:
@@ -173,11 +173,12 @@ def bz2_decode(data, out=None):
     if out is None and dstsize < 0:
         # use Python's bz2 module
         import bz2
+
         return bz2.decompress(data)
 
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError()
+            raise NotImplementedError
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -190,12 +191,12 @@ def bz2_decode(data, out=None):
 
     try:
         with nogil:
-            strm.next_in = <char*>&src[0]
-            strm.avail_in = <unsigned int>srcsize
-            strm.next_out = <char*>&dst[0]
-            strm.avail_out = <unsigned int>dstsize
+            strm.next_in = <char*> &src[0]
+            strm.avail_in = <unsigned int> srcsize
+            strm.next_out = <char*> &dst[0]
+            strm.avail_out = <unsigned int> dstsize
             ret = BZ2_bzDecompress(&strm)
-            dstlen = dstsize - <ssize_t>strm.avail_out
+            dstlen = dstsize - <ssize_t> strm.avail_out
         if ret == BZ_OK:
             pass  # output buffer too small
         elif ret != BZ_STREAM_END:
