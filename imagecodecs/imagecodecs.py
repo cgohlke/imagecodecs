@@ -35,11 +35,12 @@ Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in the
 tifffile, czifile, and other scientific image input/output modules.
 
-Decode and/or encode functions are implemented for Zlib (DEFLATE),
-ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZW, LZF, ZFP, AEC,
-LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, JPEG SOF3 (LJPEG),
-JPEG 2000, JPEG LS, JPEG XR, JPEG XL, PackBits, Packed Integers, Delta,
-XOR Delta, Floating Point Predictor, Bitorder reversal, and Bitshuffle.
+Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
+ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
+LZW, LZF, ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit,
+JPEG SOF3 (LJPEG), JPEG 2000, JPEG LS, JPEG XR, JPEG XL, AVIF,
+PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
+Bitorder reversal, and Bitshuffle.
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -49,27 +50,27 @@ XOR Delta, Floating Point Predictor, Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2020.5.30
+:Version: 2020.12.22
 
 Requirements
 ------------
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.6.8, 3.7.7, 3.8.3 64-bit <https://www.python.org>`_
-* `Numpy 1.16.6, 1.18.4 <https://www.numpy.org>`_
-* `Cython 0.29.19 <https://cython.org>`_
+* `CPython 3.7.9, 3.8.7, 3.9.1 64-bit <https://www.python.org>`_
+* `Numpy 1.19.4 <https://pypi.org/project/numpy/>`_
+* `Cython 0.29.21 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.9.2 <https://github.com/lz4/lz4>`_
-* `zstd 1.4.5 <https://github.com/facebook/zstd>`_
-* `blosc 1.18.1 <https://github.com/Blosc/c-blosc>`_
+* `lz4 1.9.3 <https://github.com/lz4/lz4>`_
+* `zstd 1.4.8 <https://github.com/facebook/zstd>`_
+* `blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
-* `libtiff 4.1.0 <https://gitlab.com/libtiff/libtiff>`_
-* `libjpeg-turbo 2.0.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libtiff 4.2.0 <https://gitlab.com/libtiff/libtiff>`_
+* `libjpeg-turbo 2.0.6 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
@@ -80,23 +81,27 @@ This release has been tested with the following requirements and dependencies
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
 * `snappy 1.1.8 <https://github.com/google/snappy>`_
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
-* `brotli 1.0.7 <https://github.com/google/brotli>`_
+* `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
-* `lerc 2.1 <https://github.com/Esri/lerc>`_
-* `lcms 2.9 <https://github.com/mm2/Little-CMS>`_
+* `lerc 2.2 <https://github.com/Esri/lerc>`_
+* `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
+* `libavif 0.8.2 <https://github.com/AOMediaCodec/libavif>`_
+* `dav1d 0.7.1 <https://github.com/videolan/dav1d>`_
+* `aom 2.0.0 <https://aomedia.googlesource.com/aom>`_
+* `lcms 2.11 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2020.5.30 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2020.12.8 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.8.3 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 3.0.2 <https://github.com/python-lz4/python-lz4>`_
+* `python-blosc 1.9.2 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 3.1.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
-* `python-brotli 1.0.7 <https://github.com/google/brotli/tree/master/python>`_
+* `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
-* `zopflipy 1.3 <https://github.com/hattya/zopflipy>`_
+* `zopflipy 1.4 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
@@ -105,24 +110,21 @@ The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
 
-Python 32-bit versions are deprecated. Python 2.7 and 3.5 are no longer
-supported.
+Python 32-bit versions are deprecated. Python <= 3.6 are no longer supported.
 
 The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017
 and 2019 <https://support.microsoft.com/en-us/help/2977003/
 the-latest-supported-visual-c-downloads>`_ is required on Windows.
 
-Refer to the imagecodecs/licenses folder for 3rd party library licenses.
+Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
 This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
-<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
-and `OpenJPEG's color.c
-<https://github.com/uclouvain/openjpeg/blob/master/src/bin/common/color.c>`_.
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`.
 
 Build instructions and wheels for manylinux and macOS courtesy of
-`Grzegorz Bokota <https://github.com/Czaki/imagecodecs>`_.
+`Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
 
 Update pip and setuptools to the latest version before installing imagecodecs:
 
@@ -141,7 +143,7 @@ latest Ubuntu Linux distributions:
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-dev libjxr-dev
     liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
-    libzopfli-dev libgif-dev libtiff-dev``
+    libzopfli-dev libgif-dev libtiff-dev libdeflate-dev libavif-dev``
 
 Use the ``--lite`` build option to only build extensions without 3rd-party
 dependencies. Use the ``--skip-extension`` build options to skip building
@@ -150,8 +152,8 @@ specific extensions, e.g.:
     ``python -m pip install imagecodecs --global-option="build_ext"
     --global-option="--skip-bitshuffle"``
 
-The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, and ``lerc`` extensions are
-disabled by default when building from source.
+The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, and ``lerc``
+extensions are disabled by default when building from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
@@ -166,16 +168,34 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `backports.lzma <https://github.com/peterjc/backports.lzma>`_
 * `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
+* `python-lerc <https://pypi.org/project/lerc/>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
 * `fpzip <https://github.com/seung-lab/fpzip>`_
 * `libmng <https://sourceforge.net/projects/libmng/>`_
 * `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
 * `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
+* `tinyexr <https://github.com/syoyo/tinyexr>`_
+* `pytinyexr <https://github.com/syoyo/pytinyexr>`_
+* `jpeg-xl <https://gitlab.com/wg1/jpeg-xl>`_
+* `libjpeg <https://github.com/thorfdbg/libjpeg>`_ (GPL)
+* `pylibjpeg <https://github.com/pydicom/pylibjpeg>`_
+* `pylibjpeg-libjpeg <https://github.com/pydicom/pylibjpeg-libjpeg>`_ (GPL)
+* `pylibjpeg-openjpeg <https://github.com/pydicom/pylibjpeg-openjpeg>`_
+* `glymur <https://github.com/quintusdias/glymur>`_
 
 Revisions
 ---------
+2020.12.22
+    Pass 4758 tests.
+    Add AVIF codec via libavif (WIP).
+    Add DEFLATE/Zlib and GZIP codecs via libdeflate.
+    Add LZ4F codec.
+    Add high compression mode option to lz4_encode.
+    Convert JPEG XR 16 and 32-bit fixed point pixel types to float32.
+    Fix JPEG 2000 lossy encoding.
+    Fix GIF disposal handling.
+    Remove support for Python 3.6 (NEP 29).
 2020.5.30
-    Pass 4563 tests.
     Add LERC codec via ESRI's lerc library.
     Enable building JPEG extensions with libjpeg >= 8.
     Enable distributors to modify build settings.
@@ -248,7 +268,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2020.5.30'
+__version__ = '2020.12.22'
 
 import os
 import sys
@@ -261,16 +281,13 @@ import numpy
 # will be updated with standard attributes
 _API = {
     None: [
+        'version',
         'imread',
         'imwrite',
-        'version',
+        'imagefileext',
         'DelayedImportError',
-        (
-            'none',
-            'numpy',
-            'jpeg',
-        )
-        ],
+        ('none', 'numpy', 'jpeg'),
+    ],
     'imcd': [
         'imcd_version',
         'numpy_abi_version',
@@ -283,13 +300,16 @@ _API = {
             'packbits',
             'packints',
             'xor',
-        )
-        ],
+        ),
+    ],
     'aec': [],
+    'avif': [],
+    # 'exr': [],
     'bitshuffle': [],
     'blosc': [],
     'brotli': [],
     'bz2': [],
+    'deflate': ['deflate_crc32', 'deflate_adler32', ('deflate', 'gzip')],
     'gif': [],
     'jpeg2k': [],
     'jpeg8': [],
@@ -300,6 +320,7 @@ _API = {
     'jpegxr': [],
     'lerc': [],
     'lz4': [],
+    'lz4f': [],
     'lzf': [],
     'lzma': [],
     'png': [],
@@ -311,7 +332,7 @@ _API = {
     'zlib': ['zlib_crc32'],
     'zopfli': [],
     'zstd': [],
-    # 'module': ['attribute1', 'attribute2', ('codec1', 'code2', )]
+    # 'module': ['attribute1', 'attribute2', ('codec1', 'code2')]
 }
 
 # map extra to existing attributes
@@ -404,6 +425,7 @@ def __getattr__(name):
         # work around Cython raises AttributeError e.g. when the _shared
         # module failed to import due to an incompatible numpy version
         from . import _shared  # noqa
+
         module = None
 
     for n in _API[module_]:
@@ -431,10 +453,13 @@ def _stub(name, module):
 
     if name.endswith('_version'):
         if module is None:
+
             def stub_version():
                 f"""Stub for imagecodecs.{name}."""
                 return f"{name[:-8]} n/a"
+
         else:
+
             def stub_version():
                 f"""Stub for imagecodecs.{name}."""
                 return f"{name[:-8]} unknow"
@@ -443,10 +468,13 @@ def _stub(name, module):
 
     if name.endswith('_check'):
         if module is None:
+
             def stub_check(arg):
                 f"""Stub for imagecodecs.{name}."""
                 return False
+
         else:
+
             def stub_check(arg):
                 f"""Stub for imagecodecs.{name}."""
                 return None
@@ -454,6 +482,7 @@ def _stub(name, module):
         return stub_check
 
     if name.endswith('_decode'):
+
         def stub_decode(*args, **kwargs):
             f"""Stub for imagecodecs.{name}."""
             raise DelayedImportError(name)
@@ -461,6 +490,7 @@ def _stub(name, module):
         return stub_decode
 
     if name.endswith('_encode'):
+
         def stub_encode(*args, **kwargs):
             f"""Stub for imagecodecs.{name}."""
             raise DelayedImportError(name)
@@ -468,6 +498,7 @@ def _stub(name, module):
         return stub_encode
 
     if name.islower():
+
         def stub_function(*args, **kwargs):
             f"""Stub for imagecodecs.{name}."""
             raise DelayedImportError(name)
@@ -475,6 +506,7 @@ def _stub(name, module):
         return stub_function
 
     if name.endswith('Error'):
+
         class StubError(RuntimeError):
             f"""Stub for imagecodecs.{name}."""
 
@@ -488,10 +520,12 @@ def _stub(name, module):
             raise DelayedImportError(name)
 
         if module is None:
+
             def __bool__(cls):
                 return False
 
     if name.isupper():
+
         class STUB(metaclass=StubType):
             f"""Stub for imagecodecs.{name}."""
 
@@ -511,21 +545,32 @@ def _extensions():
 def version(astype=None, _versions_=[]):
     """Return version information about all codecs and dependencies."""
     if not _versions_:
-        _versions_.extend((
-            f'imagecodecs {__version__}',
-            imagecodecs.cython_version(),
-            imagecodecs.numpy_version(),
-            imagecodecs.numpy_abi_version(),
-            imagecodecs.imcd_version(),
-        ))
         _versions_.extend(
-            sorted(set(
-                getattr(imagecodecs, v)()
-                for v in _ATTRIBUTES
-                if v.endswith('_version') and v not in (
-                    'imcd_version', 'numpy_abi_version', 'numpy_version',
-                    'cython_version', 'none_version')
-            )))
+            (
+                f'imagecodecs {__version__}',
+                imagecodecs.cython_version(),
+                imagecodecs.numpy_version(),
+                imagecodecs.numpy_abi_version(),
+                imagecodecs.imcd_version(),
+            )
+        )
+        _versions_.extend(
+            sorted(
+                set(
+                    getattr(imagecodecs, v)()
+                    for v in _ATTRIBUTES
+                    if v.endswith('_version')
+                    and v
+                    not in (
+                        'imcd_version',
+                        'numpy_abi_version',
+                        'numpy_version',
+                        'cython_version',
+                        'none_version',
+                    )
+                )
+            )
+        )
 
     if astype is None or astype is str:
         return ', '.join(ver.replace(' ', '-') for ver in _versions_)
@@ -536,14 +581,13 @@ def version(astype=None, _versions_=[]):
 
 def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
     """Return image data from file as numpy array."""
-    import pathlib
     import mmap
 
     codecs = []
     if codec is None:
         # find codec based on file extension
-        if isinstance(fileobj, (str, pathlib.Path)):
-            ext = os.path.splitext(str(fileobj))[-1][1:].lower()
+        if isinstance(fileobj, (str, os.PathLike)):
+            ext = os.path.splitext(os.fspath(fileobj))[-1][1:].lower()
         else:
             ext = None
         if ext in _imcodecs():
@@ -554,10 +598,26 @@ def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
                 codecs.append(codec)
         # try other imaging codecs
         codecs.extend(
-            c for c in (
-                'tiff', 'png', 'gif', 'webp', 'jpeg8', 'jpeg12', 'jpegsof3',
-                'jpeg2k', 'jpegls', 'jpegxr', 'jpegxl', 'zfp', 'lerc', 'numpy'
-            ) if c not in codecs
+            c
+            for c in (
+                'tiff',
+                'png',
+                'gif',
+                'webp',
+                'jpeg8',
+                'jpeg12',
+                'jpegsof3',
+                'jpeg2k',
+                'jpegls',
+                'jpegxr',
+                'jpegxl',
+                'avif',
+                # 'exr',
+                'zfp',
+                'lerc',
+                'numpy',
+            )
+            if c not in codecs
         )
     else:
         # use provided codecs
@@ -577,10 +637,10 @@ def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
     elif hasattr(fileobj, 'read'):
         # binary stream: open file, BytesIO
         data = fileobj.read()
-    elif isinstance(fileobj, (str, pathlib.Path)):
+    elif isinstance(fileobj, (str, os.PathLike)):
         # TODO: support urllib.request.urlopen ?
         # file name
-        with open(str(fileobj), 'rb') as fh:
+        with open(os.fspath(fileobj), 'rb') as fh:
             if memmap:
                 offset = 0
                 close = True
@@ -631,10 +691,8 @@ def imwrite(fileobj, data, codec=None, **kwargs):
     """Write numpy array to image file."""
     if codec is None:
         # find codec based on file extension
-        import pathlib
-
-        if isinstance(fileobj, (str, pathlib.Path)):
-            ext = os.path.splitext(str(fileobj))[-1].lower()[1:]
+        if isinstance(fileobj, (str, os.PathLike)):
+            ext = os.path.splitext(os.fspath(fileobj))[-1].lower()[1:]
         else:
             raise ValueError('no codec specified')
 
@@ -669,26 +727,30 @@ def _imcodecs(_codecs_={}):
     """Return map of image file extensions to codec names."""
     if not _codecs_:
         codecs = {
-            'numpy': ('npy', 'npz'),
-            'zfp': ('zfp', ),
-            'gif': ('gif', ),
-            'png': ('png', ),
-            'webp': ('webp', ),
-            'lerc': ('lerc1', 'lerc2'),
-            'tiff': ('tif', 'tiff', 'tf8', 'tf2', 'btf'),
+            'avif': ('avif', 'avifs'),
+            # 'exr': ('exr',),
+            'gif': ('gif',),
             'jpeg': ('jpg', 'jpeg', 'jpe', 'jfif', 'jif', 'ljpeg'),
-            'jpegls': ('jls', ),
+            'jpeg2k': ('j2k', 'jp2', 'j2c', 'jpc', 'jpx', 'jpf'),  # jpm, mj2
+            'jpegls': ('jls',),
             'jpegxl': ('jxl', 'brn'),
             'jpegxr': ('jxr', 'hdp', 'wdp'),
-            'jpeg2k': ('j2k', 'jp2', 'j2c', 'jpc', 'jpx', 'jpf'),
-            # 'jpeg8': ('jpg8', 'jpeg8'),
-            # 'jpeg12': ('jpg12', 'jpeg12'),
-            # 'jpegsof3': ('ljpeg', 'jsof3', 'jpegsof3', 'jpeg0xc3')
+            'lerc': ('lerc1', 'lerc2'),
+            'numpy': ('npy', 'npz'),
+            'png': ('png',),
+            'tiff': ('tif', 'tiff', 'tf8', 'tf2', 'btf'),
+            'webp': ('webp',),
+            'zfp': ('zfp',),
         }
         _codecs_.update(
             (ext, codec) for codec, exts in codecs.items() for ext in exts
         )
     return _codecs_
+
+
+def imagefileext():
+    """Return list of image file extensions handled by imread and imwrite."""
+    return list(_imcodecs().keys())
 
 
 NONE = True
@@ -762,16 +824,28 @@ def numpy_encode(data, level=None, out=None):
 JpegError = RuntimeError
 
 
-def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
-                outcolorspace=None, shape=None, out=None):
+def jpeg_decode(
+    data,
+    bitspersample=None,
+    tables=None,
+    colorspace=None,
+    outcolorspace=None,
+    shape=None,
+    out=None,
+):
     """Decode JPEG 8-bit, 12-bit, SOF3, LS, or XL.
 
     """
     if bitspersample is None:
         try:
             return imagecodecs.jpeg8_decode(
-                data, tables=tables, colorspace=colorspace,
-                outcolorspace=outcolorspace, shape=shape, out=out)
+                data,
+                tables=tables,
+                colorspace=colorspace,
+                outcolorspace=outcolorspace,
+                shape=shape,
+                out=out,
+            )
         except Exception as exc:
             msg = str(exc)
             if 'Empty JPEG image' in msg:
@@ -779,28 +853,46 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
                 raise exc
             if 'Unsupported JPEG data precision' in msg:
                 return imagecodecs.jpeg12_decode(
-                    data, tables=tables, colorspace=colorspace,
-                    outcolorspace=outcolorspace, shape=shape, out=out)
+                    data,
+                    tables=tables,
+                    colorspace=colorspace,
+                    outcolorspace=outcolorspace,
+                    shape=shape,
+                    out=out,
+                )
             if 'SOF type' in msg:
                 return imagecodecs.jpegsof3_decode(data, out=out)
             # Unsupported marker type
             try:
                 return imagecodecs.jpegls_decode(data, out=out)
             except Exception:
-                return imagecodecs.jpegxl_decode(data, out=out)
+                try:
+                    return imagecodecs.jpegxl_decode(data, out=out)
+                except Exception:
+                    raise exc
     try:
         if bitspersample == 8:
             return imagecodecs.jpeg8_decode(
-                data, tables=tables, colorspace=colorspace,
-                outcolorspace=outcolorspace, shape=shape, out=out)
+                data,
+                tables=tables,
+                colorspace=colorspace,
+                outcolorspace=outcolorspace,
+                shape=shape,
+                out=out,
+            )
         if bitspersample == 12:
             return imagecodecs.jpeg12_decode(
-                data, tables=tables, colorspace=colorspace,
-                outcolorspace=outcolorspace, shape=shape, out=out)
+                data,
+                tables=tables,
+                colorspace=colorspace,
+                outcolorspace=outcolorspace,
+                shape=shape,
+                out=out,
+            )
         try:
-            return imagecodecs.jpegls_decode(data, out=out)
-        except Exception:
             return imagecodecs.jpegsof3_decode(data, out=out)
+        except Exception:
+            return imagecodecs.jpegls_decode(data, out=out)
     except Exception as exc:
         msg = str(exc)
         if 'Empty JPEG image' in msg:
@@ -810,11 +902,22 @@ def jpeg_decode(data, bitspersample=None, tables=None, colorspace=None,
         try:
             return imagecodecs.jpegls_decode(data, out=out)
         except Exception:
-            return imagecodecs.jpegxl_decode(data, out=out)
+            try:
+                return imagecodecs.jpegxl_decode(data, out=out)
+            except Exception:
+                raise exc
 
 
-def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
-                subsampling=None, optimize=None, smoothing=None, out=None):
+def jpeg_encode(
+    data,
+    level=None,
+    colorspace=None,
+    outcolorspace=None,
+    subsampling=None,
+    optimize=None,
+    smoothing=None,
+    out=None,
+):
     """Encode JPEG 8-bit or 12-bit.
 
     """
@@ -824,16 +927,19 @@ def jpeg_encode(data, level=None, colorspace=None, outcolorspace=None,
         func = imagecodecs.jpeg12_encode
     else:
         raise ValueError(f'invalid data type {data.dtype}')
-    return func(data, level=level, colorspace=colorspace,
-                outcolorspace=outcolorspace, subsampling=subsampling,
-                optimize=optimize, smoothing=smoothing, out=out)
+    return func(
+        data,
+        level=level,
+        colorspace=colorspace,
+        outcolorspace=outcolorspace,
+        subsampling=subsampling,
+        optimize=optimize,
+        smoothing=smoothing,
+        out=out,
+    )
 
 
 # initialize package
-
 imagecodecs = sys.modules['imagecodecs']
 
 _register_codecs()
-
-if sys.version_info < (3, 7):
-    _load_all()
