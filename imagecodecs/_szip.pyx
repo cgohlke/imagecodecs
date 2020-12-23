@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
