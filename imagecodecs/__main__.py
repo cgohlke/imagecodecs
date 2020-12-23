@@ -50,7 +50,7 @@ def main(argv=None, verbose=True, codec=None):
     if verbose:
         print(f'{codec.__name__.upper()}: {image.shape} {image.dtype}')
 
-    imshow(image, title=filename)
+    imshow(image, title=filename, interpolation='nearest')
     show()
     return 0
 
