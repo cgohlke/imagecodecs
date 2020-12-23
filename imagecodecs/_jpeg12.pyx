@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.5.28
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.5.28'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -67,6 +67,7 @@ from libc.setjmp cimport setjmp, longjmp, jmp_buf
 
 class JPEG12:
     """JPEG 12-bit Constants."""
+
     CS_UNKNOWN = JCS_UNKNOWN
     CS_GRAYSCALE = JCS_GRAYSCALE
     CS_RGB = JCS_RGB
@@ -96,7 +97,8 @@ def jpeg12_version():
     IF HAVE_LIBJPEG_TURBO:
         ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
         return 'libjpeg12_turbo {}.{}.{}/{:.1f}'.format(
-            int(ver[:1]), int(ver[3:4]), int(ver[6:]), JPEG_LIB_VERSION / 10.0)
+            int(ver[:1]), int(ver[3:4]), int(ver[6:]), JPEG_LIB_VERSION / 10.0
+        )
     ELSE:
         return f'libjpeg12 {JPEG_LIB_VERSION_MAJOR}.{JPEG_LIB_VERSION_MINOR}'
 
@@ -105,17 +107,24 @@ def jpeg12_check(const uint8_t[::1] data):
     """Return True if data likely contains a JPEG 12-bit image."""
     sig = bytes(data[:10])
     return (
-        (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF') or
-        (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif') or
-        sig[:4] == b'\xFF\xD8\xFF\xDB' or
-        sig[:4] == b'\xFF\xD8\xFF\xEE' or
-        sig[:4] == b'\xFF\xD8\xFF\xC3'
+        sig[:4] == b'\xFF\xD8\xFF\xDB'
+        or sig[:4] == b'\xFF\xD8\xFF\xEE'
+        or sig[:4] == b'\xFF\xD8\xFF\xC3'
+        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
+        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
     )
 
 
-def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
-                  subsampling=None, optimize=None, smoothing=None,
-                  out=None):
+def jpeg12_encode(
+    data,
+    level=None,
+    colorspace=None,
+    outcolorspace=None,
+    subsampling=None,
+    optimize=None,
+    smoothing=None,
+    out=None
+):
     """Return JPEG 12-bit image from numpy array.
 
     """
@@ -123,9 +132,9 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
-        int samples = <int>src.shape[2] if src.ndim == 3 else 1
+        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int quality = _default_value(level, 90, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
@@ -144,12 +153,12 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype == numpy.uint16 and
-        data.ndim in (2, 3) and
-        # data.size * data.itemsize < 2**31-1 and  # limit to 2 GB
-        samples in (1, 3, 4) and
-        data.strides[data.ndim-1] == data.itemsize and
-        (data.ndim == 2 or data.strides[1] == samples*data.itemsize)
+        data.dtype == numpy.uint16
+        and data.ndim in (2, 3)
+        # and data.size * data.itemsize < 2 ** 31  # limit to 2 GB
+        and samples in (1, 3, 4)
+        and data.strides[data.ndim-1] == data.itemsize
+        and (data.ndim == 2 or data.strides[1] == samples * data.itemsize)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
@@ -163,8 +172,11 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         elif samples == 3:
             in_color_space = JCS_RGB
         # elif samples == 4:
+        #     in_color_space = JCS_EXT_RGBA
         #     in_color_space = JCS_CMYK
         else:
+            # libjpeg-turbo does not currently support alpha channels.
+            # JCS_UNKNOWN seems to preserve the 4th channel.
             in_color_space = JCS_UNKNOWN
     else:
         in_color_space = _jcs_colorspace(colorspace)
@@ -199,9 +211,9 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
 
     if out is not None:
         dst = out
-        dstsize = dst.size * dst.itemsize
-        outsize = <unsigned long>dstsize
-        outbuffer = <unsigned char*>&dst[0]
+        dstsize = dst.nbytes
+        outsize = <unsigned long> dstsize
+        outbuffer = <unsigned char*> &dst[0]
 
     with nogil:
         cinfo.err = jpeg_std_error(&err.pub)
@@ -211,14 +223,14 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         if setjmp(err.setjmp_buffer):
             # msg = err.pub.jpeg_message_table[err.pub.msg_code]
             msg[0] = b'\x00'
-            err.pub.format_message(<jpeg_common_struct*>&cinfo, &msg[0])
+            err.pub.format_message(<jpeg_common_struct*> &cinfo, &msg[0])
             jpeg_destroy_compress(&cinfo)
             raise Jpeg12Error(msg.decode())
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = <JDIMENSION>src.shape[0]
-        cinfo.image_width = <JDIMENSION>src.shape[1]
+        cinfo.image_height = <JDIMENSION> src.shape[0]
+        cinfo.image_width = <JDIMENSION> src.shape[1]
         cinfo.input_components = samples
 
         if in_color_space != JCS_UNKNOWN:
@@ -233,7 +245,7 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         if smoothing_factor >= 0:
             cinfo.smoothing_factor = smoothing_factor
         if optimize_coding >= 0:
-            cinfo.optimize_coding = <boolean>optimize_coding
+            cinfo.optimize_coding = <boolean> optimize_coding
         if h_samp_factor != 0:
             cinfo.comp_info[0].h_samp_factor = h_samp_factor
             cinfo.comp_info[0].v_samp_factor = v_samp_factor
@@ -247,16 +259,19 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
         jpeg_start_compress(&cinfo, 1)
 
         while cinfo.next_scanline < cinfo.image_height:
-            rowpointer = <JSAMPROW>(
-                <char*>src.data + cinfo.next_scanline * rowstride)
+            rowpointer = <JSAMPROW> (
+                <char*> src.data + cinfo.next_scanline * rowstride
+            )
             jpeg_write_scanlines(&cinfo, &rowpointer, 1)
 
         jpeg_finish_compress(&cinfo)
         jpeg_destroy_compress(&cinfo)
 
-    if out is None or outbuffer != <unsigned char*>&dst[0]:
+    if out is None or outbuffer != <unsigned char*> &dst[0]:
         # outbuffer was allocated in jpeg_mem_dest
-        out = _create_output(outtype, <ssize_t>outsize, <const char*>outbuffer)
+        out = _create_output(
+            outtype, <ssize_t> outsize, <const char*> outbuffer
+        )
         free(outbuffer)
         return out
 
@@ -264,8 +279,15 @@ def jpeg12_encode(data, level=None, colorspace=None, outcolorspace=None,
     return _return_output(out, dstsize, outsize, outgiven)
 
 
-def jpeg12_decode(data, index=None, tables=None, colorspace=None,
-                  outcolorspace=None, shape=None, out=None):
+def jpeg12_decode(
+    data,
+    index=None,
+    tables=None,
+    colorspace=None,
+    outcolorspace=None,
+    shape=None,
+    out=None
+):
     """Decode JPEG 12-bit image to numpy array.
 
     """
@@ -290,7 +312,7 @@ def jpeg12_decode(data, index=None, tables=None, colorspace=None,
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2**32 - 1:
+    if srcsize >= 2 ** 32:
         # limit to 4 GB
         raise ValueError('data too large')
 
@@ -307,8 +329,8 @@ def jpeg12_decode(data, index=None, tables=None, colorspace=None,
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
         # when using a patched jibjpeg-turbo
-        height = <JDIMENSION>shape[0]
-        width = <JDIMENSION>shape[1]
+        height = <JDIMENSION> shape[0]
+        width = <JDIMENSION> shape[1]
 
     with nogil:
 
@@ -318,7 +340,7 @@ def jpeg12_decode(data, index=None, tables=None, colorspace=None,
         if setjmp(err.setjmp_buffer):
             # msg = err.pub.jpeg_message_table[err.pub.msg_code]
             msg[0] = b'\x00'
-            err.pub.format_message(<jpeg_common_struct*>&cinfo, &msg[0])
+            err.pub.format_message(<jpeg_common_struct*> &cinfo, &msg[0])
             jpeg_destroy_decompress(&cinfo)
             raise Jpeg12Error(msg.decode())
 
@@ -332,7 +354,7 @@ def jpeg12_decode(data, index=None, tables=None, colorspace=None,
             jpeg_mem_src(&cinfo, &tables_[0], tablesize)
             jpeg_read_header(&cinfo, 0)
 
-        jpeg_mem_src(&cinfo, &src[0], <unsigned long>srcsize)
+        jpeg_mem_src(&cinfo, &src[0], <unsigned long> srcsize)
         jpeg_read_header(&cinfo, 1)
 
         if jpeg_color_space != JCS_UNKNOWN:
@@ -353,11 +375,11 @@ def jpeg12_decode(data, index=None, tables=None, colorspace=None,
 
             out = _create_array(out, shape, numpy.uint16)  # TODO: strides
             dst = out
-            dstsize = dst.size * dst.itemsize
+            dstsize = dst.nbytes
             rowstride = dst.strides[0] // dst.itemsize
 
-        memset(<void*>dst.data, 0, dstsize)
-        rowpointer = <JSAMPROW>dst.data
+        memset(<void*> dst.data, 0, dstsize)
+        rowpointer = <JSAMPROW> dst.data
         while cinfo.output_scanline < cinfo.output_height:
             jpeg_read_scanlines(&cinfo, &rowpointer, 1)
             rowpointer += rowstride
@@ -492,9 +514,9 @@ def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
 
     with nogil:
         while numpy.PyArray_ITER_NOTDONE(srciter) and ret != 0:
-            srcptr = <uint8_t*>numpy.PyArray_ITER_DATA(srciter)
+            srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
             for i in range(srcsize):
-                if (<uint16_t*>srcptr)[0] > upper:
+                if (<uint16_t*> srcptr)[0] > upper:
                     ret = 0
                     break
                 srcptr += srcstride
