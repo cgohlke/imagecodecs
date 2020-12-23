@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -58,14 +58,15 @@ from openjpeg cimport *
 
 class JPEG2K:
     """OpenJPEG Constants."""
-    CLRSPC_UNSPECIFIED=OPJ_CLRSPC_UNSPECIFIED
-    CLRSPC_SRGB=OPJ_CLRSPC_SRGB
-    CLRSPC_GRAY=OPJ_CLRSPC_GRAY
-    CLRSPC_SYCC=OPJ_CLRSPC_SYCC
-    CLRSPC_EYCC=OPJ_CLRSPC_EYCC
-    CLRSPC_CMYK=OPJ_CLRSPC_CMYK
-    CODEC_JP2=OPJ_CODEC_JP2
-    CODEC_J2K=OPJ_CODEC_J2K
+
+    CLRSPC_UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
+    CLRSPC_SRGB = OPJ_CLRSPC_SRGB
+    CLRSPC_GRAY = OPJ_CLRSPC_GRAY
+    CLRSPC_SYCC = OPJ_CLRSPC_SYCC
+    CLRSPC_EYCC = OPJ_CLRSPC_EYCC
+    CLRSPC_CMYK = OPJ_CLRSPC_CMYK
+    CODEC_JP2 = OPJ_CODEC_JP2
+    CODEC_J2K = OPJ_CODEC_J2K
 
 
 class Jpeg2kError(RuntimeError):
@@ -83,24 +84,33 @@ def jpeg2k_check(const uint8_t[::1] data):
         bytes sig = bytes(data[:12])
 
     return (
-        sig[:4] == b'\xff\x4f\xff\x51' or
-        sig[:4] == b'\x0d\x0a\x87\x0a' or
         sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
+        or sig[:4] == b'\xff\x4f\xff\x51'
+        or sig[:4] == b'\x0d\x0a\x87\x0a'
     )
 
 
-def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
-                  tile=None, verbose=0, out=None):
+def jpeg2k_encode(
+    data,
+    level=None,
+    codecformat=None,
+    colorspace=None,
+    tile=None,
+    reversible=None,
+    verbose=0,
+    out=None
+):
     """Return JPEG 2000 image from numpy array.
 
-    This function is WIP, use at own risk.
+    WIP: currently only single-tile, single-resolution, single-layer formats
+    are supported.
 
     """
     cdef:
         numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         ssize_t byteswritten
         memopj_t memopj
         opj_codec_t* codec = NULL
@@ -116,7 +126,8 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
         int verbosity = verbose
         int tile_width = 0
         int tile_height = 0
-        float rate = 100.0 / _default_value(level, 100, 1, 100)
+        float quality = 100.0 - _default_value(level, 0, 0, 100)
+        int irreversible = 0 if reversible else 1
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -127,6 +138,17 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
         and numpy.PyArray_ISCONTIGUOUS(data)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
+
+    if srcsize >= 2 ** 32:
+        raise ValueError('tile size must not exceed 4 GB')
+
+    if quality > 99.9:
+        # lossless
+        quality = 0.0
+        if reversible is None:
+            irreversible = 0
+    elif quality < 0.1:
+        quality = 1.0
 
     if codecformat in (None, OPJ_CODEC_JP2, 'JP2'):
         codec_format = OPJ_CODEC_JP2
@@ -179,13 +201,13 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size * dst.itemsize
+    dstsize = dst.nbytes
 
     try:
         with nogil:
 
             # create memory stream
-            memopj.data = <OPJ_UINT8*>&dst[0]
+            memopj.data = <OPJ_UINT8*> &dst[0]
             memopj.size = dstsize
             memopj.offset = 0
             memopj.written = 0
@@ -225,11 +247,17 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
 
             # set parameters
             opj_set_default_encoder_parameters(&parameters)
-            # TODO: this crashes
-            # parameters.tcp_numlayers = 1  # single quality layer
-            parameters.tcp_rates[0] = rate
-            parameters.irreversible = 0
+            parameters.irreversible = irreversible
             parameters.numresolution = 1
+            parameters.tcp_numlayers = 1  # single quality layer
+            parameters.tcp_rates[0] = 0
+            if quality != 0.0:
+                # lossy
+                parameters.tcp_distoratio[0] = quality
+                parameters.cp_fixed_quality = 1
+            else:
+                # lossless
+                parameters.cp_disto_alloc = 1
 
             if tile_height > 0:
                 parameters.tile_size_on = OPJ_TRUE
@@ -252,18 +280,21 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
             if verbosity > 0:
                 opj_set_error_handler(
                     codec,
-                    <opj_msg_callback>j2k_error_callback,
-                    NULL)
+                    <opj_msg_callback> j2k_error_callback,
+                    NULL
+                )
                 if verbosity > 1:
                     opj_set_warning_handler(
                         codec,
-                        <opj_msg_callback>j2k_warning_callback,
-                        NULL)
+                        <opj_msg_callback> j2k_warning_callback,
+                        NULL
+                    )
                     if verbosity > 2:
                         opj_set_info_handler(
                             codec,
-                            <opj_msg_callback>j2k_info_callback,
-                            NULL)
+                            <opj_msg_callback> j2k_info_callback,
+                            NULL
+                        )
 
             ret = opj_setup_encoder(codec, &parameters, image)
             if ret == OPJ_FALSE:
@@ -278,8 +309,8 @@ def jpeg2k_encode(data, level=None, codecformat=None, colorspace=None,
                 ret = opj_write_tile(
                     codec,
                     0,
-                    <OPJ_BYTE*>src.data,
-                    <OPJ_UINT32>srcsize,
+                    <OPJ_BYTE*> src.data,
+                    <OPJ_UINT32> srcsize,
                     stream
                 )
             else:
@@ -346,15 +377,15 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
     if sig[:4] == b'\xff\x4f\xff\x51':
         codecformat = OPJ_CODEC_J2K
     elif (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a' or
-        sig[:4] == b'\x0d\x0a\x87\x0a'
+        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
+        or sig[:4] == b'\x0d\x0a\x87\x0a'
     ):
         codecformat = OPJ_CODEC_JP2
     else:
         raise Jpeg2kError('not a J2K or JP2 data stream')
 
     try:
-        memopj.data = <OPJ_UINT8*>&src[0]
+        memopj.data = <OPJ_UINT8*> &src[0]
         memopj.size = src.size
         memopj.offset = 0
         memopj.written = 0
@@ -370,13 +401,16 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
 
             if verbosity > 0:
                 opj_set_error_handler(
-                    codec, <opj_msg_callback>j2k_error_callback, NULL)
+                    codec, <opj_msg_callback> j2k_error_callback, NULL
+                )
                 if verbosity > 1:
                     opj_set_warning_handler(
-                        codec, <opj_msg_callback>j2k_warning_callback, NULL)
+                        codec, <opj_msg_callback> j2k_warning_callback, NULL
+                    )
                     if verbosity > 2:
                         opj_set_info_handler(
-                            codec, <opj_msg_callback>j2k_info_callback, NULL)
+                            codec, <opj_msg_callback> j2k_info_callback, NULL
+                        )
 
             opj_set_default_decoder_parameters(&parameters)
 
@@ -391,10 +425,10 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
             ret = opj_set_decode_area(
                 codec,
                 image,
-                <OPJ_INT32>parameters.DA_x0,
-                <OPJ_INT32>parameters.DA_y0,
-                <OPJ_INT32>parameters.DA_x1,
-                <OPJ_INT32>parameters.DA_y1
+                <OPJ_INT32> parameters.DA_x0,
+                <OPJ_INT32> parameters.DA_y0,
+                <OPJ_INT32> parameters.DA_x1,
+                <OPJ_INT32> parameters.DA_y1
             )
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_set_decode_area failed')
@@ -454,47 +488,47 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
         dstsize = dst.size * itemsize
 
         with nogil:
-            # memset(<void*>dst.data, 0, dstsize)
+            # memset(<void*> dst.data, 0, dstsize)
             # TODO: support separate in addition to contig samples
             if itemsize == 1:
                 if signed:
                     for i in range(samples):
-                        i1 = <int8_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        i1 = <int8_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            i1[j * samples] = <int8_t>band[j]
+                            i1[j * samples] = <int8_t> band[j]
                 else:
                     for i in range(samples):
-                        u1 = <uint8_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        u1 = <uint8_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            u1[j * samples] = <uint8_t>band[j]
+                            u1[j * samples] = <uint8_t> band[j]
             elif itemsize == 2:
                 if signed:
                     for i in range(samples):
-                        i2 = <int16_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        i2 = <int16_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            i2[j * samples] = <int16_t>band[j]
+                            i2[j * samples] = <int16_t> band[j]
                 else:
                     for i in range(samples):
-                        u2 = <uint16_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        u2 = <uint16_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            u2[j * samples] = <uint16_t>band[j]
+                            u2[j * samples] = <uint16_t> band[j]
             elif itemsize == 4:
                 if signed:
                     for i in range(samples):
-                        i4 = <int32_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        i4 = <int32_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            i4[j * samples] = <int32_t>band[j]
+                            i4[j * samples] = <int32_t> band[j]
                 else:
                     for i in range(samples):
-                        u4 = <uint32_t*>dst.data + i
-                        band = <int32_t*>image.comps[i].data
+                        u4 = <uint32_t*> dst.data + i
+                        band = <int32_t*> image.comps[i].data
                         for j in range(height * width):
-                            u4[j * samples] = <uint32_t>band[j]
+                            u4[j * samples] = <uint32_t> band[j]
 
     finally:
         if stream != NULL:
@@ -517,17 +551,18 @@ ctypedef struct memopj_t:
 cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
     """opj_stream_set_read_function."""
     cdef:
-        memopj_t* memopj = <memopj_t*>data
+        memopj_t* memopj = <memopj_t*> data
         OPJ_SIZE_T count = size
 
     if memopj.offset >= memopj.size:
-        return <OPJ_SIZE_T>-1
+        return <OPJ_SIZE_T> -1
     if size > memopj.size - memopj.offset:
         count = memopj.size - memopj.offset
     memcpy(
-        <void*>dst,
-        <const void*>&(memopj.data[memopj.offset]),
-        count)
+        <void*> dst,
+        <const void*> &(memopj.data[memopj.offset]),
+        count
+    )
     memopj.offset += count
     return count
 
@@ -535,18 +570,19 @@ cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
 cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
     """opj_stream_set_write_function."""
     cdef:
-        memopj_t* memopj = <memopj_t*>data
+        memopj_t* memopj = <memopj_t*> data
         OPJ_SIZE_T count = size
 
     if memopj.offset >= memopj.size:
-        return <OPJ_SIZE_T>-1
+        return <OPJ_SIZE_T> -1
     if size > memopj.size - memopj.offset:
         count = memopj.size - memopj.offset
         memopj.written = memopj.size + 1  # indicates error
     memcpy(
-        <void*>&(memopj.data[memopj.offset]),
-        <const void*>dst,
-        count)
+        <void*> &(memopj.data[memopj.offset]),
+        <const void*> dst,
+        count
+    )
     memopj.offset += count
     if memopj.written < memopj.offset:
         memopj.written = memopj.offset
@@ -556,23 +592,23 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
 cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) nogil:
     """opj_stream_set_seek_function."""
     cdef:
-        memopj_t* memopj = <memopj_t*>data
+        memopj_t* memopj = <memopj_t*> data
 
-    if size < 0 or size >= <OPJ_OFF_T>memopj.size:
+    if size < 0 or size >= <OPJ_OFF_T> memopj.size:
         return OPJ_FALSE
-    memopj.offset = <OPJ_SIZE_T>size
+    memopj.offset = <OPJ_SIZE_T> size
     return OPJ_TRUE
 
 
 cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) nogil:
     """opj_stream_set_skip_function."""
     cdef:
-        memopj_t* memopj = <memopj_t*>data
+        memopj_t* memopj = <memopj_t*> data
         OPJ_SIZE_T count
 
     if size < 0:
         return -1
-    count = <OPJ_SIZE_T>size
+    count = <OPJ_SIZE_T> size
     if count > memopj.size - memopj.offset:
         count = memopj.size - memopj.offset
     memopj.offset += count
@@ -583,8 +619,10 @@ cdef void opj_mem_nop(void* data) nogil:
     """opj_stream_set_user_data."""
 
 
-cdef opj_stream_t* opj_memstream_create(memopj_t* memopj,
-                                        OPJ_BOOL isinput) nogil:
+cdef opj_stream_t* opj_memstream_create(
+    memopj_t* memopj,
+    OPJ_BOOL isinput
+) nogil:
     """Return OPJ stream using memory as input or output."""
     cdef:
         opj_stream_t* stream = opj_stream_default_create(isinput)
@@ -592,17 +630,19 @@ cdef opj_stream_t* opj_memstream_create(memopj_t* memopj,
     if stream == NULL:
         return NULL
     if isinput:
-        opj_stream_set_read_function(stream, <opj_stream_read_fn>opj_mem_read)
+        opj_stream_set_read_function(stream, <opj_stream_read_fn> opj_mem_read)
     else:
         opj_stream_set_write_function(
             stream,
-            <opj_stream_write_fn>opj_mem_write)
-    opj_stream_set_seek_function(stream, <opj_stream_seek_fn>opj_mem_seek)
-    opj_stream_set_skip_function(stream, <opj_stream_skip_fn>opj_mem_skip)
+            <opj_stream_write_fn> opj_mem_write
+        )
+    opj_stream_set_seek_function(stream, <opj_stream_seek_fn> opj_mem_seek)
+    opj_stream_set_skip_function(stream, <opj_stream_skip_fn> opj_mem_skip)
     opj_stream_set_user_data(
         stream,
         memopj,
-        <opj_stream_free_user_data_fn>opj_mem_nop)
+        <opj_stream_free_user_data_fn> opj_mem_nop
+    )
     opj_stream_set_user_data_length(stream, memopj.size)
     return stream
 
@@ -641,4 +681,4 @@ cdef OPJ_COLOR_SPACE opj_colorspace(colorspace):
         OPJ_CLRSPC_SYCC: OPJ_CLRSPC_SYCC,
         OPJ_CLRSPC_EYCC: OPJ_CLRSPC_EYCC,
         OPJ_CLRSPC_CMYK: OPJ_CLRSPC_CMYK,
-    }.get(colorspace, OPJ_CLRSPC_UNSPECIFIED)
+    }[colorspace]  # .get(colorspace, OPJ_CLRSPC_UNSPECIFIED)
