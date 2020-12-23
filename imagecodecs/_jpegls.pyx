@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -70,7 +70,7 @@ class JpeglsError(RuntimeError):
 
         try:
             error_value = int(err)
-            error_message = charls_get_error_message(error_value)
+            error_message = <char*> charls_get_error_message(error_value)
             msg = error_message.decode().strip()
         except Exception:
             msg = 'NULL' if err is None else f'unknown error {err!r}'
@@ -81,7 +81,8 @@ class JpeglsError(RuntimeError):
 def jpegls_version():
     """Return CharLS library version string."""
     return 'charls {}.{}.{}'.format(
-        CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH)
+        CHARLS_VERSION_MAJOR, CHARLS_VERSION_MINOR, CHARLS_VERSION_PATCH
+    )
 
 
 def jpegls_check(data):
@@ -96,14 +97,14 @@ def jpegls_encode(data, level=None, out=None):
         numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size * src.itemsize
+        ssize_t srcsize = src.nbytes
         charls_jpegls_errc ret
-        charls_jpegls_encoder *encoder = NULL
+        charls_jpegls_encoder* encoder = NULL
         charls_frame_info frameinfo
         # charls_jpegls_pc_parameters preset_coding_parameters
         charls_interleave_mode interleave_mode
         int32_t near_lossless = _default_value(level, 0, 0, 9)
-        uint32_t rowstride = src.strides[0]
+        uint32_t rowstride = <uint32_t> src.strides[0]
         size_t byteswritten
         size_t size_in_bytes
 
@@ -113,6 +114,7 @@ def jpegls_encode(data, level=None, out=None):
     if not (
         data.dtype in (numpy.uint8, numpy.uint16) and
         data.ndim in (2, 3) and
+        srcsize < 2 ** 32 and
         numpy.PyArray_ISCONTIGUOUS(data)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
@@ -121,11 +123,11 @@ def jpegls_encode(data, level=None, out=None):
 
     if out is not None:
         dst = out
-        dstsize = dst.size * dst.itemsize
+        dstsize = dst.nbytes
     elif dstsize > 0:
         out = _create_output(outtype, dstsize)
         dst = out
-        dstsize = dst.size * dst.itemsize
+        dstsize = dst.nbytes
 
     # memset(&preset_coding_parameters, 0, sizeof(charls_jpegls_pc_parameters))
     # preset_coding_parameters.maximum_sample_value = 0
@@ -135,9 +137,9 @@ def jpegls_encode(data, level=None, out=None):
     # preset_coding_parameters.reset_value = 0
 
     # memset(&frameinfo, 0, sizeof(charls_frame_info))
-    frameinfo.width = <uint32_t>src.shape[1]
-    frameinfo.height = <uint32_t>src.shape[0]
-    frameinfo.bits_per_sample = <int32_t>(src.itemsize * 8)
+    frameinfo.width = <uint32_t> src.shape[1]
+    frameinfo.height = <uint32_t> src.shape[0]
+    frameinfo.bits_per_sample = <int32_t> (src.itemsize * 8)
 
     if src.ndim == 2 or src.shape[2] == 1:
         frameinfo.component_count = 1
@@ -163,31 +165,39 @@ def jpegls_encode(data, level=None, out=None):
 
             ret = charls_jpegls_encoder_set_near_lossless(
                 encoder,
-                near_lossless)
+                near_lossless
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_set_near_lossless', ret)
+                    'charls_jpegls_encoder_set_near_lossless', ret
+                )
 
             ret = charls_jpegls_encoder_set_interleave_mode(
                 encoder,
-                interleave_mode)
+                interleave_mode
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_set_interleave_mode', ret)
+                    'charls_jpegls_encoder_set_interleave_mode', ret
+                )
 
             # ret = charls_jpegls_encoder_set_color_transformation(
             #     encoder,
-            #     color_transformation)
+            #     color_transformation
+            # )
             # if ret:
             #     raise JpeglsError(
-            #         'charls_jpegls_encoder_set_color_transformation', ret)
+            #         'charls_jpegls_encoder_set_color_transformation', ret
+            #     )
 
             # ret charls_jpegls_encoder_set_preset_coding_parameters(
             #     encoder,
-            #     &preset_coding_parameters)
+            #     &preset_coding_parameters
+            # )
             # if ret:
-            #    raise JpeglsError(
-            #        'charls_jpegls_encoder_set_preset_coding_parameters', ret)
+            #     raise JpeglsError(
+            #         'charls_jpegls_encoder_set_preset_coding_parameters', ret
+            #     )
 
             if dstsize < 0:
                 ret = charls_jpegls_encoder_get_estimated_destination_size(
@@ -197,46 +207,55 @@ def jpegls_encode(data, level=None, out=None):
                 if ret:
                     raise JpeglsError(
                         'charls_jpegls_encoder_get_estimated_destination_size',
-                        ret)
+                        ret
+                    )
                 dstsize = size_in_bytes + sizeof(charls_spiff_header)
                 with gil:
                     out = _create_output(outtype, dstsize)
                     dst = out
-                    dstsize = dst.size * dst.itemsize
+                    dstsize = dst.nbytes
 
             ret = charls_jpegls_encoder_set_destination_buffer(
                 encoder,
-                <void*>&dst[0],
-                <size_t>dstsize)
+                <void*> &dst[0],
+                <size_t> dstsize
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_set_destination_buffer', ret)
+                    'charls_jpegls_encoder_set_destination_buffer', ret
+                )
 
             ret = charls_jpegls_encoder_write_standard_spiff_header(
                 encoder,
                 CHARLS_SPIFF_COLOR_SPACE_RGB,
                 CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_INCH,
                 300,
-                300)
+                300
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_write_standard_spiff_header', ret)
+                    'charls_jpegls_encoder_write_standard_spiff_header', ret
+                )
 
             ret = charls_jpegls_encoder_encode_from_buffer(
                 encoder,
-                <const void*>src.data,
-                <size_t>srcsize,
-                <uint32_t>rowstride)
+                <const void*> src.data,
+                <size_t> srcsize,
+                <uint32_t> rowstride
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_encode_from_buffer', ret)
+                    'charls_jpegls_encoder_encode_from_buffer', ret
+                )
 
             ret = charls_jpegls_encoder_get_bytes_written(
                 encoder,
-                &byteswritten)
+                &byteswritten
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_encoder_get_bytes_written', ret)
+                    'charls_jpegls_encoder_get_bytes_written', ret
+                )
     finally:
         if encoder != NULL:
             charls_jpegls_encoder_destroy(encoder)
@@ -273,19 +292,23 @@ def jpegls_decode(data, index=None, out=None):
 
             ret = charls_jpegls_decoder_set_source_buffer(
                 decoder,
-                <void*>&src[0],
-                <size_t>srcsize)
+                <void*> &src[0],
+                <size_t> srcsize
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_decoder_set_source_buffer', ret)
+                    'charls_jpegls_decoder_set_source_buffer', ret
+                )
 
             # ret = charls_jpegls_decoder_read_spiff_header(
             #     decoder,
             #     &spiff_header,
-            #     &header_found)
+            #     &header_found
+            # )
             # if ret:
             #     raise JpeglsError(
-            #         'charls_jpegls_decoder_read_spiff_header', ret)
+            #         'charls_jpegls_decoder_read_spiff_header', ret
+            #     )
 
             ret = charls_jpegls_decoder_read_header(decoder)
             if ret:
@@ -297,10 +320,12 @@ def jpegls_decode(data, index=None, out=None):
 
             ret = charls_jpegls_decoder_get_interleave_mode(
                 decoder,
-                &interleave_mode)
+                &interleave_mode
+            )
             if ret:
                 raise JpeglsError(
-                    'charls_jpegls_decoder_get_interleave_mode', ret)
+                    'charls_jpegls_decoder_get_interleave_mode', ret
+                )
 
             with gil:
                 if frameinfo.bits_per_sample <= 8:
@@ -312,7 +337,9 @@ def jpegls_decode(data, index=None, out=None):
                 else:
                     raise ValueError(
                         'JpegLs bits_per_sample not supported: {}'.format(
-                            frameinfo.bits_per_sample))
+                            frameinfo.bits_per_sample
+                        )
+                    )
 
                 if frameinfo.component_count == 1:
                     shape = (
@@ -351,13 +378,14 @@ def jpegls_decode(data, index=None, out=None):
                     )
                 out = _create_array(out, shape, dtype, strides=strides)
                 dst = out
-                dstsize = dst.size * dst.itemsize
+                dstsize = dst.nbytes
 
             ret = charls_jpegls_decoder_decode_to_buffer(
                 decoder,
-                <void*>dst.data,
-                <size_t>dstsize,
-                0)
+                <void*> dst.data,
+                <size_t> dstsize,
+                0
+            )
 
         if ret:
             raise JpeglsError('charls_jpegls_decoder_decode_to_buffer', ret)
