@@ -43,52 +43,32 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2020.5.30
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.5.30'
+__version__ = '2020.12.22'
 
-import sys
-import struct
-import functools
-import io
-import zlib
-import lzma
 import bz2
+import functools
+import gzip
+import io
+import lzma
+import struct
+import sys
+import zlib
 
 import numpy
 
 try:
-    import tifffile
-except Exception:
-    tifffile = None
-
-try:
-    import czifile
-except Exception:
-    czifile = None
-
-try:
-    import zstd
+    import PIL as pillow
 except ImportError:
-    zstd = None
+    pillow = None
 
 try:
-    import lz4
-    import lz4.block
+    import bitshuffle
 except ImportError:
-    lz4 = None
-
-try:
-    import lzf
-except ImportError:
-    lzf = None
-
-try:
-    import zfpy as zfp
-except ImportError:
-    zfp = None
+    bitshuffle = None
 
 try:
     import blosc
@@ -101,9 +81,21 @@ except ImportError:
     brotli = None
 
 try:
-    import bitshuffle
+    import czifile
+except Exception:
+    czifile = None
+
+try:
+    import lz4
+    import lz4.block
+    import lz4.frame
 except ImportError:
-    bitshuffle = None
+    lz4 = None
+
+try:
+    import lzf
+except ImportError:
+    lzf = None
 
 try:
     import snappy
@@ -111,37 +103,52 @@ except ImportError:
     snappy = None
 
 try:
+    import tifffile
+except Exception:
+    tifffile = None
+
+try:
+    import zfpy as zfp
+except ImportError:
+    zfp = None
+
+try:
     import zopfli
 except ImportError:
     zopfli = None
 
 try:
-    import PIL as pillow
+    import zstd
 except ImportError:
-    pillow = None
+    zstd = None
 
 
 def version(astype=None, _versions_=[]):
     """Return detailed version information about test dependencies."""
     if not _versions_:
-        _versions_.extend((
-            ('imagecodecs.py', __version__),
-            ('numpy', numpy.__version__),
-            ('zlib', zlib.ZLIB_VERSION),
-            ('bz2', 'stdlib'),
-            ('lzma', getattr(lzma, '__version__', 'stdlib')),
-            ('blosc', blosc.__version__ if blosc else 'n/a'),
-            ('zstd', zstd.version() if zstd else 'n/a'),
-            ('lz4', lz4.VERSION if lz4 else 'n/a'),
-            ('lzf', 'unknown' if lzf else 'n/a'),
-            ('snappy', 'unknown' if snappy else 'n/a'),
-            ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
-            ('zfpy', zfp.__version__ if zfp else 'n/a'),
-            ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
-            ('pillow', pillow.__version__ if pillow else 'n/a'),
-            ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
-            ('czifile', czifile.__version__ if czifile else 'n/a'),
-        ))
+        _versions_.extend(
+            (
+                ('imagecodecs.py', __version__),
+                ('numpy', numpy.__version__),
+                ('zlib', zlib.ZLIB_VERSION),
+                ('bz2', 'stdlib'),
+                ('lzma', getattr(lzma, '__version__', 'stdlib')),
+                ('blosc', blosc.__version__ if blosc else 'n/a'),
+                ('zstd', zstd.version() if zstd else 'n/a'),
+                ('lz4', lz4.VERSION if lz4 else 'n/a'),
+                ('lzf', 'unknown' if lzf else 'n/a'),
+                ('snappy', 'unknown' if snappy else 'n/a'),
+                ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
+                ('zfpy', zfp.__version__ if zfp else 'n/a'),
+                (
+                    'bitshuffle',
+                    bitshuffle.__version__ if bitshuffle else 'n/a',
+                ),
+                ('pillow', pillow.__version__ if pillow else 'n/a'),
+                ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
+                ('czifile', czifile.__version__ if czifile else 'n/a'),
+            )
+        )
     if astype is str or astype is None:
         return ', '.join(f'{k}-{v}' for k, v in _versions_)
     if astype is dict:
@@ -164,10 +171,12 @@ def notimplemented(arg=False):
     >>> test()
 
     """
+
     def wrapper(func):
         @functools.wraps(func)
         def notimplemented(*args, **kwargs):
             raise NotImplementedError(f'{func.__name__} not implemented')
+
         return notimplemented
 
     if callable(arg):
@@ -312,7 +321,7 @@ def xor_decode(data, axis=-1, out=None):
             prev = c ^ prev
             b.append(chr(prev))
         return ''.join(b).encode('latin1')
-    raise NotImplementedError()
+    raise NotImplementedError
 
 
 def floatpred_decode(data, axis=-2, out=None):
@@ -339,7 +348,8 @@ def floatpred_decode(data, axis=-2, out=None):
     if dtype.char not in 'dfe':
         raise ValueError('not a floating point image')
     littleendian = data.dtype.byteorder == '<' or (
-        sys.byteorder == 'little' and data.dtype.byteorder == '=')
+        sys.byteorder == 'little' and data.dtype.byteorder == '='
+    )
     # undo horizontal byte differencing
     data = data.view('uint8')
     data.shape = shape[:-2] + (-1,) + shape[-1:]
@@ -399,7 +409,8 @@ def bitorder_decode(data, out=None, _bitorder=[]):
             b'\xfd\x03\x83C\xc3#\xa3c\xe3\x13\x93S\xd33\xb3s\xf3\x0b\x8bK'
             b'\xcb+\xabk\xeb\x1b\x9b[\xdb;\xbb{\xfb\x07\x87G\xc7\'\xa7g\xe7'
             b'\x17\x97W\xd77\xb7w\xf7\x0f\x8fO\xcf/\xafo\xef\x1f\x9f_'
-            b'\xdf?\xbf\x7f\xff')
+            b'\xdf?\xbf\x7f\xff'
+        )
         _bitorder.append(numpy.frombuffer(_bitorder[0], dtype='uint8'))
     try:
         view = data.view('uint8')
@@ -432,15 +443,15 @@ def packbits_decode(encoded, out=None):
     i = 0
     try:
         while True:
-            n = ord(encoded[i:i+1]) + 1
+            n = ord(encoded[i : i + 1]) + 1
             i += 1
             if n > 129:
                 # replicate
-                out_extend(encoded[i:i+1] * (258 - n))
+                out_extend(encoded[i : i + 1] * (258 - n))
                 i += 1
             elif n < 129:
                 # literal
-                out_extend(encoded[i:i+n])
+                out_extend(encoded[i : i + n])
                 i += n
     except TypeError:
         pass
@@ -470,20 +481,21 @@ def lzw_decode(encoded, buffersize=0, out=None):
     def next_code():
         # return integer of 'bitw' bits at 'bitcount' position in encoded
         start = bitcount // 8
-        s = encoded[start:start+4]
+        s = encoded[start : start + 4]
         try:
             code = unpack('>I', s)[0]
         except Exception:
-            code = unpack('>I', s + b'\x00'*(4-len(s)))[0]
+            code = unpack('>I', s + b'\x00' * (4 - len(s)))[0]
         code <<= bitcount % 8
         code &= mask
         return code >> shr
 
     switchbits = {  # code: bit-width, shr-bits, bit-mask
-        255: (9, 23, int(9*'1'+'0'*23, 2)),
-        511: (10, 22, int(10*'1'+'0'*22, 2)),
-        1023: (11, 21, int(11*'1'+'0'*21, 2)),
-        2047: (12, 20, int(12*'1'+'0'*20, 2)), }
+        255: (9, 23, int(9 * '1' + '0' * 23, 2)),
+        511: (10, 22, int(10 * '1' + '0' * 22, 2)),
+        1023: (11, 21, int(11 * '1' + '0' * 21, 2)),
+        2047: (12, 20, int(12 * '1' + '0' * 20, 2)),
+    }
     bitw, shr, mask = switchbits[255]
     bitcount = 0
 
@@ -534,7 +546,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
     return b''.join(result)
 
 
-def packints_decode(data, dtype, numbits, runlen=0, out=None):
+def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
     """Decompress byte string to array of integers of any bit size <= 32.
 
     This Python implementation is slow and only handles itemsizes 1, 2, 4, 8,
@@ -546,7 +558,7 @@ def packints_decode(data, dtype, numbits, runlen=0, out=None):
         Data to decompress.
     dtype : numpy.dtype or str
         A numpy boolean or integer type.
-    numbits : int
+    bitspersample : int
         Number of bits per integer.
     runlen : int
         Number of consecutive integers, after which to start at next byte.
@@ -559,7 +571,7 @@ def packints_decode(data, dtype, numbits, runlen=0, out=None):
     array([1, 2, 0, 1, 1, 2, 0, 2], dtype=uint8)
 
     """
-    if numbits == 1:  # bitarray
+    if bitspersample == 1:  # bitarray
         data = numpy.frombuffer(data, '|B')
         data = numpy.unpackbits(data)
         if runlen % 8:
@@ -568,40 +580,40 @@ def packints_decode(data, dtype, numbits, runlen=0, out=None):
         return data.astype(dtype)
 
     dtype = numpy.dtype(dtype)
-    if numbits in (8, 16, 32, 64):
+    if bitspersample in (8, 16, 32, 64):
         return numpy.frombuffer(data, dtype)
-    if numbits not in (1, 2, 4, 8, 16, 32):
-        raise ValueError(f'itemsize not supported: {numbits}')
-    if dtype.kind not in 'biu':
+    if bitspersample not in (1, 2, 4, 8, 16, 32):
+        raise ValueError(f'itemsize not supported: {bitspersample}')
+    if dtype.kind not in 'bu':
         raise ValueError('invalid dtype')
 
-    itembytes = next(i for i in (1, 2, 4, 8) if 8 * i >= numbits)
+    itembytes = next(i for i in (1, 2, 4, 8) if 8 * i >= bitspersample)
     if itembytes != dtype.itemsize:
         raise ValueError('dtype.itemsize too small')
     if runlen == 0:
-        runlen = (8 * len(data)) // numbits
-    skipbits = runlen * numbits % 8
+        runlen = (8 * len(data)) // bitspersample
+    skipbits = runlen * bitspersample % 8
     if skipbits:
         skipbits = 8 - skipbits
-    shrbits = itembytes*8 - numbits
-    bitmask = int(numbits*'1'+'0'*shrbits, 2)
+    shrbits = itembytes * 8 - bitspersample
+    bitmask = int(bitspersample * '1' + '0' * shrbits, 2)
     dtypestr = '>' + dtype.char  # dtype always big-endian?
 
     unpack = struct.unpack
-    size = runlen * (len(data)*8 // (runlen*numbits + skipbits))
+    size = runlen * (len(data) * 8 // (runlen * bitspersample + skipbits))
     result = numpy.empty((size,), dtype)
     bitcount = 0
     for i in range(size):
         start = bitcount // 8
-        s = data[start:start+itembytes]
+        s = data[start : start + itembytes]
         try:
             code = unpack(dtypestr, s)[0]
         except Exception:
-            code = unpack(dtypestr, s + b'\x00'*(itembytes-len(s)))[0]
+            code = unpack(dtypestr, s + b'\x00' * (itembytes - len(s)))[0]
         code <<= bitcount % 8
         code &= bitmask
         result[i] = code >> shrbits
-        bitcount += numbits
+        bitcount += bitspersample
         if (i + 1) % runlen == 0:
             bitcount += skipbits
     return result
@@ -637,6 +649,30 @@ def zlib_decode(data, out=None):
     return zlib.decompress(data)
 
 
+def deflate_encode(data, level=6, raw=False, out=None):
+    """Compress Deflate/Zlib."""
+    if raw:
+        raise NotImplementedError
+    return zlib.compress(data, level)
+
+
+def deflate_decode(data, raw=False, out=None):
+    """Decompress deflate/Zlib."""
+    if raw:
+        raise NotImplementedError
+    return zlib.decompress(data)
+
+
+def gzip_encode(data, level=6, out=None):
+    """Compress GZIP."""
+    return gzip.compress(data, level)
+
+
+def gzip_decode(data, out=None):
+    """Decompress GZIP."""
+    return gzip.decompress(data)
+
+
 def bz2_encode(data, level=9, out=None):
     """Compress BZ2."""
     return bz2.compress(data, level)
@@ -648,15 +684,28 @@ def bz2_decode(data, out=None):
 
 
 @notimplemented(blosc)
-def blosc_encode(data, level=None, compressor='blosclz', numthreads=1,
-                 typesize=8, blocksize=0, shuffle=None, out=None):
+def blosc_encode(
+    data,
+    level=None,
+    compressor='blosclz',
+    numthreads=1,
+    typesize=8,
+    blocksize=0,
+    shuffle=None,
+    out=None,
+):
     """Compress Blosc."""
     if shuffle is None:
         shuffle = blosc.SHUFFLE
     if level is None:
         level = 9
-    return blosc.compress(data, typesize=typesize, clevel=level,
-                          shuffle=shuffle, cname=compressor)
+    return blosc.compress(
+        data,
+        typesize=typesize,
+        clevel=level,
+        shuffle=shuffle,
+        cname=compressor,
+    )
 
 
 @notimplemented(blosc)
@@ -738,8 +787,9 @@ def lzf_decode(data, header=False, out=None):
 
 
 @notimplemented(zfp)
-def zfp_encode(data, level=None, mode=None, execution=None, header=True,
-               out=None):
+def zfp_encode(
+    data, level=None, mode=None, execution=None, header=True, out=None
+):
     kwargs = {'write_header': header}
     if mode in (None, zfp.mode_null, 'R', 'reversible'):  # zfp.mode_reversible
         pass
@@ -751,7 +801,7 @@ def zfp_encode(data, level=None, mode=None, execution=None, header=True,
         kwargs['tolerance'] = -1 if level is None else level
     elif mode in (zfp.mode_expert, 'c', 'expert'):
         minbits, maxbits, maxprec, minexp = level
-        raise NotImplementedError()
+        raise NotImplementedError
     return zfp.compress_numpy(data, **kwargs)
 
 
@@ -815,8 +865,9 @@ def pil_decode(data, out=None):
 
 
 @notimplemented(pillow)
-def jpeg8_decode(data, tables=None, colorspace=None, outcolorspace=None,
-                 out=None):
+def jpeg8_decode(
+    data, tables=None, colorspace=None, outcolorspace=None, out=None
+):
     """Decode JPEG 8-bit."""
     return pil_decode(data)
 
@@ -841,6 +892,7 @@ def png_decode(data, out=None):
 
 if __name__ == '__main__':
     import doctest
+
     print(version())
     numpy.set_printoptions(suppress=True, precision=2)
     doctest.testmod()
