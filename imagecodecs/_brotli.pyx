@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -114,22 +114,22 @@ def brotli_encode(data, level=None, mode=None, lgwin=None, out=None):
     if out is None:
         if dstsize < 0:
             # TODO: use streaming interface with dynamic buffer
-            dstsize = <ssize_t>BrotliEncoderMaxCompressedSize(<size_t>srcsize)
+            dstsize = <ssize_t> BrotliEncoderMaxCompressedSize(<size_t>srcsize)
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    encoded_size = <size_t>dstsize
+    encoded_size = <size_t> dstsize
 
     with nogil:
         ret = BrotliEncoderCompress(
             quality_,
             lgwin_,
             mode_,
-            <size_t>srcsize,
-            <const uint8_t*>&src[0],
+            <size_t> srcsize,
+            <const uint8_t*> &src[0],
             &encoded_size,
-            <uint8_t*>&dst[0]
+            <uint8_t*> &dst[0]
         )
     if ret != BROTLI_TRUE:
         raise BrotliError('BrotliEncoderCompress', bool(ret))
@@ -163,14 +163,14 @@ def brotli_decode(data, out=None):
 
     dst = out
     dstsize = dst.size
-    decoded_size = <size_t>dstsize
+    decoded_size = <size_t> dstsize
 
     with nogil:
         ret = BrotliDecoderDecompress(
-            <size_t>srcsize,
-            <const uint8_t*>&src[0],
+            <size_t> srcsize,
+            <const uint8_t*> &src[0],
             &decoded_size,
-            <uint8_t*>&dst[0]
+            <uint8_t*> &dst[0]
         )
     if ret != BROTLI_DECODER_RESULT_SUCCESS:
         raise BrotliError('BrotliDecoderDecompress', ret)
