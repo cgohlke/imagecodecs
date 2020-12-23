@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.1.31
+:Version: 2020.12.22
 
 """
 
-__version__ = '2020.1.31'
+__version__ = '2020.12.22'
 
 include '_shared.pxi'
 
@@ -78,7 +78,8 @@ class ZstdError(RuntimeError):
 def zstd_version():
     """Return Zstd library version string."""
     return 'zstd {}.{}.{}'.format(
-        ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE)
+        ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE
+    )
 
 
 def zstd_check(data):
@@ -104,7 +105,7 @@ def zstd_encode(data, level=None, out=None):
 
     if out is None:
         if dstsize < 0:
-            dstsize = <ssize_t>ZSTD_compressBound(srcsize)
+            dstsize = <ssize_t> ZSTD_compressBound(srcsize)
             if dstsize < 0:
                 raise ZstdError('ZSTD_compressBound', f'{dstsize}')
         if dstsize < 64:
@@ -116,9 +117,9 @@ def zstd_encode(data, level=None, out=None):
 
     with nogil:
         ret = ZSTD_compress(
-            <void*>&dst[0],
-            <size_t>dstsize,
-            <void*>&src[0],
+            <void*> &dst[0],
+            <size_t> dstsize,
+            <void*> &src[0],
             srcsize,
             compresslevel
         )
@@ -136,7 +137,7 @@ def zstd_decode(data, out=None):
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        size_t srcsize = <size_t>src.size
+        size_t srcsize = <size_t> src.size
         ssize_t dstsize
         size_t ret
         uint64_t cntsize
@@ -148,33 +149,35 @@ def zstd_decode(data, out=None):
 
     if out is None:
         if dstsize < 0:
-            cntsize = ZSTD_getFrameContentSize(<void*>&src[0], srcsize)
+            cntsize = ZSTD_getFrameContentSize(<void*> &src[0], srcsize)
             if (
-                cntsize == ZSTD_CONTENTSIZE_UNKNOWN or
-                cntsize == ZSTD_CONTENTSIZE_ERROR
+                cntsize == ZSTD_CONTENTSIZE_UNKNOWN
+                or cntsize == ZSTD_CONTENTSIZE_ERROR
             ):
                 # 1 MB; arbitrary
-                cntsize = max(<uint64_t>1048576, <uint64_t>(srcsize*2))
+                cntsize = max(<uint64_t> 1048576, <uint64_t> (srcsize * 2))
             # TODO: use stream interface
             # if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
-            #     raise ZstdError('ZSTD_getFrameContentSize',
-            #                     'ZSTD_CONTENTSIZE_UNKNOWN')
+            #     raise ZstdError(
+            #         'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_UNKNOWN'
+            #     )
             # if cntsize == ZSTD_CONTENTSIZE_ERROR:
-            #     raise ZstdError('ZSTD_getFrameContentSize',
-            #                     'ZSTD_CONTENTSIZE_ERROR')
+            #     raise ZstdError(
+            #         'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_ERROR'
+            # )
             dstsize = cntsize
             if dstsize < 0:
                 raise ZstdError('ZSTD_getFrameContentSize', f'{dstsize}')
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <size_t>dst.size
+    dstsize = <size_t> dst.size
 
     with nogil:
         ret = ZSTD_decompress(
-            <void*>&dst[0],
-            <size_t>dstsize,
-            <void*>&src[0],
+            <void*> &dst[0],
+            <size_t> dstsize,
+            <void*> &src[0],
             srcsize
         )
     if ZSTD_isError(ret):
