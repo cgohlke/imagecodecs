@@ -1,7 +1,9 @@
 Revisions
 ---------
-2020.12.22
+2020.12.24
     Pass 4758 tests.
+    Update dependencies and build scripts.
+2020.12.22
     Add AVIF codec via libavif (WIP).
     Add DEFLATE/Zlib and GZIP codecs via libdeflate.
     Add LZ4F codec.
