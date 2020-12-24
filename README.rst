@@ -20,7 +20,7 @@ Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2020.12.24
 
 Requirements
 ------------
@@ -38,7 +38,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
-* `libwebp 1.0.3 <https://github.com/webmproject/libwebp>`_
+* `libwebp 1.1.0 <https://github.com/webmproject/libwebp>`_
 * `libtiff 4.2.0 <https://gitlab.com/libtiff/libtiff>`_
 * `libjpeg-turbo 2.0.6 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
@@ -56,18 +56,18 @@ This release has been tested with the following requirements and dependencies
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `lerc 2.2 <https://github.com/Esri/lerc>`_
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
-* `libavif 0.8.2 <https://github.com/AOMediaCodec/libavif>`_
-* `dav1d 0.7.1 <https://github.com/videolan/dav1d>`_
-* `aom 2.0.0 <https://aomedia.googlesource.com/aom>`_
+* `libavif 0.8.4 <https://github.com/AOMediaCodec/libavif>`_
+* `dav1d 0.8.0 <https://github.com/videolan/dav1d>`_
+* `aom 2.0.1 <https://aomedia.googlesource.com/aom>`_
 * `lcms 2.11 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
 * `tifffile 2020.12.8 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.9.2 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.10.0 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.1 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.4.5 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.4.8.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
@@ -122,8 +122,8 @@ specific extensions, e.g.:
     ``python -m pip install imagecodecs --global-option="build_ext"
     --global-option="--skip-bitshuffle"``
 
-The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, and ``lerc``
-extensions are disabled by default when building from source.
+The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, ``lz4f``, and
+``lerc`` extensions are disabled by default when building from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
@@ -155,8 +155,10 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
-2020.12.22
+2020.12.24
     Pass 4758 tests.
+    Update dependencies and build scripts.
+2020.12.22
     Add AVIF codec via libavif (WIP).
     Add DEFLATE/Zlib and GZIP codecs via libdeflate.
     Add LZ4F codec.
