@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2020.12.24
 
 """
 
@@ -1042,6 +1042,8 @@ def test_bitshuffle_roundtrip(dtype, itemsize, blocksize):
 )
 def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
     """Test Blosc codec."""
+    if not IS_CG and compressor == 'snappy':
+        pytest.skip('blosc built without snappy')
     encode = imagecodecs.blosc_encode
     decode = imagecodecs.blosc_decode
     data = numpy.random.randint(255, size=2021, dtype='uint8').tobytes()
@@ -1566,7 +1568,7 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
 def test_lerc(dtype, itype, enout, deout, planarconfig, level, version=None):
     """Test LERC codec."""
     if version is not None and version < 4 and itype != 'gray':
-        pytest.xfail("lerc version doesn't support these cases")
+        pytest.xfail("lerc version doesn't support this case")
     decode = imagecodecs.lerc_decode
     encode = imagecodecs.lerc_encode
     dtype = numpy.dtype(dtype)
@@ -1719,7 +1721,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG8:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
-            pytest.xfail("jpeg8 doesn't support these cases")
+            pytest.xfail("jpeg8 doesn't support this case")
         decode = imagecodecs.jpeg8_decode
         encode = imagecodecs.jpeg8_encode
         check = imagecodecs.jpeg8_check
@@ -1730,7 +1732,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG12:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint8':
-            pytest.xfail("jpeg12 doesn't support these cases")
+            pytest.xfail("jpeg12 doesn't support this case")
         decode = imagecodecs.jpeg12_decode
         encode = imagecodecs.jpeg12_encode
         check = imagecodecs.jpeg12_check
@@ -1741,7 +1743,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view':
-            pytest.xfail("jpegls doesn't support these cases")
+            pytest.xfail("jpegls doesn't support this case")
         decode = imagecodecs.jpegls_decode
         encode = imagecodecs.jpegls_encode
         check = imagecodecs.jpegls_check
@@ -1752,7 +1754,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         encode = imagecodecs.webp_encode
         check = imagecodecs.webp_check
         if dtype != 'uint8' or itype.startswith('gray'):
-            pytest.xfail("webp doesn't support these cases")
+            pytest.xfail("webp doesn't support this case")
     elif codec == 'png':
         if not imagecodecs.PNG:
             pytest.skip(f'{codec} missing')
@@ -1763,7 +1765,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG2K:
             pytest.skip(f'{codec} missing')
         if itype == 'view' or deout == 'view':
-            pytest.xfail("jpeg2k doesn't support these cases")
+            pytest.xfail("jpeg2k doesn't support this case")
         decode = imagecodecs.jpeg2k_decode
         encode = imagecodecs.jpeg2k_encode
         check = imagecodecs.jpeg2k_check
@@ -1771,7 +1773,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
-            pytest.xfail("jpegxl doesn't support these cases")
+            pytest.xfail("jpegxl doesn't support this case")
         decode = imagecodecs.jpegxl_decode
         encode = imagecodecs.jpegxl_encode
         check = imagecodecs.jpegxl_check
@@ -1782,7 +1784,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEGXR:
             pytest.skip(f'{codec} missing')
         if itype == 'graya' or deout == 'view':
-            pytest.xfail("jpegxr doesn't support these cases")
+            pytest.xfail("jpegxr doesn't support this case")
         decode = imagecodecs.jpegxr_decode
         encode = imagecodecs.jpegxr_encode
         check = imagecodecs.jpegxr_check
@@ -1793,7 +1795,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.AVIF:
             pytest.skip(f'{codec} missing')
         if itype in ('gray', 'graya', 'view') or deout == 'view':
-            pytest.xfail("avif doesn't support these cases")
+            pytest.xfail("avif doesn't support this case")
         decode = imagecodecs.avif_decode
         encode = imagecodecs.avif_encode
         check = imagecodecs.avif_check
