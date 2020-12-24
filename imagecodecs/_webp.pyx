@@ -84,7 +84,7 @@ def webp_version():
     cdef:
         int ver = WebPGetDecoderVersion()
 
-    return 'libwebp {}.{}.{}'.format(ver >> 24, (ver >> 12) & 4095, ver & 4095)
+    return 'libwebp {}.{}.{}'.format(ver >> 16, (ver >> 8) & 255, ver & 255)
 
 
 def webp_check(const uint8_t[::1] data):
