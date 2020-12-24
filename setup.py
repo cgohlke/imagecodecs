@@ -5,6 +5,7 @@
 import sys
 import os
 import re
+import shutil
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
@@ -262,9 +263,7 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's CI environment."""
 
     del EXTENSIONS['avif']
-    del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
-    del EXTENSIONS['lz4f']
 
     if not os.environ.get('SKIP_OMP', False):
         EXTENSIONS['zfp']['extra_compile_args'].append('-fopenmp')
@@ -355,6 +354,29 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
         )
 
 
+def customize_build_macports(EXTENSIONS, OPTIONS):
+    """Customize build for MacPorts."""
+
+    del EXTENSIONS['avif']
+    del EXTENSIONS['deflate']
+    del EXTENSIONS['jpeg12']
+    del EXTENSIONS['jpegls']
+    del EXTENSIONS['jpegxl']
+    del EXTENSIONS['jpegxr']
+    del EXTENSIONS['lerc']
+    del EXTENSIONS['lz4f']
+    del EXTENSIONS['zfp']
+
+    EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
+    EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
+    EXTENSIONS['gif']['include_dirs'] = ['%PREFIX%/include/giflib5']
+    EXTENSIONS['jpeg2k']['include_dirs'].append(
+        '%PREFIX%/include/openjpeg-2.3'
+    )
+    EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
+    OPTIONS['cythonize'] = True
+
+
 # customize builds based on environment
 try:
     from imagecodecs_distributor_setup import customize_build
@@ -365,6 +387,8 @@ except ImportError:
         customize_build = customize_build_cf
     elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
         customize_build = customize_build_ci
+    elif shutil.which('port'):
+        customize_build = customize_build_macports
     else:
         customize_build = customize_build_default
 
