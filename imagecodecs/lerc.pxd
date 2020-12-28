@@ -1,7 +1,7 @@
 # lerc.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `LERC 2.2` library.
+# Cython declarations for the `LERC 2.2.1` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h':
