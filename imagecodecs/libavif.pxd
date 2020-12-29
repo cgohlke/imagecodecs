@@ -2,7 +2,7 @@
 # cython: language_level = 3
 
 # Cython declarations for the `libavif 0.8.3` library.
-# https:#github.com/AOMediaCodec/libavif
+# https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
 
