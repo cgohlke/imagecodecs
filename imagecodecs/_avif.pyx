@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020, Christoph Gohlke
+# Copyright (c) 2020-2021, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -106,9 +106,13 @@ def avif_version():
 def avif_check(const uint8_t[::1] data):
     """Return True if data likely contains a AVIF image."""
     cdef:
-        bytes sig = bytes(data[:8])
+        bytes sig = bytes(data[4:12])
 
-    return None
+    if sig == b'ftypavif':
+        return True
+    if sig[:4] == b'ftyp':
+        return None
+    return False
 
 
 def avif_encode(
