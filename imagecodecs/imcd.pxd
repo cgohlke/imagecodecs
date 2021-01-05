@@ -105,6 +105,21 @@ cdef extern from 'imcd.h':
         const int bps
     ) nogil
 
+    ssize_t imcd_float24_decode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const char byteorder
+    ) nogil
+
+    ssize_t imcd_float24_encode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const char byteorder,
+        int rounding
+    ) nogil
+
     void imcd_swapbytes(
         void* src,
         const ssize_t srcsize,
@@ -140,3 +155,14 @@ cdef extern from 'imcd.h':
         const uint8_t* src,
         const ssize_t size
     ) nogil
+
+
+cdef extern from 'fenv.h':
+
+    int FE_TONEAREST
+    int FE_UPWARD
+    int FE_DOWNWARD
+    int FE_TOWARDZERO
+
+    int fegetround() nogil
+    int fesetround(int) nogil
