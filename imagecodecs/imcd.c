@@ -1,7 +1,7 @@
 /* imcd.c */
 
 /*
-Copyright (c) 2008-2020, Christoph Gohlke.
+Copyright (c) 2008-2021, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <fenv.h>
 
 #ifndef M_PI
 #define M_PI (3.1415926535897932384626433832795)
@@ -999,7 +1000,7 @@ ssize_t imcd_packints_encode(
     uint8_t* dst,  /** buffer to store packed items */
     const ssize_t dstsize,   /** number of items to pack */
     const int bps  /** number of bits in integer */
-)
+    )
 {
     if (srcsize == 0) {
         return 0;
@@ -1008,6 +1009,285 @@ ssize_t imcd_packints_encode(
     /* Input validation is done in wrapper function */
 
     return IMCD_NOTIMPLEMENTED_ERROR;
+}
+
+
+/********************************** Float24 **********************************/
+
+/*
+Adobe Photoshop(r) TIFF Technical Note 3. April 8, 2005.
+24 bit floating point numbers have 1 sign bit, 7 exponent bits (biased by 64),
+and 16 mantissa bits. The interpretation of the sign, exponent and mantissa
+is analogous to IEEE-754 floating-point numbers. The 24 bit floating point
+format supports normalized and denormalized numbers, infinities and NANs
+(Not A Number).
+*/
+
+ssize_t imcd_float24_decode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const char byteorder)
+{
+    /* input validation is done in wrapper function */
+
+    ssize_t i;
+    uint8_t s0, s1, s2, f0, f1, f2, f3;
+    uint8_t sign = 0;
+    uint8_t exponent = 0;
+    uint32_t mantissa = 0;
+
+    if (srcsize < 3) {
+        return 0;
+    }
+
+    for (i = 0; i < srcsize; i += 3) {
+        if (byteorder == '<') {
+            /* from little endian */
+            s2 = *src++;
+            s1 = *src++;
+            s0 = *src++;
+        }
+        else {
+            /* from big endian */
+            s0 = *src++;
+            s1 = *src++;
+            s2 = *src++;
+        }
+
+        sign = s0 & 0x80;
+        exponent = s0 & 0x7F;
+#if IMCD_MSB
+        mantissa = s1;
+        mantissa <<= 8;
+        mantissa |= s2;
+#else
+        return IMCD_NOTIMPLEMENTED_ERROR;
+#endif
+
+        f0 = sign;
+        if ((exponent == 0) & (mantissa == 0)) {
+            /* +/- Zero */
+            f1 = 0;
+            f2 = 0;
+            f3 = 0;
+        }
+        else if (exponent == 0x7F) {
+            /* +/- INF or quiet NaN */
+            f0 |= 0x7F;
+            f1 = (mantissa == 0) ? 0x80 : 0xC0;  /* TODO: signaling NaN ? */
+            f2 = 0;
+            f3 = 0;
+        }
+        else {
+            if (exponent == 0) {
+                /* denormal/subnormal -> normalized */
+                int shift = -1;
+                do {
+                    /* shift mantissa until lead bit overflows into exponent */
+                    shift++;
+                    mantissa <<= 1;
+                } while ((mantissa & 0x10000) == 0);
+                s2 = mantissa & 0xFF;
+                s1 = (mantissa >> 8) & 0xFF;
+                exponent = exponent - 63 + 127 - shift;  /* change bias */
+            }
+            else {
+                /* normalized */
+                exponent = exponent - 63 + 127;  /* change bias */
+            }
+            f0 |= exponent >> 1;
+            f1 = ((exponent & 0x01) << 7) | ((s1 & 0xFE) >> 1);
+            f2 = ((s1 & 0x01) << 7) | ((s2 & 0xFE) >> 1);
+            f3 = (s2 & 0x01) << 7;
+        }
+#if IMCD_MSB
+        /* to little endian */
+        *dst++ = f3;
+        *dst++ = f2;
+        *dst++ = f1;
+        *dst++ = f0;
+#else
+        /* to big endian */
+        *dst++ = f0;
+        *dst++ = f1;
+        *dst++ = f2;
+        *dst++ = f3;
+#endif
+    }
+    return (srcsize / 3) * 3;
+}
+
+
+ssize_t imcd_float24_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const char byteorder,
+    int rounding)
+{
+    /* input validation is done in wrapper function */
+
+    ssize_t i;
+    uint8_t s0, s1, s2, s3, f0, f1, f2;
+    uint8_t sign;
+    uint8_t roundbit;
+    uint32_t mantissa;
+    int32_t exponent;
+
+    if (srcsize < 4) {
+        return 0;
+    }
+
+    if (rounding < 0) {
+        rounding = fegetround();
+    }
+    if (
+        (rounding != FE_TONEAREST) &&
+        (rounding != FE_TOWARDZERO) &&
+        (rounding != FE_UPWARD) &&
+        (rounding != FE_DOWNWARD)
+    ) {
+        rounding = FE_TONEAREST;
+    }
+
+    for (i = 0; i < srcsize; i += 4) {
+#if IMCD_MSB
+        /* from little endian */
+        s3 = *src++;
+        s2 = *src++;
+        s1 = *src++;
+        s0 = *src++;
+#else
+        /* from big endian */
+        s0 = *src++;
+        s1 = *src++;
+        s2 = *src++;
+        s3 = *src++;
+#endif}
+
+        sign = s0 & 0x80;
+        exponent = ((s0 & 0x7F) << 1) | ((s1 & 0x80) >> 7);
+#if IMCD_MSB
+        mantissa = s1 & 0x7F;
+        mantissa <<= 8;
+        mantissa |= s2;
+        mantissa <<= 8;
+        mantissa |= s3;
+#else
+        return IMCD_NOTIMPLEMENTED_ERROR;
+#endif
+        f0 = sign;
+        if ((exponent == 0) & (mantissa == 0)) {
+            /* Zero */
+            f1 = 0;
+            f2 = 0;
+        }
+        else if (exponent == 0xFF) {
+            /* INF or quiet NaN */
+            f0 |= 0x7F;
+            f1 = (mantissa == 0) ? 0x00 : 0x80;  /* TODO: signaling NaN ? */
+            f2 = 0;
+        }
+        else if (exponent == 0) {
+            /* from denormal/subnormal */
+            if (
+                ((rounding == FE_DOWNWARD) && sign) ||
+                ((rounding == FE_UPWARD) && (!sign))
+            ) {
+                /* to smallest denormal */
+                f1 = 0;
+                f2 = 0x01;
+            }
+            else {
+                /* to Zero */
+                f1 = 0;
+                f2 = 0;
+            }
+        }
+        else {
+            /* from normalized */
+            roundbit = 0;
+            exponent = exponent - 127 + 63;  /* change bias */
+            if (exponent >= 0x7F) {
+                /* to INF */
+                f0 |= 0x7F;
+                f1 = 0;
+                f2 = 0;
+            }
+            else if (exponent <= 0) {
+                /* to denormal; exponent is 0 */
+                int32_t n = 8 - exponent;  /* number bits to shift mantissa */
+                mantissa |= 0x800000;  /* add 24th mantissa bit */
+                if (n < 32) {
+                    /* TODO: this case is not well tested ! */
+                    f2 = (mantissa >> n) & 0xFF;
+                    f1 = (mantissa >> (n + 8)) & 0xFF;
+                    if (n <= 24) {
+                        uint32_t mask = 0xFFFFFFu & ~((0xFFFFFFu >> n) << n);
+                        uint32_t firstbit = (mask >> (n - 1)) << (n - 1);
+                        uint32_t trail = mantissa & mask;
+                        roundbit = trail && (
+                            ((rounding == FE_TONEAREST) &&
+                                ((trail > firstbit) ||
+                                ((trail == firstbit) && (f2 & 0x01)))) ||
+                            ((rounding == FE_DOWNWARD) && sign) ||
+                            ((rounding == FE_UPWARD) && !sign));
+                    }
+                    else {
+                        /* rounding depending on 7 trailing mantissa bits */
+                        roundbit = (s3 &= 0x7F) && (
+                            ((rounding == FE_DOWNWARD) && sign) ||
+                            ((rounding == FE_UPWARD) && !sign));
+                    }
+                }
+                else {
+                    f1 = 0x00;
+                    f2 = 0x00;
+                }
+            }
+            else {
+                /* to normalized */
+                uint32_t trail = s3 & 0x7F;  /* 7 trailing mantissa bits */
+                f0 |= exponent & 0x7F;
+                f1 = ((s1 & 0x7F) << 1) | ((s2 & 0x80) >> 7);
+                f2 = ((s2 & 0x7F) << 1) | ((s3 & 0x80) >> 7);
+                roundbit = trail && (
+                    ((rounding == FE_TONEAREST) &&
+                        ((trail > 0x40) || ((trail == 0x40) && (s3 & 0x80)))
+                    ) ||
+                    ((rounding == FE_DOWNWARD) && sign) ||
+                    ((rounding == FE_UPWARD) && !sign));
+            }
+            if (roundbit) {
+                if (f2 == 0xFF) {
+                    f2 = 0x00;
+                    if (f1 == 0xFF) {
+                        f1 = 0x00;
+                        /* exponent += 1;  overflow to exponent ? */
+                    }
+                    else {
+                        f1 += 1;
+                    }
+                }
+                else {
+                    f2 += 1;
+                }
+            }
+        }
+        if (byteorder == '<') {
+            /* to little endian */
+            *dst++ = f2;
+            *dst++ = f1;
+            *dst++ = f0;
+        } else {
+            /* to big endian */
+            *dst++ = f0;
+            *dst++ = f1;
+            *dst++ = f2;
+        }
+    }
+    return (srcsize / 4) * 4;
 }
 
 
