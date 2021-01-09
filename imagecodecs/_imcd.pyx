@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2020, Christoph Gohlke
+# Copyright (c) 2018-2021, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.8
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.8'
 
 include '_shared.pxi'
 
@@ -799,8 +799,12 @@ def packints_decode(
 
     if out is None:
         out = numpy.empty(dstsize, dtype)
-    elif out.dtype != dtype or out.size < dstsize:
-        raise ValueError('invalid output size or dtype')
+    elif (
+        not isinstance(data, numpy.ndarray)
+        or out.dtype != dtype
+        or out.size < dstsize
+    ):
+        raise ValueError('invalid output type, size, or dtype')
     elif not numpy.PyArray_ISCONTIGUOUS(out):
         raise ValueError('output array is not contiguous')
     if dstsize == 0:
@@ -837,6 +841,140 @@ def packints_decode(
         with nogil:
             imcd_swapbytes(<void*> dstptr, dstsize, itemsize)
 
+    return out
+
+
+# 24-bit Floating Point #######################################################
+
+# Adobe Photoshop(r) TIFF Technical Note 3. April 8, 2005
+
+Float24Error = ImcdError
+float24_version = imcd_version
+float24_check = imcd_check
+
+
+class FLOAT24:
+    """Float24 Constants."""
+
+    ROUND_TONEAREST = FE_TONEAREST
+    ROUND_UPWARD = FE_UPWARD
+    ROUND_DOWNWARD = FE_DOWNWARD
+    ROUND_TOWARDZERO = FE_TOWARDZERO
+
+
+def float24_encode(data, byteorder=None, rounding=None, out=None):
+    """Return byte sequence of float24 from numpy.float32 array.
+
+    """
+    cdef:
+        const uint8_t[::1] src
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize
+        ssize_t dstsize
+        ssize_t ret = 0
+        char boc
+        int feround = FE_TONEAREST if rounding is None else rounding
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if not (isinstance(data, numpy.ndarray) and data.dtype == numpy.float32):
+        raise ValueError('not a numpy.float32 array with native byte order')
+
+    srcsize = data.size
+
+    if byteorder is None or byteorder == '=':
+        boc = IMCD_BOC
+    elif byteorder == '<':
+        boc = b'<'
+    elif byteorder == '>':
+        boc = b'>'
+    else:
+        raise ValueError('invalid byteorder')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = srcsize * 3
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    if dst.size < srcsize * 3:
+        raise ValueError('output buffer too short')
+
+    src = _readable_input(data)  # TODO: use numpy iterator?
+
+    with nogil:
+        ret = imcd_float24_encode(
+            &src[0],
+            srcsize * 4,
+            <uint8_t*> &dst[0],
+            boc,
+            feround
+        )
+
+    if ret < 0:
+        raise Float24Error('imcd_float24_encode', ret)
+
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
+
+
+def float24_decode(data, byteorder=None, out=None):
+    """Return numpy.float32 array from byte sequence of float24.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t* srcptr = &src[0]
+        uint8_t* dstptr = NULL
+        ssize_t srcsize = src.size
+        ssize_t ret = 0
+        char boc
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    if srcsize % 3 != 0:
+        raise ValueError('data size not a multiple of 3')
+
+    if byteorder is None or byteorder == '=':
+        boc = IMCD_BOC
+    elif byteorder == '<':
+        boc = b'<'
+    elif byteorder == '>':
+        boc = b'>'
+    else:
+        raise ValueError('invalid byteorder')
+
+    if out is None:
+        out = numpy.empty(srcsize // 3, numpy.float32)
+    elif (
+        not isinstance(data, numpy.ndarray)
+        or out.dtype != numpy.float32  # must be native
+        or out.size < srcsize
+    ):
+        raise ValueError('invalid output type, size, or dtype')
+    elif not numpy.PyArray_ISCONTIGUOUS(out):
+        raise ValueError('output array is not contiguous')
+    if srcsize == 0:
+        return out
+
+    dstptr = <uint8_t*> numpy.PyArray_DATA(out)
+
+    with nogil:
+        ret = imcd_float24_decode(
+            srcptr,
+            srcsize,
+            dstptr,
+            boc
+        )
+
+    if ret < 0:
+        raise Float24Error('imcd_float24_decode', ret)
     return out
 
 
