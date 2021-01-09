@@ -1,6 +1,6 @@
 # test_imagecodecs.py
 
-# Copyright (c) 2018-2020, Christoph Gohlke
+# Copyright (c) 2018-2021, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.24
+:Version: 2021.1.8
 
 """
 
@@ -111,7 +111,7 @@ def test_module_exist(name):
         return
     if not IS_CG and not IS_CI:
         pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif IS_CI and name in ('avif', 'deflate', 'jpeg12', 'lz4f'):
+    elif IS_CI and name in ('jpeg12', 'avif'):
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
@@ -641,6 +641,94 @@ def test_floatpred(planar, endian, output, codec):
                     out = numpy.empty_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
+
+
+@pytest.mark.skipif(not imagecodecs.FLOAT24, reason='Float24 missing')
+@pytest.mark.parametrize(
+    'f3, f4, f3_expected',
+    [
+        # +/-/signalling NaN
+        ((0x7F, 0x80, 0x00), (0x7F, 0xC0, 0x00, 0x00), numpy.nan),
+        ((0xFF, 0x80, 0x00), (0xFF, 0xC0, 0x00, 0x00), numpy.nan),
+        ((0xFF, 0x80, 0x00), (0xFF, 0x80, 0x00, 0x01), numpy.nan),
+        # +/- inf
+        ((0x7F, 0x00, 0x00), (0x7F, 0x80, 0x00, 0x00), numpy.inf),
+        ((0xFF, 0x00, 0x00), (0xFF, 0x80, 0x00, 0x00), -numpy.inf),
+        # +/- zero
+        ((0x00, 0x00, 0x00), (0x00, 0x00, 0x00, 0x00), 0.0),
+        ((0x80, 0x00, 0x00), (0x80, 0x00, 0x00, 0x00), -0.0),
+        # +/- one
+        ((0x3F, 0x00, 0x00), (0x3F, 0x80, 0x00, 0x00), 1.0),
+        ((0xBF, 0x00, 0x00), (0xBF, 0x80, 0x00, 0x00), -1.0),
+        # pi
+        ((0x40, 0x92, 0x20), (0x40, 0x49, 0x0F, 0xDB), 3.1416016),
+        # pi, no rounding
+        # ((0x40, 0x92, 0x1F), (0x40, 0x49, 0x0F, 0xDB), 3.141571),
+        # pi * 10**-6
+        ((0x2C, 0xA5, 0xA8), (0x36, 0x52, 0xD4, 0x27), 3.1415839e-06),
+        # pi * 10**6
+        ((0x2C, 0xA5, 0xA8), (0x36, 0x52, 0xD4, 0x27), 3.1415839e-06),
+        # subnormal 1e-19
+        ((0x00, 0x76, 0x0F), (0x1F, 0xEC, 0x1E, 0x4A), 1e-19),
+        # overflow 1.85e19
+        ((0x7F, 0x00, 0x00), (0x5F, 0x80, 0x5E, 0x9A), numpy.inf),
+        # subnormal shift 0
+        ((0x00, 0x80, 0x00), (0x20, 0x00, 0x00, 0x00), 1.0842022e-19),
+        # encode normal to denormal with rounding
+        ((0x00, 0x80, 0x00), (0x1F, 0xFF, 0xFF, 0xFF), 1.0842021e-19),
+        # subnormal shift 1
+        ((0x00, 0x40, 0x00), (0x1F, 0x80, 0x00, 0x00), 5.421011e-20),
+        # minimum positive subnormal, shift 15
+        ((0x00, 0x00, 0x01), (0x18, 0x80, 0x00, 0x00), 3.3087225e-24),
+        # minimum positive normal
+        ((0x01, 0x00, 0x00), (0x20, 0x80, 0x00, 0x00), 2.1684043e-19),
+        # round minimum normal float32 to zero; 1.1754943508222875e-38
+        ((0x00, 0x00, 0x00), (0x00, 0x80, 0x00, 0x00), 0.0),
+        ((0x80, 0x00, 0x00), (0x80, 0x80, 0x00, 0x00), 0.0),
+        # round largest denormal float32 to zero; 5.877471754111438e-39
+        ((0x00, 0x00, 0x00), (0x00, 0x40, 0x00, 0x00), 0.0),
+        ((0x80, 0x00, 0x00), (0x80, 0x40, 0x00, 0x00), 0.0),
+    ],
+)
+@pytest.mark.parametrize('byteorder', ['>', '<'])
+@pytest.mark.parametrize('mode', ['encode', 'decode'])
+def test_float24(f3, f4, f3_expected, byteorder, mode):
+    """Test float24 special numbers."""
+    decode = imagecodecs.float24_decode
+    encode = imagecodecs.float24_encode
+
+    f3_bytes = bytes(f3)
+    f4_bytes = bytes(f4)
+
+    if byteorder == '<':
+        f3_bytes = f3_bytes[::-1]
+
+    if mode == 'decode':
+        f3_decoded = decode(f3_bytes, byteorder=byteorder)[0]
+        if f3_expected is numpy.nan:
+            assert numpy.isnan([f3_decoded])[0]
+        elif f3_expected in (-numpy.inf, numpy.inf):
+            assert f3_decoded == f3_expected
+        else:
+            assert abs(f3_decoded - f3_expected) < 4e-8
+    else:
+        f4_array = numpy.frombuffer(f4_bytes, dtype='>f4').astype('=f4')
+        f3_encoded = encode(f4_array, byteorder=byteorder)
+        assert f3_encoded == f3_bytes
+
+
+@pytest.mark.skipif(not imagecodecs.FLOAT24, reason='Float24 missing')
+@pytest.mark.parametrize('byteorder', ['>', '<'])
+def test_float24_roundtrip(byteorder):
+    """Test all float24 numbers."""
+    f3_bytes = numpy.arange(2 ** 24, dtype='>u4').astype('u1').reshape((-1, 4))
+    if byteorder == '>':
+        f3_bytes = f3_bytes[:, :3].tobytes()
+    else:
+        f3_bytes = f3_bytes[:, 2::-1].tobytes()
+    f3_decoded = imagecodecs.float24_decode(f3_bytes, byteorder=byteorder)
+    f3_encoded = imagecodecs.float24_encode(f3_decoded, byteorder=byteorder)
+    assert f3_bytes == f3_encoded
 
 
 @pytest.mark.skipif(not imagecodecs.LZW, reason='LZW missing')
