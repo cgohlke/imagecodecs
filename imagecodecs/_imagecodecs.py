@@ -1,6 +1,6 @@
 # _imagecodecs.py
 
-# Copyright (c) 2008-2020, Christoph Gohlke
+# Copyright (c) 2008-2021, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -43,11 +43,11 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.8
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.8'
 
 import bz2
 import functools
