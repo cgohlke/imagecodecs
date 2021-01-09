@@ -1,7 +1,7 @@
 /* imcd.h */
 
 /*
-Copyright (c) 2008-2020, Christoph Gohlke.
+Copyright (c) 2008-2021, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2020.12.22"
+#define IMCD_VERSION "2021.1.8"
 
 #include <stdint.h>
 
@@ -201,6 +201,23 @@ ssize_t imcd_bitorder(
     uint8_t* dst,
     const ssize_t dstsize,
     const ssize_t dststride
+);
+
+
+ssize_t imcd_float24_decode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const char byteorder
+);
+
+
+ssize_t imcd_float24_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const char byteorder,
+    int rounding
 );
 
 
