@@ -10,7 +10,7 @@ ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
 LZW, LZF, ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit,
 JPEG SOF3 (LJPEG), JPEG 2000, JPEG LS, JPEG XR, JPEG XL, AVIF,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-Bitorder reversal, and Bitshuffle.
+Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -20,7 +20,9 @@ Bitorder reversal, and Bitshuffle.
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.24
+:Version: 2021.1.8
+
+:Development Status: Alpha
 
 Requirements
 ------------
@@ -28,7 +30,7 @@ This release has been tested with the following requirements and dependencies
 (other versions may work):
 
 * `CPython 3.7.9, 3.8.7, 3.9.1 64-bit <https://www.python.org>`_
-* `Numpy 1.19.4 <https://pypi.org/project/numpy/>`_
+* `Numpy 1.19.5 <https://pypi.org/project/numpy/>`_
 * `Cython 0.29.21 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
@@ -44,7 +46,7 @@ This release has been tested with the following requirements and dependencies
   (8 and 12-bit)
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `charls 2.1.0 <https://github.com/team-charls/charls>`_
-* `openjpeg 2.3.1 <https://github.com/uclouvain/openjpeg>`_
+* `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
@@ -54,23 +56,24 @@ This release has been tested with the following requirements and dependencies
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
-* `lerc 2.2 <https://github.com/Esri/lerc>`_
+* `lerc 2.2.1 <https://github.com/Esri/lerc>`_
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
 * `libavif 0.8.4 <https://github.com/AOMediaCodec/libavif>`_
 * `dav1d 0.8.0 <https://github.com/videolan/dav1d>`_
+* `rav1e 0.3.5 <https://github.com/xiph/rav1e>`_
 * `aom 2.0.1 <https://aomedia.googlesource.com/aom>`_
 * `lcms 2.11 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2020.12.8 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.1.8 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.10.0 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.10.1 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.1 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.8.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
-* `python-snappy 0.5.4 <https://github.com/andrix/python-snappy>`_
+* `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `zopflipy 1.4 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
@@ -81,6 +84,9 @@ The API is not stable yet and might change between revisions.
 Works on little-endian platforms only.
 
 Python 32-bit versions are deprecated. Python <= 3.6 are no longer supported.
+
+Some codecs are currently decode-only: ``tiff``, ``lzw``, ``packints``, and
+``jpegsof3``.
 
 The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017
 and 2019 <https://support.microsoft.com/en-us/help/2977003/
@@ -152,11 +158,16 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `pylibjpeg-libjpeg <https://github.com/pydicom/pylibjpeg-libjpeg>`_ (GPL)
 * `pylibjpeg-openjpeg <https://github.com/pydicom/pylibjpeg-openjpeg>`_
 * `glymur <https://github.com/quintusdias/glymur>`_
+* `pyheif <https://github.com/carsales/pyheif>`_
+* `libheif <https://github.com/strukturag/libheif>`_ (LGPL)
 
 Revisions
 ---------
+2021.1.8
+    Pass 4852 tests.
+    Add float24 codec.
+    Update copyrights.
 2020.12.24
-    Pass 4758 tests.
     Update dependencies and build scripts.
 2020.12.22
     Add AVIF codec via libavif (WIP).
