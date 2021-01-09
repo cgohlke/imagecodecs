@@ -1,7 +1,10 @@
 Revisions
 ---------
+2021.1.8
+    Pass 4852 tests.
+    Add float24 codec.
+    Update copyrights.
 2020.12.24
-    Pass 4758 tests.
     Update dependencies and build scripts.
 2020.12.22
     Add AVIF codec via libavif (WIP).
