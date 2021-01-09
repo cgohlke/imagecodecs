@@ -212,10 +212,13 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     # EXTENSIONS['szip']['libraries'] = ['libaec']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
     EXTENSIONS['avif']['libraries'] = ['avif', 'aom', 'libdav1d']
+    if '64 bit' in sys.version:
+        EXTENSIONS['avif']['libraries'].extend(
+            ['rav1e', 'Ws2_32', 'Advapi32', 'Userenv']
+        )
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
-    EXTENSIONS['jpeg2k']['include_dirs'].append(INCLIB + 'openjpeg-2.3')
     EXTENSIONS['jpegxr']['include_dirs'].append(INCLIB + 'jxrlib')
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
@@ -262,7 +265,6 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
 def customize_build_ci(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's CI environment."""
 
-    del EXTENSIONS['avif']
     del EXTENSIONS['jpeg12']
 
     if not os.environ.get('SKIP_OMP', False):
@@ -298,6 +300,13 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
             EXTENSIONS['jpegxr']['include_dirs'] = jpegxr_include_dirs
 
     for dir_path in OPTIONS['include_dirs']:
+        if os.path.exists(os.path.join(dir_path, 'avif', 'avif.h')):
+            break
+    else:
+        pass
+    del EXTENSIONS['avif']  # libavif not built correctly
+
+    for dir_path in OPTIONS['include_dirs']:
         if os.path.exists(os.path.join(dir_path, 'charls', 'charls.h')):
             break
     else:
@@ -320,38 +329,39 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     """Customize build for conda-forge."""
 
     del EXTENSIONS['avif']
-    del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
-    del EXTENSIONS['jpegxl']
-    del EXTENSIONS['lerc']
-    del EXTENSIONS['lz4f']
-    del EXTENSIONS['zfp']
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     OPTIONS['cythonize'] = True
     EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
 
+    EXTENSIONS['lerc']['libraries'] = ['Lerc']
+
     if sys.platform == 'win32':
+        del EXTENSIONS['jpegxl']  # brunsli not stable on conda-forge
+
+        EXTENSIONS['lz4f']['libraries'] = ['liblz4']
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
-        EXTENSIONS['jpeg2k']['include_dirs'].append(
+        EXTENSIONS['jpeg2k']['include_dirs'] += [
             os.path.join(
-                os.environ['LIBRARY_INC'],
-                'openjpeg-' + os.environ.get('openjpeg', '2.3'),
+                os.environ['LIBRARY_INC'], 'openjpeg-' + os.environ['openjpeg']
             )
-        )
+        ]
+        EXTENSIONS['deflate']['libraries'] = ['libdeflate']
         EXTENSIONS['jpegls']['libraries'] = ['charls-2-x64']
         EXTENSIONS['lz4']['libraries'] = ['liblz4']
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
         EXTENSIONS['png']['libraries'] = ['libpng', 'z']
         EXTENSIONS['webp']['libraries'] = ['libwebp']
-        EXTENSIONS['jpegxr']['include_dirs'].append(
+        EXTENSIONS['jpegxr']['include_dirs'] = [
             os.path.join(os.environ['LIBRARY_INC'], 'jxrlib')
-        )
+        ]
         EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
     else:
-        EXTENSIONS['jpegxr']['include_dirs'].append(
+        EXTENSIONS['jpegxr']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'jxrlib')
-        )
+        ]
+        EXTENSIONS['jpegxr']['libraries'] = ['jpegxr', 'jxrglue']
 
 
 def customize_build_macports(EXTENSIONS, OPTIONS):
@@ -366,6 +376,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
     del EXTENSIONS['zfp']
+    del EXTENSIONS['zopfli']  # zopfli/zopfli.h does not exist
 
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -385,10 +396,10 @@ except ImportError:
         customize_build = customize_build_cg
     elif os.environ.get('CONDA_BUILD', ''):
         customize_build = customize_build_cf
-    elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
-        customize_build = customize_build_ci
     elif shutil.which('port'):
         customize_build = customize_build_macports
+    elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
+        customize_build = customize_build_ci
     else:
         customize_build = customize_build_default
 
@@ -504,7 +515,7 @@ setup(
     python_requires='>=3.7',
     install_requires=['numpy>=1.15.1'],
     setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # 'cython>=0.29.21'
-    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2020.12.8']},
+    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2021.1.8']},
     tests_require=[
         'pytest',
         'tifffile',
