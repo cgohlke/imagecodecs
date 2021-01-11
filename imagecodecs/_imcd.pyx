@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.8
+:Version: 2021.1.11
 
 """
 
-__version__ = '2021.1.8'
+__version__ = '2021.1.11'
 
 include '_shared.pxi'
 
@@ -481,7 +481,7 @@ def bitorder_encode(data, out=None):
     """
     cdef:
         const uint8_t[::1] src
-        uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* srcptr = NULL
         uint8_t* dstptr = NULL
         ssize_t srcsize = 0
@@ -489,6 +489,7 @@ def bitorder_encode(data, out=None):
         ssize_t srcstride = 1
         ssize_t dststride = 1
         ssize_t itemsize = 1
+        ssize_t ret = 0
         numpy.flatiter srciter
         numpy.flatiter dstiter
         int axis = -1
@@ -505,7 +506,7 @@ def bitorder_encode(data, out=None):
                 srcsize = data.size * itemsize
                 srcstride = itemsize
                 with nogil:
-                    imcd_bitorder(
+                    ret = imcd_bitorder(
                         <uint8_t*> srcptr,
                         srcsize,
                         srcstride,
@@ -514,6 +515,8 @@ def bitorder_encode(data, out=None):
                         dstsize,
                         dststride
                     )
+                    if ret < 0:
+                        raise BitorderError('imcd_bitorder', ret)
                 return data
 
             srciter = numpy.PyArray_IterAllButAxis(data, &axis)
@@ -522,7 +525,7 @@ def bitorder_encode(data, out=None):
             with nogil:
                 while numpy.PyArray_ITER_NOTDONE(srciter):
                     srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
-                    imcd_bitorder(
+                    ret = imcd_bitorder(
                         <uint8_t*> srcptr,
                         srcsize,
                         srcstride,
@@ -531,6 +534,8 @@ def bitorder_encode(data, out=None):
                         dstsize,
                         dststride
                     )
+                    if ret < 0:
+                        raise BitorderError('imcd_bitorder', ret)
                     numpy.PyArray_ITER_NEXT(srciter)
             return data
 
@@ -550,7 +555,7 @@ def bitorder_encode(data, out=None):
             while numpy.PyArray_ITER_NOTDONE(srciter):
                 srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
                 dstptr = <uint8_t*> numpy.PyArray_ITER_DATA(dstiter)
-                imcd_bitorder(
+                ret = imcd_bitorder(
                     <uint8_t*> srcptr,
                     srcsize,
                     srcstride,
@@ -559,6 +564,8 @@ def bitorder_encode(data, out=None):
                     dstsize,
                     dststride
                 )
+                if ret < 0:
+                    raise BitorderError('imcd_bitorder', ret)
                 numpy.PyArray_ITER_NEXT(srciter)
                 numpy.PyArray_ITER_NEXT(dstiter)
         return out
@@ -570,7 +577,7 @@ def bitorder_encode(data, out=None):
         src = _inplace_input(data)
         srcsize = src.size
         with nogil:
-            imcd_bitorder(
+            ret = imcd_bitorder(
                 <uint8_t*> &src[0],
                 srcsize,
                 1,
@@ -579,16 +586,22 @@ def bitorder_encode(data, out=None):
                 srcsize,
                 1
             )
+        if ret < 0:
+            raise BitorderError('imcd_bitorder', ret)
         return data
 
     src = _readable_input(data)
     srcsize = src.size
+    out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
-        out = PyByteArray_FromStringAndSize(NULL, srcsize)
+        if dstsize < 0:
+            dstsize = srcsize
+        out = _create_output(outtype, dstsize)
     dst = out
     dstsize = dst.size
+
     with nogil:
-        imcd_bitorder(
+        ret = imcd_bitorder(
             <uint8_t*> &src[0],
             srcsize,
             1,
@@ -597,7 +610,11 @@ def bitorder_encode(data, out=None):
             dstsize,
             1
         )
-    return out
+    if ret < 0:
+        raise BitorderError('imcd_bitorder', ret)
+
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 bitorder_decode = bitorder_encode
