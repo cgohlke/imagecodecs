@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.8
+:Version: 2021.1.11
 
 """
 
@@ -82,6 +82,7 @@ except ImportError as exc:
 TEST_DIR = osp.dirname(__file__)
 IS_32BIT = sys.maxsize < 2 ** 32
 IS_WIN = sys.platform == 'win32'
+IS_PYPY = 'PyPy' in sys.version
 # running on Windows development computer?
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
 # running in cibuildwheel environment?
@@ -274,6 +275,9 @@ def test_bitorder():
     assert out == reverse
     assert data == b'\x01\x00\x9a\x02'
     # inplace
+    with pytest.raises(TypeError):
+        decode(data, out=data)
+    data = bytearray(data)
     decode(data, out=data)
     assert data == reverse
     # bytes range
@@ -498,21 +502,37 @@ def test_delta(output, kind, codec, func):
         elif output == 'out':
             if codec == 'encode':
                 encoded = bytetype(len(data))
-                encode(data, out=encoded)
-                assert encoded == diff
+                if bytetype == bytes:
+                    with pytest.raises(TypeError):
+                        encode(data, out=encoded)
+                else:
+                    encode(data, out=encoded)
+                    assert encoded == diff
             elif codec == 'decode':
                 decoded = bytetype(len(data))
-                decode(diff, out=decoded)
-                assert decoded == data
+                if bytetype == bytes:
+                    with pytest.raises(TypeError):
+                        decode(diff, out=decoded)
+                else:
+                    decode(diff, out=decoded)
+                    assert decoded == data
         elif output == 'inplace':
             if codec == 'encode':
                 encoded = bytetype(data)
-                encode(encoded, out=encoded)
-                assert encoded == diff
+                if bytetype == bytes:
+                    with pytest.raises(TypeError):
+                        encode(encoded, out=encoded)
+                else:
+                    encode(encoded, out=encoded)
+                    assert encoded == diff
             elif codec == 'decode':
                 decoded = bytetype(diff)
-                decode(decoded, out=decoded)
-                assert decoded == data
+                if bytetype == bytes:
+                    with pytest.raises(TypeError):
+                        decode(decoded, out=decoded)
+                else:
+                    decode(decoded, out=decoded)
+                    assert decoded == data
     else:
         # if func == 'xor' and kind in ('f4', 'f8'):
         #      with pytest.raises(ValueError):
