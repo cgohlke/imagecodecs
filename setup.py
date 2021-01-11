@@ -97,6 +97,7 @@ def ext(**kwargs):
         libraries=[],
         define_macros=[],
         extra_compile_args=[],
+        extra_link_args=[],
         cython_compile_env={},
     )
     d.update(kwargs)
@@ -104,16 +105,17 @@ def ext(**kwargs):
 
 
 OPTIONS = {
-    'cythonize': sys.version_info >= (3, 10),
+    'cythonize': sys.version_info >= (3, 10) or 'PyPy' in sys.version,
     'include_dirs': ['imagecodecs'],
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
     'define_macros': [('WIN32', 1)] if sys.platform == 'win32' else [],
     'extra_compile_args': [],
+    'extra_link_args': [],
 }
 
 EXTENSIONS = {
-    'shared': ext(),
+    'shared': ext(cython_compile_env={'IS_PYPY': 'PyPy' in sys.version}),
     'imcd': ext(sources=['imagecodecs/imcd.c']),
     'aec': ext(libraries=['aec']),
     'avif': ext(libraries=['avif']),
@@ -192,8 +194,8 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     if sys.platform == 'win32':
         EXTENSIONS['bz2']['libraries'] = ['libbz2']
     else:
-        EXTENSIONS['jpeg2k']['include_dirs'].append(
-            '/usr/include/openjpeg-2.3'
+        EXTENSIONS['jpeg2k']['include_dirs'].extend(
+            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4')
         )
         EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
 
@@ -268,6 +270,9 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpeg12']
 
     if not os.environ.get('SKIP_OMP', False):
+        if sys.platform == 'darwin':
+            EXTENSIONS['zfp']['extra_compile_args'].append('-Xpreprocessor')
+            EXTENSIONS['zfp']['extra_link_args'].append('-lomp')
         EXTENSIONS['zfp']['extra_compile_args'].append('-fopenmp')
 
     base_path = os.environ.get(
@@ -381,8 +386,8 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['gif']['include_dirs'] = ['%PREFIX%/include/giflib5']
-    EXTENSIONS['jpeg2k']['include_dirs'].append(
-        '%PREFIX%/include/openjpeg-2.3'
+    EXTENSIONS['jpeg2k']['include_dirs'].extend(
+        ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4')
     )
     EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
     OPTIONS['cythonize'] = True
@@ -515,7 +520,7 @@ setup(
     python_requires='>=3.7',
     install_requires=['numpy>=1.15.1'],
     setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # 'cython>=0.29.21'
-    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2021.1.8']},
+    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11']},
     tests_require=[
         'pytest',
         'tifffile',
