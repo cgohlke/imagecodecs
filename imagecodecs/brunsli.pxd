@@ -21,7 +21,7 @@ cdef extern from 'brunsli/decode.h':
     ) nogil
 
 
-cdef extern from 'brunsli/decode.h':
+cdef extern from 'brunsli/encode.h':
 
     int EncodeBrunsli(
         size_t size,
