@@ -75,8 +75,8 @@ cdef _parse_output(out, ssize_t outsize=-1, outgiven=False, outtype=bytes):
         # create new bytes output of expected length
         outsize = out
         out = None
-    # elif isinstance(out, bytes):
-    #     raise TypeError("'bytes' object does not support item assignment")
+    elif isinstance(out, bytes):
+        raise TypeError("'bytes' object does not support item assignment")
     else:
         # use provided output buffer
         # outsize = len(out)
@@ -92,8 +92,12 @@ cdef object _create_output(object out, ssize_t size, const char* string=NULL):
     Return NULL on failure.
 
     """
-    if out == bytes or PyBytes_Check(out):
-        return PyBytes_FromStringAndSize(string, size)
+    IF IS_PYPY:
+        # PyPy can not modify the content of bytes
+        pass
+    ELSE:
+        if out == bytes or PyBytes_Check(out):
+            return PyBytes_FromStringAndSize(string, size)
     return PyByteArray_FromStringAndSize(string, size)
 
 
@@ -226,9 +230,11 @@ cdef const uint8_t[::1] _inplace_input(data):
         uint8_t[::1] writable
 
     if isinstance(data, bytes):
-        # allow writing to bytes
-        src = data
-        return src
+        # disallow writing to bytes
+        if isinstance(data, bytes):
+            raise TypeError("'bytes' object does not support item assignment")
+        # src = data
+        # return src
 
     try:
         writable = data
