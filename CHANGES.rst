@@ -1,7 +1,11 @@
 Revisions
 ---------
-2021.1.8
+2021.1.11
     Pass 4852 tests.
+    Fix build issues (#7, #8).
+    Return bytearray instead of bytes on PyPy.
+    Raise TypeError if output provided is bytes (breaking).
+2021.1.8
     Add float24 codec.
     Update copyrights.
 2020.12.24
