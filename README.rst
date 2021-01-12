@@ -20,9 +20,9 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.8
+:Version: 2021.1.11
 
-:Development Status: Alpha
+:Status: Alpha
 
 Requirements
 ------------
@@ -45,7 +45,7 @@ This release has been tested with the following requirements and dependencies
 * `libjpeg-turbo 2.0.6 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
-* `charls 2.1.0 <https://github.com/team-charls/charls>`_
+* `charls 2.2.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
@@ -59,14 +59,14 @@ This release has been tested with the following requirements and dependencies
 * `lerc 2.2.1 <https://github.com/Esri/lerc>`_
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
 * `libavif 0.8.4 <https://github.com/AOMediaCodec/libavif>`_
-* `dav1d 0.8.0 <https://github.com/videolan/dav1d>`_
+* `dav1d 0.8.1 <https://github.com/videolan/dav1d>`_
 * `rav1e 0.3.5 <https://github.com/xiph/rav1e>`_
 * `aom 2.0.1 <https://aomedia.googlesource.com/aom>`_
 * `lcms 2.11 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.1.8 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.1.11 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.10.1 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.1 <https://github.com/python-lz4/python-lz4>`_
@@ -163,8 +163,12 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
-2021.1.8
+2021.1.11
     Pass 4852 tests.
+    Fix build issues (#7, #8).
+    Return bytearray instead of bytes on PyPy.
+    Raise TypeError if output provided is bytes (breaking).
+2021.1.8
     Add float24 codec.
     Update copyrights.
 2020.12.24
