@@ -393,6 +393,21 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     OPTIONS['cythonize'] = True
 
 
+def customize_build_mingw(EXTENSIONS, OPTIONS):
+    """Customize build for mingw-w64."""
+
+    del EXTENSIONS['jpeg12']
+    del EXTENSIONS['jpegxl']
+    del EXTENSIONS['lerc']
+    del EXTENSIONS['zfp']
+    del EXTENSIONS['zopfli']  # zopfli/zopfli.h does not exist
+
+    EXTENSIONS['jpeg2k']['include_dirs'].extend(
+        (sys.prefix + '/include/openjpeg-2.3', sys.prefix + '/include/openjpeg-2.4')
+    )
+    EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
+
+
 # customize builds based on environment
 try:
     from imagecodecs_distributor_setup import customize_build
@@ -405,6 +420,8 @@ except ImportError:
         customize_build = customize_build_macports
     elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
         customize_build = customize_build_ci
+    elif os.name == 'nt' and 'GCC' in sys.version:
+        customize_build = customize_build_mingw
     else:
         customize_build = customize_build_default
 
