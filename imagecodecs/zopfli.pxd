@@ -4,7 +4,7 @@
 # Cython declarations for the `Zopfli 1.0.3` library.
 # https://github.com/google/zopfli
 
-cdef extern from 'zopfli/zopfli.h':
+cdef extern from 'zopfli.h':
 
     ctypedef struct ZopfliOptions:
         int verbose
