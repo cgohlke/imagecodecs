@@ -100,19 +100,19 @@ def png_encode(data, level=None, out=None):
         png_uint_32 height = <png_uint_32> src.shape[0]
         png_uint_32 row
 
-    if not (
-        data.dtype in (numpy.uint8, numpy.uint16)
-        and data.ndim in (2, 3)
-        and data.shape[0] < 2 ** 31
-        and data.shape[1] < 2 ** 31
-        and samples <= 4
-        and data.strides[data.ndim-1] == data.itemsize
-        and (data.ndim == 2 or data.strides[1] == samples * data.itemsize)
-    ):
-        raise ValueError('invalid input shape, strides, or dtype')
-
     if data is out:
         raise ValueError('cannot encode in-place')
+
+    if not (
+        src.dtype in (numpy.uint8, numpy.uint16)
+        and src.ndim in (2, 3)
+        and src.shape[0] < 2 ** 31
+        and src.shape[1] < 2 ** 31
+        and samples <= 4
+        and src.strides[src.ndim - 1] == src.itemsize
+        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
+    ):
+        raise ValueError('invalid input shape, strides, or dtype')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
