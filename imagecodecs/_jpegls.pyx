@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -112,10 +112,10 @@ def jpegls_encode(data, level=None, out=None):
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype in (numpy.uint8, numpy.uint16) and
-        data.ndim in (2, 3) and
+        src.dtype in (numpy.uint8, numpy.uint16) and
+        src.ndim in (2, 3) and
         srcsize < 2 ** 32 and
-        numpy.PyArray_ISCONTIGUOUS(data)
+        numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
