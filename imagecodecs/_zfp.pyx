@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -110,8 +110,8 @@ def zfp_encode(
         zfp_type ztype
         zfp_mode zmode
         zfp_exec_policy zexec
-        uint ndim = data.ndim
-        ssize_t itemsize = data.itemsize
+        uint ndim = src.ndim
+        ssize_t itemsize = src.itemsize
         uint precision
         uint minbits, maxbits, maxprec, minexp
         uint nx, ny, nz, nw
@@ -123,41 +123,41 @@ def zfp_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if data.dtype == numpy.int32:
+    if src.dtype == numpy.int32:
         ztype = zfp_type_int32
-    elif data.dtype == numpy.int64:
+    elif src.dtype == numpy.int64:
         ztype = zfp_type_int64
-    elif data.dtype == numpy.float32:
+    elif src.dtype == numpy.float32:
         ztype = zfp_type_float
-    elif data.dtype == numpy.float64:
+    elif src.dtype == numpy.float64:
         ztype = zfp_type_double
     else:
         raise ValueError('data type not supported by ZFP')
 
     if ndim == 1:
-        nx = <uint> data.shape[0]
-        sx = <int> (data.strides[0] // itemsize)
+        nx = <uint> src.shape[0]
+        sx = <int> (src.strides[0] // itemsize)
     elif ndim == 2:
-        ny = <uint> data.shape[0]
-        nx = <uint> data.shape[1]
-        sy = <int> (data.strides[0] // itemsize)
-        sx = <int> (data.strides[1] // itemsize)
+        ny = <uint> src.shape[0]
+        nx = <uint> src.shape[1]
+        sy = <int> (src.strides[0] // itemsize)
+        sx = <int> (src.strides[1] // itemsize)
     elif ndim == 3:
-        nz = <uint> data.shape[0]
-        ny = <uint> data.shape[1]
-        nx = <uint> data.shape[2]
-        sz = <int> (data.strides[0] // itemsize)
-        sy = <int> (data.strides[1] // itemsize)
-        sx = <int> (data.strides[2] // itemsize)
+        nz = <uint> src.shape[0]
+        ny = <uint> src.shape[1]
+        nx = <uint> src.shape[2]
+        sz = <int> (src.strides[0] // itemsize)
+        sy = <int> (src.strides[1] // itemsize)
+        sx = <int> (src.strides[2] // itemsize)
     elif ndim == 4:
-        nw = <uint> data.shape[0]
-        nz = <uint> data.shape[1]
-        ny = <uint> data.shape[2]
-        nx = <uint> data.shape[3]
-        sw = <int> (data.strides[0] // itemsize)
-        sz = <int> (data.strides[1] // itemsize)
-        sy = <int> (data.strides[2] // itemsize)
-        sx = <int> (data.strides[3] // itemsize)
+        nw = <uint> src.shape[0]
+        nz = <uint> src.shape[1]
+        ny = <uint> src.shape[2]
+        nx = <uint> src.shape[3]
+        sw = <int> (src.strides[0] // itemsize)
+        sz = <int> (src.strides[1] // itemsize)
+        sy = <int> (src.strides[2] // itemsize)
+        sx = <int> (src.strides[3] // itemsize)
     else:
         raise ValueError('data shape not supported by ZFP')
 
