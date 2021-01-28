@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -110,17 +110,17 @@ def gif_encode(data, level=None, colormap=None, out=None):
         int imagecount = 1
         int ret, err = 0
 
-    if not (
-        data.dtype == numpy.uint8
-        and data.ndim in (2, 3)
-        and data.shape[0] < 2 ** 16
-        and data.shape[1] < 2 ** 16
-        and numpy.PyArray_ISCONTIGUOUS(data)
-    ):
-        raise ValueError('invalid input shape, strides, or dtype')
-
     if data is out:
         raise ValueError('cannot encode in-place')
+
+    if not (
+        src.dtype == numpy.uint8
+        and src.ndim in (2, 3)
+        and src.shape[0] < 2 ** 16
+        and src.shape[1] < 2 ** 16
+        and numpy.PyArray_ISCONTIGUOUS(src)
+    ):
+        raise ValueError('invalid input shape, strides, or dtype')
 
     if src.ndim > 2:
         imagecount = <int> src.shape[0]
