@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -100,40 +100,41 @@ def webp_encode(data, level=None, out=None):
 
     """
     cdef:
-        const uint8_t[:, :, :] src = data
+        numpy.ndarray src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        uint8_t* srcptr = <uint8_t*> &src[0, 0, 0]
         uint8_t* output
         ssize_t dstsize
         size_t ret = 0
         int width, height, stride
         float quality_factor = _default_value(level, 75.0, -1.0, 100.0)
         int lossless = quality_factor < 0.0
-        int rgba = data.shape[2] == 4
+        int rgba
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.ndim == 3
-        and data.shape[0] < WEBP_MAX_DIMENSION
-        and data.shape[1] < WEBP_MAX_DIMENSION
-        and data.shape[2] in (3, 4)
-        and data.strides[2] == 1
-        and data.strides[1] in (3, 4)
-        and data.strides[0] >= data.strides[1] * data.strides[2]
-        and data.dtype == numpy.uint8
+        src.ndim == 3
+        and src.shape[0] < WEBP_MAX_DIMENSION
+        and src.shape[1] < WEBP_MAX_DIMENSION
+        and src.shape[2] in (3, 4)
+        and src.strides[2] == 1
+        and src.strides[1] in (3, 4)
+        and src.strides[0] >= src.strides[1] * src.strides[2]
+        and src.dtype == numpy.uint8
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
-    height, width = data.shape[:2]
-    stride = data.strides[0]
+    height = <int> src.shape[0]
+    width = <int> src.shape[1]
+    stride = <int> src.strides[0]
+    rgba = <int> src.shape[2] == 4
 
     with nogil:
         if lossless:
             if rgba:
                 ret = WebPEncodeLosslessRGBA(
-                    <const uint8_t*> srcptr,
+                    <const uint8_t*> src.data,
                     width,
                     height,
                     stride,
@@ -141,7 +142,7 @@ def webp_encode(data, level=None, out=None):
                 )
             else:
                 ret = WebPEncodeLosslessRGB(
-                    <const uint8_t*> srcptr,
+                    <const uint8_t*> src.data,
                     width,
                     height,
                     stride,
@@ -149,7 +150,7 @@ def webp_encode(data, level=None, out=None):
                 )
         elif rgba:
             ret = WebPEncodeRGBA(
-                <const uint8_t*> srcptr,
+                <const uint8_t*> src.data,
                 width,
                 height,
                 stride,
@@ -158,7 +159,7 @@ def webp_encode(data, level=None, out=None):
             )
         else:
             ret = WebPEncodeRGB(
-                <const uint8_t*> srcptr,
+                <const uint8_t*> src.data,
                 width,
                 height,
                 stride,
