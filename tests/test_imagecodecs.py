@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.11
+:Version: 2021.1.28
 
 """
 
@@ -112,7 +112,7 @@ def test_module_exist(name):
         return
     if not IS_CG and not IS_CI:
         pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif IS_CI and name in ('jpeg12', 'avif'):
+    elif IS_CI and name in ('jpeg12',):
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
@@ -1412,12 +1412,19 @@ def test_jpeg12_decode(output):
     )
 
 
-@pytest.mark.skipif(not imagecodecs.JPEGSOF3, reason='jpegsof3 missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 @pytest.mark.parametrize('fname', ['gray8.sof3.jpg', 'gray16.sof3.jpg'])
-def test_jpegsof3(fname, output):
+@pytest.mark.parametrize('codec', ['jpegsof3', 'ljpeg'])
+def test_jpegsof3(fname, output, codec):
     """Test JPEG SOF3 decoder with 8 and 16-bit images."""
-    decode = imagecodecs.jpegsof3_decode
+    if codec == 'ljpeg':
+        if not imagecodecs.LJPEG:
+            pytest.skip('ljpeg missing')
+        decode = imagecodecs.ljpeg_decode
+    else:
+        if not imagecodecs.JPEGSOF3:
+            pytest.skip('jpegsof3 missing')
+        decode = imagecodecs.jpegsof3_decode
 
     shape = 535, 800
     if fname == 'gray8.sof3.jpg':
@@ -1467,6 +1474,24 @@ def test_jpegxr_decode(output):
         decoded = bytearray(image.size * image.itemsize)
         decoded = decode(data, out=decoded)
     assert_array_equal(image, decoded)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXR, reason='jpegxr missing')
+@pytest.mark.parametrize('fp2int', [False, True])
+def test_jpegxr_fixedpoint(fp2int):
+    """Test JPEG XR decoder with Fixed Point 16 image."""
+    # test file provided by E. Pojar on 2021.1.27
+    data = readfile('fixedpoint.jxr')
+    assert imagecodecs.jpegxr_check(data) in (None, True)
+    decoded = imagecodecs.jpegxr_decode(data, fp2int=fp2int)
+    if fp2int:
+        assert decoded.dtype == 'int16'
+        assert decoded[0, 0] == -32765
+        assert decoded[255, 255] == 32766
+    else:
+        assert decoded.dtype == 'float32'
+        assert abs(decoded[0, 0] + 3.9996338) < 1e-6
+        assert abs(decoded[255, 255] - 3.9997559) < 1e-6
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K, reason='jpeg2k missing')
@@ -1676,7 +1701,7 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
 def test_lerc(dtype, itype, enout, deout, planarconfig, level, version=None):
     """Test LERC codec."""
     if version is not None and version < 4 and itype != 'gray':
-        pytest.xfail("lerc version doesn't support this case")
+        pytest.xfail('lerc version does not support this case')
     decode = imagecodecs.lerc_decode
     encode = imagecodecs.lerc_encode
     dtype = numpy.dtype(dtype)
@@ -1819,6 +1844,7 @@ def test_jpegxr(itype, enout, deout, level):
         'jpegls',
         'jpegxl',
         'jpegxr',
+        'ljpeg',
         'png',
         'webp',
     ],
@@ -1829,7 +1855,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG8:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
-            pytest.xfail("jpeg8 doesn't support this case")
+            pytest.xfail('jpeg8 does not support this case')
         decode = imagecodecs.jpeg8_decode
         encode = imagecodecs.jpeg8_encode
         check = imagecodecs.jpeg8_check
@@ -1840,18 +1866,33 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG12:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint8':
-            pytest.xfail("jpeg12 doesn't support this case")
+            pytest.xfail('jpeg12 does not support this case')
         decode = imagecodecs.jpeg12_decode
         encode = imagecodecs.jpeg12_encode
         check = imagecodecs.jpeg12_check
         atol = 24 * 16
         if level:
             level += 95
+    elif codec == 'ljpeg':
+        if not imagecodecs.LJPEG:
+            pytest.skip(f'{codec} missing')
+        if itype in ('rgb', 'rgba', 'view', 'graya') or deout == 'view':
+            pytest.xfail('ljpeg does not support this case')
+        decode = imagecodecs.ljpeg_decode
+        encode = imagecodecs.ljpeg_encode
+        check = imagecodecs.ljpeg_check
+        if dtype == 'uint16':
+
+            def encode(data, *args, **kwargs):
+                return imagecodecs.ljpeg_encode(
+                    data, bitspersample=12, *args, **kwargs
+                )
+
     elif codec == 'jpegls':
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view':
-            pytest.xfail("jpegls doesn't support this case")
+            pytest.xfail('jpegls does not support this case')
         decode = imagecodecs.jpegls_decode
         encode = imagecodecs.jpegls_encode
         check = imagecodecs.jpegls_check
@@ -1862,7 +1903,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         encode = imagecodecs.webp_encode
         check = imagecodecs.webp_check
         if dtype != 'uint8' or itype.startswith('gray'):
-            pytest.xfail("webp doesn't support this case")
+            pytest.xfail('webp does not support this case')
     elif codec == 'png':
         if not imagecodecs.PNG:
             pytest.skip(f'{codec} missing')
@@ -1873,7 +1914,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEG2K:
             pytest.skip(f'{codec} missing')
         if itype == 'view' or deout == 'view':
-            pytest.xfail("jpeg2k doesn't support this case")
+            pytest.xfail('jpeg2k does not support this case')
         decode = imagecodecs.jpeg2k_decode
         encode = imagecodecs.jpeg2k_encode
         check = imagecodecs.jpeg2k_check
@@ -1881,7 +1922,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
-            pytest.xfail("jpegxl doesn't support this case")
+            pytest.xfail('jpegxl does not support this case')
         decode = imagecodecs.jpegxl_decode
         encode = imagecodecs.jpegxl_encode
         check = imagecodecs.jpegxl_check
@@ -1892,7 +1933,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.JPEGXR:
             pytest.skip(f'{codec} missing')
         if itype == 'graya' or deout == 'view':
-            pytest.xfail("jpegxr doesn't support this case")
+            pytest.xfail('jpegxr does not support this case')
         decode = imagecodecs.jpegxr_decode
         encode = imagecodecs.jpegxr_encode
         check = imagecodecs.jpegxr_check
@@ -1903,7 +1944,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if not imagecodecs.AVIF:
             pytest.skip(f'{codec} missing')
         if itype in ('gray', 'graya', 'view') or deout == 'view':
-            pytest.xfail("avif doesn't support this case")
+            pytest.xfail('avif does not support this case')
         decode = imagecodecs.avif_decode
         encode = imagecodecs.avif_encode
         check = imagecodecs.avif_check
@@ -1961,7 +2002,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decoded = decoded.reshape(shape)
 
     if codec == 'webp' and (level != -1 or itype == 'rgba'):
-        # RGBA roundtip doesn't work for A=0
+        # RGBA roundtip does not work for A=0
         assert_allclose(data, decoded, atol=255)
     elif codec in ('jpeg8', 'jpeg12', 'jpegxl', 'jpegxr'):
         assert_allclose(data, decoded, atol=atol)
