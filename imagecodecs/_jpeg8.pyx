@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -153,12 +153,12 @@ def jpeg8_encode(
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype == numpy.uint8
-        and data.ndim in (2, 3)
-        # data.nbytes < 2 ** 31 and  # limit to 2 GB
+        src.dtype == numpy.uint8
+        and src.ndim in (2, 3)
+        # src.nbytes < 2 ** 31 and  # limit to 2 GB
         and samples in (1, 3, 4)
-        and data.strides[data.ndim-1] == data.itemsize
-        and (data.ndim == 2 or data.strides[1] == samples * data.itemsize)
+        and src.strides[src.ndim-1] == src.itemsize
+        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
