@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -161,30 +161,38 @@ def avif_encode(
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype in (numpy.uint8, numpy.uint16)
-        and numpy.PyArray_ISCONTIGUOUS(data)
-        and data.ndim in (2, 3, 4)
-        and data.shape[0] < 2 ** 32
-        and data.shape[1] < 2 ** 32
-        and data.shape[data.ndim - 1] < 2 ** 32
-        and data.shape[data.ndim - 2] < 2 ** 32
+        src.dtype in (numpy.uint8, numpy.uint16)
+        and numpy.PyArray_ISCONTIGUOUS(src)
+        and src.ndim in (2, 3, 4)
+        and src.shape[0] < 2 ** 32
+        and src.shape[1] < 2 ** 32
+        and src.shape[src.ndim - 1] < 2 ** 32
+        and src.shape[src.ndim - 2] < 2 ** 32
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
-    if data.ndim == 2:
+    if src.ndim == 2:
         samples = 1
         imagecount = 1
-        height, width = data.shape
-    elif data.ndim == 4:
-        imagecount, height, width, samples = data.shape
+        height = <int> src.shape[0]
+        width = <int> src.shape[1]
+    elif src.ndim == 4:
+        imagecount = <int> src.shape[0]
+        height = <int> src.shape[1]
+        width = <int> src.shape[2]
+        samples = <int> src.shape[3]
         if samples > 4:
             raise ValueError('invalid number of samples')
-    elif data.shape[data.ndim - 1] < 5:
+    elif src.shape[src.ndim - 1] < 5:
         imagecount = 1
-        height, width, samples = data.shape
+        height = <int> src.shape[0]
+        width = <int> src.shape[1]
+        samples = <int> src.shape[2]
     else:
         samples = 1
-        imagecount, height, width = data.shape
+        imagecount = <int> src.shape[0]
+        height = <int> src.shape[1]
+        width = <int> src.shape[2]
 
     monochrome = samples < 3
     hasalpha = samples in (2, 4)
