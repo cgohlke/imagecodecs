@@ -1164,8 +1164,7 @@ ssize_t imcd_float24_encode(
         s1 = *src++;
         s2 = *src++;
         s3 = *src++;
-#endif}
-
+#endif
         sign = s0 & 0x80;
         exponent = ((s0 & 0x7F) << 1) | ((s1 & 0x80) >> 7);
 #if IMCD_MSB
