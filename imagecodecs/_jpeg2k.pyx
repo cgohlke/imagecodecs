@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -133,9 +133,9 @@ def jpeg2k_encode(
         raise ValueError('cannot encode in-place')
 
     if not (
-        data.dtype in (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16)
-        and data.ndim in (2, 3)
-        and numpy.PyArray_ISCONTIGUOUS(data)
+        src.dtype in (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16)
+        and src.ndim in (2, 3)
+        and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
@@ -157,22 +157,22 @@ def jpeg2k_encode(
     else:
         raise ValueError('invalid codecformat')
 
-    signed = 1 if data.dtype in (numpy.int8, numpy.int16, numpy.int32) else 0
-    prec = data.itemsize * 8
-    width = data.shape[1]
-    height = data.shape[0]
-    samples = 1 if data.ndim == 2 else data.shape[2]
+    signed = 1 if src.dtype in (numpy.int8, numpy.int16, numpy.int32) else 0
+    prec = <OPJ_UINT32> src.itemsize * 8
+    width = <OPJ_UINT32> src.shape[1]
+    height = <OPJ_UINT32> src.shape[0]
+    samples = 1 if src.ndim == 2 else <OPJ_UINT32> src.shape[2]
 
     if samples > 4 and height <= 4:
         # separate bands
-        samples = data.shape[0]
-        width = data.shape[1]
-        height = data.shape[2]
+        samples = <OPJ_UINT32> src.shape[0]
+        width = <OPJ_UINT32> src.shape[1]
+        height = <OPJ_UINT32> src.shape[2]
     elif samples > 1:
         # contig
         # TODO: avoid full copy
-        # TODO: doesn't work with e.g. contig (4, 4, 4)
-        src = numpy.ascontiguousarray(numpy.moveaxis(data, -1, 0))
+        # TODO: does not work with e.g. contig (4, 4, 4)
+        src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
 
     if tile:
         tile_height, tile_width = tile
