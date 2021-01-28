@@ -43,11 +43,11 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.11
+:Version: 2021.1.28
 
 """
 
-__version__ = '2021.1.11'
+__version__ = '2021.1.28'
 
 import bz2
 import functools
