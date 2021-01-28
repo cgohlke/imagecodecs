@@ -8,7 +8,7 @@ tifffile, czifile, and other scientific image input/output modules.
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
 LZW, LZF, ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit,
-JPEG SOF3 (LJPEG), JPEG 2000, JPEG LS, JPEG XR, JPEG XL, AVIF,
+Lossless JPEG (LJPEG, SOF3), JPEG 2000, JPEG LS, JPEG XR, JPEG XL, AVIF,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
 Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
@@ -20,7 +20,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.11
+:Version: 2021.1.28
 
 :Status: Alpha
 
@@ -68,13 +68,13 @@ Required Python packages for testing (other versions may work):
 
 * `tifffile 2021.1.11 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.10.1 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 3.1.1 <https://github.com/python-lz4/python-lz4>`_
+* `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
+* `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.4.8.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
-* `zopflipy 1.4 <https://github.com/hattya/zopflipy>`_
+* `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 
 Notes
@@ -97,7 +97,10 @@ Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 This software is based in part on the work of the Independent JPEG Group.
 
 This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
-<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`.
+<https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
+
+This software includes a copy of `liblj92
+<https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
@@ -163,8 +166,12 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.1.28
+    Pass 4915 tests.
+    Add option to return JPEG XR fixed point pixel types as integers.
+    Add LJPEG codec via liblj92 (alternative to JPEGSOF3 codec).
+    Change zopfli header location.
 2021.1.11
-    Pass 4852 tests.
     Fix build issues (#7, #8).
     Return bytearray instead of bytes on PyPy.
     Raise TypeError if output provided is bytes (breaking).
