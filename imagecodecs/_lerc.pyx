@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -113,49 +113,49 @@ def lerc_encode(
         int iversion = 4 if version is None else version
         double maxZErr = _default_value(level, 0.0, 0.0, None)
         unsigned int blobSize
-        int ndim = data.ndim
+        int ndim = src.ndim
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if data.dtype == numpy.uint8:
+    if src.dtype == numpy.uint8:
         dataType = dt_uchar
-    elif data.dtype == numpy.uint16:
+    elif src.dtype == numpy.uint16:
         dataType = dt_ushort
-    elif data.dtype == numpy.int32:
+    elif src.dtype == numpy.int32:
         dataType = dt_int
-    elif data.dtype == numpy.float32:
+    elif src.dtype == numpy.float32:
         dataType = dt_float
-    elif data.dtype == numpy.float64:
+    elif src.dtype == numpy.float64:
         dataType = dt_double
-    elif data.dtype == numpy.int8:
+    elif src.dtype == numpy.int8:
         dataType = dt_char
-    elif data.dtype == numpy.int16:
+    elif src.dtype == numpy.int16:
         dataType = dt_short
-    elif data.dtype == numpy.uint32:
+    elif src.dtype == numpy.uint32:
         dataType = dt_uint
     else:
         raise ValueError('data type not supported by LERC')
 
     if ndim == 2:
-        nRows = <int> data.shape[0]
-        nCols = <int> data.shape[1]
+        nRows = <int> src.shape[0]
+        nCols = <int> src.shape[1]
     elif ndim == 3:
         if planarconfig is None or planarconfig in ('contig', 'CONTIG', 1):
-            nRows = <int> data.shape[0]
-            nCols = <int> data.shape[1]
-            nDim = <int> data.shape[2]
+            nRows = <int> src.shape[0]
+            nCols = <int> src.shape[1]
+            nDim = <int> src.shape[2]
         else:
-            nBands = <int> data.shape[0]
-            nRows = <int> data.shape[1]
-            nCols = <int> data.shape[2]
+            nBands = <int> src.shape[0]
+            nRows = <int> src.shape[1]
+            nCols = <int> src.shape[2]
     elif ndim == 4:
-        nBands = <int> data.shape[0]
-        nRows = <int> data.shape[1]
-        nCols = <int> data.shape[2]
-        nDim = <int> data.shape[3]
+        nBands = <int> src.shape[0]
+        nRows = <int> src.shape[1]
+        nCols = <int> src.shape[2]
+        nDim = <int> src.shape[3]
     elif ndim == 1:
-        nCols = <int> data.shape[0]
+        nCols = <int> src.shape[0]
     else:
         raise ValueError('data shape not supported by LERC')
 
