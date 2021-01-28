@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.1.28
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.1.28'
 
 include '_shared.pxi'
 
@@ -149,30 +149,33 @@ def jpegxr_encode(
         U32 stride
         ERR err
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if (
         dtype not in (
             numpy.uint8, numpy.uint16, numpy.bool, numpy.float16, numpy.float32
         )
-        and data.ndim in (2, 3)
-        and numpy.PyArray_ISCONTIGUOUS(data)
+        and src.ndim in (2, 3)
+        and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
     if resolution:
         rx, ry = resolution
 
-    width = <I32> data.shape[1]
-    height = <I32> data.shape[0]
-    stride = <U32> data.strides[0]
-    samples = 1 if data.ndim == 2 else data.shape[2]
+    width = <I32> src.shape[1]
+    height = <I32> src.shape[0]
+    stride = <U32> src.strides[0]
+    samples = 1 if src.ndim == 2 else src.shape[2]
 
     if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
         raise ValueError('invalid data shape')
 
     if dtype == numpy.bool:
-        if data.ndim != 2:
+        if src.ndim != 2:
             raise ValueError('invalid data shape, strides, or dtype')
-        src = numpy.packbits(data, axis=-1)
+        src = numpy.packbits(src, axis=-1)
         stride = <U32> src.strides[0]
         srcsize //= 8
 
@@ -278,8 +281,11 @@ def jpegxr_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegxr_decode(data, index=None, out=None):
+def jpegxr_decode(data, index=None, fp2int=False, out=None):
     """Decode JPEG XR image to numpy array.
+
+    fp2int: bool
+        If True, return fixed point images as int16 or int32, else float32.
 
     """
     cdef:
@@ -299,6 +305,7 @@ def jpegxr_decode(data, index=None, out=None):
         ssize_t dstsize
         ssize_t samples
         int typenum
+        bint fp2int_ = fp2int
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -321,7 +328,9 @@ def jpegxr_decode(data, index=None, out=None):
             if err:
                 raise JpegxrError('PKImageDecode_GetPixelFormat', err)
 
-            err = jxr_decode_guid(&pixelformat, &typenum, &samples, &alpha)
+            err = jxr_decode_guid(
+                &pixelformat, &typenum, &samples, &alpha, fp2int_
+            )
             if err:
                 raise JpegxrError('jxr_decode_guid', err)
             decoder.WMP.wmiSCP.uAlphaMode = alpha
@@ -471,7 +480,8 @@ cdef ERR jxr_decode_guid(
     PKPixelFormatGUID* pixelformat,
     int* typenum,
     ssize_t* samples,
-    U8* alpha
+    U8* alpha,
+    bint fp2int
 ) nogil:
     """Return dtype, samples, alpha from GUID.
 
@@ -685,31 +695,57 @@ cdef ERR jxr_decode_guid(
         samples[0] = 4
         return WMP_errSuccess
 
-    # fixed to float32
-    typenum[0] = numpy.NPY_FLOAT32
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGrayFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
-        return WMP_errSuccess
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGBFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
-        samples[0] = 3
-        return WMP_errSuccess
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
-        samples[0] = 4
-        return WMP_errSuccess
+    if fp2int:
+        # fixed to int
+        typenum[0] = numpy.NPY_INT16
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGrayFixedPoint):
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGBFixedPoint):
+            samples[0] = 3
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
+            samples[0] = 4
+            return WMP_errSuccess
 
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
-        return WMP_errSuccess
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
-        samples[0] = 3
-        return WMP_errSuccess
-    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
-        pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
-        samples[0] = 4
-        return WMP_errSuccess
+        typenum[0] = numpy.NPY_INT32
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+            samples[0] = 3
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            samples[0] = 4
+            return WMP_errSuccess
+
+    else:
+        # fixed to float32
+        typenum[0] = numpy.NPY_FLOAT32
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat16bppGrayFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat48bppRGBFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+            samples[0] = 3
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            samples[0] = 4
+            return WMP_errSuccess
+
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+            samples[0] = 3
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            samples[0] = 4
+            return WMP_errSuccess
 
     return WMP_errUnsupportedFormat
 
