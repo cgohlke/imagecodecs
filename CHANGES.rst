@@ -1,7 +1,11 @@
 Revisions
 ---------
+2021.1.28
+    Pass 4915 tests.
+    Add option to return JPEG XR fixed point pixel types as integers.
+    Add LJPEG codec via liblj92 (alternative to JPEGSOF3 codec).
+    Change zopfli header location.
 2021.1.11
-    Pass 4852 tests.
     Fix build issues (#7, #8).
     Return bytearray instead of bytes on PyPy.
     Raise TypeError if output provided is bytes (breaking).
