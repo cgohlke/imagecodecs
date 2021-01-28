@@ -14,12 +14,12 @@ cdef extern from 'brotli/types.h':
     BROTLI_BOOL BROTLI_FALSE
 
     ctypedef void* (*brotli_alloc_func)(
-        void* opaque, 
+        void* opaque,
         size_t size
     ) nogil
-    
+
     ctypedef void (*brotli_free_func)(
-        void* opaque, 
+        void* opaque,
         void* address
     ) nogil
 
@@ -116,7 +116,7 @@ cdef extern from 'brotli/encode.h':
     int BROTLI_DEFAULT_WINDOW
     int BROTLI_DEFAULT_MODE
 
-    cpdef enum BrotliEncoderMode:
+    ctypedef enum BrotliEncoderMode:
         BROTLI_MODE_GENERIC
         BROTLI_MODE_TEXT
         BROTLI_MODE_FONT
