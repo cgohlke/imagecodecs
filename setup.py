@@ -156,6 +156,9 @@ EXTENSIONS = {
         define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
     ),
     'lerc': ext(libraries=['lerc']),
+    'ljpeg': ext(
+        sources=['3rdparty/liblj92/lj92.c'], include_dirs=['3rdparty/liblj92']
+    ),
     'lz4': ext(libraries=['lz4']),
     'lz4f': ext(libraries=['lz4']),
     'lzf': ext(
@@ -198,6 +201,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
             ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4')
         )
         EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
+        EXTENSIONS['zopfli']['include_dirs'].append('/usr/include/zopfli')
 
 
 def customize_build_cg(EXTENSIONS, OPTIONS):
@@ -279,7 +283,7 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         'BASE_PATH', os.path.dirname(os.path.abspath(__file__))
     )
     include_base_path = os.path.join(
-        base_path, 'build_utils/libs_build/include'
+        base_path, os.path.join('build_utils', 'libs_build', 'include')
     )
     OPTIONS['library_dirs'] = [
         x
@@ -288,6 +292,10 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         ).split(':')
         if x
     ]
+
+    EXTENSIONS['zopfli']['include_dirs'].append(
+        os.path.join(include_base_path, 'zopfli')
+    )
 
     if os.path.exists(include_base_path):
         OPTIONS['include_dirs'].append(include_base_path)
@@ -308,8 +316,7 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         if os.path.exists(os.path.join(dir_path, 'avif', 'avif.h')):
             break
     else:
-        pass
-    del EXTENSIONS['avif']  # libavif not built correctly
+        del EXTENSIONS['avif']
 
     for dir_path in OPTIONS['include_dirs']:
         if os.path.exists(os.path.join(dir_path, 'charls', 'charls.h')):
@@ -358,11 +365,17 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
         EXTENSIONS['png']['libraries'] = ['libpng', 'z']
         EXTENSIONS['webp']['libraries'] = ['libwebp']
+        EXTENSIONS['zopfli']['include_dirs'] = [
+            os.path.join(os.environ['LIBRARY_INC'], 'zopfli')
+        ]
         EXTENSIONS['jpegxr']['include_dirs'] = [
             os.path.join(os.environ['LIBRARY_INC'], 'jxrlib')
         ]
         EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
     else:
+        EXTENSIONS['zopfli']['include_dirs'] = [
+            os.path.join(os.environ['PREFIX'], 'include', 'zopfli')
+        ]
         EXTENSIONS['jpegxr']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'jxrlib')
         ]
@@ -381,7 +394,6 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
     del EXTENSIONS['zfp']
-    del EXTENSIONS['zopfli']  # zopfli/zopfli.h does not exist
 
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -391,6 +403,23 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     )
     EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
     OPTIONS['cythonize'] = True
+
+
+def customize_build_mingw(EXTENSIONS, OPTIONS):
+    """Customize build for mingw-w64."""
+
+    del EXTENSIONS['jpeg12']
+    del EXTENSIONS['jpegxl']
+    del EXTENSIONS['lerc']
+    del EXTENSIONS['zfp']
+
+    EXTENSIONS['jpeg2k']['include_dirs'].extend(
+        (
+            sys.prefix + '/include/openjpeg-2.3',
+            sys.prefix + '/include/openjpeg-2.4',
+        )
+    )
+    EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
 
 
 # customize builds based on environment
@@ -405,6 +434,8 @@ except ImportError:
         customize_build = customize_build_macports
     elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
         customize_build = customize_build_ci
+    elif os.name == 'nt' and 'GCC' in sys.version:
+        customize_build = customize_build_mingw
     else:
         customize_build = customize_build_default
 
