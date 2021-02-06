@@ -1,7 +1,7 @@
 # libwebp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libwebp 1.1.0` library.
+# Cython declarations for the `libwebp 1.2.0` library.
 # https://github.com/webmproject/libwebp
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -471,7 +471,8 @@ cdef extern from 'webp/encode.h':
         int exact
         int use_delta_palette
         int use_sharp_yuv
-        uint32_t pad[2]
+        int qmin
+        int qmax
 
     ctypedef enum WebPPreset:
         WEBP_PRESET_DEFAULT
