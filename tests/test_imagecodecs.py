@@ -2364,4 +2364,5 @@ if __name__ == '__main__':
     warnings.filterwarnings('ignore', category=ImportWarning)  # noqa
     argv = sys.argv
     argv.append('-vv')
-    pytest.main(argv)
+    retcode = pytest.main(argv)
+    sys.exit(retcode)
