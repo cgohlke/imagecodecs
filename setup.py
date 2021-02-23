@@ -187,9 +187,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
 
-    if 'arch' in platform.platform():
-        del EXTENSIONS['zopfli']  # zopfli/zopfli.h does not exist
-    else:
+    if 'arch' not in platform.platform():
         del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
         del EXTENSIONS['jpegxl']  # Brunsli library not commonly available
         del EXTENSIONS['zfp']  # ZFP library not commonly available
@@ -211,17 +209,22 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     OPTIONS['include_dirs'].append(INCLIB)
     OPTIONS['library_dirs'].append(INCLIB)
 
+    EXTENSIONS['avif']['libraries'] = [
+        'avif',
+        'aom',
+        'libdav1d',
+        'rav1e',
+        'Ws2_32',
+        'Advapi32',
+        'Userenv',
+    ]
     EXTENSIONS['aec']['libraries'] = ['libaec']
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
     # EXTENSIONS['szip']['libraries'] = ['libaec']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
-    EXTENSIONS['avif']['libraries'] = ['avif', 'aom', 'libdav1d']
-    if '64 bit' in sys.version:
-        EXTENSIONS['avif']['libraries'].extend(
-            ['rav1e', 'Ws2_32', 'Advapi32', 'Userenv']
-        )
+
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
