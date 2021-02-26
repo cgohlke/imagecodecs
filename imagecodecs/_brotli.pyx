@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2020.12.22
+:Version: 2021.2.26
 
 """
 
-__version__ = '2020.12.22'
+__version__ = '2021.2.26'
 
 include '_shared.pxi'
 
@@ -58,6 +58,9 @@ from brotli cimport *
 
 class BROTLI:
     """Brotli Constants."""
+    MODE_GENERIC = BROTLI_MODE_GENERIC
+    MODE_TEXT = BROTLI_MODE_TEXT
+    MODE_FONT = BROTLI_MODE_FONT
 
 
 class BrotliError(RuntimeError):
