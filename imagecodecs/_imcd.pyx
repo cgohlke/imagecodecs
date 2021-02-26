@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.11
+:Version: 2021.2.26
 
 """
 
-__version__ = '2021.1.11'
+__version__ = '2021.2.26'
 
 include '_shared.pxi'
 
@@ -118,23 +118,23 @@ delta_version = imcd_version
 delta_check = imcd_check
 
 
-def delta_encode(data, axis=-1, out=None):
+def delta_encode(data, axis=-1, dist=1, out=None):
     """Encode differencing.
 
     """
-    return _delta(data, axis=axis, out=out, decode=False)
+    return _delta(data, axis=axis, dist=dist, out=out, decode=False)
 
 
-def delta_decode(data, axis=-1, out=None):
+def delta_decode(data, axis=-1, dist=1, out=None):
     """Decode differencing.
 
     Same as numpy.cumsum
 
     """
-    return _delta(data, axis=axis, out=out, decode=True)
+    return _delta(data, axis=axis, dist=dist, out=out, decode=True)
 
 
-cdef _delta(data, int axis, out, int decode):
+cdef _delta(data, int axis, ssize_t dist, out, int decode):
     """Decode or encode Delta."""
     cdef:
         const uint8_t[::1] src
@@ -149,6 +149,9 @@ cdef _delta(data, int axis, out, int decode):
         numpy.flatiter srciter
         numpy.flatiter dstiter
         ssize_t itemsize
+
+    if dist != 1:
+        raise NotImplementedError(f'dist {dist} not implemented')
 
     if isinstance(data, numpy.ndarray):
         if data.dtype.kind not in 'fiu':
@@ -359,7 +362,7 @@ floatpred_version = imcd_version
 floatpred_check = imcd_check
 
 
-def floatpred_encode(data, axis=-1, out=None):
+def floatpred_encode(data, axis=-1, dist=1, out=None):
     """Encode Floating Point Predictor.
 
     The output array should not be treated as floating-point numbers but as an
@@ -367,10 +370,10 @@ def floatpred_encode(data, axis=-1, out=None):
     input data.
 
     """
-    return _floatpred(data, axis=axis, out=out, decode=False)
+    return _floatpred(data, axis=axis, dist=dist, out=out, decode=False)
 
 
-def floatpred_decode(data, axis=-1, out=None):
+def floatpred_decode(data, axis=-1, dist=1, out=None):
     """Decode Floating Point Predictor.
 
     The data array is not really an array of floating-point numbers but an
@@ -378,10 +381,10 @@ def floatpred_decode(data, axis=-1, out=None):
     and dtype.
 
     """
-    return _floatpred(data, axis=axis, out=out, decode=True)
+    return _floatpred(data, axis=axis, dist=dist, out=out, decode=True)
 
 
-cdef _floatpred(data, int axis, out, int decode):
+cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
     """Encode or decode Floating Point Predictor."""
     cdef:
         void* srcptr = NULL
@@ -418,6 +421,11 @@ cdef _floatpred(data, int axis, out, int decode):
         raise ValueError('invalid axis')
 
     samples = data.shape[axis+1] if ndim - axis == 2 else 1
+
+    if dist != 1 and dist != 2 and dist != 4:
+        raise NotImplementedError(f'dist {dist} not implemented')
+
+    samples *= dist
 
     src = data.view()
     src.shape = data.shape[:axis] + (-1,)
