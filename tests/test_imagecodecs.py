@@ -37,7 +37,7 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.28
+:Version: 2021.2.26
 
 """
 
@@ -2364,4 +2364,4 @@ if __name__ == '__main__':
     warnings.filterwarnings('ignore', category=ImportWarning)  # noqa
     argv = sys.argv
     argv.append('-vv')
-    pytest.main(argv)
+    sys.exit(pytest.main(argv))
