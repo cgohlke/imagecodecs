@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.28
+:Version: 2021.2.26
 
 """
 
-__version__ = '2021.1.28'
+__version__ = '2021.2.26'
 
 include '_shared.pxi'
 
@@ -294,7 +294,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
     if not (mask is None or mask is False):
         if mask is True:
             mask = None
-        mask = _create_array(mask, (nRows, nCols), numpy.bool)
+        mask = _create_array(mask, (nRows, nCols), numpy.bool8)
         valid = mask
         pValidBytes = <unsigned char*> valid.data
 
