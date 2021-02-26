@@ -43,11 +43,11 @@ The module is intended for testing and reference, not production code.
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.28
+:Version: 2021.2.26
 
 """
 
-__version__ = '2021.1.28'
+__version__ = '2021.2.26'
 
 import bz2
 import functools
@@ -225,13 +225,15 @@ def numpy_encode(data, level=None, out=None, **kwargs):
     return out
 
 
-def delta_encode(data, axis=-1, out=None):
+def delta_encode(data, axis=-1, dist=1, out=None):
     r"""Encode Delta.
 
     >>> delta_encode(b'0123456789')
     b'0\x01\x01\x01\x01\x01\x01\x01\x01\x01'
 
     """
+    if dist != 1:
+        raise NotImplementedError(f'dist {dist} not implemented')
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
         diff = numpy.diff(data, axis=0)
@@ -251,13 +253,15 @@ def delta_encode(data, axis=-1, out=None):
     return diff
 
 
-def delta_decode(data, axis=-1, out=None):
+def delta_decode(data, axis=-1, dist=1, out=None):
     """Decode Delta.
 
     >>> delta_decode(b'0\x01\x01\x01\x01\x01\x01\x01\x01\x01')
     b'0123456789'
 
     """
+    if dist != 1:
+        raise NotImplementedError(f'dist {dist} not implemented')
     if out is not None and not out.flags.writeable:
         out = None
 
@@ -324,7 +328,7 @@ def xor_decode(data, axis=-1, out=None):
     raise NotImplementedError
 
 
-def floatpred_decode(data, axis=-2, out=None):
+def floatpred_decode(data, axis=-2, dist=1, out=None):
     """Decode floating point horizontal differencing.
 
     The TIFF predictor type 3 reorders the bytes of the image values and
@@ -339,6 +343,8 @@ def floatpred_decode(data, axis=-2, out=None):
         even if 1.
 
     """
+    if dist != 1:
+        raise NotImplementedError(f'dist {dist} not implemented')
     if axis != -2:
         raise NotImplementedError(f'axis {axis!r} != -2')
     shape = data.shape
@@ -368,7 +374,7 @@ def floatpred_decode(data, axis=-2, out=None):
 
 
 @notimplemented
-def floatpred_encode(data, axis=-1, out=None):
+def floatpred_encode(data, axis=-1, dist=1, out=None):
     """Encode Floating Point Predictor."""
 
 
