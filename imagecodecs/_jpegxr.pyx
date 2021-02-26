@@ -45,11 +45,11 @@
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.28
+:Version: 2021.2.26
 
 """
 
-__version__ = '2021.1.28'
+__version__ = '2021.2.26'
 
 include '_shared.pxi'
 
@@ -154,7 +154,11 @@ def jpegxr_encode(
 
     if (
         dtype not in (
-            numpy.uint8, numpy.uint16, numpy.bool, numpy.float16, numpy.float32
+            numpy.bool8,
+            numpy.uint8,
+            numpy.uint16,
+            numpy.float16,
+            numpy.float32,
         )
         and src.ndim in (2, 3)
         and numpy.PyArray_ISCONTIGUOUS(src)
@@ -172,7 +176,7 @@ def jpegxr_encode(
     if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
         raise ValueError('invalid data shape')
 
-    if dtype == numpy.bool:
+    if dtype == numpy.bool8:
         if src.ndim != 2:
             raise ValueError('invalid data shape, strides, or dtype')
         src = numpy.packbits(src, axis=-1)
