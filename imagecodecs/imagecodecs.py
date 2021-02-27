@@ -50,7 +50,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.1.28
+:Version: 2021.2.26
 
 :Status: Alpha
 
@@ -59,9 +59,9 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.7, 3.9.1 64-bit <https://www.python.org>`_
+* `CPython 3.7.9, 3.8.8, 3.9.2 64-bit <https://www.python.org>`_
 * `Numpy 1.19.5 <https://pypi.org/project/numpy/>`_
-* `Cython 0.29.21 <https://cython.org>`_
+* `Cython 0.29.22 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.8 <https://github.com/facebook/zstd>`_
@@ -70,7 +70,7 @@ This release has been tested with the following requirements and dependencies
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
-* `libwebp 1.1.0 <https://github.com/webmproject/libwebp>`_
+* `libwebp 1.2.0 <https://github.com/webmproject/libwebp>`_
 * `libtiff 4.2.0 <https://gitlab.com/libtiff/libtiff>`_
 * `libjpeg-turbo 2.0.6 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
@@ -88,15 +88,15 @@ This release has been tested with the following requirements and dependencies
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `lerc 2.2.1 <https://github.com/Esri/lerc>`_
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
-* `libavif 0.8.4 <https://github.com/AOMediaCodec/libavif>`_
-* `dav1d 0.8.1 <https://github.com/videolan/dav1d>`_
-* `rav1e 0.3.5 <https://github.com/xiph/rav1e>`_
-* `aom 2.0.1 <https://aomedia.googlesource.com/aom>`_
-* `lcms 2.11 <https://github.com/mm2/Little-CMS>`_
+* `libavif 0.9.0 <https://github.com/AOMediaCodec/libavif>`_
+* `dav1d 0.8.2 <https://github.com/videolan/dav1d>`_
+* `rav1e 0.4.0 <https://github.com/xiph/rav1e>`_
+* `aom 2.0.2 <https://aomedia.googlesource.com/aom>`_
+* `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.1.11 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.2.26 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
@@ -196,8 +196,10 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
-2021.1.28
+2021.2.26
     Pass 4915 tests.
+    Support X2 and X4 floating point predictors (found in DNG).
+2021.1.28
     Add option to return JPEG XR fixed point pixel types as integers.
     Add LJPEG codec via liblj92 (alternative to JPEGSOF3 codec).
     Change zopfli header location.
@@ -292,7 +294,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2021.1.28'
+__version__ = '2021.2.26'
 
 import os
 import sys
