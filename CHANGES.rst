@@ -1,7 +1,9 @@
 Revisions
 ---------
-2021.1.28
+2021.2.26
     Pass 4915 tests.
+    Support X2 and X4 floating point predictors (found in DNG).
+2021.1.28
     Add option to return JPEG XR fixed point pixel types as integers.
     Add LJPEG codec via liblj92 (alternative to JPEGSOF3 codec).
     Change zopfli header location.
