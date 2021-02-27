@@ -1,7 +1,7 @@
 # libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 0.8.3` library.
+# Cython declarations for the `libavif 0.9.0` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -265,6 +265,7 @@ cdef extern from 'avif/avif.h':
         uint8_t* alphaPlane
         uint32_t alphaRowBytes
         avifBool imageOwnsAlphaPlane
+        avifBool alphaPremultiplied
         avifRWData icc
         avifColorPrimaries colorPrimaries
         avifTransferCharacteristics transferCharacteristics
@@ -360,6 +361,7 @@ cdef extern from 'avif/avif.h':
         avifRGBFormat format
         avifChromaUpsampling chromaUpsampling
         avifBool ignoreAlpha
+        avifBool alphaPremultiplied
         uint8_t* pixels
         uint32_t rowBytes
 
@@ -394,6 +396,16 @@ cdef extern from 'avif/avif.h':
         avifRGBImage* rgb
     ) nogil
 
+    # Premultiply handling functions
+
+    avifResult avifRGBImagePremultiplyAlpha(
+        avifRGBImage* rgb
+    )
+
+    avifResult avifRGBImageUnpremultiplyAlpha(
+        avifRGBImage* rgb
+    )
+
     # YUV Utils
 
     int avifFullToLimitedY(
@@ -416,40 +428,42 @@ cdef extern from 'avif/avif.h':
         int v
     ) nogil
 
-    ctypedef enum avifReformatMode:
-        AVIF_REFORMAT_MODE_YUV_COEFFICIENTS
-        AVIF_REFORMAT_MODE_IDENTITY
+    # removed in v0.9
+    #
+    # ctypedef enum avifReformatMode:
+    #     AVIF_REFORMAT_MODE_YUV_COEFFICIENTS
+    #     AVIF_REFORMAT_MODE_IDENTITY
 
-    ctypedef struct avifReformatState:
-        float kr
-        float kg
-        float kb
-        uint32_t yuvChannelBytes
-        uint32_t rgbChannelBytes
-        uint32_t rgbChannelCount
-        uint32_t rgbPixelBytes
-        uint32_t rgbOffsetBytesR
-        uint32_t rgbOffsetBytesG
-        uint32_t rgbOffsetBytesB
-        uint32_t rgbOffsetBytesA
-        uint32_t yuvDepth
-        uint32_t rgbDepth
-        avifRange yuvRange
-        int yuvMaxChannel
-        int rgbMaxChannel
-        float yuvMaxChannelF
-        float rgbMaxChannelF
-        int uvBias
-        avifPixelFormatInfo formatInfo
-        float unormFloatTableY[1 << 12]
-        float unormFloatTableUV[1 << 12]
-        avifReformatMode mode
+    # ctypedef struct avifReformatState:
+    #     float kr
+    #     float kg
+    #     float kb
+    #     uint32_t yuvChannelBytes
+    #     uint32_t rgbChannelBytes
+    #     uint32_t rgbChannelCount
+    #     uint32_t rgbPixelBytes
+    #     uint32_t rgbOffsetBytesR
+    #     uint32_t rgbOffsetBytesG
+    #     uint32_t rgbOffsetBytesB
+    #     uint32_t rgbOffsetBytesA
+    #     uint32_t yuvDepth
+    #     uint32_t rgbDepth
+    #     avifRange yuvRange
+    #     int yuvMaxChannel
+    #     int rgbMaxChannel
+    #     float yuvMaxChannelF
+    #     float rgbMaxChannelF
+    #     int uvBias
+    #     avifPixelFormatInfo formatInfo
+    #     float unormFloatTableY[1 << 12]
+    #     float unormFloatTableUV[1 << 12]
+    #     avifReformatMode mode
 
-    avifBool avifPrepareReformatState(
-        const avifImage* image,
-        const avifRGBImage* rgb,
-        avifReformatState* state
-    ) nogil
+    # avifBool avifPrepareReformatState(
+    #     const avifImage* image,
+    #     const avifRGBImage* rgb,
+    #     avifReformatState* state
+    # ) nogil
 
     # Codec selection
 
@@ -694,6 +708,14 @@ cdef extern from 'avif/avif.h':
         uint64_t durationInTimescales,
         uint32_t addImageFlags
     ) nogil
+
+    avifResult avifEncoderAddImageGrid(
+        avifEncoder* encoder,
+        uint32_t gridCols,
+        uint32_t gridRows,
+        const avifImage* const *cellImages,
+        uint32_t addImageFlags
+    )
 
     avifResult avifEncoderFinish(
         avifEncoder* encoder,
