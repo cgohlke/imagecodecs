@@ -1535,7 +1535,7 @@ def test_jpeg2k_ycbc():
     assert tuple(decoded[-1, -1]) == (0, 0, 0)
 
 
-@pytest.mark.skipif(not imagecodecs.JPEGXL, reason='jpegls missing')
+@pytest.mark.skipif(not imagecodecs.JPEGLS, reason='jpegls missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpegls_decode(output):
     """Test JPEG LS decoder with RGBA32 image."""
@@ -1889,7 +1889,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
                 )
 
     elif codec == 'jpegls':
-        if not imagecodecs.JPEGXL:
+        if not imagecodecs.JPEGLS:
             pytest.skip(f'{codec} missing')
         if itype in ('view', 'graya') or deout == 'view':
             pytest.xfail('jpegls does not support this case')
