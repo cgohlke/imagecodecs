@@ -1,4 +1,4 @@
-# _blosc.pyx
+# imagecodecs/_blosc.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -35,21 +35,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Blosc codec for the imagecodecs package.
+"""Blosc codec for the imagecodecs package."""
 
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2020.12.22
-
-"""
-
-__version__ = '2020.12.22'
+__version__ = '2020.3.31'
 
 include '_shared.pxi'
 
@@ -79,9 +67,9 @@ def blosc_check(data):
 def blosc_encode(
     data,
     level=None,
-    compressor='blosclz',
-    typesize=8,
-    blocksize=0,
+    compressor=None,
+    typesize=None,
+    blocksize=None,
     shuffle=None,
     numthreads=1,
     out=None
@@ -94,8 +82,8 @@ def blosc_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
-        size_t blocksize_ = blocksize
-        size_t typesize_ = typesize
+        size_t blocksize_
+        size_t typesize_
         char* compressor_ = NULL
         int clevel = _default_value(level, 9, 0, 9)
         int doshuffle = BLOSC_SHUFFLE
@@ -105,7 +93,12 @@ def blosc_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    compressor = compressor.encode()
+    typesize_ = 8 if typesize is None else typesize
+    blocksize_ = 0 if blocksize is None else blocksize
+    if compressor is None:
+        compressor = b'blosclz'
+    else:
+        compressor = compressor.encode()
     compressor_ = compressor
 
     if shuffle is not None:
