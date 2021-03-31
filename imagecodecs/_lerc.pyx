@@ -1,4 +1,4 @@
-# _lerc.pyx
+# imagecodecs/_lerc.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -36,16 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """LERC (Limited Error Raster Compression) codec for the imagecodecs package.
-
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2021.2.26
 
 """
 
@@ -89,7 +79,8 @@ def lerc_check(const uint8_t[::1] data):
 
 
 def lerc_encode(
-    data, level=None,
+    data,
+    level=None,
     mask=None,
     version=None,
     planarconfig=None,
