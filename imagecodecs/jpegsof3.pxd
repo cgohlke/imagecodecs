@@ -1,4 +1,4 @@
-# jpegsof3.pxd
+# imagecodecs/jpegsof3.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `jpegsof3 2020.12.22` library.
