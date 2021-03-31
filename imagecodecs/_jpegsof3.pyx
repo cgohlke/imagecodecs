@@ -1,4 +1,4 @@
-# _jpegsof3.pyx
+# imagecodecs/_jpegsof3.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -40,16 +40,6 @@
 The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
 described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
 The format is identified by a Start of Frame (SOF) code 0xC3.
-
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2020.12.22
 
 """
 
