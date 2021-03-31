@@ -1,4 +1,4 @@
-# zfp.pxd
+# imagecodecs/zfp.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `zfp 0.5.5` library.
