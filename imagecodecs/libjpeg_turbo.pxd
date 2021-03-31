@@ -1,4 +1,4 @@
-# libjpeg_turbo.pxd
+# imagecodecs/libjpeg_turbo.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libjpeg-turbo 2.0.6` library.
