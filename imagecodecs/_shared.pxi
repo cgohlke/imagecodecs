@@ -1,4 +1,4 @@
-# _shared.pxi
+# imagecodecs/_shared.pxi
 # cython: language_level = 3
 
 # Include file for imagecodecs extensions.
