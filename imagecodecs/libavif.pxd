@@ -1,4 +1,4 @@
-# libavif.pxd
+# imagecodecs/libavif.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libavif 0.9.0` library.
