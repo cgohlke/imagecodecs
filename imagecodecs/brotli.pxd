@@ -1,4 +1,4 @@
-# brotli.pxd
+# imagecodecs/brotli.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Brotli 1.0.7` library.
