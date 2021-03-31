@@ -1,4 +1,4 @@
-# libjpeg.pxd
+# imagecodecs/libjpeg.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libjpeg 8d` library.
