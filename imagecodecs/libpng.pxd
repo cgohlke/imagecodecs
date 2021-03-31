@@ -1,4 +1,4 @@
-# libpng.pxd
+# imagecodecs/libpng.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libpng 1.6.37` library.
