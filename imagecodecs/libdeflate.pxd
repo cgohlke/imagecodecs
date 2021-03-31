@@ -1,4 +1,4 @@
-# libdeflate.pxd
+# imagecodecs/libdeflate.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libdeflate 1.7` library.
