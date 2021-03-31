@@ -1,4 +1,4 @@
-# lcms2.pxd
+# imagecodecs/lcms2.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Little 2.11` library.
