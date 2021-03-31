@@ -1,4 +1,4 @@
-# brunsli.pxd
+# imagecodecs/brunsli.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Brunsli 0.1` library.
