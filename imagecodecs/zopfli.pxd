@@ -1,4 +1,4 @@
-# zopfli.pxd
+# imagecodecs/zopfli.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Zopfli 1.0.3` library.
