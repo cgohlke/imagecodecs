@@ -1,4 +1,4 @@
-# zstd.pxd
+# imagecodecs/zstd.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `zstd 1.4.8` library (aka Zstandard).
