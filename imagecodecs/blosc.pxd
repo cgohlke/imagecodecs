@@ -1,4 +1,4 @@
-# blosc.pxd
+# imagecodecs/blosc.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Blosc 1.21.0` C library.
