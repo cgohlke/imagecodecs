@@ -1,4 +1,4 @@
-# liblzf.pxd
+# imagecodecs/liblzf.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `liblzf 3.6` library.
