@@ -1,4 +1,4 @@
-# _aec.pyx
+# imagecodecs/_aec.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -35,21 +35,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""AEC codec for the imagecodecs package.
+"""AEC codec for the imagecodecs package."""
 
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2020.12.22
-
-"""
-
-__version__ = '2020.12.22'
+__version__ = '2020.3.31'
 
 include '_shared.pxi'
 
@@ -102,6 +90,8 @@ def aec_encode(
 ):
     """Compress AEC.
 
+    Does not work well with RGB contig samples.
+
     """
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -142,7 +132,7 @@ def aec_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize  # ? TODO: use dynamic destination buffer
+            dstsize = srcsize * 2  # ? TODO: use dynamic destination buffer
         out = _create_output(outtype, dstsize)
 
     dst = out
