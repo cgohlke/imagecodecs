@@ -1,4 +1,4 @@
-# jxrlib.pxd
+# imagecodecs/jxrlib.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `jxrlib 1.1` library.
