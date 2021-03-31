@@ -1,4 +1,4 @@
-# _shared.pxd
+# imagecodecs/_shared.pxd
 # cython: language_level = 3
 
 # Shared function definitions for imagecodecs extensions.
