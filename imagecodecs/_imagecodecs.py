@@ -1,4 +1,4 @@
-# _imagecodecs.py
+# imagecodecs/_imagecodecs.py
 
 # Copyright (c) 2008-2021, Christoph Gohlke
 # All rights reserved.
@@ -35,19 +35,9 @@ This module implements a limited set of image and compression codecs using
 pure Python and 3rd party Python packages.
 The module is intended for testing and reference, not production code.
 
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2021.2.26
-
 """
 
-__version__ = '2021.2.26'
+__version__ = '2021.3.31'
 
 import bz2
 import functools
@@ -122,6 +112,16 @@ try:
 except ImportError:
     zstd = None
 
+try:
+    import zarr
+except ImportError:
+    zarr = None
+
+try:
+    import numcodecs
+except ImportError:
+    numcodecs = None
+
 
 def version(astype=None, _versions_=[]):
     """Return detailed version information about test dependencies."""
@@ -145,6 +145,8 @@ def version(astype=None, _versions_=[]):
                     bitshuffle.__version__ if bitshuffle else 'n/a',
                 ),
                 ('pillow', pillow.__version__ if pillow else 'n/a'),
+                ('numcodecs', numcodecs.__version__ if numcodecs else 'n/a'),
+                ('zarr', zarr.__version__ if zarr else 'n/a'),
                 ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
                 ('czifile', czifile.__version__ if czifile else 'n/a'),
             )
@@ -254,7 +256,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 
 
 def delta_decode(data, axis=-1, dist=1, out=None):
-    """Decode Delta.
+    r"""Decode Delta.
 
     >>> delta_decode(b'0\x01\x01\x01\x01\x01\x01\x01\x01\x01')
     b'0123456789'
@@ -379,7 +381,7 @@ def floatpred_encode(data, axis=-1, dist=1, out=None):
 
 
 def bitorder_decode(data, out=None, _bitorder=[]):
-    """Reverse bits in each byte of byte string or numpy array.
+    r"""Reverse bits in each byte of byte string or numpy array.
 
     Decode data where pixels with lower column values are stored in the
     lower-order bits of the bytes (TIFF FillOrder is LSB2MSB).
@@ -392,8 +394,8 @@ def bitorder_decode(data, out=None, _bitorder=[]):
 
     Examples
     --------
-    >>> bitorder_decode(b'\\x01\\x64')
-    b'\\x80&'
+    >>> bitorder_decode(b'\x01\x64')
+    b'\x80&'
     >>> data = numpy.array([1, 666], dtype='uint16')
     >>> bitorder_decode(data)
     array([  128, 16473], dtype=uint16)
@@ -796,6 +798,7 @@ def lzf_decode(data, header=False, out=None):
 def zfp_encode(
     data, level=None, mode=None, execution=None, header=True, out=None
 ):
+    """Compress ZFP."""
     kwargs = {'write_header': header}
     if mode in (None, zfp.mode_null, 'R', 'reversible'):  # zfp.mode_reversible
         pass
