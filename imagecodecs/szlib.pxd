@@ -1,4 +1,4 @@
-# szlib.pxd
+# imagecodecs/szlib.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `szlib 1.0.4` library (part of libaec).
