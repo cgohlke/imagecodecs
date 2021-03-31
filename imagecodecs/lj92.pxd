@@ -1,4 +1,4 @@
-# lj92.pxd
+# imagecodecs/lj92.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `liblj92-2014` library.
