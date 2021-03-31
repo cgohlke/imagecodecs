@@ -1,4 +1,4 @@
-# _lz4f.pyx
+# imagecodecs/_lz4f.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -35,21 +35,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZ4 Frame codec for the imagecodecs package.
+"""LZ4 Frame codec for the imagecodecs package."""
 
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2020.12.22
-
-"""
-
-__version__ = '2020.12.22'
+__version__ = '2020.3.31'
 
 include '_shared.pxi'
 
@@ -126,7 +114,7 @@ def lz4f_encode(
     if blocksizeid:
         prefs.frameInfo.blockSizeID = <LZ4F_blockSizeID_t> blocksizeid
     if contentchecksum:
-        prefs.frameInfo.contentChecksum = LZ4F_contentChecksumEnabled
+        prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
     if blockchecksum:
         prefs.frameInfo.blockChecksumFlag = LZ4F_blockChecksumEnabled
 
