@@ -1,4 +1,4 @@
-# _imcd.pyx
+# imagecodecs/_imcd.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -35,19 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Codecs for the imagecodecs package using the imcd.c library.
-
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2021.2.26
-
-"""
+"""Codecs for the imagecodecs package using the imcd.c library."""
 
 __version__ = '2021.2.26'
 
