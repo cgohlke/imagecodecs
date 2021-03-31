@@ -1,4 +1,4 @@
-# bitshuffle.pxd
+# imagecodecs/bitshuffle.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Bitshuffle 0.3.5` library.
