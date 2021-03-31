@@ -1,4 +1,4 @@
-# libwebp.pxd
+# imagecodecs/libwebp.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libwebp 1.2.0` library.
