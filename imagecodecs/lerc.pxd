@@ -1,4 +1,4 @@
-# lerc.pxd
+# imagecodecs/lerc.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `LERC 2.2.1` library.
