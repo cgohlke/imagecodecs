@@ -1,4 +1,4 @@
-# liblzma.pxd
+# imagecodecs/liblzma.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `liblzma 5.2.4` library.
