@@ -1,4 +1,4 @@
-# giflib.pxd
+# imagecodecs/giflib.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `giflib 5.2.1` library.
