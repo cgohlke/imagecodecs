@@ -1,7 +1,16 @@
 Revisions
 ---------
+2021.3.31
+    Pass 4964 tests.
+    Add numcodecs compatible codecs for use by Zarr (experimental).
+    Support separate JPEG header in jpeg_decode.
+    Do not decode JPEG LS and XL in jpeg_decode (breaking).
+    Fix ZFP with partial header.
+    Fix JPEG LS tests (#15).
+    Fix LZ4F contentchecksum.
+    Remove blosc Snappy tests.
+    Fix docstrings.
 2021.2.26
-    Pass 4915 tests.
     Support X2 and X4 floating point predictors (found in DNG).
 2021.1.28
     Add option to return JPEG XR fixed point pixel types as integers.
