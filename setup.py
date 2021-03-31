@@ -554,7 +554,9 @@ setup(
     python_requires='>=3.7',
     install_requires=['numpy>=1.15.1'],
     setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # 'cython>=0.29.21'
-    extras_require={'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11']},
+    extras_require={
+        'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11', 'numcodecs']
+    },
     tests_require=[
         'pytest',
         'tifffile',
@@ -565,10 +567,12 @@ setup(
         'python-lzf',
         'bitshuffle',
         'zopflipy',
-        # zfpy,
-        # brotli,
-        # deflate,
-        # pytinyexr,
+        'zarr',
+        'numcodecs'
+        # 'zfpy',
+        # 'brotli',
+        # 'deflate',
+        # 'pytinyexr',
     ],
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['licenses/*']},
