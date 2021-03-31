@@ -1,4 +1,4 @@
-# _zfp.pyx
+# imagecodecs/_zfp.pyx
 # distutils: language = c
 # cython: language_level = 3
 # cython: boundscheck=False
@@ -35,21 +35,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""ZFP codec for the imagecodecs package.
+"""ZFP codec for the imagecodecs package."""
 
-:Author:
-  `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
-
-:Organization:
-  Laboratory for Fluorescence Dynamics. University of California, Irvine
-
-:License: BSD 3-Clause
-
-:Version: 2021.1.28
-
-"""
-
-__version__ = '2021.1.28'
+__version__ = '2021.3.31'
 
 include '_shared.pxi'
 
@@ -247,10 +235,14 @@ def zfp_encode(
             if ret == 0:
                 raise ZfpError('zfp_stream_set_execution failed')
 
-            if bheader != 0:
-                byteswritten = zfp_write_header(zfp, field, ZFP_HEADER_FULL)
-                if byteswritten == 0:
-                    raise ZfpError('zfp_write_header failed')
+            byteswritten = zfp_write_header(
+                zfp,
+                field,
+                ZFP_HEADER_MAGIC | ZFP_HEADER_MODE
+                if bheader == 0 else ZFP_HEADER_FULL
+            )
+            if byteswritten == 0:
+                raise ZfpError('zfp_write_header failed')
 
             byteswritten = zfp_compress(zfp, field)
             if byteswritten == 0:
@@ -268,7 +260,9 @@ def zfp_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
+def zfp_decode(
+    data, index=None, shape=None, dtype=None, strides=None, out=None
+):
     """Decompress ZFP stream to numpy array.
 
     """
@@ -283,6 +277,10 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
         ssize_t ndim
         size_t size
         uint nx, ny, nz, nw
+        int sx = 0
+        int sy = 0
+        int sz = 0
+        int sw = 0
         int ret
 
     if data is out:
@@ -306,18 +304,32 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
         pass
     elif ndim == 1:
         nx = <uint> shape[0]
+        if strides is not None:
+            sx = <int> strides[0]
     elif ndim == 2:
         nx = <uint> shape[1]
         ny = <uint> shape[0]
+        if strides is not None:
+            sx = <int> strides[1]
+            sy = <int> strides[0]
     elif ndim == 3:
         nx = <uint> shape[2]
         ny = <uint> shape[1]
         nz = <uint> shape[0]
+        if strides is not None:
+            sx = <int> strides[2]
+            sy = <int> strides[1]
+            sz = <int> strides[0]
     elif ndim == 4:
         nx = <uint> shape[3]
         ny = <uint> shape[2]
         nz = <uint> shape[1]
         nw = <uint> shape[0]
+        if strides is not None:
+            sx = <int> strides[3]
+            sy = <int> strides[2]
+            sz = <int> strides[1]
+            sw = <int> strides[0]
     else:
         raise ValueError('shape not supported by ZFP')
 
@@ -354,8 +366,12 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
 
         if ztype == zfp_type_none or ndim == -1:
             size = zfp_read_header(zfp, field, ZFP_HEADER_FULL)
-            if size == 0:
-                raise ZfpError('zfp_read_header failed')
+        else:
+            size = zfp_read_header(
+                zfp, field, ZFP_HEADER_MAGIC | ZFP_HEADER_MODE
+            )
+        if size == 0:
+            raise ZfpError('zfp_read_header failed')
 
         if ztype == zfp_type_none:
             ztype = field.dtype
@@ -387,12 +403,16 @@ def zfp_decode(data, index=None, shape=None, dtype=None, out=None):
                 shape = field.nw, field.nz, field.ny, field.nx
         elif ndim == 1:
             zfp_field_set_size_1d(field, nx)
+            zfp_field_set_stride_1d(field, sx)
         elif ndim == 2:
             zfp_field_set_size_2d(field, nx, ny)
+            zfp_field_set_stride_2d(field, sx, sy)
         elif ndim == 3:
             zfp_field_set_size_3d(field, nx, ny, nz)
+            zfp_field_set_stride_3d(field, sx, sy, sz)
         elif ndim == 4:
             zfp_field_set_size_4d(field, nx, ny, nz, nw)
+            zfp_field_set_stride_4d(field, sx, sy, sz, sw)
 
         out = _create_array(out, shape, dtype)
         dst = out
