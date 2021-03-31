@@ -1,4 +1,4 @@
-# zlib.pxd
+# imagecodecs/zlib.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `zlib 1.2.11` library.
