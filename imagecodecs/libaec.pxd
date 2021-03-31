@@ -1,4 +1,4 @@
-# libaec.pxd
+# imagecodecs/libaec.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `libaec 1.0.4` library.
