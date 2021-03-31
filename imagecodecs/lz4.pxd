@@ -1,4 +1,4 @@
-# lz4.pxd
+# imagecodecs/lz4.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `lz4 1.9.3` library.
