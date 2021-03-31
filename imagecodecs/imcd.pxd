@@ -1,4 +1,4 @@
-# imcd.pxd
+# imagecodecs/imcd.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `imcd 2020.12.22` library.
