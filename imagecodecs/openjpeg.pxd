@@ -1,4 +1,4 @@
-# openjpeg.pxd
+# imagecodecs/openjpeg.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `OpenJPEG 2.3.1` library.
