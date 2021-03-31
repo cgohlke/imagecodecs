@@ -1,4 +1,4 @@
-# snappy.pxd
+# imagecodecs/snappy.pxd
 # cython: language_level = 3
 
 # Cython declarations for the `Snappy 1.1.8` library.
