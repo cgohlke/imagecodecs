@@ -20,7 +20,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.2.26
+:Version: 2021.3.31
 
 :Status: Alpha
 
@@ -34,7 +34,7 @@ This release has been tested with the following requirements and dependencies
 * `Cython 0.29.22 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.4.8 <https://github.com/facebook/zstd>`_
+* `zstd 1.4.9 <https://github.com/facebook/zstd>`_
 * `blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
@@ -66,7 +66,7 @@ This release has been tested with the following requirements and dependencies
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.2.26 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.3.17 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
@@ -76,6 +76,8 @@ Required Python packages for testing (other versions may work):
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
+* `numcodecs 0.7.3 <https://github.com/zarr-developers/numcodecs>`_
+* `zarr 2.7 <https://github.com/zarr-developers/zarr-python>`_
 
 Notes
 -----
@@ -166,8 +168,17 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.3.31
+    Pass 4964 tests.
+    Add numcodecs compatible codecs for use by Zarr (experimental).
+    Support separate JPEG header in jpeg_decode.
+    Do not decode JPEG LS and XL in jpeg_decode (breaking).
+    Fix ZFP with partial header.
+    Fix JPEG LS tests (#15).
+    Fix LZ4F contentchecksum.
+    Remove blosc Snappy tests.
+    Fix docstrings.
 2021.2.26
-    Pass 4915 tests.
     Support X2 and X4 floating point predictors (found in DNG).
 2021.1.28
     Add option to return JPEG XR fixed point pixel types as integers.
