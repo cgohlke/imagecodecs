@@ -35,7 +35,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG XR codec for the imagecodecs package."""
+"""JPEG XR codec for the imagecodecs package.
+
+The JPEG XR format is also known as HD Photo or Windows Media Photo.
+
+"""
 
 __version__ = '2021.2.26'
 
