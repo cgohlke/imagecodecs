@@ -31,6 +31,7 @@ include tests/*.jls
 include tests/*.jxl
 include tests/*.tif
 include tests/*.webp
+include tests/*.br
 include tests/tiff/*.*
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
