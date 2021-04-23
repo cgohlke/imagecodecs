@@ -1,10 +1,13 @@
 # imagecodecs/libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.2.0` library.
+# Cython declarations for the `libtiff 4.3.0` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stdio cimport FILE
+from libc.stdint cimport (
+    uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
+)
 
 cdef extern from '<stdarg.h>':
     ctypedef struct va_list:
@@ -47,22 +50,33 @@ cdef extern from 'tiffio.h':
     int V_NEU
     int UVSCALE
 
-    ctypedef signed char int8
-    ctypedef unsigned char uint8
-    ctypedef signed short int16
-    ctypedef unsigned short uint16
-    ctypedef signed int int32
-    ctypedef unsigned int uint32
-    ctypedef signed long long int64
-    ctypedef unsigned long long uint64
-    ctypedef int uint16_vap
+    # deprecated
+    # ctypedef signed char int8
+    # ctypedef unsigned char uint8
+    # ctypedef signed short int16
+    # ctypedef unsigned short uint16
+    # ctypedef signed int int32
+    # ctypedef unsigned int uint32
+    # ctypedef signed long long int64
+    # ctypedef unsigned long long uint64
+    # ctypedef int uint16_vap
 
-    ctypedef signed long long tmsize_t
-    ctypedef uint64 toff_t
-    ctypedef uint32 ttag_t
-    ctypedef uint16 tdir_t
-    ctypedef uint16 tsample_t
-    ctypedef uint32 tstrile_t
+    ctypedef int16_t TIFF_INT16_T
+    ctypedef int32_t TIFF_INT32_T
+    ctypedef int64_t TIFF_INT64_T
+    ctypedef int8_t TIFF_INT8_T
+    ctypedef uint16_t TIFF_UINT16_T
+    ctypedef uint32_t TIFF_UINT32_T
+    ctypedef uint64_t TIFF_UINT64_T
+    ctypedef uint8_t TIFF_UINT8_T
+    ctypedef int64_t TIFF_SSIZE_T
+
+    ctypedef int64_t tmsize_t
+    ctypedef uint64_t toff_t
+    ctypedef uint32_t ttag_t
+    ctypedef uint16_t tdir_t
+    ctypedef uint16_t tsample_t
+    ctypedef uint32_t tstrile_t
     ctypedef tstrile_t tstrip_t
     ctypedef tstrile_t ttile_t
     ctypedef tmsize_t tsize_t
@@ -71,20 +85,20 @@ cdef extern from 'tiffio.h':
     ctypedef unsigned char TIFFRGBValue
 
     ctypedef struct TIFFHeaderCommon:
-        uint16 tiff_magic
-        uint16 tiff_version
+        uint16_t tiff_magic
+        uint16_t tiff_version
 
     ctypedef struct TIFFHeaderClassic:
-        uint16 tiff_magic
-        uint16 tiff_version
-        uint32 tiff_diroff
+        uint16_t tiff_magic
+        uint16_t tiff_version
+        uint32_t tiff_diroff
 
     ctypedef struct TIFFHeaderBig:
-        uint16 tiff_magic
-        uint16 tiff_version
-        uint16 tiff_offsetsize
-        uint16 tiff_unused
-        uint64 tiff_diroff
+        uint16_t tiff_magic
+        uint16_t tiff_version
+        uint16_t tiff_offsetsize
+        uint16_t tiff_unused
+        uint64_t tiff_diroff
 
     ctypedef enum TIFFDataType:
         TIFF_NOTYPE
@@ -110,9 +124,9 @@ cdef extern from 'tiffio.h':
         float d_YCR
         float d_YCG
         float d_YCB
-        uint32 d_Vrwr
-        uint32 d_Vrwg
-        uint32 d_Vrwb
+        uint32_t d_Vrwr
+        uint32_t d_Vrwg
+        uint32_t d_Vrwb
         float d_Y0R
         float d_Y0G
         float d_Y0B
@@ -124,9 +138,9 @@ cdef extern from 'tiffio.h':
         TIFFRGBValue* clamptab
         int* Cr_r_tab
         int* Cb_b_tab
-        int32* Cr_g_tab
-        int32* Cb_g_tab
-        int32* Y_tab
+        int32_t* Cr_g_tab
+        int32_t* Cb_g_tab
+        int32_t* Y_tab
 
     ctypedef struct TIFFCIELabToRGB:
         int range
@@ -149,25 +163,25 @@ cdef extern from 'tiffio.h':
 
     ctypedef void (*tileContigRoutine)(
         TIFFRGBAImage*,
-        uint32*,
-        uint32,
-        uint32,
-        uint32,
-        uint32,
-        int32,
-        int32,
+        uint32_t*,
+        uint32_t,
+        uint32_t,
+        uint32_t,
+        uint32_t,
+        int32_t,
+        int32_t,
         unsigned char*
     ) nogil
 
     ctypedef void (*tileSeparateRoutine)(
         TIFFRGBAImage*,
-        uint32*,
-        uint32,
-        uint32,
-        uint32,
-        uint32,
-        int32,
-        int32,
+        uint32_t*,
+        uint32_t,
+        uint32_t,
+        uint32_t,
+        uint32_t,
+        int32_t,
+        int32_t,
         unsigned char*,
         unsigned char*,
         unsigned char*,
@@ -176,9 +190,9 @@ cdef extern from 'tiffio.h':
 
     ctypedef int (*TIFFRGBAImage_get_func)(
         TIFFRGBAImage*,
-        uint32*,
-        uint32,
-        uint32
+        uint32_t*,
+        uint32_t,
+        uint32_t
     ) nogil
 
     ctypedef void (*TIFFRGBAImage_put_any_func)(
@@ -195,25 +209,25 @@ cdef extern from 'tiffio.h':
         int stoponerr
         int isContig
         int alpha
-        uint32 width
-        uint32 height
-        uint16 bitspersample
-        uint16 samplesperpixel
-        uint16 orientation
-        uint16 req_orientation
-        uint16 photometric
-        uint16* redcmap
-        uint16* greencmap
-        uint16* bluecmap
+        uint32_t width
+        uint32_t height
+        uint16_t bitspersample
+        uint16_t samplesperpixel
+        uint16_t orientation
+        uint16_t req_orientation
+        uint16_t photometric
+        uint16_t* redcmap
+        uint16_t* greencmap
+        uint16_t* bluecmap
         TIFFRGBAImage_get_func get
         TIFFRGBAImage_put_union put
         TIFFRGBValue* Map
-        uint32** BWmap
-        uint32** PALmap
+        uint32_t** BWmap
+        uint32_t** PALmap
         TIFFYCbCrToRGB* ycbcr
         TIFFCIELabToRGB* cielab
-        uint8* UaToAa
-        uint8* Bitdepth16To8
+        uint8_t* UaToAa
+        uint8_t* Bitdepth16To8
         int row_offset
         int col_offset
 
@@ -224,7 +238,7 @@ cdef extern from 'tiffio.h':
 
     ctypedef struct TIFFCodec:
         char* name
-        uint16 scheme
+        uint16_t scheme
         TIFFInitMethod init
 
     ctypedef void (*TIFFErrorHandler)(
@@ -284,11 +298,11 @@ cdef extern from 'tiffio.h':
     char* TIFFGetVersion() nogil
 
     TIFFCodec* TIFFFindCODEC(
-        uint16
+        uint16_t
     ) nogil
 
     TIFFCodec* TIFFRegisterCODEC(
-        uint16,
+        uint16_t,
         char*,
         TIFFInitMethod
     ) nogil
@@ -298,7 +312,7 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     int TIFFIsCODECConfigured(
-        uint16
+        uint16_t
     ) nogil
 
     TIFFCodec* TIFFGetConfiguredCODECs(
@@ -344,7 +358,7 @@ cdef extern from 'tiffio.h':
         TIFF*
     ) nogil
 
-    uint32 TIFFGetTagListEntry(
+    uint32_t TIFFGetTagListEntry(
         TIFF*,
         int tag_index
     ) nogil
@@ -357,13 +371,13 @@ cdef extern from 'tiffio.h':
 
     TIFFField* TIFFFindField(
         TIFF*,
-        uint32,
+        uint32_t,
         TIFFDataType
     ) nogil
 
     TIFFField* TIFFFieldWithTag(
         TIFF*,
-        uint32
+        uint32_t
     ) nogil
 
     TIFFField* TIFFFieldWithName(
@@ -371,7 +385,7 @@ cdef extern from 'tiffio.h':
         char*
     ) nogil
 
-    uint32 TIFFFieldTag(
+    uint32_t TIFFFieldTag(
         TIFFField*
     ) nogil
 
@@ -397,13 +411,13 @@ cdef extern from 'tiffio.h':
 
     ctypedef int (*TIFFVSetMethod)(
         TIFF*,
-        uint32,
+        uint32_t,
         va_list
     ) nogil
 
     ctypedef int (*TIFFVGetMethod)(
         TIFF*,
-        uint32,
+        uint32_t,
         va_list
     ) nogil
 
@@ -451,25 +465,25 @@ cdef extern from 'tiffio.h':
 
     int TIFFGetField(
         TIFF* tif,
-        uint32 tag,
+        uint32_t tag,
         ...
     ) nogil
 
     int TIFFVGetField(
         TIFF* tif,
-        uint32 tag,
+        uint32_t tag,
         va_list ap
     ) nogil
 
     int TIFFGetFieldDefaulted(
         TIFF* tif,
-        uint32 tag,
+        uint32_t tag,
         ...
     ) nogil
 
     int TIFFVGetFieldDefaulted(
         TIFF* tif,
-        uint32 tag,
+        uint32_t tag,
         va_list ap
     ) nogil
 
@@ -488,7 +502,7 @@ cdef extern from 'tiffio.h':
         toff_t diroff
     ) nogil
 
-    uint64 TIFFScanlineSize64(
+    uint64_t TIFFScanlineSize64(
         TIFF* tif
     ) nogil
 
@@ -496,7 +510,7 @@ cdef extern from 'tiffio.h':
         TIFF* tif
     ) nogil
 
-    uint64 TIFFRasterScanlineSize64(
+    uint64_t TIFFRasterScanlineSize64(
         TIFF* tif
     ) nogil
 
@@ -504,7 +518,7 @@ cdef extern from 'tiffio.h':
         TIFF* tif
     ) nogil
 
-    uint64 TIFFStripSize64(
+    uint64_t TIFFStripSize64(
         TIFF* tif
     ) nogil
 
@@ -512,27 +526,27 @@ cdef extern from 'tiffio.h':
         TIFF* tif
     ) nogil
 
-    uint64 TIFFRawStripSize64(
+    uint64_t TIFFRawStripSize64(
         TIFF* tif,
-        uint32 strip
+        uint32_t strip
     ) nogil
 
     tmsize_t TIFFRawStripSize(
         TIFF* tif,
-        uint32 strip
+        uint32_t strip
     ) nogil
 
-    uint64 TIFFVStripSize64(
+    uint64_t TIFFVStripSize64(
         TIFF* tif,
-        uint32 nrows
+        uint32_t nrows
     ) nogil
 
     tmsize_t TIFFVStripSize(
         TIFF* tif,
-        uint32 nrows
+        uint32_t nrows
     ) nogil
 
-    uint64 TIFFTileRowSize64(
+    uint64_t TIFFTileRowSize64(
         TIFF* tif
     ) nogil
 
@@ -540,7 +554,7 @@ cdef extern from 'tiffio.h':
         TIFF* tif
     ) nogil
 
-    uint64 TIFFTileSize64(
+    uint64_t TIFFTileSize64(
         TIFF* tif
     ) nogil
 
@@ -548,25 +562,25 @@ cdef extern from 'tiffio.h':
         TIFF* tif
     ) nogil
 
-    uint64 TIFFVTileSize64(
+    uint64_t TIFFVTileSize64(
         TIFF* tif,
-        uint32 nrows
+        uint32_t nrows
     ) nogil
 
     tmsize_t TIFFVTileSize(
         TIFF* tif,
-        uint32 nrows
+        uint32_t nrows
     ) nogil
 
-    uint32 TIFFDefaultStripSize(
+    uint32_t TIFFDefaultStripSize(
         TIFF* tif,
-        uint32 request
+        uint32_t request
     ) nogil
 
     void TIFFDefaultTileSize(
         TIFF*,
-        uint32*,
-        uint32*
+        uint32_t*,
+        uint32_t*
     ) nogil
 
     int TIFFFileno(
@@ -644,27 +658,27 @@ cdef extern from 'tiffio.h':
         TIFF*
     ) nogil
 
-    uint32 TIFFCurrentRow(
+    uint32_t TIFFCurrentRow(
         TIFF*
     ) nogil
 
-    uint16 TIFFCurrentDirectory(
+    uint16_t TIFFCurrentDirectory(
         TIFF*
     ) nogil
 
-    uint16 TIFFNumberOfDirectories(
+    uint16_t TIFFNumberOfDirectories(
         TIFF*
     ) nogil
 
-    uint64 TIFFCurrentDirOffset(
+    uint64_t TIFFCurrentDirOffset(
         TIFF*
     ) nogil
 
-    uint32 TIFFCurrentStrip(
+    uint32_t TIFFCurrentStrip(
         TIFF*
     ) nogil
 
-    uint32 TIFFCurrentTile(
+    uint32_t TIFFCurrentTile(
         TIFF* tif
     ) nogil
 
@@ -713,34 +727,34 @@ cdef extern from 'tiffio.h':
 
     int TIFFSetDirectory(
         TIFF*,
-        uint16
+        uint16_t
     ) nogil
 
     int TIFFSetSubDirectory(
         TIFF*,
-        uint64
+        uint64_t
     ) nogil
 
     int TIFFUnlinkDirectory(
         TIFF*,
-        uint16
+        uint16_t
     ) nogil
 
     int TIFFSetField(
         TIFF*,
-        uint32,
+        uint32_t,
         ...
     ) nogil
 
     int TIFFVSetField(
         TIFF*,
-        uint32,
+        uint32_t,
         va_list
     ) nogil
 
     int TIFFUnsetField(
         TIFF*,
-        uint32
+        uint32_t
     ) nogil
 
     int TIFFWriteDirectory(
@@ -749,7 +763,7 @@ cdef extern from 'tiffio.h':
 
     int TIFFWriteCustomDirectory(
         TIFF*,
-        uint64*
+        uint64_t*
     ) nogil
 
     int TIFFCheckpointDirectory(
@@ -777,59 +791,59 @@ cdef extern from 'tiffio.h':
     int TIFFReadScanline(
         TIFF* tif,
         void* buf,
-        uint32 row,
-        uint16 sample
+        uint32_t row,
+        uint16_t sample
     ) nogil
 
     int TIFFWriteScanline(
         TIFF* tif,
         void* buf,
-        uint32 row,
-        uint16 sample
+        uint32_t row,
+        uint16_t sample
     ) nogil
 
     int TIFFReadRGBAImage(
         TIFF*,
-        uint32,
-        uint32,
-        uint32*,
+        uint32_t,
+        uint32_t,
+        uint32_t*,
         int
     ) nogil
 
     int TIFFReadRGBAImageOriented(
         TIFF*,
-        uint32,
-        uint32,
-        uint32*,
+        uint32_t,
+        uint32_t,
+        uint32_t*,
         int,
         int
     ) nogil
 
     int TIFFReadRGBAStrip(
         TIFF*,
-        uint32,
-        uint32*
+        uint32_t,
+        uint32_t*
     ) nogil
 
     int TIFFReadRGBATile(
         TIFF*,
-        uint32,
-        uint32,
-        uint32*
+        uint32_t,
+        uint32_t,
+        uint32_t*
     ) nogil
 
     int TIFFReadRGBAStripExt(
         TIFF*,
-        uint32,
-        uint32*,
+        uint32_t,
+        uint32_t*,
         int stop_on_error
     ) nogil
 
     int TIFFReadRGBATileExt(
         TIFF*,
-        uint32,
-        uint32,
-        uint32*,
+        uint32_t,
+        uint32_t,
+        uint32_t*,
         int stop_on_error
     ) nogil
 
@@ -847,9 +861,9 @@ cdef extern from 'tiffio.h':
 
     int TIFFRGBAImageGet(
         TIFFRGBAImage*,
-        uint32*,
-        uint32,
-        uint32
+        uint32_t*,
+        uint32_t,
+        uint32_t
     ) nogil
 
     void TIFFRGBAImageEnd(
@@ -931,85 +945,85 @@ cdef extern from 'tiffio.h':
         TIFFExtendProc
     ) nogil
 
-    uint32 TIFFComputeTile(
+    uint32_t TIFFComputeTile(
         TIFF* tif,
-        uint32 x,
-        uint32 y,
-        uint32 z,
-        uint16 s
+        uint32_t x,
+        uint32_t y,
+        uint32_t z,
+        uint16_t s
     ) nogil
 
     int TIFFCheckTile(
         TIFF* tif,
-        uint32 x,
-        uint32 y,
-        uint32 z,
-        uint16 s
+        uint32_t x,
+        uint32_t y,
+        uint32_t z,
+        uint16_t s
     ) nogil
 
-    uint32 TIFFNumberOfTiles(
+    uint32_t TIFFNumberOfTiles(
         TIFF*
     ) nogil
 
     tmsize_t TIFFReadTile(
         TIFF* tif,
         void* buf,
-        uint32 x,
-        uint32 y,
-        uint32 z,
-        uint16 s
+        uint32_t x,
+        uint32_t y,
+        uint32_t z,
+        uint16_t s
     ) nogil
 
     tmsize_t TIFFWriteTile(
         TIFF* tif,
         void* buf,
-        uint32 x,
-        uint32 y,
-        uint32 z,
-        uint16 s
+        uint32_t x,
+        uint32_t y,
+        uint32_t z,
+        uint16_t s
     ) nogil
 
-    uint32 TIFFComputeStrip(
+    uint32_t TIFFComputeStrip(
         TIFF*,
-        uint32,
-        uint16
+        uint32_t,
+        uint16_t
     ) nogil
 
-    uint32 TIFFNumberOfStrips(
+    uint32_t TIFFNumberOfStrips(
         TIFF*
     ) nogil
 
     tmsize_t TIFFReadEncodedStrip(
         TIFF* tif,
-        uint32 strip,
+        uint32_t strip,
         void* buf,
         tmsize_t size
     ) nogil
 
     tmsize_t TIFFReadRawStrip(
         TIFF* tif,
-        uint32 strip,
+        uint32_t strip,
         void* buf,
         tmsize_t size
     ) nogil
 
     tmsize_t TIFFReadEncodedTile(
         TIFF* tif,
-        uint32 tile,
+        uint32_t tile,
         void* buf,
         tmsize_t size
     ) nogil
 
     tmsize_t TIFFReadRawTile(
         TIFF* tif,
-        uint32 tile,
+        uint32_t tile,
         void* buf,
         tmsize_t size
     ) nogil
 
     int TIFFReadFromUserBuffer(
         TIFF* tif,
-        uint32 strile,
+        uint32_t strile,
         void* inbuf,
         tmsize_t insize,
         void* outbuf,
@@ -1018,28 +1032,28 @@ cdef extern from 'tiffio.h':
 
     tmsize_t TIFFWriteEncodedStrip(
         TIFF* tif,
-        uint32 strip,
+        uint32_t strip,
         void* data,
         tmsize_t cc
     ) nogil
 
     tmsize_t TIFFWriteRawStrip(
         TIFF* tif,
-        uint32 strip,
+        uint32_t strip,
         void* data,
         tmsize_t cc
     ) nogil
 
     tmsize_t TIFFWriteEncodedTile(
         TIFF* tif,
-        uint32 tile,
+        uint32_t tile,
         void* data,
         tmsize_t cc
     ) nogil
 
     tmsize_t TIFFWriteRawTile(
         TIFF* tif,
-        uint32 tile,
+        uint32_t tile,
         void* data,
         tmsize_t cc
     ) nogil
@@ -1054,15 +1068,15 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     void TIFFSwabShort(
-        uint16*
+        uint16_t*
     ) nogil
 
     void TIFFSwabLong(
-        uint32*
+        uint32_t*
     ) nogil
 
     void TIFFSwabLong8(
-        uint64*
+        uint64_t*
     ) nogil
 
     void TIFFSwabFloat(
@@ -1074,22 +1088,22 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     void TIFFSwabArrayOfShort(
-        uint16* wp,
+        uint16_t* wp,
         tmsize_t n
     ) nogil
 
     void TIFFSwabArrayOfTriples(
-        uint8* tp,
+        uint8_t* tp,
         tmsize_t n
     ) nogil
 
     void TIFFSwabArrayOfLong(
-        uint32* lp,
+        uint32_t* lp,
         tmsize_t n
     ) nogil
 
     void TIFFSwabArrayOfLong8(
-        uint64* lp,
+        uint64_t* lp,
         tmsize_t n
     ) nogil
 
@@ -1104,7 +1118,7 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     void TIFFReverseBits(
-        uint8* cp,
+        uint8_t* cp,
         tmsize_t n
     ) nogil
 
@@ -1112,25 +1126,25 @@ cdef extern from 'tiffio.h':
         int
     ) nogil
 
-    uint64 TIFFGetStrileOffset(
+    uint64_t TIFFGetStrileOffset(
         TIFF* tif,
-        uint32 strile
+        uint32_t strile
     ) nogil
 
-    uint64 TIFFGetStrileByteCount(
+    uint64_t TIFFGetStrileByteCount(
         TIFF* tif,
-        uint32 strile
+        uint32_t strile
     ) nogil
 
-    uint64 TIFFGetStrileOffsetWithErr(
+    uint64_t TIFFGetStrileOffsetWithErr(
         TIFF* tif,
-        uint32 strile,
+        uint32_t strile,
         int* pbErr
     ) nogil
 
-    uint64 TIFFGetStrileByteCountWithErr(
+    uint64_t TIFFGetStrileByteCountWithErr(
         TIFF* tif,
-        uint32 strile,
+        uint32_t strile,
         int* pbErr
     ) nogil
 
@@ -1144,7 +1158,7 @@ cdef extern from 'tiffio.h':
 
     void XYZtoRGB24(
         float*,
-        uint8*
+        uint8_t*
     ) nogil
 
     int uv_decode(
@@ -1154,12 +1168,12 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     void LogLuv24toXYZ(
-        uint32,
+        uint32_t,
         float*
     ) nogil
 
     void LogLuv32toXYZ(
-        uint32,
+        uint32_t,
         float*
     ) nogil
 
@@ -1179,12 +1193,12 @@ cdef extern from 'tiffio.h':
         int
     ) nogil
 
-    uint32 LogLuv24fromXYZ(
+    uint32_t LogLuv24fromXYZ(
         float*,
         int
     ) nogil
 
-    uint32 LogLuv32fromXYZ(
+    uint32_t LogLuv32fromXYZ(
         float*,
         int
     ) nogil
@@ -1197,9 +1211,9 @@ cdef extern from 'tiffio.h':
 
     void TIFFCIELabToXYZ(
         TIFFCIELabToRGB*,
-        uint32,
-        int32,
-        int32,
+        uint32_t,
+        int32_t,
+        int32_t,
         float*,
         float*,
         float*
@@ -1210,9 +1224,9 @@ cdef extern from 'tiffio.h':
         float,
         float,
         float,
-        uint32*,
-        uint32*,
-        uint32*
+        uint32_t*,
+        uint32_t*,
+        uint32_t*
     ) nogil
 
     int TIFFYCbCrToRGBInit(
@@ -1223,12 +1237,12 @@ cdef extern from 'tiffio.h':
 
     void TIFFYCbCrtoRGB(
         TIFFYCbCrToRGB*,
-        uint32,
-        int32,
-        int32,
-        uint32*,
-        uint32*,
-        uint32*
+        uint32_t,
+        int32_t,
+        int32_t,
+        uint32_t*,
+        uint32_t*,
+        uint32_t*
     ) nogil
 
     # ctypedef struct TIFFFieldInfo:
@@ -1244,7 +1258,8 @@ cdef extern from 'tiffio.h':
     # int TIFFMergeFieldInfo(
     #     TIFF*,
     #     TIFFFieldInfo [],
-    #     uint32)
+    #     uint32_t
+    # ) nogil
 
     int TIFFTAG_SUBFILETYPE
     int     FILETYPE_REDUCEDIMAGE
@@ -1290,6 +1305,7 @@ cdef extern from 'tiffio.h':
     int     COMPRESSION_LZMA
     int     COMPRESSION_ZSTD
     int     COMPRESSION_WEBP
+    int     COMPRESSION_JXL
     int TIFFTAG_PHOTOMETRIC
     int     PHOTOMETRIC_MINISWHITE
     int     PHOTOMETRIC_MINISBLACK
