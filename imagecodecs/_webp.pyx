@@ -37,7 +37,7 @@
 
 """WebP codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.4.28'
 
 include '_shared.pxi'
 
@@ -95,7 +95,7 @@ def webp_encode(data, level=None, out=None):
         size_t ret = 0
         int width, height, stride
         float quality_factor = _default_value(level, 75.0, -1.0, 100.0)
-        int lossless = quality_factor < 0.0
+        int lossless = level is None or quality_factor < 0.0
         int rgba
 
     if data is out:
