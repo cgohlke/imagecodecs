@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.3.31'
+__version__ = '2021.4.28'
 
 __all__ = ('register_codecs',)
 
@@ -451,6 +451,56 @@ class JpegLs(Codec):
         return imagecodecs.jpegls_decode(buf, out=out)
 
 
+class JpegXl(Codec):
+    """JPEG XL codec for numcodecs."""
+
+    codec_id = 'imagecodecs_jpegxl'
+
+    def __init__(
+        self,
+        # encode
+        level=None,
+        effort=None,
+        distance=None,
+        photometric=None,
+        usecontainer=None,
+        # decode
+        index=None,
+        keeporientation=None,
+        # both
+        numthreads=None,
+    ):
+        self.level = level
+        self.effort = effort
+        self.distance = distance
+        self.photometric = photometric
+        self.usecontainer = usecontainer
+        self.index = index
+        self.keeporientation = keeporientation
+        self.numthreads = numthreads
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.jpegxl_encode(
+            buf,
+            level=self.level,
+            effort=self.effort,
+            distance=self.distance,
+            photometric=self.photometric,
+            usecontainer=self.usecontainer,
+            numthreads=self.numthreads,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.jpegxl_decode(
+            buf,
+            index=self.index,
+            keeporientation=self.keeporientation,
+            numthreads=self.numthreads,
+            out=out,
+        )
+
+
 class JpegXr(Codec):
     """JPEG XR codec for numcodecs."""
 
@@ -530,10 +580,10 @@ class Lz4(Codec):
 
     codec_id = 'imagecodecs_lz4'
 
-    def __init__(self, level=None, hc=False, header=False):
+    def __init__(self, level=None, hc=False, header=True):
         self.level = level
         self.hc = hc
-        self.header = header
+        self.header = bool(header)
 
     def encode(self, buf):
         return imagecodecs.lz4_encode(
@@ -579,8 +629,8 @@ class Lzf(Codec):
 
     codec_id = 'imagecodecs_lzf'
 
-    def __init__(self, header=False):
-        self.header = header
+    def __init__(self, header=True):
+        self.header = bool(header)
 
     def encode(self, buf):
         return imagecodecs.lzf_encode(buf, header=self.header)
@@ -629,6 +679,24 @@ class PackBits(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.packbits_decode(buf, out=out)
+
+
+class Pglz(Codec):
+    """PGLZ codec for numcodecs."""
+
+    codec_id = 'imagecodecs_pglz'
+
+    def __init__(self, header=True, strategy=None):
+        self.header = bool(header)
+        self.strategy = strategy
+
+    def encode(self, buf):
+        return imagecodecs.pglz_encode(
+            buf, strategy=self.strategy, header=self.header
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.pglz_decode(buf, header=self.header, out=out)
 
 
 class Png(Codec):
