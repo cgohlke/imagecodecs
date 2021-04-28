@@ -15,8 +15,8 @@ try:
     from packaging.version import parse
     import platform
 
-    if parse(pip.__version__) < parse('19.0') and platform.system() == 'Linux':
-        print('Installing imagecodecs wheels requires pip >= 19.0')
+    if parse(pip.__version__) < parse('19.3') and platform.system() == 'Linux':
+        print('Installing imagecodecs wheels requires pip >= 19.3')
 except ImportError:
     pass
 
@@ -132,6 +132,7 @@ EXTENSIONS = {
     ),
     'blosc': ext(libraries=['blosc']),
     'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
+    'brunsli': ext(libraries=['brunslidec-c', 'brunslienc-c']),
     'bz2': ext(libraries=['bz2']),
     'deflate': ext(libraries=['deflate']),
     'gif': ext(libraries=['gif']),
@@ -150,7 +151,7 @@ EXTENSIONS = {
     ),
     'jpegls': ext(libraries=['charls']),
     'jpegsof3': ext(sources=['imagecodecs/jpegsof3.cpp']),
-    'jpegxl': ext(libraries=['brunslidec-c', 'brunslienc-c']),
+    'jpegxl': ext(libraries=['jxl', 'jxl_dec', 'jxl_threads']),
     'jpegxr': ext(
         libraries=['jpegxr', 'jxrglue'],
         define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
@@ -166,6 +167,10 @@ EXTENSIONS = {
         include_dirs=['3rdparty/liblzf'],
     ),
     'lzma': ext(libraries=['lzma']),
+    'pglz': ext(
+        sources=['3rdparty/postgresql/pg_lzcompress.c'],
+        include_dirs=['3rdparty/postgresql'],
+    ),
     'png': ext(libraries=['png', 'z']),
     'snappy': ext(libraries=['snappy']),
     # 'szip': ext(libraries=['libaec']),
@@ -189,7 +194,8 @@ def customize_build_default(EXTENSIONS, OPTIONS):
 
     if 'arch' not in platform.platform():
         del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
-        del EXTENSIONS['jpegxl']  # Brunsli library not commonly available
+        del EXTENSIONS['jpegxl']  # jpeg-xl library not commonly available
+        del EXTENSIONS['brunsli']  # Brunsli library not commonly available
         del EXTENSIONS['zfp']  # ZFP library not commonly available
 
     if sys.platform == 'win32':
@@ -246,6 +252,7 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     ]
     EXTENSIONS['lzma']['libraries'] = ['lzma-static']
     EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
+    EXTENSIONS['tiff']['define_macros'].append(('LZMA_API_STATIC', 1))
     EXTENSIONS['tiff']['libraries'] = [
         'tiff',
         'z',
@@ -255,9 +262,25 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
         'zstd_static',
         'lzma-static',
         'libdeflatestatic',
+        'lerc',
     ]
-    EXTENSIONS['tiff']['define_macros'].append(('LZMA_API_STATIC', 1))
+    EXTENSIONS['jpegxl']['define_macros'].extend(
+        (('JXL_STATIC_DEFINE', 1), ('JXL_THREADS_STATIC_DEFINE', 1))
+    )
     EXTENSIONS['jpegxl']['libraries'] = [
+        'jxl-static',
+        'jxl_dec-static',
+        'jxl_extras-static',
+        'jxl_threads-static',
+        'jxl_brotlienc-static',
+        'jxl_brotlidec-static',
+        'jxl_brotlicommon-static',
+        'jxl_hwy',
+        'jxl_lodepng',
+        'jxl_lskcms',
+        'jxl_sjpeg',
+    ]
+    EXTENSIONS['brunsli']['libraries'] = [
         'brunslidec-c',
         'brunslienc-c',
         # static linking
@@ -274,8 +297,6 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
 def customize_build_ci(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's CI environment."""
 
-    del EXTENSIONS['jpeg12']
-
     if not os.environ.get('SKIP_OMP', False):
         if sys.platform == 'darwin':
             EXTENSIONS['zfp']['extra_compile_args'].append('-Xpreprocessor')
@@ -286,7 +307,7 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         'BASE_PATH', os.path.dirname(os.path.abspath(__file__))
     )
     include_base_path = os.path.join(
-        base_path, os.path.join('build_utils', 'libs_build', 'include')
+        base_path, 'build_utils', 'libs_build', 'include'
     )
     OPTIONS['library_dirs'] = [
         x
@@ -314,6 +335,27 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
                 if os.path.isdir(path_to_dir):
                     jpegxr_include_dirs.append(path_to_dir)
             EXTENSIONS['jpegxr']['include_dirs'] = jpegxr_include_dirs
+
+    for dir_path in OPTIONS['include_dirs']:
+        if os.path.exists(os.path.join(dir_path, 'jxl', 'types.h')):
+            break
+    else:
+        del EXTENSIONS['jpegxl']
+
+    libjpeg12_base_path = os.path.join(
+        base_path, 'build_utils', 'libs_build', 'libjpeg12'
+    )
+    if os.path.exists(libjpeg12_base_path):
+        EXTENSIONS['jpeg12']['libraries'] = ['jpeg12']
+        EXTENSIONS['jpeg12']['include_dirs'] = [
+            os.path.join(libjpeg12_base_path, 'include')
+        ]
+    else:
+        del EXTENSIONS['jpeg12']
+
+    if os.environ.get('IMCD_SKIP_JPEG12', False):
+        # all tests fail on macOS; likely conflict with jpeg 8-bit dll
+        del EXTENSIONS['jpeg12']
 
     for dir_path in OPTIONS['include_dirs']:
         if os.path.exists(os.path.join(dir_path, 'avif', 'avif.h')):
@@ -345,6 +387,7 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
 
     del EXTENSIONS['avif']
     del EXTENSIONS['jpeg12']
+    del EXTENSIONS['jpegxl']
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     OPTIONS['cythonize'] = True
@@ -353,7 +396,7 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     EXTENSIONS['lerc']['libraries'] = ['Lerc']
 
     if sys.platform == 'win32':
-        del EXTENSIONS['jpegxl']  # brunsli not stable on conda-forge
+        del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
 
         EXTENSIONS['lz4f']['libraries'] = ['liblz4']
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
@@ -389,6 +432,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     """Customize build for MacPorts."""
 
     del EXTENSIONS['avif']
+    del EXTENSIONS['brunsli']
     del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegls']
@@ -411,6 +455,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
 def customize_build_mingw(EXTENSIONS, OPTIONS):
     """Customize build for mingw-w64."""
 
+    del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['lerc']
