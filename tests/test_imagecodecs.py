@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.3.31
+:Version: 2021.4.28
 
 """
 
@@ -85,6 +85,7 @@ else:
 TEST_DIR = osp.dirname(__file__)
 IS_32BIT = sys.maxsize < 2 ** 32
 IS_WIN = sys.platform == 'win32'
+IS_MAC = sys.platform == 'darwin'
 IS_PYPY = 'PyPy' in sys.version
 # running on Windows development computer?
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
@@ -115,7 +116,9 @@ def test_module_exist(name):
         return
     if not IS_CG and not IS_CI:
         pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif IS_CI and name in ('jpeg12',):
+    elif IS_CI and name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0):
+        pytest.xfail(f'imagecodecs._{name} may be missing')
+    elif IS_CI and name == 'jpegxl' and (IS_MAC or IS_32BIT):
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
@@ -140,6 +143,8 @@ def test_module_exist(name):
 def test_dependency_exist(name):
     """Assert third-party Python packages are present."""
     mayfail = not IS_CG and not IS_CI
+    if SKIP_NUMCODECS and IS_MAC and IS_PYPY:
+        mayfail = True
     try:
         importlib.import_module(name)
     except ImportError:
@@ -1325,6 +1330,51 @@ def test_aec_options(name):
     assert decoded == dat
 
 
+@pytest.mark.skipif(not imagecodecs.PGLZ, reason='pglz missing')
+def test_pglz():
+    """Test PGLZ codec"""
+    decode = imagecodecs.pglz_decode
+    encode = imagecodecs.pglz_encode
+    data = b'111111181111111111111111121111111111111111111111111'
+
+    with pytest.raises(RuntimeError):
+        # not compressible
+        encode(b'')
+    with pytest.raises(ValueError):
+        # output must be len(data) + 4
+        encode(data, out=len(data))
+    with pytest.raises(RuntimeError):
+        # not enough output
+        decode(encode(data), checkcomplete=True, out=4)
+    with pytest.raises(RuntimeError):
+        # default output too large
+        assert decode(encode(data), checkcomplete=True) == data
+
+    assert decode(b'') == b''
+    assert decode(encode(data)) == data
+    assert decode(encode(data, header=True), header=True) == data
+    assert decode(encode(data), checkcomplete=True, out=len(data)) == data
+    assert decode(encode(data), out=len(data)) == data
+    assert decode(encode(data), out=len(data) + 7) == data
+    assert decode(encode(data, strategy='always'), out=len(data)) == data
+
+    data = data[:8]
+    assert decode(encode(data, strategy='always'), out=len(data)) == data
+    assert (
+        decode(encode(data, strategy=[6, 100, 0, 100, 128, 6]), out=len(data))
+        == data
+    )
+    with pytest.raises(RuntimeError):
+        # data too short for default strategy
+        encode(data)
+    data = b'1234567890abcdefghijklmnopqrstuvwxyz'
+    with pytest.raises(RuntimeError):
+        # data not compressible
+        encode(data, strategy='always')
+    assert encode(data, header=True)[4:] == data
+    assert decode(encode(data, header=True), header=True) == data
+
+
 @pytest.mark.parametrize('optimize', [False, True])
 @pytest.mark.parametrize('smoothing', [0, 25])
 @pytest.mark.parametrize('subsampling', ['444', '422', '420', '411', '440'])
@@ -1564,16 +1614,16 @@ def test_jpegls_decode(output):
     assert decoded[-1, -1, -1] == 63
 
 
-@pytest.mark.skipif(not imagecodecs.JPEGXL, reason='jpegxl missing')
+@pytest.mark.skipif(not imagecodecs.BRUNSLI, reason='brunsli missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
-def test_jpegxl_decode(output):
-    """Test JPEG XL decoder with RGBA32 image."""
-    decode = imagecodecs.jpegxl_decode
-    data = readfile('rgba.u1.jxl')
+def test_brunsli_decode(output):
+    """Test Brunsli decoder with RGBA32 image."""
+    decode = imagecodecs.brunsli_decode
+    data = readfile('rgba.u1.br')
     dtype = 'uint8'
     shape = 32, 31, 4
 
-    assert imagecodecs.jpegxl_check(data) in (None, True)
+    assert imagecodecs.brunsli_check(data) in (None, True)
 
     if output == 'new':
         decoded = decode(data)
@@ -1590,16 +1640,16 @@ def test_jpegxl_decode(output):
     assert decoded[-1, -1, -1] == 81
 
 
-@pytest.mark.skipif(not imagecodecs.JPEGXL, reason='jpegxl missing')
-def test_jpegxl_encode_jpeg():
-    """Test JPEG XL encoder with JPEG input."""
-    encode = imagecodecs.jpegxl_encode
-    decode = imagecodecs.jpegxl_decode
+@pytest.mark.skipif(not imagecodecs.BRUNSLI, reason='brunsli missing')
+def test_brunsli_encode_jpeg():
+    """Test Brunsli encoder with JPEG input."""
+    encode = imagecodecs.brunsli_encode
+    decode = imagecodecs.brunsli_decode
     jpg = readfile('rgba.u1.jpg')
-    jxl = readfile('rgba.u1.jxl')
+    jxl = readfile('rgba.u1.br')
 
-    assert imagecodecs.jpegxl_check(jpg) in (None, True)
-    assert imagecodecs.jpegxl_check(jxl) in (None, True)
+    assert imagecodecs.brunsli_check(jpg) in (None, True)
+    assert imagecodecs.brunsli_check(jxl) in (None, True)
 
     encoded = encode(jpg)
     assert encoded == jxl
@@ -1792,7 +1842,7 @@ def test_jpegxr(itype, enout, deout, level):
         kwargs['photometric'] = 'cmyk'
     if itype.endswith('a'):
         kwargs['hasalpha'] = True
-    print(data.shape, data.dtype, data.strides)
+
     encoded = encode(data, **kwargs)
 
     assert imagecodecs.jpegxr_check(encoded) in (None, True)
@@ -1841,6 +1891,7 @@ def test_jpegxr(itype, enout, deout, level):
     'codec',
     [
         'avif',
+        'brunsli',
         'jpeg2k',
         'jpeg8',
         'jpeg12',
@@ -1924,11 +1975,22 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     elif codec == 'jpegxl':
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
-        if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
+        if itype == 'view' or deout == 'view':
             pytest.xfail('jpegxl does not support this case')
+        if level not in (None, -1):
+            level = 0
+            pytest.xfail('jpegxl fails lossy tests')
         decode = imagecodecs.jpegxl_decode
         encode = imagecodecs.jpegxl_encode
         check = imagecodecs.jpegxl_check
+    elif codec == 'brunsli':
+        if not imagecodecs.BRUNSLI:
+            pytest.skip(f'{codec} missing')
+        if itype in ('view', 'graya') or deout == 'view' or dtype == 'uint16':
+            pytest.xfail('brunsli does not support this case')
+        decode = imagecodecs.brunsli_decode
+        encode = imagecodecs.brunsli_encode
+        check = imagecodecs.brunsli_check
         atol = 24
         if level:
             level += 95
@@ -1974,13 +2036,13 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             2 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
         )
         ret = encode(data, level=level, out=encoded)
-        if codec in ('jpegxl', 'avif'):
+        if codec in ('brunsli', 'avif'):
             # Brunsli and avif decoder don't like extra bytes
             encoded = encoded[: len(ret)]
     elif enout == 'bytearray':
         encoded = bytearray(2 * shape[0] * shape[1] * shape[2] * itemsize)
         ret = encode(data, level=level, out=encoded)
-        if codec in ('jpegxl', 'avif'):
+        if codec in ('brunsli', 'avif'):
             # Brunsli and avif decoder don't like extra bytes
             encoded = encoded[: len(ret)]
 
@@ -2007,11 +2069,14 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if codec == 'webp' and (level != -1 or itype == 'rgba'):
         # RGBA roundtip does not work for A=0
         assert_allclose(data, decoded, atol=255)
-    elif codec in ('jpeg8', 'jpeg12', 'jpegxl', 'jpegxr'):
+    elif codec in ('jpeg8', 'jpeg12', 'jpegxr', 'brunsli'):
         assert_allclose(data, decoded, atol=atol)
     elif codec in ('jpegls', 'jpeg2k') and level == 5:
         assert_allclose(data, decoded, atol=6)
-    elif codec in ('avif') and level == 5:
+    elif codec == 'jpegxl' and level == 0:
+        atol = 64 if dtype.itemsize > 1 else 8
+        assert_allclose(data, decoded, atol=atol)
+    elif codec == 'avif' and level == 5:
         if dtype.itemsize > 1:
             # TODO: bug in libavif?
             pytest.xfail('why does this fail?')
@@ -2184,7 +2249,9 @@ def test_tiff_asrgb():
 
 @pytest.mark.skipif(tifffile is None, reason='tifffile module missing')
 @pytest.mark.parametrize('dtype', ['u1', 'u2', 'f4'])
-@pytest.mark.parametrize('codec', ['deflate', 'lzma', 'zstd', 'packbits'])
+@pytest.mark.parametrize(
+    'codec', ['deflate', 'lzma', 'zstd', 'packbits', 'lerc', 'webp']
+)
 def test_tifffile(dtype, codec):
     """Test tifffile compression."""
     if codec == 'deflate' and not imagecodecs.ZLIB:
@@ -2196,6 +2263,17 @@ def test_tifffile(dtype, codec):
         pytest.xfail('zstd missing')
     elif codec == 'packbits' and not imagecodecs.PACKBITS:
         pytest.xfail('packbits missing')
+    elif codec == 'jpegxl' and not imagecodecs.JPEGXL:
+        pytest.xfail('jpegxl missing')
+    elif codec == 'lerc' and not imagecodecs.LERC:
+        pytest.xfail('lerc missing')
+    elif codec == 'webp':
+        if not imagecodecs.WEBP:
+            pytest.xfail('webp missing')
+        elif dtype != 'u1':
+            pytest.xfail('dtype not supported')
+    elif codec == 'packbits' and dtype != 'u1':
+        pytest.xfail('dtype not supported')
     elif codec == 'packbits' and dtype != 'u1':
         pytest.xfail('dtype not supported')
 
@@ -2265,6 +2343,7 @@ def test_numcodecs_register(caplog):
         'jpeg12',
         'jpeg2k',
         'jpegls',
+        'jpegxl',
         'jpegxr',
         'lerc',
         'ljpeg',
@@ -2274,6 +2353,7 @@ def test_numcodecs_register(caplog):
         'lzma',
         'lzw',  # no encoder
         'packbits',
+        'pglz',
         'png',
         'snappy',
         'tiff',  # no encoder
@@ -2394,6 +2474,10 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.JPEGLS:
             pytest.skip(msg=f'{codec} not found')
         compressor = numcodecs.JpegLs(level=0)  # lossless
+    elif codec == 'jpegxl':
+        if not imagecodecs.JPEGXL:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.JpegXl(level=-1)  # lossless
     elif codec == 'jpegxr':
         if not imagecodecs.JPEGXR:
             pytest.skip(msg=f'{codec} not found')
@@ -2443,6 +2527,10 @@ def test_numcodecs(codec, photometric):
         if photometric == 'rgb':
             pytest.xfail(reason='PackBits does not support RGB')
         compressor = numcodecs.PackBits()
+    elif codec == 'pglz':
+        if not imagecodecs.PGLZ:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.Pglz(strategy=None)
     elif codec == 'png':
         if not imagecodecs.PNG:
             pytest.skip(msg=f'{codec} not found')
