@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2021.4.28'
 
 include '_shared.pxi'
 
@@ -72,6 +72,8 @@ _set_attributes(
     COMPRESSION_LZMA=COMPRESSION_LZMA,
     COMPRESSION_ZSTD=COMPRESSION_ZSTD,
     COMPRESSION_WEBP=COMPRESSION_WEBP,
+    # COMPRESSION_LERC=COMPRESSION_LERC,
+    # COMPRESSION_JXL=COMPRESSION_JXL,
     PHOTOMETRIC_MINISWHITE=PHOTOMETRIC_MINISWHITE,
     PHOTOMETRIC_MINISBLACK=PHOTOMETRIC_MINISBLACK,
     PHOTOMETRIC_RGB=PHOTOMETRIC_RGB,
@@ -162,7 +164,7 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
         int dirraise = 0
         tdir_t dirnum, dirstart, dirstop, dirstep
         int ret
-        uint32 strip
+        uint32_t strip
         ssize_t i, j, size, sizeleft, outindex, imagesize, images
         ssize_t[7] sizes
         ssize_t[7] sizes2
@@ -335,9 +337,9 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
                         raise TiffError(memtifobj)
                     ret = TIFFReadRGBAImageOriented(
                         tif,
-                        <uint32> sizes[4],
-                        <uint32> sizes[3],
-                        <uint32*> &outptr[i * imagesize],
+                        <uint32_t> sizes[4],
+                        <uint32_t> sizes[3],
+                        <uint32_t*> &outptr[i * imagesize],
                         ORIENTATION_TOPLEFT,
                         0
                     )
@@ -416,9 +418,9 @@ cdef int tiff_read_ifd(
 
     """
     cdef:
-        uint32 imagewidth, imageheight, imagedepth
-        uint16 planarconfig, photometric, bitspersample, sampleformat
-        uint16 samplesperpixel, compression
+        uint32_t imagewidth, imageheight, imagedepth
+        uint16_t planarconfig, photometric, bitspersample, sampleformat
+        uint16_t samplesperpixel, compression
         int ret
 
     ret = TIFFGetFieldDefaulted(tif, TIFFTAG_PLANARCONFIG, &planarconfig)
@@ -563,7 +565,7 @@ cdef int tiff_decode_tiled(
         ssize_t sizeleft
         ssize_t sp, sd, sl, sw
         ssize_t tp, td, tl, tw
-        uint32 value
+        uint32_t value
         int ret
 
     if TIFFIsTiled(tif) == 0:
@@ -606,7 +608,7 @@ cdef int tiff_decode_tiled(
 
     for tileindex in range(TIFFNumberOfTiles(tif)):
         size = TIFFReadEncodedTile(
-            tif, <uint32> tileindex, <void*> tile, tilesize
+            tif, <uint32_t> tileindex, <void*> tile, tilesize
         )
         if size < 0:
             return 0
