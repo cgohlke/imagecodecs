@@ -37,7 +37,7 @@
 
 """JPEG 8-bit codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.4.28'
 
 include '_shared.pxi'
 
@@ -123,7 +123,7 @@ def jpeg8_encode(
         ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
-        int quality = _default_value(level, 90, 0, 100)
+        int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
         JSAMPROW rowpointer
