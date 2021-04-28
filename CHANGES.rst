@@ -1,7 +1,15 @@
 Revisions
 ---------
+2021.4.28
+    Pass 5119 tests.
+    Change WebP default compression level to lossless.
+    Rename jpegxl codec to brunsli (breaking).
+    Add new JPEG XL codec via jpeg-xl library.
+    Add PGLZ codec via PostgreSQL's pg_lzcompress.c.
+    Update to libtiff 4.3 and libjpeg-turbo 2.1.
+    Enable JPEG 12-bit codec in manylinux wheels.
+    Drop manylinux2010 wheels.
 2021.3.31
-    Pass 4964 tests.
     Add numcodecs compatible codecs for use by Zarr (experimental).
     Support separate JPEG header in jpeg_decode.
     Do not decode JPEG LS and XL in jpeg_decode (breaking).
