@@ -3,14 +3,15 @@ Image transformation, compression, and decompression codecs
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in the
-tifffile, czifile, and other scientific image input/output modules.
+tifffile, czifile, zarr, and other scientific image input/output modules.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
-LZW, LZF, ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit,
-Lossless JPEG (LJPEG, SOF3), JPEG 2000, JPEG LS, JPEG XR, JPEG XL, AVIF,
-PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
+LZW, LZF, PGLZ (PostgreSQL LZ), ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP,
+JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3), JPEG 2000, JPEG LS,
+JPEG XR (WDP, HD Photo), JPEG XL, AVIF, PackBits, Packed Integers, Delta,
+XOR Delta, Floating Point Predictor, Bitorder reversal, Bitshuffle, and
+Float24 (24-bit floating point).
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -20,7 +21,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.3.31
+:Version: 2021.4.28
 
 :Status: Alpha
 
@@ -29,9 +30,9 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.8, 3.9.2 64-bit <https://www.python.org>`_
+* `CPython 3.7.9, 3.8.9, 3.9.4 64-bit <https://www.python.org>`_
 * `Numpy 1.19.5 <https://pypi.org/project/numpy/>`_
-* `Cython 0.29.22 <https://cython.org>`_
+* `Cython 0.29.23 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
 * `zstd 1.4.9 <https://github.com/facebook/zstd>`_
@@ -41,13 +42,14 @@ This release has been tested with the following requirements and dependencies
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libwebp 1.2.0 <https://github.com/webmproject/libwebp>`_
-* `libtiff 4.2.0 <https://gitlab.com/libtiff/libtiff>`_
-* `libjpeg-turbo 2.0.6 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
+* `libjpeg-turbo 2.1.0 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
   (8 and 12-bit)
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `charls 2.2.0 <https://github.com/team-charls/charls>`_
 * `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
+* `jpeg-xl 0.3.7 <https://gitlab.com/wg1/jpeg-xl>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
@@ -60,24 +62,24 @@ This release has been tested with the following requirements and dependencies
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
 * `libavif 0.9.0 <https://github.com/AOMediaCodec/libavif>`_
 * `dav1d 0.8.2 <https://github.com/videolan/dav1d>`_
-* `rav1e 0.4.0 <https://github.com/xiph/rav1e>`_
+* `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_
 * `aom 2.0.2 <https://aomedia.googlesource.com/aom>`_
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.3.17 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.4.8 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.4.8.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.4.9.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `numcodecs 0.7.3 <https://github.com/zarr-developers/numcodecs>`_
-* `zarr 2.7 <https://github.com/zarr-developers/zarr-python>`_
+* `zarr 2.8.1 <https://github.com/zarr-developers/zarr-python>`_
 
 Notes
 -----
@@ -98,8 +100,12 @@ Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
-This software includes modified versions of `dcm2niix's jpg_0XC3.cpp
+This software includes a modified version of `dcm2niix's jpg_0XC3.cpp
 <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_.
+
+This software includes a modified version of `PostgreSQL's pg_lzcompress.c
+<https://github.com/postgres/postgres/blob/REL_13_STABLE/src/common/
+pg_lzcompress.c>`_.
 
 This software includes a copy of `liblj92
 <https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_.
@@ -119,7 +125,7 @@ Install the requirements for building imagecodecs from source code on
 latest Ubuntu Linux distributions:
 
     ``sudo apt-get install build-essential python3-dev cython3
-    python3-setuptools python3-pip python3-wheel python3-numpy
+    python3-setuptools python3-pip python3-wheel python3-numpy python3-zarr
     python3-pytest python3-blosc python3-brotli python3-snappy python3-lz4
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-dev libjxr-dev
@@ -157,7 +163,6 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
 * `tinyexr <https://github.com/syoyo/tinyexr>`_
 * `pytinyexr <https://github.com/syoyo/pytinyexr>`_
-* `jpeg-xl <https://gitlab.com/wg1/jpeg-xl>`_
 * `libjpeg <https://github.com/thorfdbg/libjpeg>`_ (GPL)
 * `pylibjpeg <https://github.com/pydicom/pylibjpeg>`_
 * `pylibjpeg-libjpeg <https://github.com/pydicom/pylibjpeg-libjpeg>`_ (GPL)
@@ -168,8 +173,16 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.4.28
+    Pass 5119 tests.
+    Change WebP default compression level to lossless.
+    Rename jpegxl codec to brunsli (breaking).
+    Add new JPEG XL codec via jpeg-xl library.
+    Add PGLZ codec via PostgreSQL's pg_lzcompress.c.
+    Update to libtiff 4.3 and libjpeg-turbo 2.1.
+    Enable JPEG 12-bit codec in manylinux wheels.
+    Drop manylinux2010 wheels.
 2021.3.31
-    Pass 4964 tests.
     Add numcodecs compatible codecs for use by Zarr (experimental).
     Support separate JPEG header in jpeg_decode.
     Do not decode JPEG LS and XL in jpeg_decode (breaking).
