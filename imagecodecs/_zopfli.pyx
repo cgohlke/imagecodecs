@@ -58,6 +58,7 @@ class ZopfliError(RuntimeError):
 
 def zopfli_version():
     """Return Zopfli library version string."""
+    # TODO: use version from header when available
     return 'zopfli 1.0.3'
 
 
