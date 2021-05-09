@@ -63,6 +63,8 @@ class SnappyError(RuntimeError):
 
 def snappy_version():
     """Return Snappy library version string."""
+    # TODO: use version from header when available
+    # TODO: SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header
     return 'snappy 1.1.7'
 
 
