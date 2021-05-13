@@ -117,12 +117,21 @@ cdef extern from 'zlib.h':
 
     ctypedef gz_header* gz_headerp
 
+    int deflateInit(
+        z_streamp strm,
+        int level
+    ) nogil
+
     int deflate(
         z_streamp strm,
         int flush
     ) nogil
 
     int deflateEnd(
+        z_streamp strm
+    ) nogil
+
+    int inflateInit(
         z_streamp strm
     ) nogil
 
@@ -261,6 +270,8 @@ cdef extern from 'zlib.h':
     ) nogil
 
     uLong zlibCompileFlags() nogil
+
+    # utility functions
 
     int compress(
         Bytef* dest,
