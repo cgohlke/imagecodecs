@@ -92,13 +92,22 @@ cdef object _create_output(object out, ssize_t size, const char* string=NULL):
     Return NULL on failure.
 
     """
+    cdef:
+        object obj
+
     IF IS_PYPY:
         # PyPy can not modify the content of bytes
         pass
     ELSE:
         if out == bytes or PyBytes_Check(out):
-            return PyBytes_FromStringAndSize(string, size)
-    return PyByteArray_FromStringAndSize(string, size)
+            obj = PyBytes_FromStringAndSize(string, size)
+            if obj is None:
+                raise MemoryError('PyBytes_FromStringAndSize failed')
+            return obj
+    obj = PyByteArray_FromStringAndSize(string, size)
+    if obj is None:
+        raise MemoryError('PyByteArray_FromStringAndSize failed')
+    return obj
 
 
 cdef object _return_output(object out, ssize_t size, ssize_t used, outgiven):
@@ -143,10 +152,16 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False):
         else:
             out = numpy.empty(shape, dtype)
     elif isinstance(out, numpy.ndarray):
-        if out.shape != shape:
-            raise ValueError(f'invalid output shape {out.shape!r} {shape!r}')
         if out.itemsize != numpy.dtype(dtype).itemsize:
             raise ValueError('invalid output dtype')
+        if (
+            out.shape != shape
+            and (
+                tuple(int(i) for i in out.shape if i != 1)
+                != tuple(int(i) for i in shape if i != 1)
+            )
+        ):
+            raise ValueError(f'invalid output shape {out.shape!r} {shape!r}')
         if strides is not None:
             for i, j in zip(strides, out.strides):
                 if i is not None and i != j:
@@ -253,11 +268,11 @@ cdef const uint8_t[::1] _inplace_input(data):
 cdef _default_value(value, default, smallest, largest):
     """Return default value or value in range."""
     if value is None:
-        value = default
-    if largest is not None:
-        value = min(value, largest)
-    if smallest is not None:
-        value = max(value, smallest)
+        return default
+    if largest is not None and value >= largest:
+        return largest
+    if smallest is not None and value <= smallest:
+        return smallest
     return value
 
 
