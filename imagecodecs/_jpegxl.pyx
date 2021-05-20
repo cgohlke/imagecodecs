@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -166,16 +166,16 @@ def jpegxl_encode(
         # input is a JPEG stream
         return jpegxl_from_jpeg(data, use_container, num_threads, out)
 
-    src = data
+    src = numpy.ascontiguousarray(data)
     dtype = src.dtype
     srcsize = src.nbytes
     buffer_size = src.nbytes
     buffer = src.data
 
     if not (
-        src.dtype.kind in 'uf' and
-        src.ndim in (2, 3, 4) and
-        numpy.PyArray_ISCONTIGUOUS(src)
+        src.dtype.kind in 'uf'
+        and src.ndim in (2, 3, 4)
+        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
