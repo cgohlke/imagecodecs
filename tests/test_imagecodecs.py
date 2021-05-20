@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.4.28
+:Version: 2021.5.20
 
 """
 
@@ -880,6 +880,7 @@ def test_lzw_decode_image_noeoi():
         'lzma',
         'snappy',
         'zlib',
+        'zlibng',
         'zopfli',
         'zstd',
     ],
@@ -905,6 +906,14 @@ def test_compressors(codec, func, output, length):
         encode = imagecodecs.zlib_encode
         decode = imagecodecs.zlib_decode
         check = imagecodecs.zlib_check
+        level = 5
+        encoded = zlib.compress(data, level)
+    elif codec == 'zlibng':
+        if not imagecodecs.ZLIBNG or zlib is None:
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.zlibng_encode
+        decode = imagecodecs.zlibng_decode
+        check = imagecodecs.zlibng_check
         level = 5
         encoded = zlib.compress(data, level)
     elif codec == 'deflate':
@@ -1373,6 +1382,39 @@ def test_pglz():
         encode(data, strategy='always')
     assert encode(data, header=True)[4:] == data
     assert decode(encode(data, header=True), header=True) == data
+
+
+@pytest.mark.skipif(not imagecodecs.RCOMP, reason='rcomp missing')
+@pytest.mark.parametrize('dtype', ['u1', 'u2', 'u4', 'i1', 'i2', 'i4'])
+@pytest.mark.parametrize('case', [1, 2, 3, 4])
+def test_rcomp(dtype, case):
+    """Test RCOMP codec."""
+    decode = imagecodecs.rcomp_decode
+    encode = imagecodecs.rcomp_encode
+
+    data = numpy.load(datafiles('rgb.u1.npy'))
+    if dtype[0] == 'i':
+        data = data.astype('i2')
+        data -= 128
+    data = data.astype(dtype)
+
+    encoded = encode(data)
+    if case == 1:
+        assert_array_equal(
+            data, decode(encoded, shape=data.shape, dtype=data.dtype)
+        )
+    elif case == 2:
+        decoded = decode(encoded, shape=data.size, dtype=data.dtype)
+        decoded = decoded.reshape(data.shape)
+        assert_array_equal(data, decoded)
+    elif case == 3:
+        out = numpy.empty_like(data)
+        decode(encoded, out=out)
+        assert_array_equal(data, out)
+    elif case == 4:
+        out = numpy.empty_like(data)
+        decode(encoded, shape=data.shape, dtype=data.dtype, out=out)
+        assert_array_equal(data, out)
 
 
 @pytest.mark.parametrize('optimize', [False, True])
@@ -2355,12 +2397,14 @@ def test_numcodecs_register(caplog):
         'packbits',
         'pglz',
         'png',
+        'rcomp',
         'snappy',
         'tiff',  # no encoder
         'webp',
         'xor',
         'zfp',
         'zlib',
+        'zlibng',
         'zopfli',
         'zstd',
     ],
@@ -2535,6 +2579,10 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.PNG:
             pytest.skip(msg=f'{codec} not found')
         compressor = numcodecs.Png()
+    elif codec == 'rcomp':
+        if not imagecodecs.RCOMP:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.Rcomp(shape=chunks, dtype=data.dtype)
     elif codec == 'snappy':
         if not imagecodecs.SNAPPY:
             pytest.skip(msg=f'{codec} not found')
@@ -2565,6 +2613,10 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.ZLIB:
             pytest.skip(msg=f'{codec} not found')
         compressor = numcodecs.Zlib(level=6)
+    elif codec == 'zlibng':
+        if not imagecodecs.ZLIBNG:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.Zlibng(level=6)
     elif codec == 'zopfli':
         if not imagecodecs.ZOPFLI:
             pytest.skip(msg=f'{codec} not found')
