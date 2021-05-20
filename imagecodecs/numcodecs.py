@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.5.20'
 
 __all__ = ('register_codecs',)
 
@@ -224,14 +224,15 @@ class Deflate(Codec):
 
     codec_id = 'imagecodecs_deflate'
 
-    def __init__(self, level=None):
+    def __init__(self, level=None, raw=False):
         self.level = level
+        self.raw = bool(raw)
 
     def encode(self, buf):
-        return imagecodecs.deflate_encode(buf, level=self.level)
+        return imagecodecs.deflate_encode(buf, level=self.level, raw=self.raw)
 
     def decode(self, buf, out=None):
-        return imagecodecs.deflate_decode(buf, out=out)
+        return imagecodecs.deflate_decode(buf, out=out, raw=self.raw)
 
 
 class Delta(Codec):
@@ -715,6 +716,29 @@ class Png(Codec):
         return imagecodecs.png_decode(buf, out=out)
 
 
+class Rcomp(Codec):
+    """Rcomp codec for numcodecs."""
+
+    codec_id = 'imagecodecs_rcomp'
+
+    def __init__(self, shape, dtype, nblock=None):
+        self.shape = tuple(shape)
+        self.dtype = numpy.dtype(dtype).str
+        self.nblock = nblock
+
+    def encode(self, buf):
+        return imagecodecs.rcomp_encode(buf, nblock=self.nblock)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.rcomp_decode(
+            buf,
+            shape=self.shape,
+            dtype=self.dtype,
+            nblock=self.nblock,
+            out=out,
+        )
+
+
 class Snappy(Codec):
     """Snappy codec for numcodecs."""
 
@@ -859,6 +883,21 @@ class Zlib(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.zlib_decode(buf, out=out)
+
+
+class Zlibng(Codec):
+    """Zlibng codec for numcodecs."""
+
+    codec_id = 'imagecodecs_zlibng'
+
+    def __init__(self, level=None):
+        self.level = level
+
+    def encode(self, buf):
+        return imagecodecs.zlibng_encode(buf, level=self.level)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.zlibng_decode(buf, out=out)
 
 
 class Zopfli(Codec):
