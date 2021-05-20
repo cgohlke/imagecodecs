@@ -1,7 +1,7 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 0.9.0` library.
+# Cython declarations for the `libavif 0.9.1` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -18,6 +18,9 @@ cdef extern from 'avif/avif.h':
     int AVIF_TRUE
     int AVIF_FALSE
 
+    int AVIF_DIAGNOSTICS_ERROR_BUFFER_SIZE
+    int AVIF_DEFAULT_IMAGE_COUNT_LIMIT
+
     int AVIF_QUANTIZER_LOSSLESS
     int AVIF_QUANTIZER_BEST_QUALITY
     int AVIF_QUANTIZER_WORST_QUALITY
@@ -28,10 +31,12 @@ cdef extern from 'avif/avif.h':
     int AVIF_SPEED_SLOWEST
     int AVIF_SPEED_FASTEST
 
-    enum avifPlanesFlags:
+    ctypedef enum avifPlanesFlag:
         AVIF_PLANES_YUV
         AVIF_PLANES_A
         AVIF_PLANES_ALL
+
+    ctypedef uint32_t avifPlanesFlags
 
     enum avifChannelIndex:
         AVIF_CHAN_R
@@ -220,14 +225,21 @@ cdef extern from 'avif/avif.h':
         AVIF_MATRIX_COEFFICIENTS_CHROMA_DERIVED_CL
         AVIF_MATRIX_COEFFICIENTS_ICTCP
 
+    ctypedef struct avifDiagnostics:
+        char error[256]  # [AVIF_DIAGNOSTICS_ERROR_BUFFER_SIZE]
+
+    void avifDiagnosticsClearError(avifDiagnostics* diag) nogil
+
     # Optional transformation structs
 
-    ctypedef enum avifTransformationFlags:
+    ctypedef enum avifTransformFlag:
         AVIF_TRANSFORM_NONE
         AVIF_TRANSFORM_PASP
         AVIF_TRANSFORM_CLAP
         AVIF_TRANSFORM_IROT
         AVIF_TRANSFORM_IMIR
+
+    ctypedef uint32_t avifTransformFlags
 
     ctypedef struct avifPixelAspectRatioBox:
         uint32_t hSpacing
@@ -248,6 +260,30 @@ cdef extern from 'avif/avif.h':
 
     ctypedef struct avifImageMirror:
         uint8_t axis
+
+    ctypedef struct avifCropRect:
+        uint32_t x
+        uint32_t y
+        uint32_t width
+        uint32_t height
+
+    avifBool avifCropRectConvertCleanApertureBox(
+        avifCropRect* cropRect,
+        const avifCleanApertureBox* clap,
+        const uint32_t imageW,
+        const uint32_t imageH,
+        const avifPixelFormat yuvFormat,
+        avifDiagnostics* diag
+    ) nogil
+
+    avifBool avifCleanApertureBoxConvertCropRect(
+        avifCleanApertureBox* clap,
+        const avifCropRect* cropRect,
+        const uint32_t imageW,
+        const uint32_t imageH,
+        const avifPixelFormat yuvFormat,
+        avifDiagnostics* diag
+    ) nogil
 
     # avifImage
 
@@ -270,7 +306,7 @@ cdef extern from 'avif/avif.h':
         avifColorPrimaries colorPrimaries
         avifTransferCharacteristics transferCharacteristics
         avifMatrixCoefficients matrixCoefficients
-        uint32_t transformFlags
+        avifTransformFlags transformFlags
         avifPixelAspectRatioBox pasp
         avifCleanApertureBox clap
         avifImageRotation irot
@@ -290,7 +326,7 @@ cdef extern from 'avif/avif.h':
     void avifImageCopy(
         avifImage* dstImage,
         const avifImage* srcImage,
-        uint32_t planes
+        avifPlanesFlags planes
     ) nogil
 
     void avifImageDestroy(
@@ -317,18 +353,18 @@ cdef extern from 'avif/avif.h':
 
     void avifImageAllocatePlanes(
         avifImage* image,
-        uint32_t planes
+        avifPlanesFlags planes
     ) nogil
 
     void avifImageFreePlanes(
         avifImage* image,
-        uint32_t planes
+        avifPlanesFlags planes
     ) nogil
 
     void avifImageStealPlanes(
         avifImage* dstImage,
         avifImage* srcImage,
-        uint32_t planes
+        avifPlanesFlags planes
     ) nogil
 
     ctypedef enum avifRGBFormat:
@@ -475,13 +511,15 @@ cdef extern from 'avif/avif.h':
         AVIF_CODEC_CHOICE_RAV1E
         AVIF_CODEC_CHOICE_SVT
 
-    ctypedef enum avifCodecFlags:
+    ctypedef enum avifCodecFlag:
         AVIF_CODEC_FLAG_CAN_DECODE
         AVIF_CODEC_FLAG_CAN_ENCODE
 
+    ctypedef uint32_t avifCodecFlags
+
     const char* avifCodecName(
         avifCodecChoice choice,
-        uint32_t requiredFlags
+        avifCodecFlags requiredFlags
     ) nogil
 
     avifCodecChoice avifCodecChoiceFromName(
@@ -547,6 +585,14 @@ cdef extern from 'avif/avif.h':
 
     # avifDecoder
 
+    ctypedef enum avifStrictFlag:
+        AVIF_STRICT_DISABLED
+        AVIF_STRICT_PIXI_REQUIRED
+        AVIF_STRICT_CLAP_VALID
+        AVIF_STRICT_ENABLED
+
+    ctypedef uint32_t avifStrictFlags
+
     ctypedef struct avifIOStats:
         size_t colorOBUSize
         size_t alphaOBUSize
@@ -579,8 +625,11 @@ cdef extern from 'avif/avif.h':
         avifBool alphaPresent
         avifBool ignoreExif
         avifBool ignoreXMP
+        uint32_t imageCountLimit
+        avifStrictFlags strictFlags
         avifIOStats ioStats
         avifIO* io
+        avifDiagnostics diag
         avifDecoderData* data
 
     avifDecoder* avifDecoderCreate() nogil
@@ -682,6 +731,7 @@ cdef extern from 'avif/avif.h':
         int keyframeInterval
         uint64_t timescale
         avifIOStats ioStats
+        avifDiagnostics diag
         avifEncoderData* data
         avifCodecSpecificOptions* csOptions
 
@@ -697,16 +747,18 @@ cdef extern from 'avif/avif.h':
         avifEncoder* encoder
     ) nogil
 
-    enum avifAddImageFlags:
+    ctypedef enum avifAddImageFlag:
         AVIF_ADD_IMAGE_FLAG_NONE
         AVIF_ADD_IMAGE_FLAG_FORCE_KEYFRAME
         AVIF_ADD_IMAGE_FLAG_SINGLE
+
+    ctypedef uint32_t avifAddImageFlags
 
     avifResult avifEncoderAddImage(
         avifEncoder* encoder,
         const avifImage* image,
         uint64_t durationInTimescales,
-        uint32_t addImageFlags
+        avifAddImageFlags addImageFlags
     ) nogil
 
     avifResult avifEncoderAddImageGrid(
@@ -714,7 +766,7 @@ cdef extern from 'avif/avif.h':
         uint32_t gridCols,
         uint32_t gridRows,
         const avifImage* const *cellImages,
-        uint32_t addImageFlags
+        avifAddImageFlags addImageFlags
     )
 
     avifResult avifEncoderFinish(
