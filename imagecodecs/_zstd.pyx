@@ -37,7 +37,7 @@
 
 """Zstd (ZStandard) codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
