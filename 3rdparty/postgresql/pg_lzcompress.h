@@ -16,8 +16,6 @@
 
 #define Min(a, b) ((a) < (b) ? (a) : (b))
 
-#define unlikely
-
 #include <stdbool.h>
 #include <stdint.h>
 
