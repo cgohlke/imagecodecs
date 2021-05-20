@@ -737,7 +737,7 @@ pglz_decompress(const char *source, int32 slen, char *dest,
 				 * must check this, else we risk an infinite loop below in the
 				 * face of corrupt data.)
 				 */
-				if (unlikely(sp > srcend || off == 0))
+				if (sp > srcend || off == 0)
 					return -1;
 
 				/*
