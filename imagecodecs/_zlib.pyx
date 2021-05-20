@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -47,6 +47,11 @@ from zlib cimport *
 class ZLIB:
     """Zlib Constants."""
 
+    NO_COMPRESSION = Z_NO_COMPRESSION
+    BEST_SPEED = Z_BEST_SPEED
+    BEST_COMPRESSION = Z_BEST_COMPRESSION
+    DEFAULT_COMPRESSION = Z_DEFAULT_COMPRESSION
+
 
 class ZlibError(RuntimeError):
     """Zlib Exceptions."""
@@ -54,11 +59,14 @@ class ZlibError(RuntimeError):
     def __init__(self, func, err):
         msg = {
             Z_OK: 'Z_OK',
+            Z_STREAM_END: 'Z_STREAM_END',
+            Z_NEED_DICT: 'Z_NEED_DICT',
+            Z_ERRNO: 'Z_ERRNO',
+            Z_STREAM_ERROR: 'Z_STREAM_ERROR',
+            Z_DATA_ERROR: 'Z_DATA_ERROR',
             Z_MEM_ERROR: 'Z_MEM_ERROR',
             Z_BUF_ERROR: 'Z_BUF_ERROR',
-            Z_DATA_ERROR: 'Z_DATA_ERROR',
-            Z_STREAM_ERROR: 'Z_STREAM_ERROR',
-            Z_NEED_DICT: 'Z_NEED_DICT',
+            Z_VERSION_ERROR: 'Z_VERSION_ERROR',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -84,24 +92,19 @@ def zlib_encode(data, level=None, out=None):
         ssize_t dstsize
         unsigned long srclen, dstlen
         int ret
-        int compresslevel = _default_value(level, 6, 0, 9)
+        int compresslevel = _default_value(
+            level, Z_DEFAULT_COMPRESSION, Z_NO_COMPRESSION, Z_BEST_COMPRESSION
+        )
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
-    if out is None and dstsize < 0:
-        # use Python's zlib module
-        import zlib
-
-        return zlib.compress(data, compresslevel)
-        # TODO: use zlib streaming API
-        # return _zlib_compress(src, compresslevel, outtype)
-
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError
+            # TODO: use streaming APIs
+            dstsize = <ssize_t> compressBound(<unsigned long> srcsize)
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -129,9 +132,8 @@ def zlib_decode(data, out=None):
 
     """
     cdef:
-        const uint8_t[::1] src = data
+        const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
         ssize_t dstsize
         unsigned long srclen, dstlen
         int ret
@@ -142,22 +144,21 @@ def zlib_decode(data, out=None):
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None and dstsize < 0:
+        return _zlib_decode(data, outtype)
         # use Python's zlib module
-        import zlib
-
-        return zlib.decompress(data)
-        # TODO: use zlib streaming API
-        # return _zlib_decompress(src, outtype)
+        # import zlib
+        # return zlib.decompress(data)
 
     if out is None:
         if dstsize < 0:
             raise NotImplementedError
         out = _create_output(outtype, dstsize)
 
+    src = data
     dst = out
     dstsize = dst.size
     dstlen = <unsigned long> dstsize
-    srclen = <unsigned long> srcsize
+    srclen = <unsigned long> src.size
 
     with nogil:
         ret = uncompress2(
@@ -173,6 +174,85 @@ def zlib_decode(data, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
+cdef _zlib_decode(const uint8_t[::1] src, outtype):
+    """Decompress using streaming API."""
+    cdef:
+        output_t* output = NULL
+        z_stream stream
+        ssize_t srcsize = <size_t> src.size
+        size_t size, left
+        int ret
+
+    try:
+        with nogil:
+
+            stream.next_in = <const uint8_t*> &src[0]
+            stream.avail_in = 0
+            stream.zalloc = NULL
+            stream.zfree = NULL
+            stream.opaque = NULL
+
+            ret = inflateInit(&stream)
+            if ret != Z_OK:
+                raise ZlibError('inflateInit', ret)
+
+            output = output_new(
+                NULL,
+                max(4096, (srcsize * 2) + (4096 - srcsize * 2) % 4096)
+            )
+            if output == NULL:
+                raise MemoryError('output_new failed')
+
+            stream.next_out = <Bytef*> output.data
+            stream.avail_out = 0
+            left = <size_t> output.size
+            size = <size_t> srcsize
+
+            while ret == Z_OK or ret == Z_BUF_ERROR:
+
+                if stream.avail_out == 0:
+                    if left == 0:
+                        left = output.size * 2
+                        if output_resize(output, output.size + left) == 0:
+                            raise MemoryError('output_resize failed')
+                        stream.next_out = (
+                            <Bytef*> output.data + (output.size - left)
+                        )
+                    if left > <size_t> 4294967295:
+                        stream.avail_out = <uInt> 4294967295
+                    else:
+                        stream.avail_out = <uInt> left
+                    left -= stream.avail_out
+
+                if stream.avail_in == 0:
+                    if ret == Z_BUF_ERROR:
+                        break
+                    if size > <size_t> 4294967295:
+                        stream.avail_in = <uInt> 4294967295
+                    else:
+                        stream.avail_in = <uInt> size
+                    size -= stream.avail_in
+
+                ret = inflate(&stream, Z_NO_FLUSH)
+
+            if ret != Z_STREAM_END:
+                raise ZlibError('inflate', ret)
+
+        out = _create_output(
+            outtype, stream.total_out, <const char *> output.data
+        )
+
+    finally:
+        output_del(output)
+        ret = inflateEnd(&stream)
+        if ret != Z_OK:
+            raise ZlibError('inflateEnd', ret)
+
+    return out
+
+
+# CRC #########################################################################
+
 def zlib_crc32(data):
     """Return cyclic redundancy checksum CRC-32 of data."""
     cdef:
@@ -182,5 +262,86 @@ def zlib_crc32(data):
 
     with nogil:
         crc = crc32(crc, NULL, 0)
-        crc = crc32(crc, <Bytef*> &src[0], srcsize)
+        crc = crc32(crc, <const Bytef*> &src[0], srcsize)
     return int(crc)
+
+
+def zlib_adler32(data):
+    """Return Adler-32 checksum of data."""
+    cdef:
+        const uint8_t[::1] src = _readable_input(data)
+        uInt srcsize = <uInt> src.size
+        uLong adler
+
+    with nogil:
+        adler = adler32(0, NULL, 0)
+        adler = adler32(adler, <const Bytef*> &src[0], srcsize)
+    return int(adler)
+
+
+# Output Stream ###############################################################
+
+ctypedef struct output_t:
+    uint8_t* data
+    size_t size
+    size_t pos
+    size_t used
+    int owner
+
+
+cdef output_t* output_new(uint8_t* data, size_t size) nogil:
+    """Return new output."""
+    cdef:
+        output_t* output = <output_t*> malloc(sizeof(output_t))
+
+    if output == NULL:
+        return NULL
+    output.size = size
+    output.used = 0
+    output.pos = 0
+    if data == NULL:
+        output.owner = 1
+        output.data = <uint8_t*> malloc(size)
+    else:
+        output.owner = 0
+        output.data = data
+    if output.data == NULL:
+        free(output)
+        return NULL
+    return output
+
+
+cdef void output_del(output_t* output) nogil:
+    """Free output."""
+    if output != NULL:
+        if output.owner != 0:
+            free(output.data)
+        free(output)
+
+
+cdef int output_seek(output_t* output, size_t pos) nogil:
+    """Seek output to position."""
+    if output == NULL or pos > output.size:
+        return 0
+    output.pos = pos
+    if pos > output.used:
+        output.used = pos
+    return 1
+
+
+cdef int output_resize(output_t* output, size_t newsize) nogil:
+    """Resize output."""
+    cdef:
+        uint8_t* tmp
+
+    if output == NULL or newsize == 0 or output.used > output.size:
+        return 0
+    if newsize == output.size or output.owner == 0:
+        return 1
+
+    tmp = <uint8_t*> realloc(<void*> output.data, newsize)
+    if tmp == NULL:
+        return 0
+    output.data = tmp
+    output.size = newsize
+    return 1
