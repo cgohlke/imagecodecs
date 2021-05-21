@@ -41,7 +41,7 @@ The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
 
-__version__ = '2021.2.26'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -119,7 +119,7 @@ def jpegxr_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.dtype dtype = src.dtype
         const uint8_t[::1] dst  # must be const to write to bytes
         U8* outbuffer = NULL
@@ -141,9 +141,6 @@ def jpegxr_encode(
         U32 stride
         ERR err
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if (
         dtype not in (
             numpy.bool8,
@@ -153,7 +150,7 @@ def jpegxr_encode(
             numpy.float32,
         )
         and src.ndim in (2, 3)
-        and numpy.PyArray_ISCONTIGUOUS(src)
+        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
