@@ -37,7 +37,7 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -87,9 +87,6 @@ def png_encode(data, level=None, out=None):
         png_uint_32 width = <png_uint_32> src.shape[1]
         png_uint_32 height = <png_uint_32> src.shape[0]
         png_uint_32 row
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if not (
         src.dtype in (numpy.uint8, numpy.uint16)
