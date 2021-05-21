@@ -37,7 +37,7 @@
 
 """PGLZ (PostgreSQL LZ) codec for the imagecodecs package."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -136,7 +136,7 @@ def pglz_encode(data, level=None, header=False, strategy=None, out=None):
             if srcsize > dstsize:
                 raise ValueError('output too small')
             memcpy(<void*> &dst[offset], &src[0], srcsize)
-            ret = srcsize
+            ret = <int32> srcsize
     elif ret < 0:
         raise PglzError(f'pglz_compress returned {ret}')
 
@@ -191,7 +191,7 @@ def pglz_decode(data, header=False, checkcomplete=None, out=None):
         if rawsize > dstsize:
             raise ValueError('output too small')
         memcpy(<void*> &dst[0], &src[offset], rawsize)
-        ret = rawsize
+        ret = <int32> rawsize
 
     else:
         # decompress
