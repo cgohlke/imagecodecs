@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -74,7 +74,7 @@ def ljpeg_check(data):
 def ljpeg_encode(data, level=None, bitspersample=None, out=None):
     """Return Lossless JPEG image from numpy array."""
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         uint16_t* srcptr = NULL
@@ -86,15 +86,12 @@ def ljpeg_encode(data, level=None, bitspersample=None, out=None):
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int ret = LJ92_ERROR_NONE
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
         src.dtype in (numpy.uint8, numpy.uint16)
         and src.ndim in (2, 3)
         and samples == 1  # in (1, 3, 4)  RGB does not work correctly
         and src.shape[0] * src.shape[1] < 2 ** 31
-        and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
+        # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
