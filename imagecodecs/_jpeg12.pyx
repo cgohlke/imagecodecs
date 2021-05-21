@@ -37,7 +37,7 @@
 
 """JPEG 12-bit codec for the imagecodecs package."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -92,7 +92,7 @@ def jpeg12_version():
 
 
 def jpeg12_check(const uint8_t[::1] data):
-    """Return True if data likely contains a JPEG 12-bit image."""
+    """Return True if data likely contains a JPEG image."""
     sig = bytes(data[:10])
     return (
         sig[:4] == b'\xFF\xD8\xFF\xDB'
@@ -117,7 +117,7 @@ def jpeg12_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -136,9 +136,6 @@ def jpeg12_encode(
         int v_samp_factor = 0
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if not (
         src.dtype == numpy.uint16
