@@ -37,7 +37,7 @@
 
 """JPEG 8-bit codec for the imagecodecs package."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -117,7 +117,7 @@ def jpeg8_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -136,9 +136,6 @@ def jpeg8_encode(
         int v_samp_factor = 0
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if not (
         src.dtype == numpy.uint8
