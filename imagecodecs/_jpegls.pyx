@@ -37,7 +37,7 @@
 
 """JPEG LS codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -82,7 +82,7 @@ def jpegls_encode(data, level=None, out=None):
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -96,14 +96,11 @@ def jpegls_encode(data, level=None, out=None):
         size_t byteswritten
         size_t size_in_bytes
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16) and
-        src.ndim in (2, 3) and
-        srcsize < 2 ** 32 and
-        numpy.PyArray_ISCONTIGUOUS(src)
+        src.dtype in (numpy.uint8, numpy.uint16)
+        and src.ndim in (2, 3)
+        and srcsize < 2 ** 32
+        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
