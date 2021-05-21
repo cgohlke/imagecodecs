@@ -1,7 +1,12 @@
 Revisions
 ---------
+2021.5.20
+    Pass 5185 tests.
+    Add ZLIBNG codec via zlib-ng library.
+    Add RCOMP (Rice) codec via cfitsio library.
+    Fix decoding of 16-bit JPEG with jpeg_decode.
+    Relax user provided output array shape requirement.
 2021.4.28
-    Pass 5119 tests.
     Change WebP default compression level to lossless.
     Rename jpegxl codec to brunsli (breaking).
     Add new JPEG XL codec via jpeg-xl library.
