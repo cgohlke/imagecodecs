@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -95,7 +95,7 @@ def jpeg2k_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -117,13 +117,10 @@ def jpeg2k_encode(
         float quality = 100.0 - _default_value(level, 0, 0, 100)
         int irreversible = 0 if reversible else 1
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
         src.dtype in (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16)
         and src.ndim in (2, 3)
-        and numpy.PyArray_ISCONTIGUOUS(src)
+        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
