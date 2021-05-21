@@ -172,12 +172,14 @@ EXTENSIONS = {
         include_dirs=['3rdparty/postgresql'],
     ),
     'png': ext(libraries=['png', 'z']),
+    'rcomp': ext(libraries=['cfitsio', 'z']),
     'snappy': ext(libraries=['snappy']),
     # 'szip': ext(libraries=['libaec']),
     'tiff': ext(libraries=['tiff']),
     'webp': ext(libraries=['webp']),
     'zfp': ext(libraries=['zfp']),
     'zlib': ext(libraries=['z']),
+    'zlibng': ext(libraries=['z-ng']),
     'zopfli': ext(libraries=['zopfli']),
     'zstd': ext(libraries=['zstd']),
 }
@@ -191,6 +193,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
+    del EXTENSIONS['zlibng']  # zlib-ng library not commonly available
 
     if 'arch' not in platform.platform():
         del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
@@ -231,6 +234,7 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     # EXTENSIONS['szip']['libraries'] = ['libaec']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
 
+    EXTENSIONS['zlibng']['libraries'] = ['zlib-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
@@ -388,6 +392,7 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     del EXTENSIONS['avif']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
+    del EXTENSIONS['zlibng']
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     OPTIONS['cythonize'] = True
@@ -441,6 +446,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
     del EXTENSIONS['zfp']
+    del EXTENSIONS['zlibng']
 
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -460,6 +466,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['lerc']
     del EXTENSIONS['zfp']
+    del EXTENSIONS['zlibng']
 
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         (
