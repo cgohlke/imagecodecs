@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2021.2.26'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -90,7 +90,7 @@ def lerc_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         unsigned char* pValidBytes = NULL
@@ -105,9 +105,6 @@ def lerc_encode(
         double maxZErr = _default_value(level, 0.0, 0.0, None)
         unsigned int blobSize
         int ndim = src.ndim
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.dtype == numpy.uint8:
         dataType = dt_uchar
