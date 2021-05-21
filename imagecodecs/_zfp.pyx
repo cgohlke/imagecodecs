@@ -37,7 +37,7 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2021.3.31'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -87,7 +87,7 @@ def zfp_encode(
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         size_t byteswritten
         ssize_t dstsize
@@ -107,9 +107,6 @@ def zfp_encode(
         int ret
         double tolerance, rate
         int bheader = header
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.dtype == numpy.int32:
         ztype = zfp_type_int32
