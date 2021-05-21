@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2021.1.28'
+__version__ = '2021.5.20'
 
 include '_shared.pxi'
 
@@ -84,7 +84,7 @@ def gif_check(const uint8_t[::1] data):
 def gif_encode(data, level=None, colormap=None, out=None):
     """Return GIF image from numpy array."""
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -98,15 +98,12 @@ def gif_encode(data, level=None, colormap=None, out=None):
         int imagecount = 1
         int ret, err = 0
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
         src.dtype == numpy.uint8
         and src.ndim in (2, 3)
         and src.shape[0] < 2 ** 16
         and src.shape[1] < 2 ** 16
-        and numpy.PyArray_ISCONTIGUOUS(src)
+        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid input shape, strides, or dtype')
 
