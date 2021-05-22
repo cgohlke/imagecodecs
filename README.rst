@@ -7,11 +7,11 @@ tifffile, czifile, zarr, and other scientific image input/output modules.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
-LZW, LZF, PGLZ (PostgreSQL LZ), ZFP, AEC, LERC, NPY, PNG, GIF, TIFF, WebP,
-JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3), JPEG 2000, JPEG LS,
-JPEG XR (WDP, HD Photo), JPEG XL, AVIF, PackBits, Packed Integers, Delta,
-XOR Delta, Floating Point Predictor, Bitorder reversal, Bitshuffle, and
-Float24 (24-bit floating point).
+LZW, LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY,
+PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3),
+JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, AVIF,
+PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
+Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -21,7 +21,7 @@ Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.4.28
+:Version: 2021.5.20
 
 :Status: Alpha
 
@@ -30,12 +30,12 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.9, 3.9.4 64-bit <https://www.python.org>`_
-* `Numpy 1.19.5 <https://pypi.org/project/numpy/>`_
+* `CPython 3.7.9, 3.8.10, 3.9.5 64-bit <https://www.python.org>`_
+* `Numpy 1.20.3 <https://pypi.org/project/numpy/>`_
 * `Cython 0.29.23 <https://cython.org>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.4.9 <https://github.com/facebook/zstd>`_
+* `zstd 1.5.0 <https://github.com/facebook/zstd>`_
 * `blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
 * `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
@@ -53,17 +53,19 @@ This release has been tested with the following requirements and dependencies
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
-* `snappy 1.1.8 <https://github.com/google/snappy>`_
+* `snappy 1.1.9 <https://github.com/google/snappy>`_
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `lerc 2.2.1 <https://github.com/Esri/lerc>`_
+* `zlib-ng 2.0.3 <https://github.com/zlib-ng/zlib-ng>`_
+* `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
 * `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
-* `libavif 0.9.0 <https://github.com/AOMediaCodec/libavif>`_
-* `dav1d 0.8.2 <https://github.com/videolan/dav1d>`_
+* `libavif 0.9.1 <https://github.com/AOMediaCodec/libavif>`_
+* `dav1d 0.9.0 <https://github.com/videolan/dav1d>`_
 * `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_
-* `aom 2.0.2 <https://aomedia.googlesource.com/aom>`_
+* `aom 3.1.0 <https://aomedia.googlesource.com/aom>`_
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
 
 Required Python packages for testing (other versions may work):
@@ -72,14 +74,14 @@ Required Python packages for testing (other versions may work):
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
 * `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.4.9.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `numcodecs 0.7.3 <https://github.com/zarr-developers/numcodecs>`_
-* `zarr 2.8.1 <https://github.com/zarr-developers/zarr-python>`_
+* `zarr 2.8.3 <https://github.com/zarr-developers/zarr-python>`_
 
 Notes
 -----
@@ -130,7 +132,8 @@ latest Ubuntu Linux distributions:
     libz-dev libblosc-dev liblzma-dev liblz4-dev libzstd-dev libpng-dev
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-dev libjxr-dev
     liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
-    libzopfli-dev libgif-dev libtiff-dev libdeflate-dev libavif-dev``
+    libzopfli-dev libgif-dev libtiff-dev libdeflate-dev libavif-dev
+    libcfitsio-dev``
 
 Use the ``--lite`` build option to only build extensions without 3rd-party
 dependencies. Use the ``--skip-extension`` build options to skip building
@@ -139,8 +142,8 @@ specific extensions, e.g.:
     ``python -m pip install imagecodecs --global-option="build_ext"
     --global-option="--skip-bitshuffle"``
 
-The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, ``lz4f``, and
-``lerc`` extensions are disabled by default when building from source.
+The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, ``lz4f``, ``lerc``,
+and ``zlibng`` extensions are disabled by default when building from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
@@ -170,11 +173,17 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `glymur <https://github.com/quintusdias/glymur>`_
 * `pyheif <https://github.com/carsales/pyheif>`_
 * `libheif <https://github.com/strukturag/libheif>`_ (LGPL)
+* `pyrus-cramjam <https://github.com/milesgranger/pyrus-cramjam>`_
 
 Revisions
 ---------
+2021.5.20
+    Pass 5185 tests.
+    Add ZLIBNG codec via zlib-ng library.
+    Add RCOMP (Rice) codec via cfitsio library.
+    Fix decoding of 16-bit JPEG with jpeg_decode.
+    Relax user provided output array shape requirement.
 2021.4.28
-    Pass 5119 tests.
     Change WebP default compression level to lossless.
     Rename jpegxl codec to brunsli (breaking).
     Add new JPEG XL codec via jpeg-xl library.
