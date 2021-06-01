@@ -475,6 +475,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
+    EXTENSIONS['rcomp']['include_dirs'].append(sys.prefix + '/include/cfitsio')
 
 
 # customize builds based on environment
