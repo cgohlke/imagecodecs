@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.5.20
+:Version: 2021.6.8
 
 """
 
@@ -2011,9 +2011,15 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.skip(f'{codec} missing')
         if itype == 'view' or deout == 'view':
             pytest.xfail('jpeg2k does not support this case')
-        decode = imagecodecs.jpeg2k_decode
-        encode = imagecodecs.jpeg2k_encode
         check = imagecodecs.jpeg2k_check
+
+        # enable verbose mode for rare failures
+        def encode(data, *args, **kwargs):
+            return imagecodecs.jpeg2k_encode(data, verbose=3, *args, **kwargs)
+
+        def decode(data, *args, **kwargs):
+            return imagecodecs.jpeg2k_decode(data, verbose=3, *args, **kwargs)
+
     elif codec == 'jpegxl':
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} missing')
@@ -2321,7 +2327,7 @@ def test_tifffile(dtype, codec):
 
     data = image_data('rgb', dtype)
     with io.BytesIO() as fh:
-        tifffile.imwrite(fh, data, compress=codec)
+        tifffile.imwrite(fh, data, compression=codec)
         fh.seek(0)
         image = tifffile.imread(fh)
     assert_array_equal(data, image, verbose=True)
