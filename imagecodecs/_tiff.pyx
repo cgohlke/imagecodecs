@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2021.4.28'
+__version__ = '2021.6.8'
 
 include '_shared.pxi'
 
@@ -145,8 +145,9 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
     If index is None, all images in the file with matching shape and
     dtype are returned in one array.
 
-    Return decoded image as RGBA uint8 if asrgb is True or image is stored
-    with JPEG compression, YCBCR or CMYK colorspace.
+    If asrgb is True, return decoded image as RGBA32.
+    Return JPEG compressed images as 8-bit Grayscale or RGB24.
+    Return images stored in CMYK colorspace as RGB24.
 
     The libtiff library does not correctly handle truncated ImageJ hyperstacks,
     SGI depth, STK, LSM, and many other bio-TIFF files.
@@ -166,8 +167,8 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
         int ret
         uint32_t strip
         ssize_t i, j, size, sizeleft, outindex, imagesize, images
-        ssize_t[7] sizes
-        ssize_t[7] sizes2
+        ssize_t[8] sizes
+        ssize_t[8] sizes2
         char[2] dtype
         char[2] dtype2
         bint rgb = asrgb
@@ -401,7 +402,24 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
         if verbosity > 0:
             TIFFSetWarningHandler(tif_warning_handler)
 
-    out.shape = shapeout
+    if not rgb and isrgb and sizes[7] > 0:
+        # discard Alpha channel if JPEG compression, YCBCR...
+        out = out[..., : sizes[7]]
+        shape = (
+            images,
+            int(sizes[1]),
+            int(sizes[2]),
+            int(sizes[3]),
+            int(sizes[4]),
+            int(sizes[7])
+        )
+        out.shape = tuple(
+            s for i, s in enumerate(shape) if s > 1 or i in (3, 4)
+        )
+        # ? out = numpy.ascontiguousarray(out)
+    else:
+        out.shape = shapeout
+
     return out
 
 
@@ -414,7 +432,8 @@ cdef int tiff_read_ifd(
 ) nogil:
     """Get normalized image shape and dtype from current IFD tags.
 
-    'sizes' contains images, planes, depth, height, width, samples, itemsize
+    'sizes' contains images, planes, depth, height, width, samples, itemsize,
+    true_samples.
 
     """
     cdef:
@@ -463,9 +482,14 @@ cdef int tiff_read_ifd(
         compression == COMPRESSION_JPEG
         or compression == COMPRESSION_OJPEG
         or photometric == PHOTOMETRIC_YCBCR
-        or photometric == PHOTOMETRIC_SEPARATED
     ):
         asrgb[0] = 1
+        sizes[7] = <ssize_t> samplesperpixel
+    elif photometric == PHOTOMETRIC_SEPARATED:
+        asrgb[0] = 1
+        sizes[7] = 3  # CMYK -> RGB
+    else:
+        sizes[7] = 0
 
     if asrgb[0] != 0:
         istiled[0] = 0  # don't care
@@ -502,8 +526,8 @@ cdef int tiff_read_ifd(
             and bitspersample != 32
             and bitspersample != 64
         ):
-            sizes[0] = sampleformat
-            sizes[6] = bitspersample
+            sizes[0] = <ssize_t> sampleformat
+            sizes[6] = <ssize_t> bitspersample
             return -1
     elif sampleformat == SAMPLEFORMAT_COMPLEXIEEEFP:
         dtype[0] = b'c'
