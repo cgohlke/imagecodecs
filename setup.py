@@ -105,7 +105,7 @@ def ext(**kwargs):
 
 
 OPTIONS = {
-    'cythonize': sys.version_info >= (3, 10) or 'PyPy' in sys.version,
+    'cythonize': 'PyPy' in sys.version,  # or sys.version_info >= (3, 10)
     'include_dirs': ['imagecodecs'],
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
@@ -403,6 +403,7 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
 
+        EXTENSIONS['rcomp']['sources'].append('3rdparty/cfitsio/ricecomp.c')
         EXTENSIONS['lz4f']['libraries'] = ['liblz4']
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
         EXTENSIONS['jpeg2k']['include_dirs'] += [
@@ -475,6 +476,8 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
+    EXTENSIONS['rcomp']['include_dirs'].append(sys.prefix + '/include/cfitsio')
+    EXTENSIONS['rcomp']['sources'].append('3rdparty/cfitsio/ricecomp.c')
 
 
 # customize builds based on environment
@@ -535,7 +538,19 @@ class build_ext(_build_ext):
         _build_ext.initialize_options(self)
 
     def finalize_options(self):
+
+        # prevent Cython 0.3 from processing extensions at this time.
+        # fix Compile-time name 'HAVE_LIBJPEG_TURBO' not defined
+        def check_extensions_list(self, extensions):
+            pass
+
+        temp = _build_ext.check_extensions_list
+        _build_ext.check_extensions_list = check_extensions_list
+
         _build_ext.finalize_options(self)
+
+        # undo patch
+        _build_ext.check_extensions_list = temp
 
         # remove extensions based on user_options
         for ext in self.extensions.copy():
@@ -565,11 +580,13 @@ class build_ext(_build_ext):
                 name = ext.name.rsplit('_', 1)[-1]
                 cyenv = EXTENSIONS[name].get('cython_compile_env', {})
                 if OPTIONS['cythonize'] or cyenv:
+                    # cyenv.update(language_level=3)
                     cythonize(
                         ext,
                         include_path=ext.include_dirs,
                         compile_time_env=cyenv,
                         force=OPTIONS['cythonize'],
+                        # emit_linenums=True,
                     )
 
 
@@ -647,6 +664,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
 )
