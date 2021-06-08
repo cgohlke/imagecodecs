@@ -1,7 +1,11 @@
 Revisions
 ---------
-2021.5.20
+2021.6.8
     Pass 5185 tests.
+    Fix building with Cython 0.3a7.
+    Decode TIFF with JPEG compression, YCBCR or CMYK colorspace as RGB24.
+    Vendor cfitsio/ricecomp.c for shared library builds on Windows (#18).
+2021.5.20
     Add ZLIBNG codec via zlib-ng library.
     Add RCOMP (Rice) codec via cfitsio library.
     Fix decoding of 16-bit JPEG with jpeg_decode.
