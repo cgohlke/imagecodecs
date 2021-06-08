@@ -21,7 +21,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.5.20
+:Version: 2021.6.8
 
 :Status: Alpha
 
@@ -70,9 +70,9 @@ This release has been tested with the following requirements and dependencies
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.4.8 <https://pypi.org/project/tifffile/>`_
+* `tifffile 2021.6.6 <https://pypi.org/project/tifffile/>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
-* `python-blosc 1.10.2 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc 1.10.4 <https://github.com/Blosc/python-blosc>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
 * `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
@@ -90,6 +90,11 @@ The API is not stable yet and might change between revisions.
 Works on little-endian platforms only.
 
 Python 32-bit versions are deprecated. Python <= 3.6 are no longer supported.
+
+MacOS wheels may not be available for latest releases. Consider using
+`previous <https://pypi.org/project/imagecodecs/#history>`_,
+`conda-forge <https://github.com/conda-forge/imagecodecs-feedstock>`_ or
+`macports <https://ports.macports.org/port/py-imagecodecs/summary>`_ releases.
 
 Some codecs are currently decode-only: ``tiff``, ``lzw``, ``packints``, and
 ``jpegsof3``.
@@ -177,8 +182,12 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
-2021.5.20
+2021.6.8
     Pass 5185 tests.
+    Fix building with Cython 0.3a7.
+    Decode TIFF with JPEG compression, YCBCR or CMYK colorspace as RGB24.
+    Vendor cfitsio/ricecomp.c for shared library builds on Windows (#18).
+2021.5.20
     Add ZLIBNG codec via zlib-ng library.
     Add RCOMP (Rice) codec via cfitsio library.
     Fix decoding of 16-bit JPEG with jpeg_decode.
