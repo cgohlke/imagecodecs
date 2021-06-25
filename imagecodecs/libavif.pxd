@@ -1,7 +1,7 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 0.9.1` library.
+# Cython declarations for the `libavif 0.9.2` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -259,7 +259,7 @@ cdef extern from 'avif/avif.h':
         uint8_t angle
 
     ctypedef struct avifImageMirror:
-        uint8_t axis
+        uint8_t mode
 
     ctypedef struct avifCropRect:
         uint32_t x
@@ -270,18 +270,18 @@ cdef extern from 'avif/avif.h':
     avifBool avifCropRectConvertCleanApertureBox(
         avifCropRect* cropRect,
         const avifCleanApertureBox* clap,
-        const uint32_t imageW,
-        const uint32_t imageH,
-        const avifPixelFormat yuvFormat,
+        uint32_t imageW,
+        uint32_t imageH,
+        avifPixelFormat yuvFormat,
         avifDiagnostics* diag
     ) nogil
 
     avifBool avifCleanApertureBoxConvertCropRect(
         avifCleanApertureBox* clap,
         const avifCropRect* cropRect,
-        const uint32_t imageW,
-        const uint32_t imageH,
-        const avifPixelFormat yuvFormat,
+        uint32_t imageW,
+        uint32_t imageH,
+        avifPixelFormat yuvFormat,
         avifDiagnostics* diag
     ) nogil
 
