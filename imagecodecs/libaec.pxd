@@ -1,7 +1,7 @@
 # imagecodecs/libaec.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libaec 1.0.4` library.
+# Cython declarations for the `libaec 1.0.5` library.
 # https://gitlab.dkrz.de/k202009/libaec
 
 cdef extern from 'libaec.h':
