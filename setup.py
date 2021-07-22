@@ -174,7 +174,7 @@ EXTENSIONS = {
     'png': ext(libraries=['png', 'z']),
     'rcomp': ext(libraries=['cfitsio', 'z']),
     'snappy': ext(libraries=['snappy']),
-    # 'szip': ext(libraries=['libaec']),
+    # 'szip': ext(libraries=['szip']),
     'tiff': ext(libraries=['tiff']),
     'webp': ext(libraries=['webp']),
     'zfp': ext(libraries=['zfp']),
@@ -227,15 +227,15 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
         'Advapi32',
         'Userenv',
     ]
-    EXTENSIONS['aec']['libraries'] = ['libaec']
+    EXTENSIONS['aec']['libraries'] = ['aec_static']
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
-    # EXTENSIONS['szip']['libraries'] = ['libaec']
+    # EXTENSIONS['szip']['libraries'] = ['szip_static']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
-
-    EXTENSIONS['zlibng']['libraries'] = ['zlib-ng']
+    EXTENSIONS['zlibng']['libraries'] = ['zlibstatic-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
+
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
     EXTENSIONS['jpegxr']['include_dirs'].append(INCLIB + 'jxrlib')
@@ -622,7 +622,7 @@ setup(
     },
     python_requires='>=3.7',
     install_requires=['numpy>=1.15.1'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # 'cython>=0.29.21'
+    # setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # cython>=0.29.21
     extras_require={
         'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11', 'numcodecs']
     },
