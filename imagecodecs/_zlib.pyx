@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -186,7 +186,7 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
     try:
         with nogil:
 
-            stream.next_in = <const uint8_t*> &src[0]
+            stream.next_in = <const Bytef*> &src[0]
             stream.avail_in = 0
             stream.zalloc = NULL
             stream.zfree = NULL
