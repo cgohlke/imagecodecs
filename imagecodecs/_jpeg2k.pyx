@@ -37,11 +37,13 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
 from openjpeg cimport *
+
+from libc.math cimport log
 
 
 class JPEG2K:
@@ -111,6 +113,7 @@ def jpeg2k_encode(
         OPJ_COLOR_SPACE color_space
         OPJ_UINT32 signed, prec, width, height, samples
         ssize_t i, j
+        int numresolution = 1
         int verbosity = verbose
         int tile_width = 0
         int tile_height = 0
@@ -133,7 +136,7 @@ def jpeg2k_encode(
         if reversible is None:
             irreversible = 0
     elif quality < 0.1:
-        quality = 1.0
+        quality = 0.1
 
     if codecformat in (None, OPJ_CODEC_JP2, 'JP2'):
         codec_format = OPJ_CODEC_JP2
@@ -232,17 +235,43 @@ def jpeg2k_encode(
 
             # set parameters
             opj_set_default_encoder_parameters(&parameters)
-            parameters.irreversible = irreversible
-            parameters.numresolution = 1
+
             parameters.tcp_numlayers = 1  # single quality layer
-            parameters.tcp_rates[0] = 0
-            if quality != 0.0:
-                # lossy
-                parameters.tcp_distoratio[0] = quality
-                parameters.cp_fixed_quality = 1
+
+            if numresolution <= 1:
+                parameters.numresolution = 1
+                if quality == 0.0:
+                    # lossless
+                    parameters.irreversible = 0
+                    parameters.cp_disto_alloc = 1
+                    parameters.tcp_rates[0] = 0
+                else:
+                    # lossy
+                    parameters.irreversible = irreversible
+                    parameters.cp_fixed_quality = 1
+                    parameters.tcp_distoratio[0] = quality
             else:
-                # lossless
-                parameters.cp_disto_alloc = 1
+                # multi-resolution
+                # TODO: enable this
+                parameters.irreversible = irreversible
+                parameters.cp_fixed_quality = 1
+                parameters.prog_order = OPJ_RPCL
+                parameters.cblockw_init = 64
+                parameters.cblockh_init = 64
+                # ? parameters.tcp_mct = 1 if samples >= 3 else 0
+                # ? parameters.csty = 1
+                parameters.numresolution = <int> (
+                    (log(<double> min(tile_height, tile_width)) / log(2)) - 4
+                )
+                parameters.numresolution = min(
+                    max(parameters.numresolution, 1), numresolution
+                )
+                # ? parameters.tcp_numlayers = parameters.numresolution - 1
+                parameters.res_spec = parameters.numresolution
+                for i in range(parameters.res_spec):
+                    parameters.prch_init[i] = 256
+                    parameters.prcw_init[i] = 256
+                    parameters.tcp_distoratio[i] = quality  # [i]
 
             if tile_height > 0:
                 parameters.tile_size_on = OPJ_TRUE
@@ -418,7 +447,6 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_set_decode_area failed')
 
-            # with nogil:
             ret = opj_decode(codec, stream, image)
             if ret != OPJ_FALSE:
                 ret = opj_end_decompress(codec, stream)
@@ -455,8 +483,12 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
             for i in range(samples):
                 comp = &image.comps[i]
                 if comp.sgnd != signed or comp.prec != prec:
+                    # TODO: support upcast
+                    # use scale_component
                     raise Jpeg2kError('components dtype mismatch')
                 if comp.w != width or comp.h != height:
+                # TODO: support upsampling
+                # use upsample_image_components in opj_decompress.c
                     raise Jpeg2kError('subsampling not supported')
             if itemsize == 3:
                 itemsize = 4
