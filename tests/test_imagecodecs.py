@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.6.8
+:Version: 2021.7.30
 
 """
 
@@ -420,30 +420,47 @@ def test_packbits_nop():
 @pytest.mark.skipif(not imagecodecs.PACKBITS, reason='Packbits missing')
 @pytest.mark.parametrize('output', [None, 'array'])
 @pytest.mark.parametrize('codec', ['encode', 'decode'])
-def test_packbits_array(codec, output):
+@pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
+def test_packbits_array(codec, output, dtype):
     """Test PackBits codec with arrays."""
+    dtype = numpy.dtype(dtype)
     encode = imagecodecs.packbits_encode
     decode = imagecodecs.packbits_decode
     uncompressed, compressed = PACKBITS_DATA[-1]
-    shape = (2, 7, len(uncompressed))
-    data = numpy.empty(shape, dtype='uint8')
-    data[..., :] = numpy.frombuffer(uncompressed, dtype='uint8')
+    shape = (2, 7, len(uncompressed) // dtype.itemsize)
+    data = numpy.empty(shape, dtype=dtype)
+    data[..., :] = numpy.frombuffer(uncompressed, dtype=dtype)
     compressed = compressed * (shape[0] * shape[1])
     if codec == 'encode':
         if output == 'array':
-            out = numpy.empty(data.size, data.dtype)
+            out = numpy.empty(data.nbytes, 'uint8')
             assert_array_equal(
                 encode(data, out=out),
-                numpy.frombuffer(compressed, dtype='uint8'),
+                numpy.frombuffer(compressed, dtype=dtype).view('uint8'),
             )
         else:
             assert encode(data) == compressed
     else:
         if output == 'array':
-            out = numpy.empty(data.size, data.dtype)
-            assert_array_equal(decode(compressed, out=out), data.flat)
+            out = numpy.empty(data.nbytes, 'uint8')
+            assert_array_equal(
+                decode(compressed, out=out), data.flatten().view('uint8')
+            )
         else:
             assert decode(compressed) == data.tobytes()
+
+
+@pytest.mark.skipif(not imagecodecs.PACKBITS, reason='Packbits missing')
+def test_packbits_encode_axis():
+    """Test PackBits encoder with samples."""
+    data = numpy.zeros((97, 67, 3), dtype=numpy.int16)
+    data[10:20, 11:21, 1] = -1
+    encoded = imagecodecs.packbits_encode(data, axis=-1)  # very inefficient
+    assert len(encoded) > 10000
+    assert imagecodecs.packbits_decode(encoded) == data.tobytes()
+    encoded = imagecodecs.packbits_encode(data, axis=-2)
+    assert len(encoded) < 1200
+    assert imagecodecs.packbits_decode(encoded) == data.tobytes()
 
 
 @pytest.mark.filterwarnings('ignore:invalid value encountered')
@@ -1589,6 +1606,17 @@ def test_jpegxr_fixedpoint(fp2int):
         assert abs(decoded[255, 255] - 3.9997559) < 1e-6
 
 
+@pytest.mark.skipif(not imagecodecs.AVIF, reason='avif missing')
+def test_avif_strict_disabled():
+    """Test AVIF decoder with file created by old version of libavif."""
+    data = readfile('rgba.u1.strict_disabled.avif')
+    assert imagecodecs.avif_check(data)
+    decoded = imagecodecs.avif_decode(data)
+    assert decoded.dtype == 'uint8'
+    assert decoded.shape == (32, 31, 4)
+    assert tuple(decoded[16, 16]) == (44, 123, 57, 88)
+
+
 @pytest.mark.skipif(not imagecodecs.JPEG2K, reason='jpeg2k missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_jpeg2k_int8_4bit(output):
@@ -2320,14 +2348,29 @@ def test_tifffile(dtype, codec):
             pytest.xfail('webp missing')
         elif dtype != 'u1':
             pytest.xfail('dtype not supported')
-    elif codec == 'packbits' and dtype != 'u1':
-        pytest.xfail('dtype not supported')
-    elif codec == 'packbits' and dtype != 'u1':
-        pytest.xfail('dtype not supported')
 
     data = image_data('rgb', dtype)
     with io.BytesIO() as fh:
-        tifffile.imwrite(fh, data, compression=codec)
+        tifffile.imwrite(fh, data, photometric='rgb', compression=codec)
+        fh.seek(0)
+        image = tifffile.imread(fh)
+    assert_array_equal(data, image, verbose=True)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.LJPEG or tifffile is None, reason='tifffile module missing'
+)
+@pytest.mark.parametrize('dtype', ['u1'])
+def test_tifffile_ljpeg(dtype):
+    """Test tifffile with ljpeg compression."""
+    data = numpy.squeeze(image_data('gray', dtype))
+    with io.BytesIO() as fh:
+        tifffile.imwrite(
+            fh,
+            data,
+            photometric='minisblack',
+            compression=('jpeg', None, {'lossless': True, 'bitspersample': 8}),
+        )
         fh.seek(0)
         image = tifffile.imread(fh)
     assert_array_equal(data, image, verbose=True)
