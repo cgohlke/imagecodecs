@@ -21,7 +21,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.6.8
+:Version: 2021.7.30
 
 :Status: Alpha
 
@@ -30,58 +30,57 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.10, 3.9.5 64-bit <https://www.python.org>`_
-* `Numpy 1.20.3 <https://pypi.org/project/numpy/>`_
-* `Cython 0.29.23 <https://cython.org>`_
-* `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `lz4 1.9.3 <https://github.com/lz4/lz4>`_
-* `zstd 1.5.0 <https://github.com/facebook/zstd>`_
-* `blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
-* `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
-* `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
-* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
-* `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
-* `libwebp 1.2.0 <https://github.com/webmproject/libwebp>`_
-* `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
-* `libjpeg-turbo 2.1.0 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
-  (8 and 12-bit)
-* `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
-* `charls 2.2.0 <https://github.com/team-charls/charls>`_
-* `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
-* `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
-* `jpeg-xl 0.3.7 <https://gitlab.com/wg1/jpeg-xl>`_
-* `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
+* `CPython 3.7.9, 3.8.10, 3.9.6 64-bit <https://www.python.org>`_
+* `Cython 0.29.24 <https://cython.org>`_
+* `Numpy 1.20.3 <https://pypi.org/project/numpy>`_
+* `aom 3.1.2 <https://aomedia.googlesource.com/aom>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
-* `libaec 1.0.4 <https://gitlab.dkrz.de/k202009/libaec>`_
-* `snappy 1.1.9 <https://github.com/google/snappy>`_
-* `zopfli-1.0.3 <https://github.com/google/zopfli>`_
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
-* `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
-* `lerc 2.2.1 <https://github.com/Esri/lerc>`_
-* `zlib-ng 2.0.3 <https://github.com/zlib-ng/zlib-ng>`_
+* `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
+* `c-blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
 * `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
-* `libdeflate 1.7 <https://github.com/ebiggers/libdeflate>`_
-* `libavif 0.9.1 <https://github.com/AOMediaCodec/libavif>`_
+* `charls 2.2.0 <https://github.com/team-charls/charls>`_
 * `dav1d 0.9.0 <https://github.com/videolan/dav1d>`_
-* `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_
-* `aom 3.1.0 <https://aomedia.googlesource.com/aom>`_
+* `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
+* `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
+* `lerc 2.2.1 <https://github.com/Esri/lerc>`_
+* `libaec 1.0.5 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `libavif 0.9.2 <https://github.com/AOMediaCodec/libavif>`_
+* `libdeflate 1.8 <https://github.com/ebiggers/libdeflate>`_
+* `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
+* `libjpeg-turbo 2.1.0 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjxl 0.3.7 <https://github.com/libjxl/libjxl>`_
+* `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
+* `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
+* `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
+* `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
+* `libwebp 1.2.0 <https://github.com/webmproject/libwebp>`_
+* `lz4 1.9.3 <https://github.com/lz4/lz4>`_
+* `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
+* `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_
+* `snappy 1.1.9 <https://github.com/google/snappy>`_
+* `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
+* `zlib 1.2.11 <https://github.com/madler/zlib>`_
+* `zlib-ng 2.0.5 <https://github.com/zlib-ng/zlib-ng>`_
+* `zopfli-1.0.3 <https://github.com/google/zopfli>`_
+* `zstd 1.5.0 <https://github.com/facebook/zstd>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.6.6 <https://pypi.org/project/tifffile/>`_
-* `czifile 2019.7.2 <https://pypi.org/project/czifile/>`_
+* `tifffile 2021.7.30 <https://pypi.org/project/tifffile>`_
+* `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
 * `python-blosc 1.10.4 <https://github.com/Blosc/python-blosc>`_
-* `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
-* `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
-* `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
+* `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
+* `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
-* `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
+* `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
-* `numcodecs 0.7.3 <https://github.com/zarr-developers/numcodecs>`_
+* `numcodecs 0.8.0 <https://github.com/zarr-developers/numcodecs>`_
 * `zarr 2.8.3 <https://github.com/zarr-developers/zarr-python>`_
+* `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 
 Notes
 -----
@@ -165,6 +164,7 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `python-lzw <https://github.com/joeatwork/python-lzw>`_
 * `python-lerc <https://pypi.org/project/lerc/>`_
 * `packbits <https://github.com/psd-tools/packbits>`_
+* `isa-l.igzip <https://github.com/intel/isa-l>`_
 * `fpzip <https://github.com/seung-lab/fpzip>`_
 * `libmng <https://sourceforge.net/projects/libmng/>`_
 * `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
@@ -182,8 +182,14 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.7.30
+    Pass 5194 tests.
+    Add support for more dtypes and axes argument in PackBits encoder.
+    Fix worst case output size in PackBits encoder.
+    Fix decoding AVIF created with older libavif.
+    Fix decoding GIF with disposal to previous for first frame.
+    Add lossless option in jpeg_encode.
 2021.6.8
-    Pass 5185 tests.
     Fix building with Cython 0.3a7.
     Decode TIFF with JPEG compression, YCBCR or CMYK colorspace as RGB24.
     Vendor cfitsio/ricecomp.c for shared library builds on Windows (#18).
