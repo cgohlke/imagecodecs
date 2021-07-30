@@ -37,7 +37,7 @@
 
 """JPEG 12-bit codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -168,7 +168,10 @@ def jpeg12_encode(
         if samples not in _jcs_colorspace_samples(in_color_space):
             raise ValueError('invalid input shape')
 
-    jpeg_color_space = _jcs_colorspace(outcolorspace)
+    if outcolorspace is None:
+        jpeg_color_space = JCS_UNKNOWN
+    else:
+        jpeg_color_space = _jcs_colorspace(outcolorspace)
 
     if jpeg_color_space == JCS_YCbCr and subsampling is not None:
         if subsampling in ('444', (1, 1)):
@@ -301,7 +304,11 @@ def jpeg12_decode(
         # limit to 4 GB
         raise ValueError('data too large')
 
-    jpeg_color_space = _jcs_colorspace(colorspace)
+    if colorspace is None:
+        jpeg_color_space = JCS_UNKNOWN
+    else:
+        jpeg_color_space = _jcs_colorspace(colorspace)
+
     if outcolorspace is None:
         out_color_space = jpeg_color_space
     else:
@@ -403,6 +410,7 @@ def _jcs_colorspace(colorspace):
             'MINISBLACK': JCS_GRAYSCALE,
             'RGB': JCS_RGB,
             'CMYK': JCS_CMYK,
+            'SEPARATED': JCS_CMYK,
             'YCCK': JCS_YCCK,
             'YCBCR': JCS_YCbCr,
             'RGBA': JCS_EXT_RGBA,
