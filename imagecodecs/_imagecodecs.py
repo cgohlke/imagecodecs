@@ -37,7 +37,7 @@ The module is intended for testing and reference, not production code.
 
 """
 
-__version__ = '2021.3.31'
+__version__ = '2021.7.30'
 
 import bz2
 import functools
@@ -134,7 +134,7 @@ def version(astype=None, _versions_=[]):
                 ('bz2', 'stdlib'),
                 ('lzma', getattr(lzma, '__version__', 'stdlib')),
                 ('blosc', blosc.__version__ if blosc else 'n/a'),
-                ('zstd', zstd.version() if zstd else 'n/a'),
+                ('zstd', zstd.version()[1:-1] if zstd else 'n/a'),
                 ('lz4', lz4.VERSION if lz4 else 'n/a'),
                 ('lzf', 'unknown' if lzf else 'n/a'),
                 ('snappy', 'unknown' if snappy else 'n/a'),
