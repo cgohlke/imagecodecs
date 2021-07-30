@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -217,6 +217,7 @@ def gif_decode(data, index=None, asrgb=True, out=None):
         uint8_t* extptr
         uint8_t color
         bint rgb = asrgb
+        bint previous_is_background = False
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -315,7 +316,7 @@ def gif_decode(data, index=None, asrgb=True, out=None):
 
                 for i in range(imagecount):
 
-                    if i == 0 or imagesize == 0:
+                    if i == 0 or imagesize == 0 or previous_is_background:
                         # initialize frame to background
                         k = i * imagesize
                         for j in range(height * width):
@@ -406,6 +407,11 @@ def gif_decode(data, index=None, asrgb=True, out=None):
                             if extblock.Bytes[0] & 0x01:
                                 transparent = <int> extblock.Bytes[3]
                             disposal = <int> ((extblock.Bytes[0] >> 2) & 0x07)
+                    if disposal == DISPOSE_PREVIOUS:
+                        if i == 0:
+                            previous_is_background = True
+                    else:
+                        previous_is_background = False
 
                     # paste new image
                     j = 0
