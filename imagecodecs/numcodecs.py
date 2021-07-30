@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 __all__ = ('register_codecs',)
 
@@ -673,10 +673,13 @@ class PackBits(Codec):
 
     codec_id = 'imagecodecs_packbits'
 
+    def __init__(self, axis=None):
+        self.axis = axis
+
     def encode(self, buf):
         if not isinstance(buf, (bytes, bytearray)):
             buf = numpy.asarray(buf)
-        return imagecodecs.packbits_encode(buf)
+        return imagecodecs.packbits_encode(buf, axis=self.axis)
 
     def decode(self, buf, out=None):
         return imagecodecs.packbits_decode(buf, out=out)
