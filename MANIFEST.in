@@ -30,6 +30,7 @@ include tests/*.jp2
 include tests/*.jls
 include tests/*.jxl
 include tests/*.tif
+include tests/*.avif
 include tests/*.webp
 include tests/*.br
 include tests/tiff/*.*
