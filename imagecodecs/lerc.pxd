@@ -1,10 +1,17 @@
 # imagecodecs/lerc.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `LERC 2.2.1` library.
+# Cython declarations for the `LERC 3.0` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h':
+
+    int LERC_VERSION_MAJOR
+    int LERC_VERSION_MINOR
+    int LERC_VERSION_PATCH
+    int LERC_VERSION_NUMBER
+
+    bint LERC_AT_LEAST_VERSION(int, int, int)
 
     ctypedef unsigned int lerc_status
 
@@ -15,6 +22,7 @@ cdef extern from 'Lerc_c_api.h':
         int nCols,
         int nRows,
         int nBands,
+        int nMasks,
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned int* numBytes
@@ -27,6 +35,7 @@ cdef extern from 'Lerc_c_api.h':
         int nCols,
         int nRows,
         int nBands,
+        int nMasks,
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned char* pOutBuffer,
@@ -42,6 +51,7 @@ cdef extern from 'Lerc_c_api.h':
         int nCols,
         int nRows,
         int nBands,
+        int nMasks,
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned int* numBytes
@@ -55,6 +65,7 @@ cdef extern from 'Lerc_c_api.h':
         int nCols,
         int nRows,
         int nBands,
+        int nMasks,
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned char* pOutBuffer,
@@ -74,6 +85,7 @@ cdef extern from 'Lerc_c_api.h':
     lerc_status lerc_decode_c 'lerc_decode'(
         const unsigned char* pLercBlob,
         unsigned int blobSize,
+        int nMasks,
         unsigned char* pValidBytes,
         int nDim,
         int nCols,
@@ -86,6 +98,7 @@ cdef extern from 'Lerc_c_api.h':
     lerc_status lerc_decodeToDouble(
         const unsigned char* pLercBlob,
         unsigned int blobSize,
+        int nMasks,
         unsigned char* pValidBytes,
         int nDim,
         int nCols,
@@ -123,6 +136,7 @@ ctypedef enum InfoArrOrder:
     nBands
     nValidPixels
     blobSize
+    nMasks
 
 ctypedef enum DataRangeArrOrder:
     zMin
