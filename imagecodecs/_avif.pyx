@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -422,6 +422,9 @@ def avif_decode(data, index=None, out=None):
             decoder = avifDecoderCreate()
             if decoder == NULL:
                 raise AvifError('avifDecoderCreate', 'NULL')
+
+            # required to read AVIF files created by ImageMagick
+            decoder.strictFlags = AVIF_STRICT_DISABLED
 
             res = avifDecoderSetSource(decoder, AVIF_DECODER_SOURCE_AUTO)
             if res != AVIF_RESULT_OK:
