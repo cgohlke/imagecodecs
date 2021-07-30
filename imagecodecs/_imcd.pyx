@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2021.2.26'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -624,7 +624,7 @@ packbits_version = imcd_version
 packbits_check = imcd_check
 
 
-def packbits_encode(data, level=None, out=None):
+def packbits_encode(data, level=None, axis=None, out=None):
     """Compress PackBits.
 
     """
@@ -638,38 +638,50 @@ def packbits_encode(data, level=None, out=None):
         ssize_t dstsize
         ssize_t ret = 0
         bint isarray = False
-        int axis = 0
-
-    if isinstance(data, numpy.ndarray):
-        if data.itemsize != 1:
-            raise ValueError('data is not a byte array')
-        if data.ndim != 1:
-            isarray = True
-            axis = data.ndim - 1
-        if data.strides[axis] != 1:
-            raise ValueError('data array is not contiguous along last axis')
+        int axis_ = 0
 
     if data is out:
         raise ValueError('cannot decode in-place')
+
+    if isinstance(data, numpy.ndarray) and data.ndim != 1:
+        data = numpy.ascontiguousarray(data)
+        if axis is None:
+            axis = data.ndim - 1
+        elif axis < 0:
+            axis = data.ndim + axis
+        if axis > data.ndim:
+            raise ValueError('invalid axis')
+        if axis < data.ndim - 1:
+            # merge trailing dimensions
+            data = numpy.reshape(data, data.shape[:axis] + (-1,))
+        isarray = data.ndim > 1
+        axis_ = axis
+        if data.strides[axis_] != data.itemsize:
+            raise ValueError(
+                f'data array is not contiguous along axis {axis_}'
+            )
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
             if isarray:
-                srcsize = data.shape[axis]
-                dstsize = data.size // srcsize * (srcsize + srcsize // 128 + 2)
+                srcsize = data.shape[axis_] * data.itemsize
+                dstsize = (
+                    data.nbytes // srcsize
+                    * ((srcsize + 2 * (srcsize + 126) // 127) + 2)
+                )
             else:
                 srcsize = len(data)
-                dstsize = srcsize + srcsize // 128 + 2
+                dstsize = srcsize + 2 * (srcsize + 126) // 127 + 2
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = out  # must be contiguous bytes
     dstsize = dst.size
 
     if isarray:
-        srciter = numpy.PyArray_IterAllButAxis(data, &axis)
-        srcsize = data.shape[axis]
+        srciter = numpy.PyArray_IterAllButAxis(data, &axis_)
+        srcsize = data.shape[axis_] * data.itemsize
         dstptr = &dst[0]
         with nogil:
             while numpy.PyArray_ITER_NOTDONE(srciter):
