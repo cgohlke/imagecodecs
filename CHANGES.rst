@@ -1,7 +1,13 @@
 Revisions
 ---------
+2021.7.30
+    Pass 5194 tests.
+    Add support for more dtypes and axes argument in PackBits encoder.
+    Fix worst case output size in PackBits encoder.
+    Fix decoding AVIF created with older libavif.
+    Fix decoding GIF with disposal to previous for first frame.
+    Add lossless option in jpeg_encode.
 2021.6.8
-    Pass 5185 tests.
     Fix building with Cython 0.3a7.
     Decode TIFF with JPEG compression, YCBCR or CMYK colorspace as RGB24.
     Vendor cfitsio/ricecomp.c for shared library builds on Windows (#18).
