@@ -37,7 +37,7 @@
 
 """AEC codec for the imagecodecs package."""
 
-__version__ = '2020.3.31'
+__version__ = '2021.7.30'
 
 include '_shared.pxi'
 
@@ -73,7 +73,7 @@ class AecError(RuntimeError):
 def aec_version():
     """Return libaec library version string."""
     # TODO: use version from header when available
-    return 'libaec 1.0.4'
+    return 'libaec 1.0.5'
 
 
 def aec_check(data):
