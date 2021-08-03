@@ -1,7 +1,7 @@
 # imagecodecs/blosc.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Blosc 1.21.0` C library.
+# Cython declarations for the `c-blosc 1.21.0` library.
 # https://github.com/Blosc/c-blosc
 
 cdef extern from 'blosc.h':
