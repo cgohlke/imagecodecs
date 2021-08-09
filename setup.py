@@ -156,7 +156,7 @@ EXTENSIONS = {
         libraries=['jpegxr', 'jxrglue'],
         define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
     ),
-    'lerc': ext(libraries=['lerc']),
+    'lerc': ext(libraries=['Lerc']),
     'ljpeg': ext(
         sources=['3rdparty/liblj92/lj92.c'], include_dirs=['3rdparty/liblj92']
     ),
@@ -266,7 +266,7 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
         'zstd_static',
         'lzma-static',
         'libdeflatestatic',
-        'lerc',
+        'Lerc',
     ]
     EXTENSIONS['jpegxl']['define_macros'].extend(
         (('JXL_STATIC_DEFINE', 1), ('JXL_THREADS_STATIC_DEFINE', 1))
@@ -398,8 +398,6 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     OPTIONS['cythonize'] = True
     EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
 
-    EXTENSIONS['lerc']['libraries'] = ['Lerc']
-
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
 
@@ -465,7 +463,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
-    del EXTENSIONS['lerc']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
