@@ -98,24 +98,29 @@ def ext(**kwargs):
         define_macros=[],
         extra_compile_args=[],
         extra_link_args=[],
-        cython_compile_env={},
+        cython_compile_time_env={},
+        cythonize=False,
     )
     d.update(kwargs)
     return d
 
 
 OPTIONS = {
-    'cythonize': 'PyPy' in sys.version,  # or sys.version_info >= (3, 10)
     'include_dirs': ['imagecodecs'],
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
     'define_macros': [('WIN32', 1)] if sys.platform == 'win32' else [],
     'extra_compile_args': [],
     'extra_link_args': [],
+    'cython_compile_time_env': {},
+    'cythonize': False,  # sys.version_info >= (3, 11)
 }
 
 EXTENSIONS = {
-    'shared': ext(cython_compile_env={'IS_PYPY': 'PyPy' in sys.version}),
+    'shared': ext(
+        cython_compile_time_env={'IS_PYPY': 'PyPy' in sys.version},
+        cythonize='PyPy' in sys.version,
+    ),
     'imcd': ext(sources=['imagecodecs/imcd.c']),
     'aec': ext(libraries=['aec']),
     'avif': ext(libraries=['avif']),
@@ -131,6 +136,7 @@ EXTENSIONS = {
         include_dirs=['3rdparty/bitshuffle'],
     ),
     'blosc': ext(libraries=['blosc']),
+    'blosc2': ext(libraries=['blosc2']),
     'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
     'brunsli': ext(libraries=['brunslidec-c', 'brunslienc-c']),
     'bz2': ext(libraries=['bz2']),
@@ -142,12 +148,13 @@ EXTENSIONS = {
         libraries=['openjp2', 'lcms2'],
     ),
     'jpeg8': ext(
-        libraries=['jpeg'], cython_compile_env={'HAVE_LIBJPEG_TURBO': True}
+        libraries=['jpeg'],
+        cython_compile_time_env={'HAVE_LIBJPEG_TURBO': True},
     ),
     'jpeg12': ext(
         libraries=['jpeg12'],
         define_macros=[('BITS_IN_JSAMPLE', 12)],
-        cython_compile_env={'HAVE_LIBJPEG_TURBO': True},
+        cython_compile_time_env={'HAVE_LIBJPEG_TURBO': True},
     ),
     'jpegls': ext(libraries=['charls']),
     'jpegsof3': ext(sources=['imagecodecs/jpegsof3.cpp']),
@@ -156,7 +163,7 @@ EXTENSIONS = {
         libraries=['jpegxr', 'jxrglue'],
         define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
     ),
-    'lerc': ext(libraries=['lerc']),
+    'lerc': ext(libraries=['Lerc']),
     'ljpeg': ext(
         sources=['3rdparty/liblj92/lj92.c'], include_dirs=['3rdparty/liblj92']
     ),
@@ -190,6 +197,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     import platform
 
     del EXTENSIONS['avif']  # libavif library not commonly available
+    del EXTENSIONS['blosc2']  # c-blosc2 library not commonly available
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
@@ -247,6 +255,12 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
         'zlib',
         'lz4',
         'snappy',
+        'zstd_static',
+    ]
+    EXTENSIONS['blosc2']['libraries'] = [
+        'libblosc2',
+        'zlib',
+        'lz4',
         'zstd_static',
     ]
     EXTENSIONS['brotli']['libraries'] = [
@@ -395,10 +409,10 @@ def customize_build_cf(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zlibng']
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
-    OPTIONS['cythonize'] = True
-    EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
-
-    EXTENSIONS['lerc']['libraries'] = ['Lerc']
+    EXTENSIONS['jpeg8']['cythonize'] = True
+    EXTENSIONS['jpeg8']['cython_compile_time_env'][
+        'HAVE_LIBJPEG_TURBO'
+    ] = False
 
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
@@ -438,6 +452,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     """Customize build for MacPorts."""
 
     del EXTENSIONS['avif']
+    del EXTENSIONS['blosc2']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['deflate']
     del EXTENSIONS['jpeg12']
@@ -455,8 +470,10 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4')
     )
-    EXTENSIONS['jpeg8']['cython_compile_env']['HAVE_LIBJPEG_TURBO'] = False
-    OPTIONS['cythonize'] = True
+    EXTENSIONS['jpeg8']['cythonize'] = True
+    EXTENSIONS['jpeg8']['cython_compile_time_env'][
+        'HAVE_LIBJPEG_TURBO'
+    ] = False
 
 
 def customize_build_mingw(EXTENSIONS, OPTIONS):
@@ -465,7 +482,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
-    del EXTENSIONS['lerc']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -498,6 +514,9 @@ except ImportError:
         customize_build = customize_build_default
 
 customize_build(EXTENSIONS, OPTIONS)
+
+if any(opt['cythonize'] for opt in EXTENSIONS.values()):
+    OPTIONS['cythonize'] = True
 
 # use precompiled c files if Cython is not installed
 # work around "Cython in setup_requires doesn't work"
@@ -538,19 +557,11 @@ class build_ext(_build_ext):
         _build_ext.initialize_options(self)
 
     def finalize_options(self):
-
-        # prevent Cython 0.3 from processing extensions at this time.
-        # fix Compile-time name 'HAVE_LIBJPEG_TURBO' not defined
-        def check_extensions_list(self, extensions):
-            pass
-
-        temp = _build_ext.check_extensions_list
-        _build_ext.check_extensions_list = check_extensions_list
+        # TODO: cythonize individual extensions as needed
+        # TODO: force=True swallows all build output; why?
+        self.force = OPTIONS['cythonize']
 
         _build_ext.finalize_options(self)
-
-        # undo patch
-        _build_ext.check_extensions_list = temp
 
         # remove extensions based on user_options
         for ext in self.extensions.copy():
@@ -572,38 +583,31 @@ class build_ext(_build_ext):
 
         self.include_dirs.append(numpy.get_include())
 
-        # Cythonize with compile time macros
-        if Cython is not None and self.distribution.ext_modules:
-            from Cython.Build.Dependencies import cythonize
-
-            for i, ext in enumerate(self.extensions):
-                name = ext.name.rsplit('_', 1)[-1]
-                cyenv = EXTENSIONS[name].get('cython_compile_env', {})
-                if OPTIONS['cythonize'] or cyenv:
-                    # cyenv.update(language_level=3)
-                    cythonize(
-                        ext,
-                        include_path=ext.include_dirs,
-                        compile_time_env=cyenv,
-                        force=OPTIONS['cythonize'],
-                        # emit_linenums=True,
-                    )
-
 
 def extension(name):
     """Return setuptools Extension."""
-    ext = EXTENSIONS[name]
-    return Extension(
+    opt = EXTENSIONS[name]
+    ext = Extension(
         f'imagecodecs._{name}',
-        sources=[f'imagecodecs/_{name}' + EXT] + ext['sources'],
-        include_dirs=OPTIONS['include_dirs'] + ext['include_dirs'],
-        library_dirs=OPTIONS['library_dirs'] + ext['library_dirs'],
-        libraries=OPTIONS['libraries'] + ext['libraries'],
-        define_macros=OPTIONS['define_macros'] + ext['define_macros'],
-        extra_compile_args=(
-            OPTIONS['extra_compile_args'] + ext['extra_compile_args']
-        ),
+        sources=[f'imagecodecs/_{name}' + EXT] + opt['sources'],
+        **{
+            key: (OPTIONS[key] + opt[key])
+            for key in (
+                'include_dirs',
+                'library_dirs',
+                'libraries',
+                'define_macros',
+                'extra_compile_args',
+                'extra_link_args',
+            )
+        },
     )
+    ext.cython_compile_time_env = {
+        **OPTIONS['cython_compile_time_env'],
+        **opt['cython_compile_time_env'],
+    }
+    # ext.force = OPTIONS['cythonize'] or opt['cythonize']
+    return ext
 
 
 setup(
