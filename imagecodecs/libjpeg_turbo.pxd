@@ -1,7 +1,7 @@
 # imagecodecs/libjpeg_turbo.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 2.1.0` library.
+# Cython declarations for the `libjpeg-turbo 2.1.1` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 cdef extern from 'jpeglib.h':
