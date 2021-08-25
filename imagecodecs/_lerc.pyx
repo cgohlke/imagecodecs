@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2021.5.20'
+__version__ = '2021.8.26'
 
 include '_shared.pxi'
 
@@ -67,7 +67,9 @@ class LercError(RuntimeError):
 
 def lerc_version():
     """Return LERC library version string."""
-    return 'lerc 2.2'
+    return 'lerc {}.{}.{}'.format(
+        LERC_VERSION_MAJOR, LERC_VERSION_MINOR, LERC_VERSION_PATCH
+    )
 
 
 def lerc_check(const uint8_t[::1] data):
@@ -81,7 +83,7 @@ def lerc_check(const uint8_t[::1] data):
 def lerc_encode(
     data,
     level=None,
-    mask=None,
+    masks=None,  # TODO: enable masks
     version=None,
     planarconfig=None,
     out=None
@@ -101,6 +103,7 @@ def lerc_encode(
         int nCols = 1
         int nRows = 1
         int nBands = 1
+        int nMasks = 0
         int iversion = 4 if version is None else version
         double maxZErr = _default_value(level, 0.0, 0.0, None)
         unsigned int blobSize
@@ -158,6 +161,7 @@ def lerc_encode(
                 nCols,
                 nRows,
                 nBands,
+                nMasks,
                 pValidBytes,
                 maxZErr,
                 &blobSize
@@ -180,6 +184,7 @@ def lerc_encode(
             nCols,
             nRows,
             nBands,
+            nMasks,
             pValidBytes,
             maxZErr,
             <unsigned char*> &dst[0],
@@ -203,7 +208,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
         const uint8_t[::1] src = data
         const uint8_t[::1] header
         ssize_t srcsize = src.size
-        unsigned int[8] infoArray
+        unsigned int[9] infoArray
         double[3] dataRangeArray
         unsigned char* pValidBytes = NULL
         lerc_status ret
@@ -213,6 +218,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
         int nCols
         int nRows
         int nBands
+        int nMasks
         int nValidPixels
         unsigned int blobSize
 
@@ -229,7 +235,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
         <unsigned int> srcsize,
         &infoArray[0],
         &dataRangeArray[0],
-        8,
+        9,
         3
     )
     if ret != 0:
@@ -243,6 +249,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
     nBands = infoArray[5]
     nValidPixels = infoArray[6]
     blobSize = infoArray[7]
+    nMasks = infoArray[8]
 
     if srcsize < <ssize_t> blobSize:
         raise RuntimeError('incomplete blob')
@@ -282,7 +289,10 @@ def lerc_decode(data, index=None, mask=None, out=None):
     if not (mask is None or mask is False):
         if mask is True:
             mask = None
-        mask = _create_array(mask, (nRows, nCols), numpy.bool8)
+        if nMasks <= 1:
+            mask = _create_array(mask, (nRows, nCols), numpy.bool8)
+        else:
+            mask = _create_array(mask, (nMasks, nRows, nCols), numpy.bool8)
         valid = mask
         pValidBytes = <unsigned char*> valid.data
 
@@ -290,6 +300,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
         ret = lerc_decode_c(
             <const unsigned char*> &src[0],
             blobSize,
+            nMasks,
             pValidBytes,
             nDim,
             nCols,
