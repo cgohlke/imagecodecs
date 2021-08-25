@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.8.26'
 
 include '_shared.pxi'
 
@@ -69,6 +69,8 @@ class ImcdError(RuntimeError):
             IMCD_RUNTIME_ERROR: 'IMCD_RUNTIME_ERROR',
             IMCD_NOTIMPLEMENTED_ERROR: 'IMCD_NOTIMPLEMENTED_ERROR',
             IMCD_VALUE_ERROR: 'IMCD_VALUE_ERROR',
+            IMCD_INPUT_CORRUPT: 'IMCD_INPUT_CORRUPT',
+            IMCD_OUTPUT_TOO_SMALL: 'IMCD_OUTPUT_TOO_SMALL',
             IMCD_LZW_INVALID: 'IMCD_LZW_INVALID',
             IMCD_LZW_NOTIMPLEMENTED: 'IMCD_LZW_NOTIMPLEMENTED',
             IMCD_LZW_BUFFER_TOO_SMALL: 'IMCD_LZW_BUFFER_TOO_SMALL',
@@ -109,6 +111,8 @@ delta_check = imcd_check
 def delta_encode(data, axis=-1, dist=1, out=None):
     """Encode differencing.
 
+    Preserve byteorder.
+
     """
     return _delta(data, axis=axis, dist=dist, out=out, decode=False)
 
@@ -116,7 +120,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 def delta_decode(data, axis=-1, dist=1, out=None):
     """Decode differencing.
 
-    Same as numpy.cumsum
+    Same as numpy.cumsum. Preserve byteorder.
 
     """
     return _delta(data, axis=axis, dist=dist, out=out, decode=True)
@@ -131,12 +135,13 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
         ssize_t dstsize
         ssize_t srcstride
         ssize_t dststride
+        ssize_t itemsize
         ssize_t ret = 0
         void* srcptr = NULL
         void* dstptr = NULL
         numpy.flatiter srciter
         numpy.flatiter dstiter
-        ssize_t itemsize
+        bint isnative = True
 
     if dist != 1:
         raise NotImplementedError(f'dist {dist} not implemented')
@@ -145,12 +150,18 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
         if data.dtype.kind not in 'fiu':
             raise ValueError('not an integer or floating-point array')
 
+        isnative = data.dtype.isnative
+
         if out is None:
             out = numpy.empty_like(data)
         elif not isinstance(out, numpy.ndarray):
             raise ValueError('output is not a numpy array')
-        elif out.shape != data.shape or out.itemsize != data.itemsize:
+        elif out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
+
+        if not isnative:
+            # imcd_delta requires native byteorder
+            data = data.byteswap().newbyteorder()
 
         if axis < 0:
             axis = data.ndim + axis
@@ -185,6 +196,12 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
                 numpy.PyArray_ITER_NEXT(dstiter)
         if ret < 0:
             raise DeltaError('imcd_delta', ret)
+
+        if not isnative:
+            try:
+                out = out.byteswap(True)
+            except ValueError:  # read-only out, e.g. out=data
+                out = out.byteswap()
 
         return out
 
@@ -252,12 +269,12 @@ cdef _xor(data, int axis, out, int decode):
         ssize_t dstsize
         ssize_t srcstride
         ssize_t dststride
+        ssize_t itemsize
         ssize_t ret = 0
         void* srcptr = NULL
         void* dstptr = NULL
         numpy.flatiter srciter
         numpy.flatiter dstiter
-        ssize_t itemsize
 
     if isinstance(data, numpy.ndarray):
         if data.dtype.kind not in 'fiu':
@@ -267,7 +284,7 @@ cdef _xor(data, int axis, out, int decode):
             out = numpy.empty_like(data)
         elif not isinstance(out, numpy.ndarray):
             raise ValueError('output is not a numpy array')
-        elif out.shape != data.shape or out.itemsize != data.itemsize:
+        elif out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
 
         if axis < 0:
@@ -623,7 +640,6 @@ PackbitsError = ImcdError
 packbits_version = imcd_version
 packbits_check = imcd_check
 
-
 def packbits_encode(data, level=None, axis=None, out=None):
     """Compress PackBits.
 
@@ -637,24 +653,23 @@ def packbits_encode(data, level=None, axis=None, out=None):
         ssize_t srcsize
         ssize_t dstsize
         ssize_t ret = 0
-        bint isarray = False
+        bint isarray = isinstance(data, numpy.ndarray)
         int axis_ = 0
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if isinstance(data, numpy.ndarray) and data.ndim != 1:
+    if isarray:
         data = numpy.ascontiguousarray(data)
         if axis is None:
             axis = data.ndim - 1
         elif axis < 0:
             axis = data.ndim + axis
-        if axis > data.ndim:
+        if axis >= data.ndim:
             raise ValueError('invalid axis')
         if axis < data.ndim - 1:
             # merge trailing dimensions
             data = numpy.reshape(data, data.shape[:axis] + (-1,))
-        isarray = data.ndim > 1
         axis_ = axis
         if data.strides[axis_] != data.itemsize:
             raise ValueError(
@@ -667,19 +682,21 @@ def packbits_encode(data, level=None, axis=None, out=None):
         if dstsize < 0:
             if isarray:
                 srcsize = data.shape[axis_] * data.itemsize
-                dstsize = (
-                    data.nbytes // srcsize
-                    * ((srcsize + 2 * (srcsize + 126) // 127) + 2)
-                )
+                if srcsize > 0:
+                    dstsize = (
+                        data.nbytes // srcsize
+                        * imcd_packbits_encode_size(srcsize)
+                    )
+                else:
+                    dstsize = 0
             else:
-                srcsize = len(data)
-                dstsize = srcsize + 2 * (srcsize + 126) // 127 + 2
+                dstsize = imcd_packbits_encode_size(len(data))
         out = _create_output(outtype, dstsize)
 
     dst = out  # must be contiguous bytes
     dstsize = dst.size
 
-    if isarray:
+    if isarray and data.ndim > 1:
         srciter = numpy.PyArray_IterAllButAxis(data, &axis_)
         srcsize = data.shape[axis_] * data.itemsize
         dstptr = &dst[0]
@@ -738,9 +755,9 @@ def packbits_decode(data, out=None):
     if out is None:
         if dstsize < 0:
             with nogil:
-                dstsize = imcd_packbits_size(&src[0], srcsize)
+                dstsize = imcd_packbits_decode_size(&src[0], srcsize)
             if dstsize < 0:
-                raise PackbitsError('imcd_packbits_size', dstsize)
+                raise PackbitsError('imcd_packbits_decode_size', dstsize)
         out = _create_output(outtype, dstsize)
 
     dst = out
