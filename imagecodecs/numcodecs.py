@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.8.26'
 
 __all__ = ('register_codecs',)
 
@@ -181,6 +181,45 @@ class Blosc(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.blosc_decode(
+            buf, numthreads=self.numthreads, out=out
+        )
+
+
+class Blosc2(Codec):
+    """Blosc2 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_blosc2'
+
+    def __init__(
+        self,
+        level=None,
+        compressor=None,
+        typesize=None,
+        blocksize=None,
+        shuffle=None,
+        numthreads=1,
+    ):
+        self.level = level
+        self.compressor = compressor
+        self.typesize = typesize
+        self.blocksize = blocksize
+        self.shuffle = shuffle
+        self.numthreads = numthreads
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.blosc2_encode(
+            buf,
+            level=self.level,
+            compressor=self.compressor,
+            typesize=self.typesize,
+            blocksize=self.blocksize,
+            shuffle=self.shuffle,
+            numthreads=self.numthreads,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.blosc2_decode(
             buf, numthreads=self.numthreads, out=out
         )
 
