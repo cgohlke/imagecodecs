@@ -37,7 +37,7 @@ The module is intended for testing and reference, not production code.
 
 """
 
-__version__ = '2021.7.30'
+__version__ = '2021.8.26'
 
 import bz2
 import functools
@@ -64,6 +64,11 @@ try:
     import blosc
 except ImportError:
     blosc = None
+
+try:
+    import blosc2
+except ImportError:
+    blosc2 = None
 
 try:
     import brotli
@@ -236,6 +241,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
     """
     if dist != 1:
         raise NotImplementedError(f'dist {dist} not implemented')
+
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
         diff = numpy.diff(data, axis=0)
@@ -243,12 +249,13 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 
     dtype = data.dtype
     if dtype.kind == 'f':
-        data = data.view(f'u{dtype.itemsize}')
+        data = data.view(f'{dtype.byteorder}u{dtype.itemsize}')  #
 
     diff = numpy.diff(data, axis=axis)
     key = [slice(None)] * data.ndim
     key[axis] = 0
     diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
+    diff = diff if data.dtype.isnative else diff.byteswap(True).newbyteorder()
 
     if dtype.kind == 'f':
         return diff.view(dtype)
@@ -266,16 +273,11 @@ def delta_decode(data, axis=-1, dist=1, out=None):
         raise NotImplementedError(f'dist {dist} not implemented')
     if out is not None and not out.flags.writeable:
         out = None
-
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
         return numpy.cumsum(data, axis=0, dtype='u1', out=out).tobytes()
-
-    if data.dtype.kind == 'f':
-        view = data.view(f'u{data.dtype.itemsize}')
-        view = numpy.cumsum(view, axis=axis, dtype=view.dtype)
-        return view.view(data.dtype)
-    return numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
+    out = numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
+    return out if data.dtype.isnative else out.byteswap(True).newbyteorder()
 
 
 def xor_encode(data, axis=-1, out=None):
@@ -310,6 +312,8 @@ def xor_encode(data, axis=-1, out=None):
 
     if dtype.kind == 'f':
         return xor.view(dtype)
+    elif not data.dtype.isnative:
+        xor = xor.byteswap(True).newbyteorder()
     return xor
 
 
