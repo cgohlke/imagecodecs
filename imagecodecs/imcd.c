@@ -558,29 +558,23 @@ ssize_t imcd_floatpred(
 /* Section 9: PackBits Compression. TIFF Revision 6.0 Final. June 3, 1992 */
 /* Apple Technical Note TN1023. Understanding PackBits. Feb 1, 1996 */
 
-/* Return length of uncompressed sequence. */
-ssize_t imcd_packbits_size(
+/* Return length of uncompressed PackBits. */
+ssize_t imcd_packbits_decode_size(
     const uint8_t* src,
     const ssize_t srcsize)
 {
     uint8_t* srcptr = (uint8_t*)src;
-    const uint8_t* srcend = (srcptr == NULL) ? NULL : srcptr + srcsize;
+    const uint8_t* srcend = srcptr + srcsize;
     ssize_t dstsize = 0;
     ssize_t n;
 
     if ((srcptr == NULL) || (srcsize < 0)) {
         return IMCD_VALUE_ERROR;
     }
-    if (srcsize == 0) {
-        return 0;
-    }
-
     while (srcptr < srcend) {
         n = (ssize_t)(*srcptr++) + 1;
         if (n < 129) {
             /* literal */
-            if (srcptr + n > srcend)
-                n = (ssize_t)(srcend - srcptr);
             srcptr += n;
             dstsize += n;
         }
@@ -603,48 +597,85 @@ ssize_t imcd_packbits_decode(
 {
     uint8_t* srcptr = (uint8_t*)src;
     uint8_t* dstptr = dst;
-    const uint8_t* srcend = (srcptr == NULL) ? NULL : srcptr + srcsize;
-    ssize_t n = 0;
-    ssize_t dstlen = 0;
+    const uint8_t* srcend = srcptr + srcsize;
+    const uint8_t* dstend = dstptr + dstsize;
+    uint8_t e;
+    ssize_t n;
 
-    if ((srcptr == NULL) || (srcsize < 0) ||
-        (dstptr == NULL) || (dstsize < 0))
+    if ((srcptr == NULL) || (srcsize < 0) || (dstptr == NULL) || (dstsize < 0))
     {
         return IMCD_VALUE_ERROR;
     }
-    if ((srcsize == 0) || (dstsize == 0)) {
-        return 0;
-    }
 
-    while ((srcptr < srcend) && (dstlen < dstsize)) {
+    while (srcptr < srcend) {
         n = (ssize_t)(*srcptr++) + 1;
         if (n < 129) {
             /* literal */
-            if (srcptr + n > srcend)
-                n = (ssize_t)(srcend - srcptr);
-            if (dstlen + n > dstsize) {
-                n = dstsize - dstlen;
+            if (srcptr + n > srcend) {
+                return IMCD_INPUT_CORRUPT;
             }
-            dstlen += n;
+            if (dstptr + n > dstend) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
             while (n--) {
                 *dstptr++ = *srcptr++;
             }
         }
         else if (n > 129) {
             /* replicate */
-            const uint8_t e = *srcptr++;
             n = 258 - n;
-            if (dstlen + n > dstsize) {
-                n = dstsize - dstlen;
+            if (srcptr >= srcend) {
+                return IMCD_INPUT_CORRUPT;
             }
-            dstlen += n;
+            if (dstptr + n > dstend) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
+            e = *srcptr++;
             while (n--) {
                 *dstptr++ = e;
             }
         }
         /* else if (n == 129) {NOP} */
     }
-    return dstlen;
+    return (ssize_t)(dstptr - dst);
+}
+
+/* Return maximum length of PackBits compressed sequence. */
+ssize_t imcd_packbits_encode_size(const ssize_t srcsize)
+{
+    return srcsize + (srcsize + 127) / 128;
+}
+
+
+/* Return pointer to next replicate run. */
+inline uint8_t* _packbits_next_replicate(
+    uint8_t* srcptr,
+    const uint8_t* srcend)
+{
+    uint8_t value = *srcptr;
+
+    while (++srcptr < srcend)
+    {
+        if (value == *srcptr)
+        {
+            return srcptr - 1;
+        }
+        value = *srcptr;
+    }
+    return NULL;  /* no replicate */
+}
+
+
+/* Return length of replicate run. */
+inline ssize_t _packbits_replicate_length(
+    const uint8_t* src,
+    const uint8_t* srcend)
+{
+    uint8_t* srcptr = (uint8_t*)src;
+    const uint8_t value = *srcptr;
+
+    while ((++srcptr < srcend) && (value == *srcptr)) {;}
+    return (ssize_t)(srcptr - src);
 }
 
 
@@ -657,15 +688,13 @@ ssize_t imcd_packbits_encode(
 {
     uint8_t* srcptr = (uint8_t*)src;
     uint8_t* dstptr = dst;
-    uint8_t* srcend = NULL;
-    uint8_t* dstend = NULL;
-    ssize_t dstlen = 0;
-    int replicate = 0;
-    int literal = 0;
-    uint8_t value, v;
+    uint8_t* dupptr = NULL;
+    const ssize_t maxdst = (srcsize + (srcsize + 127) / 128);
+    const uint8_t* srcend = srcptr + srcsize;
+    const uint8_t* dstend = dstptr + MIN_(dstsize, maxdst) - 1;
+    ssize_t replicate, literal;
 
-    if ((srcptr == NULL) || (srcsize < 0) ||
-        (dstptr == NULL) || (dstsize < 0))
+    if ((srcptr == NULL) || (srcsize < 0) || (dstptr == NULL) || (dstsize < 0))
     {
         return IMCD_VALUE_ERROR;
     }
@@ -673,100 +702,74 @@ ssize_t imcd_packbits_encode(
         return 0;
     }
 
-    srcend = srcptr + srcsize;
-    dstend = dstptr + dstsize - 1;
-    replicate = 0;
-    literal = 0;
-    value = *srcptr;
-
-    while ((srcptr < srcend) && (dstptr < dstend))
+    while (srcptr < srcend)
     {
-        v = *srcptr++;
-        /* printf("%i %i %i %i\n", (int)value, (int)v, literal, replicate); */
-        if (value == v) {
-            if (literal == 1) {
-                literal = 0;
-                replicate = 1;
+        dupptr = _packbits_next_replicate(srcptr, srcend);
+        if (srcptr == dupptr)
+        {
+            /* replicate */
+            replicate = _packbits_replicate_length(dupptr, srcend);
+            replicate = MIN_(128, replicate);
+            if (dstptr < dstend) {
+                *dstptr++ = (uint8_t)((int)257 - (int)replicate);
+                *dstptr++ = *srcptr;
             }
-            else if (literal > 1) {
-                srcptr = srcptr - literal - 1;
-                literal--;
-                if (dstptr + literal > dstend) {
-                    literal = (int)(dstend - dstptr);
-                    literal = MIN_(0, literal);
-                }
-                *dstptr++ = (uint8_t)(literal - 1);
-                while (literal--) {
-                    *dstptr++ = *srcptr++;
-                }
-                srcptr++;
-                srcptr++;
-                literal = 0;
-                replicate = 1;
+            else {
+                dstptr = NULL;
+                break;
             }
-            replicate++;
+            srcptr += replicate;
+            continue;
+        }
+        if (dupptr == NULL) {
+            /* no more replicate runs found */
+            literal = srcend - srcptr;
         }
         else {
-            if (replicate == 1) {
-                replicate = 0;
-                literal = 1;
+            replicate = _packbits_replicate_length(dupptr, srcend);
+            if (replicate < 3) {
+                uint8_t* nextsrc = srcptr + replicate;
+                uint8_t* nextdup = _packbits_next_replicate(nextsrc, srcend);
+                if (nextdup > nextsrc) {
+                    /* discard 2-byte run */
+                    dupptr = nextdup;
+                }
             }
-            else if (replicate > 1) {
-                *dstptr++ = (uint8_t)(257 - replicate);
-                *dstptr++ = value;
-                replicate = 0;
-                literal = 0;
-            }
-            literal++;
+            literal = dupptr - srcptr;
         }
-        if (replicate == 128) {
-            *dstptr++ = (uint8_t)(257 - replicate);
-            *dstptr++ = value;
-            replicate = 0;
-            literal = 0;
-        }
-        else if (literal == 128) {
-            srcptr = srcptr - literal;
-            if (dstptr + literal > dstend) {
-                literal = (int)(dstend - dstptr);
-                literal = MIN_(0, literal);
-            }
+        literal = MIN_(128, literal);
+        if (dstptr + literal < dstend) {
             *dstptr++ = (uint8_t)(literal - 1);
             while (literal--) {
                 *dstptr++ = *srcptr++;
             }
-            replicate = 0;
-            literal = 0;
         }
-        value = v;
-    }
-    if (replicate == 1) {
-        replicate = 0;
-        literal = 1;
-    }
-    if (literal > 0) {
-        srcptr = srcptr - literal;
-        if (dstptr + literal > dstend) {
-            literal = (int)(dstend - dstptr);
-            literal = MIN_(0, literal);
+        else {
+            dstptr = NULL;
+            break;
         }
-        *dstptr++ = (uint8_t)(literal - 1);
-        while (literal--) {
-            *dstptr++ = *srcptr++;
-        }
-    }
-    else if (replicate > 0) {
-        *dstptr++ = (uint8_t)(257 - replicate);
-        *dstptr++ = value;
     }
 
-    dstlen = (ssize_t)(dstptr - dst);
-    /* NOP
-    while (dstptr < dstend+1) {
-        *dstptr++ = 128;
+    if (dstptr == NULL) {
+        if (dstsize < maxdst)
+        {
+            return IMCD_OUTPUT_TOO_SMALL;
+        }
+        /* encoding exceeded maximum literal-only length */
+        /* re-encode with only literal packets */
+        literal = srcsize;
+        srcptr = (uint8_t*)src;
+        dstptr = dst;
+        while (srcptr < srcend)
+        {
+            literal = MIN_(128, srcend - srcptr);
+            *dstptr++ = (uint8_t)(literal - 1);
+            while (literal--) {
+                *dstptr++ = *srcptr++;
+            }
+        }
     }
-    */
-    return dstlen;
+    return (ssize_t)(dstptr - dst);
 }
 
 
