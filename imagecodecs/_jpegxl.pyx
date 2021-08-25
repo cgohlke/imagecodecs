@@ -37,11 +37,11 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.8.26'
 
 include '_shared.pxi'
 
-from jpegxl cimport *
+from libjxl cimport *
 
 
 class JPEGXL:
@@ -102,11 +102,11 @@ class JpegxlError(RuntimeError):
 
 
 def jpegxl_version():
-    """Return jpeg-xl library version string."""
+    """Return libjxl library version string."""
     cdef:
         uint32_t ver = JxlDecoderVersion()
 
-    return f'jpegxl {ver / 1000000}.{(ver / 1000) % 1000}.{ver % 1000}'
+    return f'libjxl {ver / 1000000}.{(ver / 1000) % 1000}.{ver % 1000}'
 
 
 def jpegxl_check(const uint8_t[::1] data):
@@ -254,23 +254,19 @@ def jpegxl_encode(
     elif dtype == 'uint16':
         pixel_format.data_type = JXL_TYPE_UINT16
         basic_info.bits_per_sample = 16
+    elif dtype == 'uint32':
+        # TODO: raises JXL_ENC_NOT_SUPPORTED ?
+        pixel_format.data_type = JXL_TYPE_UINT32
+        basic_info.bits_per_sample = 32
     elif dtype == 'float32':
         pixel_format.data_type = JXL_TYPE_FLOAT
         basic_info.bits_per_sample = 32
         basic_info.exponent_bits_per_sample = 8
-
-    # TODO: these types raise errors; JXL_ENC_NOT_SUPPORTED
-    # elif dtype == 'uint32':
-    #     pixel_format.data_type = JXL_TYPE_UINT32
-    #     basic_info.bits_per_sample = 32
-    # elif dtype == 'float64':
-    #     pixel_format.data_type = JXL_TYPE_FLOAT
-    #     basic_info.bits_per_sample = 64
-    #     basic_info.exponent_bits_per_sample = 11
-    # elif dtype == 'float16':
-    #     pixel_format.data_type = JXL_TYPE_FLOAT
-    #     basic_info.bits_per_sample = 16
-    #     basic_info.exponent_bits_per_sample = 5
+    elif dtype == 'float16':
+        # TODO: float16 is currently only supported in the decoder
+        pixel_format.data_type = JXL_TYPE_FLOAT16
+        basic_info.bits_per_sample = 16
+        basic_info.exponent_bits_per_sample = 5
     else:
         raise ValueError(f'dtype {dtype!r} not supported')
 
@@ -538,14 +534,16 @@ def jpegxl_decode(
                         pixel_format.align = 0  # TODO: allow strides
 
                         if basic_info.exponent_bits_per_sample > 0:
-                            pixel_format.data_type = JXL_TYPE_FLOAT
-                            if basic_info.bits_per_sample == 16:
-                                # TODO: can't decode to float16 ?
+
+                            if basic_info.bits_per_sample == 32:
+                                pixel_format.data_type = JXL_TYPE_FLOAT
                                 dtype = numpy.float32
-                            elif basic_info.bits_per_sample == 32:
-                                dtype = numpy.float32
-                            elif basic_info.bits_per_sample == 64:
-                                dtype = numpy.float64
+                            elif basic_info.bits_per_sample == 16:
+                                pixel_format.data_type = JXL_TYPE_FLOAT16
+                                dtype = numpy.float16
+                            # elif basic_info.bits_per_sample == 64:
+                            #     pixel_format.data_type = JXL_TYPE_FLOAT
+                            #     dtype = numpy.float64
                             else:
                                 raise ValueError(
                                     f'float{basic_info.bits_per_sample}'
