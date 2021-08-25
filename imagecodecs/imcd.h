@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2021.1.8"
+#define IMCD_VERSION "2021.8.26"
 
 #include <stdint.h>
 
@@ -81,6 +81,8 @@ typedef SSIZE_T ssize_t;
 #define IMCD_RUNTIME_ERROR -3
 #define IMCD_NOTIMPLEMENTED_ERROR -4
 #define IMCD_VALUE_ERROR -5
+#define IMCD_INPUT_CORRUPT -6
+#define IMCD_OUTPUT_TOO_SMALL -7
 
 #define IMCD_LZW_INVALID -10
 #define IMCD_LZW_NOTIMPLEMENTED -11
@@ -120,11 +122,15 @@ ssize_t imcd_packints_encode(
 );
 
 
-ssize_t imcd_packbits_size(
+ssize_t imcd_packbits_decode_size(
     const uint8_t* src,
     const ssize_t srcsize
 );
 
+
+ssize_t imcd_packbits_encode_size(
+    const ssize_t srcsize
+);
 
 ssize_t imcd_packbits_decode(
     const uint8_t* src,
