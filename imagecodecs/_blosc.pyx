@@ -37,7 +37,7 @@
 
 """Blosc codec for the imagecodecs package."""
 
-__version__ = '2020.3.31'
+__version__ = '2021.8.26'
 
 include '_shared.pxi'
 
@@ -47,8 +47,16 @@ from blosc cimport *
 class BLOSC:
     """Blosc Constants."""
 
-    SHUFFLE = BLOSC_SHUFFLE
     NOSHUFFLE = BLOSC_NOSHUFFLE
+    SHUFFLE = BLOSC_SHUFFLE
+    BITSHUFFLE = BLOSC_BITSHUFFLE
+
+    BLOSCLZ = BLOSC_BLOSCLZ
+    LZ4 = BLOSC_LZ4
+    LZ4HC = BLOSC_LZ4HC
+    SNAPPY = BLOSC_SNAPPY
+    ZLIB = BLOSC_ZLIB
+    ZSTD = BLOSC_ZSTD
 
 
 class BloscError(RuntimeError):
@@ -57,7 +65,7 @@ class BloscError(RuntimeError):
 
 def blosc_version():
     """Return Blosc library version string."""
-    return 'blosc ' + BLOSC_VERSION_STRING.decode()
+    return 'c-blosc ' + BLOSC_VERSION_STRING.decode()
 
 
 def blosc_check(data):
@@ -82,32 +90,62 @@ def blosc_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
-        size_t blocksize_
-        size_t typesize_
-        char* compressor_ = NULL
-        int clevel = _default_value(level, 9, 0, 9)
-        int doshuffle = BLOSC_SHUFFLE
-        int numinternalthreads = numthreads
+        size_t cblocksize
+        size_t ctypesize
+        char* compname = NULL
         int ret
+        int clevel = _default_value(level, 9, 0, 9)
+        int doshuffle
+        int numinternalthreads
 
     if data is out:
         raise ValueError('cannot encode in-place')
+    if src.size > 2147483647 - BLOSC_MAX_OVERHEAD:
+        raise ValueError('data size larger than 2 GB')
 
-    typesize_ = 8 if typesize is None else typesize
-    blocksize_ = 0 if blocksize is None else blocksize
-    if compressor is None:
-        compressor = b'blosclz'
+    if typesize is None:
+        ctypesize = 8
     else:
-        compressor = compressor.encode()
-    compressor_ = compressor
+        ctypesize = typesize
 
-    if shuffle is not None:
-        if shuffle == 'noshuffle' or shuffle == BLOSC_NOSHUFFLE:
-            doshuffle = BLOSC_NOSHUFFLE
-        elif shuffle == 'bitshuffle' or shuffle == BLOSC_BITSHUFFLE:
-            doshuffle = BLOSC_BITSHUFFLE
-        else:
-            doshuffle = BLOSC_SHUFFLE
+    if blocksize is None:
+        cblocksize = 0
+    else:
+        cblocksize = blocksize
+
+    if numthreads is None:
+        numinternalthreads = blosc_get_nthreads()
+    else:
+        numinternalthreads = numthreads
+
+    if compressor is None:
+        compname = BLOSC_BLOSCLZ_COMPNAME
+    elif compressor == BLOSC_BLOSCLZ:
+        compname = BLOSC_BLOSCLZ_COMPNAME
+    elif compressor == BLOSC_LZ4:
+        compname = BLOSC_LZ4_COMPNAME
+    elif compressor == BLOSC_LZ4HC:
+        compname = BLOSC_LZ4HC_COMPNAME
+    elif compressor == BLOSC_SNAPPY:
+        compname = BLOSC_SNAPPY_COMPNAME
+    elif compressor == BLOSC_ZLIB:
+        compname = BLOSC_ZLIB_COMPNAME
+    elif compressor == BLOSC_ZSTD:
+        compname = BLOSC_ZSTD_COMPNAME
+    else:
+        compressor = compressor.lower().encode()
+        compname = compressor
+
+    if shuffle is None:
+        doshuffle = BLOSC_SHUFFLE
+    elif not shuffle:
+        doshuffle = BLOSC_NOSHUFFLE
+    elif shuffle == BLOSC_NOSHUFFLE or shuffle == 'noshuffle':
+        doshuffle = BLOSC_NOSHUFFLE
+    elif shuffle == BLOSC_BITSHUFFLE or shuffle == 'bitshuffle':
+        doshuffle = BLOSC_BITSHUFFLE
+    else:
+        doshuffle = BLOSC_SHUFFLE
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -125,13 +163,13 @@ def blosc_encode(
         ret = blosc_compress_ctx(
             clevel,
             doshuffle,
-            typesize_,
+            ctypesize,
             <size_t> srcsize,
             <const void*> &src[0],
             <void*> &dst[0],
             <size_t> dstsize,
-            <const char*> compressor_,
-            blocksize_,
+            <const char*> compname,
+            cblocksize,
             numinternalthreads
         )
     if ret <= 0:
@@ -151,11 +189,19 @@ def blosc_decode(data, numthreads=1, out=None):
         ssize_t dstsize
         ssize_t srcsize = src.size
         size_t nbytes, cbytes, blocksize
-        int numinternalthreads = numthreads
+        int numinternalthreads
         int ret
 
     if data is out:
         raise ValueError('cannot decode in-place')
+
+    if src.size > 2147483647:
+        raise ValueError('data size larger than 2 GB')
+
+    if numthreads is None:
+        numinternalthreads = blosc_get_nthreads()
+    else:
+        numinternalthreads = numthreads
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -168,12 +214,16 @@ def blosc_decode(data, numthreads=1, out=None):
                 &blocksize
             )
             if nbytes == 0 and blocksize == 0:
-                raise BloscError('invalid blosc data')
+                raise BloscError(
+                    'blosc_cbuffer_sizes returned invalid blosc data'
+                )
             dstsize = <ssize_t> nbytes
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
+    if dstsize > 2147483647:
+        raise ValueError('output size larger than 2 GB')
 
     with nogil:
         ret = blosc_decompress_ctx(
