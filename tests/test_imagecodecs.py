@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.7.30
+:Version: 2021.8.26
 
 """
 
@@ -54,6 +54,7 @@ try:
     from imagecodecs._imagecodecs import (
         bitshuffle,
         blosc,
+        blosc2,
         brotli,
         bz2,
         czifile,
@@ -128,6 +129,7 @@ def test_module_exist(name):
     [
         'bitshuffle',
         'blosc',
+        'blosc2',
         'brotli',
         'czifile',
         'lz4',
@@ -350,32 +352,34 @@ def test_packints_decode():
 
 
 PACKBITS_DATA = [
-    (b'', b''),
-    (b'X', b'\x00X'),
-    (b'123', b'\x02123'),
-    (b'112112', b'\xff1\x002\xff1\x002'),
-    (b'1122', b'\xff1\xff2'),
-    (b'1' * 126, b'\x831'),
-    (b'1' * 127, b'\x821'),
-    (b'1' * 128, b'\x811'),
-    (b'1' * 127 + b'foo', b'\x821\x00f\xffo'),
-    (
-        b'12345678' * 16,  # literal 128
-        b'\x7f1234567812345678123456781234567812345678123456781234567812345678'
-        b'1234567812345678123456781234567812345678123456781234567812345678',
-    ),
-    (
-        b'12345678' * 17,
-        b'~1234567812345678123456781234567812345678123456781234567812345678'
-        b'123456781234567812345678123456781234567812345678123456781234567\x08'
-        b'812345678',
-    ),
-    (
-        b'1' * 128 + b'12345678' * 17,
-        b'\x821\xff1~2345678123456781234567812345678123456781234567812345678'
-        b'1234567812345678123456781234567812345678123456781234567812345678'
-        b'12345678\x0712345678',
-    ),
+    ([], b''),
+    ([0] * 1, b'\x00\x00'),  # literal
+    ([0] * 2, b'\xff\x00'),  # replicate
+    ([0] * 3, b'\xfe\x00'),
+    ([0] * 64, b'\xc1\x00'),
+    ([0] * 127, b'\x82\x00'),
+    ([0] * 128, b'\x81\x00'),  # max replicate
+    ([0] * 129, b'\x81\x00\x00\x00'),
+    ([0] * 130, b'\x81\x00\xff\x00'),
+    ([0] * 128 * 3, b'\x81\x00' * 3),
+    ([255] * 1, b'\x00\xff'),  # literal
+    ([255] * 2, b'\xff\xff'),  # replicate
+    ([0, 1], b'\x01\x00\x01'),
+    ([0, 1, 2], b'\x02\x00\x01\x02'),
+    ([0, 1] * 32, b'\x3f' + b'\x00\x01' * 32),
+    ([0, 1] * 63 + [2], b'\x7e' + b'\x00\x01' * 63 + b'\x02'),
+    ([0, 1] * 64, b'\x7f' + b'\x00\x01' * 64),  # max literal
+    ([0, 1] * 64 + [2], b'\x7f' + b'\x00\x01' * 64 + b'\x00\x02'),
+    ([0, 1] * 64 * 5, (b'\x7f' + b'\x00\x01' * 64) * 5),
+    ([0, 1, 1], b'\x00\x00\xff\x01'),  # or b'\x02\x00\x01\x01'
+    ([0] + [1] * 128, b'\x00\x00\x81\x01'),  # or b'\x01\x00\x01\x82\x01'
+    ([0] + [1] * 129, b'\x00\x00\x81\x01\x00\x01'),  # b'\x01\x00\x01\x81\x01'
+    ([0, 1] * 64 + [2] * 2, b'\x7f' + b'\x00\x01' * 64 + b'\xff\x02'),
+    ([0, 1] * 64 + [2] * 128, b'\x7f' + b'\x00\x01' * 64 + b'\x81\x02'),
+    ([0, 0, 1], b'\x02\x00\x00\x01'),  # or b'\xff\x00\x00\x01'
+    ([0, 0] + [1, 2] * 64, b'\xff\x00\x7f' + b'\x01\x02' * 64),
+    ([0] * 128 + [1], b'\x81\x00\x00\x01'),
+    ([0] * 128 + [1, 2] * 64, b'\x81\x00\x7f' + b'\x01\x02' * 64),
     (
         b'\xaa\xaa\xaa\x80\x00\x2a\xaa\xaa\xaa\xaa\x80\x00'
         b'\x2a\x22\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa',
@@ -392,20 +396,19 @@ def test_packbits(codec, data):
     encode = imagecodecs.packbits_encode
     decode = imagecodecs.packbits_decode
     uncompressed, compressed = PACKBITS_DATA[data]
+    uncompressed = bytes(uncompressed)
     if codec == 'decode':
         assert decode(compressed) == uncompressed
     elif codec == 'encode':
-        try:
-            assert encode(uncompressed) == compressed
-        except AssertionError:
-            # roundtrip
-            assert decode(encode(uncompressed)) == uncompressed
+        assert len(encode(uncompressed)) <= len(compressed)
+        assert encode(uncompressed) == compressed
 
 
 @pytest.mark.parametrize('data', range(len(PACKBITS_DATA)))
 def test_packbits_py(data):
     """Test pure Python PackBits decoder."""
     uncompressed, compressed = PACKBITS_DATA[data]
+    uncompressed = bytes(uncompressed)
     assert _imagecodecs.packbits_decode(compressed) == uncompressed
 
 
@@ -470,9 +473,13 @@ def test_packbits_encode_axis():
     'kind',
     ['u1', 'u2', 'u4', 'u8', 'i1', 'i2', 'i4', 'i8', 'f4', 'f8', 'B', 'b'],
 )
+@pytest.mark.parametrize('byteorder', ['>', '<'])
 @pytest.mark.parametrize('func', ['delta', 'xor'])
-def test_delta(output, kind, codec, func):
+def test_delta(output, byteorder, kind, codec, func):
     """Test Delta codec."""
+    if byteorder == '>' and numpy.dtype(kind).itemsize == 1:
+        pytest.skip('duplicate test')
+
     if func == 'delta':
         if not imagecodecs.DELTA:
             pytest.skip('Delta missing')
@@ -494,19 +501,19 @@ def test_delta(output, kind, codec, func):
         kind = 'B'
 
     axis = -2  # do not change
-    dtype = numpy.dtype(kind)
     if kind[0] in 'iuB':
-        low = numpy.iinfo(dtype).min
-        high = numpy.iinfo(dtype).max
+        low = numpy.iinfo(kind).min
+        high = numpy.iinfo(kind).max
         data = numpy.random.randint(
-            low, high, size=33 * 31 * 3, dtype=dtype
+            low, high, size=33 * 31 * 3, dtype=kind
         ).reshape(33, 31, 3)
     else:
+        # floating point
         low, high = -1e5, 1e5
         data = numpy.random.randint(
             low, high, size=33 * 31 * 3, dtype='i4'
         ).reshape(33, 31, 3)
-        data = data.astype(dtype)
+    data = data.astype(byteorder + kind)
 
     data[16, 14] = [0, 0, 0]
     data[16, 15] = [low, high, low]
@@ -566,7 +573,6 @@ def test_delta(output, kind, codec, func):
         #          encode(data, axis=axis)
         #      pytest.xfail("XOR codec not implemented for float data")
         diff = encode_py(data, axis=-2)
-
         if output == 'new':
             if codec == 'encode':
                 encoded = encode(data, axis=axis)
@@ -887,6 +893,7 @@ def test_lzw_decode_image_noeoi():
         'bitshuffle',
         'brotli',
         'blosc',
+        'blosc2',
         'bz2',
         'deflate',
         'gzip',
@@ -917,6 +924,14 @@ def test_compressors(codec, func, output, length):
         check = imagecodecs.blosc_check
         level = 9
         encoded = blosc.compress(data, clevel=level)
+    elif codec == 'blosc2':
+        if not imagecodecs.BLOSC2 or blosc2 is None:
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.blosc2_encode
+        decode = imagecodecs.blosc2_decode
+        check = imagecodecs.blosc2_check
+        level = 9
+        encoded = blosc2.compress(data, clevel=level)
     elif codec == 'zlib':
         if not imagecodecs.ZLIB or zlib is None:
             pytest.skip(f'{codec} missing')
@@ -1104,7 +1119,7 @@ def test_compressors(codec, func, output, length):
         elif output == 'excess':
             out = bytearray(size + 1021)
             ret = encode(data, level, out=out)
-            if codec == 'blosc':
+            if codec in ('blosc', 'blosc2'):
                 # pytest.xfail('blosc output depends on output size')
                 assert data == decode(ret)
             else:
@@ -1177,17 +1192,33 @@ def test_bitshuffle_roundtrip(dtype, itemsize, blocksize):
         assert_array_equal(data, decoded)
 
 
-@pytest.mark.skipif(not imagecodecs.BLOSC, reason='blosc missing')
 @pytest.mark.parametrize('numthreads', [1, 6])
 @pytest.mark.parametrize('level', [None, 1])
 @pytest.mark.parametrize('shuffle', ['noshuffle', 'shuffle', 'bitshuffle'])
 @pytest.mark.parametrize(
     'compressor', ['blosclz', 'lz4', 'lz4hc', 'zlib', 'zstd']
 )
-def test_blosc_roundtrip(compressor, shuffle, level, numthreads):
-    """Test Blosc codec."""
-    encode = imagecodecs.blosc_encode
-    decode = imagecodecs.blosc_decode
+@pytest.mark.parametrize('version', [1, 2])
+def test_blosc_roundtrip(version, compressor, shuffle, level, numthreads):
+    """Test Blosc codecs."""
+    if version == 1:
+        if not imagecodecs.BLOSC:
+            pytest.skip('blosc missing')
+        encode = imagecodecs.blosc_encode
+        decode = imagecodecs.blosc_decode
+        if compressor == 'zstd':
+            compressor = imagecodecs.BLOSC.ZSTD
+        if shuffle == 'bitshuffle':
+            shuffle = imagecodecs.BLOSC.BITSHUFFLE
+    else:
+        if not imagecodecs.BLOSC2:
+            pytest.skip('blosc2 missing')
+        encode = imagecodecs.blosc2_encode
+        decode = imagecodecs.blosc2_decode
+        if compressor == 'zstd':
+            compressor = imagecodecs.BLOSC2.ZSTD
+        if shuffle == 'bitshuffle':
+            shuffle = imagecodecs.BLOSC2.BITSHUFFLE
     data = numpy.random.randint(255, size=2021, dtype='uint8').tobytes()
     encoded = encode(
         data,
@@ -2324,11 +2355,13 @@ def test_tiff_asrgb():
 
 
 @pytest.mark.skipif(tifffile is None, reason='tifffile module missing')
-@pytest.mark.parametrize('dtype', ['u1', 'u2', 'f4'])
+@pytest.mark.parametrize('byteorder', ['<', '>'])
+@pytest.mark.parametrize('dtype', ['u1', 'u2', 'f2', 'f4'])
+@pytest.mark.parametrize('predictor', [False, True])
 @pytest.mark.parametrize(
-    'codec', ['deflate', 'lzma', 'zstd', 'packbits', 'lerc', 'webp']
+    'codec', ['deflate', 'lzma', 'zstd', 'packbits', 'lerc', 'webp', 'jpeg']
 )
-def test_tifffile(dtype, codec):
+def test_tifffile(byteorder, dtype, codec, predictor):
     """Test tifffile compression."""
     if codec == 'deflate' and not imagecodecs.ZLIB:
         # TODO: this should pass in tifffile >= 2020
@@ -2339,22 +2372,62 @@ def test_tifffile(dtype, codec):
         pytest.xfail('zstd missing')
     elif codec == 'packbits' and not imagecodecs.PACKBITS:
         pytest.xfail('packbits missing')
-    elif codec == 'jpegxl' and not imagecodecs.JPEGXL:
-        pytest.xfail('jpegxl missing')
-    elif codec == 'lerc' and not imagecodecs.LERC:
-        pytest.xfail('lerc missing')
+    elif codec == 'jpeg':
+        if not imagecodecs.JPEG:
+            pytest.xfail('jpeg missing')
+        if predictor or dtype != 'u1':
+            pytest.xfail('tiff/jpeg do not support this case')
+    elif codec == 'jpegxl':
+        if not imagecodecs.JPEGXL:
+            pytest.xfail('jpegxl missing')
+        if predictor:
+            pytest.xfail('jpegxl does not support predictor')
+    elif codec == 'lerc':
+        if not imagecodecs.LERC:
+            pytest.xfail('lerc missing')
+        elif dtype == 'f2' or byteorder == '>':
+            pytest.xfail('dtype not supported by lerc')
+        elif dtype == 'f4' and predictor:
+            pytest.xfail('lerc does not work with float predictor')
     elif codec == 'webp':
         if not imagecodecs.WEBP:
             pytest.xfail('webp missing')
         elif dtype != 'u1':
             pytest.xfail('dtype not supported')
+        elif predictor:
+            pytest.xfail('webp does not support predictor')
 
     data = image_data('rgb', dtype)
+    if byteorder == '>':
+        data = data.byteswap().newbyteorder()
+
     with io.BytesIO() as fh:
-        tifffile.imwrite(fh, data, photometric='rgb', compression=codec)
+        tifffile.imwrite(
+            fh,
+            data,
+            photometric='rgb',
+            compression=codec,
+            predictor=predictor,
+            byteorder=byteorder,
+        )
+        # with open(f'{codec}_{dtype}.tif', 'wb') as f:
+        #     fh.seek(0)
+        #     f.write(fh.read())
         fh.seek(0)
-        image = tifffile.imread(fh)
-    assert_array_equal(data, image, verbose=True)
+        with tifffile.TiffFile(fh) as tif:
+            assert tif.byteorder == byteorder
+            image = tif.asarray()
+        if byteorder == '>':
+            image = image.byteswap().newbyteorder()
+        if codec != 'jpeg':
+            assert_array_equal(data, image, verbose=True)
+
+        if imagecodecs.TIFF:
+            if not (predictor and codec in ('packbits', 'lerc')):
+                # libtiff does not support {codec} with predictor
+                fh.seek(0)
+                image2 = imagecodecs.tiff_decode(fh.read())
+                assert_array_equal(image2, image, verbose=True)
 
 
 @pytest.mark.skipif(
@@ -2423,6 +2496,7 @@ def test_numcodecs_register(caplog):
         'bitorder',
         'bitshuffle',
         'blosc',
+        'blosc2',
         # 'brotli',  # failing
         'bz2',
         'deflate',
@@ -2505,6 +2579,17 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.BLOSC:
             pytest.skip(msg=f'{codec} not found')
         compressor = numcodecs.Blosc(
+            level=9,
+            compressor='blosclz',
+            typesize=data.dtype.itemsize * 8,
+            blocksize=None,
+            shuffle=None,
+            numthreads=2,
+        )
+    elif codec == 'blosc2':
+        if not imagecodecs.BLOSC2:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.Blosc2(
             level=9,
             compressor='blosclz',
             typesize=data.dtype.itemsize * 8,
@@ -2618,8 +2703,9 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.PACKBITS:
             pytest.skip(msg=f'{codec} not found')
         if photometric == 'rgb':
-            pytest.xfail(reason='PackBits does not support RGB')
-        compressor = numcodecs.PackBits()
+            compressor = numcodecs.PackBits(axis=-2)
+        else:
+            compressor = numcodecs.PackBits()
     elif codec == 'pglz':
         if not imagecodecs.PGLZ:
             pytest.skip(msg=f'{codec} not found')
