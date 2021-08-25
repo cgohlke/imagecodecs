@@ -1,7 +1,7 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2020.12.22` library.
+# Cython declarations for the `imcd 2021.8.26` library.
 # https://www.lfd.uci.edu/~gohlke/
 
 from libc.stdint cimport uint8_t
@@ -16,6 +16,9 @@ cdef extern from 'imcd.h':
     int IMCD_RUNTIME_ERROR
     int IMCD_NOTIMPLEMENTED_ERROR
     int IMCD_VALUE_ERROR
+    int IMCD_INPUT_CORRUPT
+    int IMCD_OUTPUT_TOO_SMALL
+
     int IMCD_LZW_INVALID
     int IMCD_LZW_NOTIMPLEMENTED
     int IMCD_LZW_BUFFER_TOO_SMALL
@@ -70,8 +73,12 @@ cdef extern from 'imcd.h':
         const ssize_t dststride
     ) nogil
 
-    ssize_t imcd_packbits_size(
+    ssize_t imcd_packbits_decode_size(
         const uint8_t* src,
+        const ssize_t srcsize
+    ) nogil
+
+    ssize_t imcd_packbits_encode_size(
         const ssize_t srcsize
     ) nogil
 
