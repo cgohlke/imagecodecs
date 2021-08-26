@@ -21,7 +21,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.7.30
+:Version: 2021.8.26
 
 :Status: Alpha
 
@@ -33,33 +33,34 @@ This release has been tested with the following requirements and dependencies
 * `CPython 3.7.9, 3.8.10, 3.9.6 64-bit <https://www.python.org>`_
 * `Cython 0.29.24 <https://cython.org>`_
 * `Numpy 1.20.3 <https://pypi.org/project/numpy>`_
-* `aom 3.1.2 <https://aomedia.googlesource.com/aom>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
-* `bzip2 1.0.8 <https://sourceware.org/bzip2>`_
+* `bzip2 1.0.8 <https://gitlab.com/bzip2/bzip2>`_
 * `c-blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
+* `c-blosc2 2.0.2 <https://github.com/Blosc/c-blosc2>`_
 * `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
 * `charls 2.2.0 <https://github.com/team-charls/charls>`_
-* `dav1d 0.9.0 <https://github.com/videolan/dav1d>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
-* `lerc 2.2.1 <https://github.com/Esri/lerc>`_
+* `lerc 3.0 <https://github.com/Esri/lerc>`_
 * `libaec 1.0.5 <https://gitlab.dkrz.de/k202009/libaec>`_
 * `libavif 0.9.2 <https://github.com/AOMediaCodec/libavif>`_
+  (`aom 3.1.2 <https://aomedia.googlesource.com/aom>`_,
+  `dav1d 0.9.1 <https://github.com/videolan/dav1d>`_,
+  `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_)
 * `libdeflate 1.8 <https://github.com/ebiggers/libdeflate>`_
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
-* `libjpeg-turbo 2.1.0 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
-* `libjxl 0.3.7 <https://github.com/libjxl/libjxl>`_
+* `libjpeg-turbo 2.1.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjxl 0.5 <https://github.com/libjxl/libjxl>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
 * `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
-* `libwebp 1.2.0 <https://github.com/webmproject/libwebp>`_
+* `libwebp 1.2.1 <https://github.com/webmproject/libwebp>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
 * `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
-* `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_
 * `snappy 1.1.9 <https://github.com/google/snappy>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
@@ -69,17 +70,18 @@ This release has been tested with the following requirements and dependencies
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.7.30 <https://pypi.org/project/tifffile>`_
+* `tifffile 2021.8.8 <https://pypi.org/project/tifffile>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
 * `python-blosc 1.10.4 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc2-0.1.10 <https://github.com/Blosc/python-blosc2>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
-* `numcodecs 0.8.0 <https://github.com/zarr-developers/numcodecs>`_
-* `zarr 2.8.3 <https://github.com/zarr-developers/zarr-python>`_
+* `numcodecs 0.9.0 <https://github.com/zarr-developers/numcodecs>`_
+* `zarr 2.9.2 <https://github.com/zarr-developers/zarr-python>`_
 * `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
 
 Notes
@@ -113,7 +115,7 @@ This software includes a modified version of `PostgreSQL's pg_lzcompress.c
 <https://github.com/postgres/postgres/blob/REL_13_STABLE/src/common/
 pg_lzcompress.c>`_.
 
-This software includes a copy of `liblj92
+This software includes a modified version of `liblj92
 <https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
@@ -175,15 +177,25 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `pylibjpeg <https://github.com/pydicom/pylibjpeg>`_
 * `pylibjpeg-libjpeg <https://github.com/pydicom/pylibjpeg-libjpeg>`_ (GPL)
 * `pylibjpeg-openjpeg <https://github.com/pydicom/pylibjpeg-openjpeg>`_
+* `pylibjpeg-rle <https://github.com/pydicom/pylibjpeg-rle>`_
 * `glymur <https://github.com/quintusdias/glymur>`_
 * `pyheif <https://github.com/carsales/pyheif>`_
 * `libheif <https://github.com/strukturag/libheif>`_ (LGPL)
 * `pyrus-cramjam <https://github.com/milesgranger/pyrus-cramjam>`_
+* `QuickLZ <http://www.quicklz.com/>`_ (GPL)
+* `LZO <http://www.oberhumer.com/opensource/lzo/>`_ (GPL)
 
 Revisions
 ---------
+2021.8.26
+    Pass 5502 tests.
+    Add BLOSC2 codec via c-blosc2.
+    Require LERC 3 and libjxl 0.5.
+    Do not exceed literal-only size in PackBits encoder.
+    Raise ImcdError if output is insufficient in PackBits codecs (breaking).
+    Raise ImcdError if input is corrupt in PackBits decoder (breaking).
+    Fix delta codec for non-native byteorder.
 2021.7.30
-    Pass 5194 tests.
     Add support for more dtypes and axes argument in PackBits encoder.
     Fix worst case output size in PackBits encoder.
     Fix decoding AVIF created with older libavif.
