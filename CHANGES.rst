@@ -1,7 +1,14 @@
 Revisions
 ---------
+2021.8.26
+    Pass 5502 tests.
+    Add BLOSC2 codec via c-blosc2.
+    Require LERC 3 and libjxl 0.5.
+    Do not exceed literal-only size in PackBits encoder.
+    Raise ImcdError if output is insufficient in PackBits codecs (breaking).
+    Raise ImcdError if input is corrupt in PackBits decoder (breaking).
+    Fix delta codec for non-native byteorder.
 2021.7.30
-    Pass 5194 tests.
     Add support for more dtypes and axes argument in PackBits encoder.
     Fix worst case output size in PackBits encoder.
     Fix decoding AVIF created with older libavif.
