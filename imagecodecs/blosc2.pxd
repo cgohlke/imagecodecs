@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.0.2` library.
+# Cython declarations for the `c-blosc2 2.0.4` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport uint8_t, int16_t, int32_t, uint32_t, int64_t
@@ -21,6 +21,7 @@ cdef extern from 'blosc2.h':
     int BLOSC1_VERSION_FORMAT
     int BLOSC2_VERSION_FORMAT_ALPHA
     int BLOSC2_VERSION_FORMAT_BETA1
+    int BLOSC2_VERSION_FORMAT_STABLE
     int BLOSC_VERSION_FORMAT
 
     int BLOSC2_VERSION_FRAME_FORMAT_BETA2
@@ -765,6 +766,11 @@ cdef extern from 'blosc2.h':
         uint32_t* content_len
     ) nogil
 
+    int blosc2_vlmeta_delete(
+        blosc2_schunk *schunk,
+        const char *name
+    ) nogil
+
     ctypedef struct blosc_timestamp_t:
         pass
 
@@ -854,4 +860,9 @@ cdef extern from 'blosc2.h':
 
     int blosc2_remove_urlpath(
         const char* path
+    ) nogil
+
+    int blosc2_rename_urlpath(
+        char* old_urlpath,
+        char* new_path
     ) nogil
