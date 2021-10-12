@@ -42,6 +42,7 @@ import os.path as osp
 import pathlib
 import re
 import sys
+import platform
 import tempfile
 
 import numpy
@@ -87,6 +88,7 @@ TEST_DIR = osp.dirname(__file__)
 IS_32BIT = sys.maxsize < 2 ** 32
 IS_WIN = sys.platform == 'win32'
 IS_MAC = sys.platform == 'darwin'
+IS_AARCH64 = platform.machine() == 'aarch64'
 IS_PYPY = 'PyPy' in sys.version
 # running on Windows development computer?
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
@@ -119,7 +121,7 @@ def test_module_exist(name):
         pytest.xfail(f'imagecodecs._{name} may be missing')
     elif IS_CI and name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0):
         pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif IS_CI and name == 'jpegxl' and (IS_MAC or IS_32BIT):
+    elif IS_CI and name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64):
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
