@@ -1607,8 +1607,8 @@ ssize_t imcd_lzw_decode(
     uint64_t bitcount = 0;
     ssize_t buffersize = 0;
     ssize_t remaining = dstsize;
-    const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
     ssize_t i;
+    const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
     int msb = 1;  /* bit ordering of codes */
 
     if ((handle == NULL) ||
@@ -1821,4 +1821,42 @@ ssize_t imcd_lzw_decode(
     }
 
     return dstsize;
+}
+
+
+/* Return maximum length of LZW compressed sequence. */
+ssize_t imcd_lzw_encode_size(const ssize_t srcsize)
+{
+    return (srcsize * 141) / 100 + 3;
+}
+
+
+/* Encode LZW. */
+ssize_t imcd_lzw_encode(
+    imcd_lzw_handle_t* handle,
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize)
+{
+    imcd_lzw_table_t* table;
+    uint8_t* buffer;
+    uint32_t tablesize = 258;
+
+    if ((handle == NULL) ||
+        (src == NULL) || (srcsize < 0) ||
+        (dst == NULL) || (dstsize < 0)) {
+        return IMCD_VALUE_ERROR;
+    }
+    if ((srcsize == 0) || (dstsize == 0)) {
+        return 0;
+    }
+    if (srcsize < 2) {
+        return IMCD_LZW_INVALID;
+    }
+
+    table = handle->table;
+    buffer = handle->buffer;
+
+    return IMCD_LZW_NOTIMPLEMENTED;
 }
