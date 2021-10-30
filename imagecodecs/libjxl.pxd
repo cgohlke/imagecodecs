@@ -1,7 +1,7 @@
 # imagecodecs/libjxl.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jpeg-xl 0.5.0` library.
+# Cython declarations for the `jpeg-xl 0.6.1` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -95,6 +95,7 @@ cdef extern from 'jxl/codestream_header.h':
         JXL_BOOL alpha_premultiplied
         JxlPreviewHeader preview
         JxlAnimationHeader animation
+        # uint8_t padding[108]
 
     ctypedef struct JxlExtraChannelInfo:
         JxlExtraChannelType type
@@ -102,7 +103,7 @@ cdef extern from 'jxl/codestream_header.h':
         uint32_t exponent_bits_per_sample
         uint32_t dim_shift
         uint32_t name_length
-        JXL_BOOL alpha_associated
+        JXL_BOOL alpha_premultiplied
         float spot_color[4]
         uint32_t cfa_channel
 
@@ -453,6 +454,13 @@ cdef extern from 'jxl/decode.h':
         void* opaque
     )
 
+    JxlDecoderStatus JxlDecoderExtraChannelBufferSize(
+        const JxlDecoder* dec,
+        const JxlPixelFormat* format,
+        size_t* size,
+        uint32_t index
+    ) nogil
+
     JxlDecoderStatus JxlDecoderSetJPEGBuffer(
         JxlDecoder* dec,
         uint8_t* data,
@@ -535,6 +543,10 @@ cdef extern from 'jxl/encode.h':
         const uint8_t* icc_profile,
         size_t size
     )
+
+    void JxlEncoderInitBasicInfo(
+        JxlBasicInfo* info
+    ) nogil
 
     JxlEncoderStatus JxlEncoderSetBasicInfo(
         JxlEncoder* enc,
