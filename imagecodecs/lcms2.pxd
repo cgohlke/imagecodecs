@@ -353,29 +353,29 @@ cdef extern from 'lcms2.h':
 
     int cmsMAXCHANNELS
 
-    int FLOAT_SH
-    int OPTIMIZED_SH
-    int COLORSPACE_SH
-    int SWAPFIRST_SH
-    int FLAVOR_SH
-    int PLANAR_SH
-    int ENDIAN16_SH
-    int DOSWAP_SH
-    int EXTRA_SH
-    int CHANNELS_SH
-    int BYTES_SH
+    int FLOAT_SH(int)
+    int OPTIMIZED_SH(int)
+    int COLORSPACE_SH(int)
+    int SWAPFIRST_SH(int)
+    int FLAVOR_SH(int)
+    int PLANAR_SH(int)
+    int ENDIAN16_SH(int)
+    int DOSWAP_SH(int)
+    int EXTRA_SH(int)
+    int CHANNELS_SH(int)
+    int BYTES_SH(int)
 
-    int T_FLOAT
-    int T_OPTIMIZED
-    int T_COLORSPACE
-    int T_SWAPFIRST
-    int T_FLAVOR
-    int T_PLANAR
-    int T_ENDIAN16
-    int T_DOSWAP
-    int T_EXTRA
-    int T_CHANNELS
-    int T_BYTES
+    int T_FLOAT(int)
+    int T_OPTIMIZED(int)
+    int T_COLORSPACE(int)
+    int T_SWAPFIRST(int)
+    int T_FLAVOR(int)
+    int T_PLANAR(int)
+    int T_ENDIAN16(int)
+    int T_DOSWAP(int)
+    int T_EXTRA(int)
+    int T_CHANNELS(int)
+    int T_BYTES(int)
 
     int PT_ANY
     int PT_GRAY
