@@ -7,7 +7,7 @@ import numpy
 cimport numpy
 cimport cython
 
-from ._shared import _log_warning, _set_attributes
+from ._shared import _log_warning
 
 from ._shared cimport (
     _parse_output,
@@ -17,7 +17,8 @@ from ._shared cimport (
     _readable_input,
     _writable_input,
     _inplace_input,
-    _default_value
+    _default_value,
+    _default_threads
 )
 
 from libc.string cimport memset, memcpy, memmove
