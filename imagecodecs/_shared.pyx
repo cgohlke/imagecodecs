@@ -276,20 +276,15 @@ cdef _default_value(value, default, smallest, largest):
     return value
 
 
-def _set_attributes(cls=None, name=None, **kwargs):
-    """Add kwargs to the specified class or the global symbol table.
-
-    This is a hack to add constants defined in C to module and class
-    namespaces.
-
-    """
-    if cls is None:
-        globals().update(**kwargs)
-    else:
-        for name, value in kwargs.items():
-            setattr(cls, name, value)
-        if name is not None:
-            globals()[name] = cls
+cdef size_t _default_threads(numthreads):
+    """Return default number of threads or value in range."""
+    if numthreads is None:
+        return 0  # return 1 to disable multi-threading by default
+    if numthreads <= 0:
+        return 0
+    if numthreads >= 32:
+        return 32
+    return numthreads
 
 
 def _log_warning(msg, *args, **kwargs):
