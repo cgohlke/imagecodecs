@@ -47,21 +47,24 @@ include '_shared.pxi'
 
 from jxrlib cimport *
 
+import enum
+
 
 class JPEGXR:
     """JPEG XR Constants."""
 
-    # Photometric Interpretation
-    PI_W0 = PK_PI_W0
-    PI_B0 = PK_PI_B0
-    PI_RGB = PK_PI_RGB
-    PI_RGBPalette = PK_PI_RGBPalette
-    PI_TransparencyMask = PK_PI_TransparencyMask
-    PI_CMYK = PK_PI_CMYK
-    PI_YCbCr = PK_PI_YCbCr
-    PI_CIELab = PK_PI_CIELab
-    PI_NCH = PK_PI_NCH
-    PI_RGBE = PK_PI_RGBE
+    class PI(enum.IntEnum):
+        # Photometric Interpretation
+        W0 = PK_PI_W0
+        B0 = PK_PI_B0
+        RGB = PK_PI_RGB
+        RGBPalette = PK_PI_RGBPalette
+        TransparencyMask = PK_PI_TransparencyMask
+        CMYK = PK_PI_CMYK
+        YCbCr = PK_PI_YCbCr
+        CIELab = PK_PI_CIELab
+        NCH = PK_PI_NCH
+        RGBE = PK_PI_RGBE
 
 
 class JpegxrError(RuntimeError):
