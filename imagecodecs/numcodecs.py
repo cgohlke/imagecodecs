@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 __all__ = ('register_codecs',)
 
@@ -71,7 +71,7 @@ class Aec(Codec):
             flags=self.flags,
             blocksize=self.blocksize,
             rsi=self.rsi,
-            out=out,
+            out=_flat(out),
         )
 
 
@@ -87,7 +87,7 @@ class Avif(Codec):
         tilelog2=None,
         bitspersample=None,
         pixelformat=None,
-        maxthreads=None,
+        numthreads=None,
         index=None,
     ):
         self.level = level
@@ -95,7 +95,7 @@ class Avif(Codec):
         self.tilelog2 = tilelog2
         self.bitspersample = bitspersample
         self.pixelformat = pixelformat
-        self.maxthreads = maxthreads
+        self.numthreads = numthreads
         self.index = index
 
     def encode(self, buf):
@@ -107,11 +107,13 @@ class Avif(Codec):
             tilelog2=self.tilelog2,
             bitspersample=self.bitspersample,
             pixelformat=self.pixelformat,
-            maxthreads=self.maxthreads,
+            numthreads=self.numthreads,
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.avif_decode(buf, index=self.index, out=out)
+        return imagecodecs.avif_decode(
+            buf, index=self.index, numthreads=self.numthreads, out=out
+        )
 
 
 class Bitorder(Codec):
@@ -123,7 +125,7 @@ class Bitorder(Codec):
         return imagecodecs.bitorder_encode(buf)
 
     def decode(self, buf, out=None):
-        return imagecodecs.bitorder_decode(buf, out=out)
+        return imagecodecs.bitorder_decode(buf, out=_flat(out))
 
 
 class Bitshuffle(Codec):
@@ -142,7 +144,10 @@ class Bitshuffle(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.bitshuffle_decode(
-            buf, itemsize=self.itemsize, blocksize=self.blocksize, out=out
+            buf,
+            itemsize=self.itemsize,
+            blocksize=self.blocksize,
+            out=_flat(out),
         )
 
 
@@ -158,7 +163,7 @@ class Blosc(Codec):
         typesize=None,
         blocksize=None,
         shuffle=None,
-        numthreads=1,
+        numthreads=None,
     ):
         self.level = level
         self.compressor = compressor
@@ -181,7 +186,7 @@ class Blosc(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.blosc_decode(
-            buf, numthreads=self.numthreads, out=out
+            buf, numthreads=self.numthreads, out=_flat(out)
         )
 
 
@@ -197,7 +202,7 @@ class Blosc2(Codec):
         typesize=None,
         blocksize=None,
         shuffle=None,
-        numthreads=1,
+        numthreads=None,
     ):
         self.level = level
         self.compressor = compressor
@@ -220,7 +225,7 @@ class Blosc2(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.blosc2_decode(
-            buf, numthreads=self.numthreads, out=out
+            buf, numthreads=self.numthreads, out=_flat(out)
         )
 
 
@@ -240,7 +245,7 @@ class Brotli(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.brotli_decode(buf, out=out)
+        return imagecodecs.brotli_decode(buf, out=_flat(out))
 
 
 class Bz2(Codec):
@@ -255,7 +260,23 @@ class Bz2(Codec):
         return imagecodecs.bz2_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
-        return imagecodecs.bz2_decode(buf, out=out)
+        return imagecodecs.bz2_decode(buf, out=_flat(out))
+
+
+class Cms(Codec):
+    """CMS codec for numcodecs."""
+
+    codec_id = 'imagecodecs_cms'
+
+    def __init__(self, profilein, profileout):
+        self.profilein = profilein
+        self.profileout = profileout
+
+    def encode(self, buf, out=None):
+        return imagecodecs.cms_transform(buf, self.profilein, self.profileout)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.cms_transform(buf, self.profileout, self.profilein)
 
 
 class Deflate(Codec):
@@ -271,7 +292,7 @@ class Deflate(Codec):
         return imagecodecs.deflate_encode(buf, level=self.level, raw=self.raw)
 
     def decode(self, buf, out=None):
-        return imagecodecs.deflate_decode(buf, out=out, raw=self.raw)
+        return imagecodecs.deflate_decode(buf, out=_flat(out), raw=self.raw)
 
 
 class Delta(Codec):
@@ -450,6 +471,9 @@ class Jpeg2k(Codec):
         colorspace=None,
         tile=None,
         reversible=None,
+        bitspersample=None,
+        resolutions=None,
+        numthreads=None,
         verbose=0,
     ):
         self.level = level
@@ -457,6 +481,9 @@ class Jpeg2k(Codec):
         self.colorspace = colorspace
         self.tile = None if tile is None else tuple(tile)
         self.reversible = reversible
+        self.bitspersample = bitspersample
+        self.resolutions = resolutions
+        self.numthreads = numthreads
         self.verbose = verbose
 
     def encode(self, buf):
@@ -468,11 +495,16 @@ class Jpeg2k(Codec):
             colorspace=self.colorspace,
             tile=self.tile,
             reversible=self.reversible,
+            bitspersample=self.bitspersample,
+            resolutions=self.resolutions,
+            numthreads=self.numthreads,
             verbose=self.verbose,
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.jpeg2k_decode(buf, verbose=self.verbose, out=out)
+        return imagecodecs.jpeg2k_decode(
+            buf, verbose=self.verbose, numthreads=self.numthreads, out=out
+        )
 
 
 class JpegLs(Codec):
@@ -579,10 +611,10 @@ class Lerc(Codec):
 
     codec_id = 'imagecodecs_lerc'
 
-    def __init__(self, level=None, version=None, planarconfig=None):
+    def __init__(self, level=None, version=None, planar=None):
         self.level = level
         self.version = version
-        self.planarconfig = planarconfig
+        self.planar = bool(planar)
         # TODO: support mask?
         # self.mask = None
 
@@ -592,7 +624,7 @@ class Lerc(Codec):
             buf,
             level=self.level,
             version=self.version,
-            planarconfig=self.planarconfig,
+            planar=self.planar,
         )
 
     def decode(self, buf, out=None):
@@ -631,7 +663,7 @@ class Lz4(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.lz4_decode(buf, header=self.header, out=out)
+        return imagecodecs.lz4_decode(buf, header=self.header, out=_flat(out))
 
 
 class Lz4f(Codec):
@@ -661,7 +693,7 @@ class Lz4f(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.lz4f_decode(buf, out=out)
+        return imagecodecs.lz4f_decode(buf, out=_flat(out))
 
 
 class Lzf(Codec):
@@ -676,7 +708,7 @@ class Lzf(Codec):
         return imagecodecs.lzf_encode(buf, header=self.header)
 
     def decode(self, buf, out=None):
-        return imagecodecs.lzf_decode(buf, header=self.header, out=out)
+        return imagecodecs.lzf_decode(buf, header=self.header, out=_flat(out))
 
 
 class Lzma(Codec):
@@ -691,7 +723,7 @@ class Lzma(Codec):
         return imagecodecs.lzma_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
-        return imagecodecs.lzma_decode(buf, out=out)
+        return imagecodecs.lzma_decode(buf, out=_flat(out))
 
 
 class Lzw(Codec):
@@ -704,7 +736,7 @@ class Lzw(Codec):
         return imagecodecs.lzw_encode(buf)
 
     def decode(self, buf, out=None):
-        return imagecodecs.lzw_decode(buf, out=out)
+        return imagecodecs.lzw_decode(buf, out=_flat(out))
 
 
 class PackBits(Codec):
@@ -721,7 +753,7 @@ class PackBits(Codec):
         return imagecodecs.packbits_encode(buf, axis=self.axis)
 
     def decode(self, buf, out=None):
-        return imagecodecs.packbits_decode(buf, out=out)
+        return imagecodecs.packbits_decode(buf, out=_flat(out))
 
 
 class Pglz(Codec):
@@ -739,7 +771,7 @@ class Pglz(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.pglz_decode(buf, header=self.header, out=out)
+        return imagecodecs.pglz_decode(buf, header=self.header, out=_flat(out))
 
 
 class Png(Codec):
@@ -790,7 +822,23 @@ class Snappy(Codec):
         return imagecodecs.snappy_encode(buf)
 
     def decode(self, buf, out=None):
-        return imagecodecs.snappy_decode(buf, out=out)
+        return imagecodecs.snappy_decode(buf, out=_flat(out))
+
+
+class Spng(Codec):
+    """SPNG codec for numcodecs."""
+
+    codec_id = 'imagecodecs_spng'
+
+    def __init__(self, level=None):
+        self.level = level
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.spng_encode(buf, level=self.level)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.spng_decode(buf, out=out)
 
 
 class Tiff(Codec):
@@ -854,7 +902,7 @@ class Xor(Codec):
     def decode(self, buf, out=None):
         if self.shape is not None or self.dtype is not None:
             buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
-        return imagecodecs.xor_decode(buf, axis=self.axis, out=out)
+        return imagecodecs.xor_decode(buf, axis=self.axis, out=_flat(out))
 
 
 class Zfp(Codec):
@@ -870,21 +918,25 @@ class Zfp(Codec):
         level=None,
         mode=None,
         execution=None,
+        numthreads=None,
+        chunksize=None,
         header=True,
     ):
         if header:
             self.shape = None
             self.dtype = None
             self.strides = None
+        elif shape is None or dtype is None:
+            raise ValueError('invalid shape or dtype')
         else:
-            if shape is None or dtype is None:
-                raise ValueError('invalid shape and dtype')
             self.shape = tuple(shape)
             self.dtype = numpy.dtype(dtype).str
             self.strides = None if strides is None else tuple(strides)
         self.level = level
         self.mode = mode
         self.execution = execution
+        self.numthreads = numthreads
+        self.chunksize = chunksize
         self.header = bool(header)
 
     def encode(self, buf):
@@ -898,6 +950,8 @@ class Zfp(Codec):
             mode=self.mode,
             execution=self.execution,
             header=self.header,
+            numthreads=self.numthreads,
+            chunksize=self.chunksize,
         )
 
     def decode(self, buf, out=None):
@@ -908,6 +962,7 @@ class Zfp(Codec):
             shape=self.shape,
             dtype=numpy.dtype(self.dtype),
             strides=self.strides,
+            numthreads=self.numthreads,
             out=out,
         )
 
@@ -924,7 +979,7 @@ class Zlib(Codec):
         return imagecodecs.zlib_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
-        return imagecodecs.zlib_decode(buf, out=out)
+        return imagecodecs.zlib_decode(buf, out=_flat(out))
 
 
 class Zlibng(Codec):
@@ -939,7 +994,7 @@ class Zlibng(Codec):
         return imagecodecs.zlibng_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
-        return imagecodecs.zlibng_decode(buf, out=out)
+        return imagecodecs.zlibng_decode(buf, out=_flat(out))
 
 
 class Zopfli(Codec):
@@ -951,7 +1006,7 @@ class Zopfli(Codec):
         return imagecodecs.zopfli_encode(buf)
 
     def decode(self, buf, out=None):
-        return imagecodecs.zopfli_decode(buf, out=out)
+        return imagecodecs.zopfli_decode(buf, out=_flat(out))
 
 
 class Zstd(Codec):
@@ -966,7 +1021,17 @@ class Zstd(Codec):
         return imagecodecs.zstd_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
-        return imagecodecs.zstd_decode(buf, out=out)
+        return imagecodecs.zstd_decode(buf, out=_flat(out))
+
+
+def _flat(out):
+    """Return numpy array as contiguous view of bytes if possible."""
+    if out is None:
+        return None
+    view = memoryview(out)
+    if view.readonly or not view.contiguous:
+        return None
+    return view.cast('B')
 
 
 def register_codecs(codecs=None, force=False, verbose=True):
