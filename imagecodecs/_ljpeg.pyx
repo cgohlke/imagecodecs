@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -93,7 +93,7 @@ def ljpeg_encode(data, level=None, bitspersample=None, out=None):
         and src.shape[0] * src.shape[1] < 2 ** 31
         # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape or dtype')
 
     if src.dtype == numpy.uint8:
         src = src.astype(numpy.uint16)
