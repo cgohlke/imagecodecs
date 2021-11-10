@@ -1,7 +1,7 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2021.8.26` library.
+# Cython declarations for the `imcd 2021.11.11` library.
 # https://www.lfd.uci.edu/~gohlke/
 
 from libc.stdint cimport uint8_t
@@ -161,6 +161,18 @@ cdef extern from 'imcd.h':
     bint imcd_lzw_check(
         const uint8_t* src,
         const ssize_t size
+    ) nogil
+
+    ssize_t imcd_lzw_encode_size(
+        const ssize_t srcsize
+    ) nogil
+
+    ssize_t imcd_lzw_encode(
+        imcd_lzw_handle_t* handle,
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t dstsize
     ) nogil
 
 
