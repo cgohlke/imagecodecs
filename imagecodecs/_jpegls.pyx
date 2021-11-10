@@ -37,7 +37,7 @@
 
 """JPEG LS codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -100,9 +100,8 @@ def jpegls_encode(data, level=None, out=None):
         src.dtype in (numpy.uint8, numpy.uint16)
         and src.ndim in (2, 3)
         and srcsize < 2 ** 32
-        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape or dtype')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
