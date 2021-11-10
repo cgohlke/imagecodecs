@@ -37,25 +37,30 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from zfp cimport *
 
+import enum
+
 
 class ZFP:
     """ZFP Constants."""
 
-    EXEC_SERIAL = zfp_exec_serial
-    EXEC_OMP = zfp_exec_omp
-    EXEC_CUDA = zfp_exec_cuda
-    MODE_NULL = zfp_mode_null
-    MODE_EXPERT = zfp_mode_expert
-    MODE_FIXED_RATE = zfp_mode_fixed_rate
-    MODE_FIXED_PRECISION = zfp_mode_fixed_precision
-    MODE_FIXED_ACCURACY = zfp_mode_fixed_accuracy
-    MODE_REVERSIBLE = zfp_mode_reversible
+    class EXEC(enum.IntEnum):
+        SERIAL = zfp_exec_serial
+        OMP = zfp_exec_omp
+        CUDA = zfp_exec_cuda
+
+    class MODE(enum.IntEnum):
+        NONE = zfp_mode_null
+        EXPERT = zfp_mode_expert
+        FIXED_RATE = zfp_mode_fixed_rate
+        FIXED_PRECISION = zfp_mode_fixed_precision
+        FIXED_ACCURACY = zfp_mode_fixed_accuracy
+        REVERSIBLE = zfp_mode_reversible
 
 
 class ZfpError(RuntimeError):
@@ -80,6 +85,8 @@ def zfp_encode(
     level=None,
     mode=None,
     execution=None,
+    numthreads=None,
+    chunksize=None,
     header=True,
     out=None
 ):
@@ -101,6 +108,8 @@ def zfp_encode(
         uint ndim = src.ndim
         ssize_t itemsize = src.itemsize
         uint precision
+        uint threads = <uint> _default_threads(numthreads)
+        uint chunk_size = 0
         uint minbits, maxbits, maxprec, minexp
         uint nx, ny, nz, nw
         int sx, sy, sz, sw
@@ -146,7 +155,9 @@ def zfp_encode(
     else:
         raise ValueError('data shape not supported by ZFP')
 
-    if mode in (None, zfp_mode_null, zfp_mode_reversible, 'R', 'reversible'):
+    if mode is None:
+        zmode = zfp_mode_reversible
+    elif mode in (zfp_mode_null, zfp_mode_reversible, 'R', 'reversible'):
         zmode = zfp_mode_reversible
     elif mode in (zfp_mode_fixed_precision, 'p', 'precision'):
         zmode = zfp_mode_fixed_precision
@@ -163,14 +174,19 @@ def zfp_encode(
     else:
         raise ValueError('invalid ZFP mode')
 
-    if execution is None or execution == 'serial':
+    if execution is None:
+        zexec = zfp_exec_omp if threads > 1 else zfp_exec_serial
+    elif execution == zfp_exec_serial or execution == 'serial':
         zexec = zfp_exec_serial
-    elif execution == 'omp':
-        zexec = zfp_exec_omp
-    elif execution == 'cuda':
+    elif execution == zfp_exec_omp or execution == 'omp':
+        zexec = zfp_exec_serial if threads == 1 else zfp_exec_omp
+    elif execution == zfp_exec_cuda or execution == 'cuda':
         zexec = zfp_exec_cuda
     else:
         raise ValueError('invalid ZFP execution policy')
+
+    if zexec == zfp_exec_omp:
+        chunk_size = <uint> _default_value(chunksize, 0, 0, None)
 
     try:
         zfp = zfp_stream_open(NULL)
@@ -232,6 +248,16 @@ def zfp_encode(
             if ret == 0:
                 raise ZfpError('zfp_stream_set_execution failed')
 
+            if zexec == zfp_exec_omp:
+                if threads > 1:
+                    ret = zfp_stream_set_omp_threads(zfp, threads)
+                    if ret == 0:
+                        raise ZfpError('zfp_stream_set_omp_threads failed')
+                if chunk_size > 0:
+                    ret = zfp_stream_set_omp_chunk_size(zfp, chunk_size)
+                    if ret == 0:
+                        raise ZfpError('zfp_stream_set_omp_chunk_size failed')
+
             byteswritten = zfp_write_header(
                 zfp,
                 field,
@@ -258,7 +284,13 @@ def zfp_encode(
 
 
 def zfp_decode(
-    data, index=None, shape=None, dtype=None, strides=None, out=None
+    data,
+    index=None,
+    shape=None,
+    dtype=None,
+    strides=None,
+    numthreads=None,
+    out=None
 ):
     """Decompress ZFP stream to numpy array.
 
@@ -273,6 +305,7 @@ def zfp_decode(
         zfp_type ztype
         ssize_t ndim
         size_t size
+        # uint threads = <uint> _default_threads(numthreads)
         uint nx, ny, nz, nw
         int sx = 0
         int sy = 0
@@ -330,16 +363,18 @@ def zfp_decode(
     else:
         raise ValueError('shape not supported by ZFP')
 
-    # TODO: enable execution mode when supported
-    # zfp_exec_policy zexec
-    # if execution is None or execution == 'serial':
+    # TODO: enable execution mode or threading when supported
+    # if execution is None:
+    #     zexec = zfp_exec_omp if threads > 1 else zfp_exec_serial
+    # elif execution == zfp_exec_serial or execution == 'serial':
     #     zexec = zfp_exec_serial
-    # elif execution == 'omp':
-    #     zexec = zfp_exec_omp
-    # elif execution == 'cuda':
+    #     threads = 1
+    # elif execution == zfp_exec_omp or execution == 'omp':
+    #     zexec = zfp_exec_serial if threads == 1 else zfp_exec_omp
+    # elif execution == zfp_exec_cuda or execution == 'cuda':
     #     zexec = zfp_exec_cuda
     # else:
-    #    raise ValueError('invalid ZFP execution policy')
+    #     raise ValueError('invalid ZFP execution policy')
 
     try:
         zfp = zfp_stream_open(NULL)
