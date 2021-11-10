@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2021.8.26"
+#define IMCD_VERSION "2021.11.11"
 
 #include <stdint.h>
 
@@ -255,6 +255,20 @@ ssize_t imcd_lzw_decode_size(
     imcd_lzw_handle_t* handle,
     const uint8_t* src,
     const ssize_t srcsize
+);
+
+
+ssize_t imcd_lzw_encode_size(
+    const ssize_t srcsize
+);
+
+
+ssize_t imcd_lzw_encode(
+    imcd_lzw_handle_t* handle,
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize
 );
 
 
