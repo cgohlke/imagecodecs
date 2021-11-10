@@ -37,7 +37,7 @@
 
 """WebP codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -88,7 +88,7 @@ def webp_encode(data, level=None, out=None):
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* output
         ssize_t dstsize
@@ -108,7 +108,7 @@ def webp_encode(data, level=None, out=None):
         and src.strides[0] >= src.strides[1] * src.strides[2]
         and src.dtype == numpy.uint8
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape, strides, or dtype')
 
     height = <int> src.shape[0]
     width = <int> src.shape[1]
@@ -155,20 +155,23 @@ def webp_encode(data, level=None, out=None):
     if ret <= 0:
         raise WebpError('WebPEncode', ret)
 
-    out, dstsize, outgiven, outtype = _parse_output(out)
+    try:
+        out, dstsize, outgiven, outtype = _parse_output(out)
 
-    if out is None:
-        if dstsize < 0:
-            dstsize = ret
-        out = _create_output(outtype, dstsize)
+        if out is None:
+            if dstsize < 0:
+                dstsize = ret
+            out = _create_output(outtype, dstsize)
 
-    dst = out
-    dstsize = dst.size
-    if <size_t> dstsize < ret:
-        raise RuntimeError('output too small')
+        dst = out
+        dstsize = dst.size
+        if <size_t> dstsize < ret:
+            raise RuntimeError('output too small')
 
-    with nogil:
-        memcpy(<void*> &dst[0], <const void*> output, ret)
+        with nogil:
+            memcpy(<void*> &dst[0], <const void*> output, ret)
+
+    finally:
         WebPFree(<void*> output)
 
     del dst
