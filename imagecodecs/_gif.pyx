@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -103,9 +103,8 @@ def gif_encode(data, level=None, colormap=None, out=None):
         and src.ndim in (2, 3)
         and src.shape[0] < 2 ** 16
         and src.shape[1] < 2 ** 16
-        # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape or dtype')
 
     if src.ndim > 2:
         imagecount = <int> src.shape[0]
