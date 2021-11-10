@@ -37,18 +37,22 @@
 
 """Brotli codec for the imagecodecs package."""
 
-__version__ = '2021.2.26'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from brotli cimport *
 
+import enum
+
 
 class BROTLI:
     """Brotli Constants."""
-    MODE_GENERIC = BROTLI_MODE_GENERIC
-    MODE_TEXT = BROTLI_MODE_TEXT
-    MODE_FONT = BROTLI_MODE_FONT
+
+    class MODE(enum.IntEnum):
+        GENERIC = BROTLI_MODE_GENERIC
+        TEXT = BROTLI_MODE_TEXT
+        FONT = BROTLI_MODE_FONT
 
 
 class BrotliError(RuntimeError):
