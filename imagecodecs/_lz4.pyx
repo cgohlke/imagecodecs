@@ -37,20 +37,23 @@
 
 """LZ4 codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from lz4 cimport *
 
+import enum
+
 
 class LZ4:
     """LZ4 Constants."""
 
-    CLEVEL_MIN = LZ4HC_CLEVEL_MIN
-    CLEVEL_DEFAULT = LZ4HC_CLEVEL_DEFAULT
-    CLEVEL_OPT_MIN = LZ4HC_CLEVEL_OPT_MIN
-    CLEVEL_MAX = LZ4HC_CLEVEL_MAX
+    class CLEVEL(enum.IntEnum):
+        DEFAULT = LZ4HC_CLEVEL_DEFAULT
+        MIN = LZ4HC_CLEVEL_MIN
+        MAX = LZ4HC_CLEVEL_MAX
+        OPT_MIN = LZ4HC_CLEVEL_OPT_MIN
 
 
 class Lz4Error(RuntimeError):
