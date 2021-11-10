@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -83,9 +83,9 @@ def lerc_check(const uint8_t[::1] data):
 def lerc_encode(
     data,
     level=None,
-    masks=None,  # TODO: enable masks
+    masks=None,
     version=None,
-    planarconfig=None,
+    planar=None,
     out=None
 ):
     """Compress LERC.
@@ -93,6 +93,7 @@ def lerc_encode(
     """
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray msk
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         unsigned char* pValidBytes = NULL
@@ -132,14 +133,14 @@ def lerc_encode(
         nRows = <int> src.shape[0]
         nCols = <int> src.shape[1]
     elif ndim == 3:
-        if planarconfig is None or planarconfig in ('contig', 'CONTIG', 1):
-            nRows = <int> src.shape[0]
-            nCols = <int> src.shape[1]
-            nDim = <int> src.shape[2]
-        else:
+        if planar:
             nBands = <int> src.shape[0]
             nRows = <int> src.shape[1]
             nCols = <int> src.shape[2]
+        else:
+            nRows = <int> src.shape[0]
+            nCols = <int> src.shape[1]
+            nDim = <int> src.shape[2]
     elif ndim == 4:
         nBands = <int> src.shape[0]
         nRows = <int> src.shape[1]
@@ -149,6 +150,22 @@ def lerc_encode(
         nCols = <int> src.shape[0]
     else:
         raise ValueError('data shape not supported by LERC')
+
+    if masks is not None:
+        msk = numpy.ascontiguousarray(masks)
+        if msk.dtype != bool:
+            raise ValueError('masks array must be of dtype bool')
+        if msk.ndim == 2:
+            nMasks = 1
+            if msk.shape[0] != nRows or msk.shape[1] != nCols:
+                raise ValueError('masks.shape does not match data')
+        elif msk.ndim == 3:
+            nMasks = <int> msk.shape[0]
+            if msk.shape[1] != nRows or msk.shape[2] != nCols:
+                raise ValueError('masks.shape does not match data')
+        else:
+            raise ValueError('invalid masks.shape')
+        pValidBytes = <unsigned char*> msk.data
 
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
@@ -198,7 +215,7 @@ def lerc_encode(
     return _return_output(out, dstsize, <ssize_t> nBytesWritten, outgiven)
 
 
-def lerc_decode(data, index=None, mask=None, out=None):
+def lerc_decode(data, index=None, masks=None, out=None):
     """Decompress LERC.
 
     """
@@ -213,13 +230,13 @@ def lerc_decode(data, index=None, mask=None, out=None):
         unsigned char* pValidBytes = NULL
         lerc_status ret
         int version
-        unsigned int dataType
         int nDim
         int nCols
         int nRows
         int nBands
         int nMasks
         int nValidPixels
+        unsigned int dataType
         unsigned int blobSize
 
     if data is out:
@@ -227,8 +244,7 @@ def lerc_decode(data, index=None, mask=None, out=None):
 
     if bytes(src[:9]) == b'CntZImage' and hasattr(data, 'write_byte'):
         # Lerc1 decoder segfaults if data is not writable
-        # raises TypeError: mmap can't modify a readonly memory map
-        data[0] = data[0]
+        src = memoryview(data).tobytes()
 
     ret = lerc_getBlobInfo(
         <const unsigned char*> &src[0],
@@ -286,14 +302,11 @@ def lerc_decode(data, index=None, mask=None, out=None):
     out = _create_array(out, shape, dtype, None, nValidPixels != nRows * nCols)
     dst = out
 
-    if not (mask is None or mask is False):
-        if mask is True:
-            mask = None
+    if nMasks > 0:
         if nMasks <= 1:
-            mask = _create_array(mask, (nRows, nCols), numpy.bool8)
+            valid = _create_array(masks, (nRows, nCols), numpy.bool8)
         else:
-            mask = _create_array(mask, (nMasks, nRows, nCols), numpy.bool8)
-        valid = mask
+            valid = _create_array(masks, (nMasks, nRows, nCols), numpy.bool8)
         pValidBytes = <unsigned char*> valid.data
 
     with nogil:
@@ -312,7 +325,9 @@ def lerc_decode(data, index=None, mask=None, out=None):
     if ret != 0:
         raise LercError('lerc_decode', ret)
 
-    if pValidBytes != NULL:
-        return out, mask
-
-    return out
+    if masks is None or masks is False:
+        return out
+    elif nMasks > 0:
+        return out, valid
+    else:
+        return out, None
