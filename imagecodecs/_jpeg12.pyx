@@ -37,7 +37,7 @@
 
 """JPEG 12-bit codec for the imagecodecs package."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -52,28 +52,31 @@ from cython.operator cimport dereference as deref
 
 from libc.setjmp cimport setjmp, longjmp, jmp_buf
 
+import enum
+
 
 class JPEG12:
     """JPEG 12-bit Constants."""
 
-    CS_UNKNOWN = JCS_UNKNOWN
-    CS_GRAYSCALE = JCS_GRAYSCALE
-    CS_RGB = JCS_RGB
-    CS_YCbCr = JCS_YCbCr
-    CS_CMYK = JCS_CMYK
-    CS_YCCK = JCS_YCCK
-    IF HAVE_LIBJPEG_TURBO:
-        CS_EXT_RGB = JCS_EXT_RGB
-        CS_EXT_RGBX = JCS_EXT_RGBX
-        CS_EXT_BGR = JCS_EXT_BGR
-        CS_EXT_BGRX = JCS_EXT_BGRX
-        CS_EXT_XBGR = JCS_EXT_XBGR
-        CS_EXT_XRGB = JCS_EXT_XRGB
-        CS_EXT_RGBA = JCS_EXT_RGBA
-        CS_EXT_BGRA = JCS_EXT_BGRA
-        CS_EXT_ABGR = JCS_EXT_ABGR
-        CS_EXT_ARGB = JCS_EXT_ARGB
-        CS_RGB565 = JCS_RGB565
+    class CS(enum.IntEnum):
+        UNKNOWN = JCS_UNKNOWN
+        GRAYSCALE = JCS_GRAYSCALE
+        RGB = JCS_RGB
+        YCbCr = JCS_YCbCr
+        CMYK = JCS_CMYK
+        YCCK = JCS_YCCK
+        IF HAVE_LIBJPEG_TURBO:
+            EXT_RGB = JCS_EXT_RGB
+            EXT_RGBX = JCS_EXT_RGBX
+            EXT_BGR = JCS_EXT_BGR
+            EXT_BGRX = JCS_EXT_BGRX
+            EXT_XBGR = JCS_EXT_XBGR
+            EXT_XRGB = JCS_EXT_XRGB
+            EXT_RGBA = JCS_EXT_RGBA
+            EXT_BGRA = JCS_EXT_BGRA
+            EXT_ABGR = JCS_EXT_ABGR
+            EXT_ARGB = JCS_EXT_ARGB
+            RGB565 = JCS_RGB565
 
 
 class Jpeg12Error(RuntimeError):
@@ -111,6 +114,7 @@ def jpeg12_encode(
     subsampling=None,
     optimize=None,
     smoothing=None,
+    validate=True,
     out=None
 ):
     """Return JPEG 12-bit image from numpy array.
@@ -145,33 +149,36 @@ def jpeg12_encode(
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape, strides, or dtype')
 
-    if not _check_12bit(src):
+    if validate and not _check_12bit(src):
         # values larger than 12-bit cause segfault
         raise ValueError('all data values must be < 4096')
 
-    if colorspace is None:
-        if samples == 1:
-            in_color_space = JCS_GRAYSCALE
-        elif samples == 3:
-            in_color_space = JCS_RGB
-        # elif samples == 4:
-        #     in_color_space = JCS_EXT_RGBA
-        #     in_color_space = JCS_CMYK
-        else:
-            # libjpeg-turbo does not currently support alpha channels.
-            # JCS_UNKNOWN seems to preserve the 4th channel.
-            in_color_space = JCS_UNKNOWN
-    else:
+    if colorspace is not None:
         in_color_space = _jcs_colorspace(colorspace)
         if samples not in _jcs_colorspace_samples(in_color_space):
-            raise ValueError('invalid input shape')
-
-    if outcolorspace is None:
-        jpeg_color_space = JCS_UNKNOWN
+            raise ValueError('invalid data shape')
+    elif samples == 1:
+        in_color_space = JCS_GRAYSCALE
+    elif samples == 3:
+        in_color_space = JCS_RGB
+    # elif samples == 4:
+    #     in_color_space = JCS_EXT_RGBA
+    #     in_color_space = JCS_CMYK
     else:
+        # libjpeg-turbo does not currently support alpha channels.
+        # JCS_UNKNOWN seems to preserve the 4th channel.
+        in_color_space = JCS_UNKNOWN
+
+    if in_color_space == JCS_GRAYSCALE:
+        jpeg_color_space = JCS_GRAYSCALE
+    elif outcolorspace is not None:
         jpeg_color_space = _jcs_colorspace(outcolorspace)
+    elif in_color_space == JCS_RGB or in_color_space == JCS_YCbCr:
+        jpeg_color_space = JCS_YCbCr
+    else:
+        jpeg_color_space = JCS_UNKNOWN
 
     if jpeg_color_space == JCS_YCbCr and subsampling is not None:
         if subsampling in ('444', (1, 1)):
@@ -400,6 +407,8 @@ cdef void my_output_message(jpeg_common_struct* cinfo) nogil:
 
 def _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
+    if isinstance(colorspace, str):
+        colorspace = colorspace.upper()
     IF HAVE_LIBJPEG_TURBO:
         jcs = {
             None: JCS_UNKNOWN,
@@ -490,7 +499,7 @@ def _jcs_colorspace_samples(colorspace):
     return jcs[colorspace]
 
 
-def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
+cdef bint _check_12bit(numpy.ndarray data, uint16_t upper=4095):
     """Return if all values are below 2^12."""
     cdef:
         numpy.flatiter srciter
@@ -499,20 +508,20 @@ def _check_12bit(numpy.ndarray data, uint16_t upper=4095):
         ssize_t srcstride = 0
         ssize_t i
         int axis = -1
-        int ret = 1
+        bint ret = True
 
     srciter = numpy.PyArray_IterAllButAxis(data, &axis)
     srcsize = data.shape[axis]
     srcstride = data.strides[axis]
 
     with nogil:
-        while numpy.PyArray_ITER_NOTDONE(srciter) and ret != 0:
+        while ret and numpy.PyArray_ITER_NOTDONE(srciter):
             srcptr = <uint8_t*> numpy.PyArray_ITER_DATA(srciter)
             for i in range(srcsize):
                 if (<uint16_t*> srcptr)[0] > upper:
-                    ret = 0
+                    ret = False
                     break
                 srcptr += srcstride
             numpy.PyArray_ITER_NEXT(srciter)
 
-    return bool(ret)
+    return ret
