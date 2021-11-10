@@ -37,19 +37,22 @@
 
 """Zopfli codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from zopfli cimport *
 
+import enum
+
 
 class ZOPFLI:
     """Zopfli Constants."""
 
-    FORMAT_GZIP = ZOPFLI_FORMAT_GZIP
-    FORMAT_ZLIB = ZOPFLI_FORMAT_ZLIB
-    FORMAT_DEFLATE = ZOPFLI_FORMAT_DEFLATE
+    class FORMAT(enum.IntEnum):
+        GZIP = ZOPFLI_FORMAT_GZIP
+        ZLIB = ZOPFLI_FORMAT_ZLIB
+        DEFLATE = ZOPFLI_FORMAT_DEFLATE
 
 
 class ZopfliError(RuntimeError):
