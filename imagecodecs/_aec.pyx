@@ -37,7 +37,7 @@
 
 """AEC codec for the imagecodecs package."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -73,7 +73,7 @@ class AecError(RuntimeError):
 def aec_version():
     """Return libaec library version string."""
     # TODO: use version from header when available
-    return 'libaec 1.0.5'
+    return 'libaec 1.0.6'
 
 
 def aec_check(data):
@@ -95,9 +95,9 @@ def aec_encode(
 
     """
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize
         ssize_t dstsize
         ssize_t byteswritten
         int ret = AEC_OK
@@ -115,19 +115,31 @@ def aec_encode(
     else:
         flags_ = flags
 
-    if isinstance(data, numpy.ndarray):
-        if bitspersample is None:
-            bitspersample = data.itemsize * 8
-        elif bitspersample > data.itemsize * 8:
-            raise ValueError('invalid bitspersample')
-        if data.dtype.char == 'i':
+    try:
+        src = data  # common case: contiguous bytes
+        bits_per_sample = 8
+    except Exception:
+        view = memoryview(data)
+        if view.contiguous:
+            src = view.cast('B')  # view as bytes
+        else:
+            src = view.tobytes()  # copy
+        if view.format in 'hilqnfde':
             flags_ |= AEC_DATA_SIGNED
+        bits_per_sample = view.itemsize * 8
 
-    if bitspersample:
+    srcsize = src.size
+
+    if bitspersample is not None:
+        if bitspersample > bits_per_sample > 8:
+            raise ValueError(
+                f'bitspersample {bitspersample} larger than '
+                f'itemsize*8 {bits_per_sample!r}'
+            )
         bits_per_sample = bitspersample
 
     if bits_per_sample > 32:
-        raise ValueError('invalid bits_per_sample')
+        raise ValueError(f'invalid bits_per_sample {bits_per_sample}')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -211,7 +223,7 @@ def aec_decode(
             bitspersample = out.itemsize * 8
         elif bitspersample > out.itemsize * 8:
             raise ValueError('invalid bitspersample')
-        if out.dtype.char == 'i':
+        if out.dtype.kind == 'i':
             flags_ |= AEC_DATA_SIGNED
 
     if bitspersample:
