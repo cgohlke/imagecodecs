@@ -166,6 +166,28 @@ cdef extern from 'zfp.h':
         int minexp
     ) nogil
 
+    zfp_exec_policy zfp_stream_execution(
+        const zfp_stream* stream
+    )
+
+    uint zfp_stream_omp_threads(
+        const zfp_stream* stream
+    ) nogil
+
+    uint zfp_stream_omp_chunk_size(
+        const zfp_stream* stream
+    )
+
+    int zfp_stream_set_omp_threads(
+        zfp_stream* stream,
+        uint threads
+    ) nogil
+
+    int zfp_stream_set_omp_chunk_size(
+        zfp_stream* stream,
+        uint chunk_size
+    ) nogil
+
     zfp_field* zfp_field_alloc() nogil
 
     zfp_field* zfp_field_1d(
