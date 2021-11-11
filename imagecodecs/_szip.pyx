@@ -77,11 +77,11 @@ def szip_encode(data, level=None, bitspersample=None, flags=None, out=None):
     """Compress SZIP.
 
     """
-    raise NotImplementedError('szip_encode')
+    raise NotImplementedError('szip_encode')  # TODO
 
 
 def szip_decode(data, out=None):
     """Decompress SZIP.
 
     """
-    raise NotImplementedError('szip_decode')
+    raise NotImplementedError('szip_decode')  # TODO
