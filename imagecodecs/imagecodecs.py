@@ -39,9 +39,10 @@ Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
 LZW, LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY,
 PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3),
-JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, AVIF,
+MOZJPEG, JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, AVIF,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
+Bitorder reversal, Bitshuffle, CMS (color space transformations), and
+Float24 (24-bit floating point).
 
 :Author:
   `Christoph Gohlke <https://www.lfd.uci.edu/~gohlke/>`_
@@ -51,7 +52,7 @@ Bitorder reversal, Bitshuffle, and Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.8.26
+:Version: 2021.11.11
 
 :Status: Alpha
 
@@ -60,36 +61,38 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.10, 3.9.6 64-bit <https://www.python.org>`_
+* `CPython 3.7.9, 3.8.10, 3.9.8, 3.10.0, 64-bit <https://www.python.org>`_
 * `Cython 0.29.24 <https://cython.org>`_
-* `Numpy 1.20.3 <https://pypi.org/project/numpy>`_
+* `Numpy 1.21.4 <https://pypi.org/project/numpy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
 * `bzip2 1.0.8 <https://gitlab.com/bzip2/bzip2>`_
-* `c-blosc 1.21.0 <https://github.com/Blosc/c-blosc>`_
-* `c-blosc2 2.0.2 <https://github.com/Blosc/c-blosc2>`_
+* `c-blosc 1.21.1 <https://github.com/Blosc/c-blosc>`_
+* `c-blosc2 2.0.4 <https://github.com/Blosc/c-blosc2>`_
 * `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
 * `charls 2.2.0 <https://github.com/team-charls/charls>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
 * `lerc 3.0 <https://github.com/Esri/lerc>`_
-* `libaec 1.0.5 <https://gitlab.dkrz.de/k202009/libaec>`_
+* `libaec 1.0.6 <https://gitlab.dkrz.de/k202009/libaec>`_
 * `libavif 0.9.2 <https://github.com/AOMediaCodec/libavif>`_
-  (`aom 3.1.2 <https://aomedia.googlesource.com/aom>`_,
-  `dav1d 0.9.1 <https://github.com/videolan/dav1d>`_,
+  (`aom 3.1.3 <https://aomedia.googlesource.com/aom>`_,
+  `dav1d 0.9.2 <https://github.com/videolan/dav1d>`_,
   `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_)
 * `libdeflate 1.8 <https://github.com/ebiggers/libdeflate>`_
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `libjpeg-turbo 2.1.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
-* `libjxl 0.5 <https://github.com/libjxl/libjxl>`_
+* `libjxl 0.6.1 <https://github.com/libjxl/libjxl>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
+* `libspng 0.7.0 <https://github.com/randy408/libspng>`_
 * `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
 * `libwebp 1.2.1 <https://github.com/webmproject/libwebp>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
+* `mozjpeg 4.0.3 <https://github.com/mozilla/mozjpeg>`_
 * `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
 * `snappy 1.1.9 <https://github.com/google/snappy>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
@@ -100,22 +103,24 @@ This release has been tested with the following requirements and dependencies
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.8.8 <https://pypi.org/project/tifffile>`_
+* `tifffile 2021.11.2  <https://pypi.org/project/tifffile>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
-* `python-blosc 1.10.4 <https://github.com/Blosc/python-blosc>`_
-* `python-blosc2-0.1.10 <https://github.com/Blosc/python-blosc2>`_
+* `python-blosc 1.10.6 <https://github.com/Blosc/python-blosc>`_
+* `python-blosc2-0.2.0 <https://github.com/Blosc/python-blosc2>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 * `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
 * `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
-* `numcodecs 0.9.0 <https://github.com/zarr-developers/numcodecs>`_
-* `zarr 2.9.2 <https://github.com/zarr-developers/zarr-python>`_
-* `zopflipy 1.5 <https://github.com/hattya/zopflipy>`_
+* `numcodecs 0.9.1 <https://github.com/zarr-developers/numcodecs>`_
+* `zarr 2.10.2 <https://github.com/zarr-developers/zarr-python>`_
+* `zopflipy 1.7 <https://github.com/hattya/zopflipy>`_
 
 Notes
 -----
+This library is largely work in progress.
+
 The API is not stable yet and might change between revisions.
 
 Works on little-endian platforms only.
@@ -179,11 +184,12 @@ specific extensions, e.g.:
     --global-option="--skip-bitshuffle"``
 
 The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, ``lz4f``, ``lerc``,
-and ``zlibng`` extensions are disabled by default when building from source.
+``mozjpeg``, and ``zlibng`` extensions are disabled by default when building
+from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
-will be imported and executed during setup. See ``setup.py`` for examples.
+is imported and executed during setup. See ``setup.py`` for examples.
 
 Other Python packages and C libraries providing imaging or compression codecs:
 
@@ -217,16 +223,35 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.11.11
+    Pass 5947 tests.
+    Require libjxl 0.6.x.
+    Add CMS codec via Little CMS library for color space transformations (WIP).
+    Add MOZJPEG codec via mozjpeg library (Windows only).
+    Add SPNG codec via libspng library.
+    Rename avif_encode maxthreads parameter to numthreads (breaking).
+    Accept n-dimensional output in non-image numcodecs decoders.
+    Support masks in LERC codec.
+    Support multi-threading and planar format in JPEG2K codec.
+    Support multi-resolution, MCT, bitspersample, and 32-bit in jpeg2k encoder.
+    Change jpeg2k_encode level parameter to fixed quality psnr (breaking).
+    Change jpegxl_encode effort parameter default to minimum 3.
+    Change JPEG encoders to use YCbCr for RGB images by default.
+    Replace lerc_encode planarconfig with planar parameter (breaking).
+    Add option to specify omp numthreads and chunksize in ZFP codec.
+    Set default numthreads to 0.
+    Fix Blosc default typesize.
+    Fix segfault in jpegxl_encode.
+    Replace many constants with enums (breaking).
 2021.8.26
-    Pass 5502 tests.
-    Add BLOSC2 codec via c-blosc2.
+    Add BLOSC2 codec via c-blosc2 library.
     Require LERC 3 and libjxl 0.5.
     Do not exceed literal-only size in PackBits encoder.
     Raise ImcdError if output is insufficient in PackBits codecs (breaking).
     Raise ImcdError if input is corrupt in PackBits decoder (breaking).
     Fix delta codec for non-native byteorder.
 2021.7.30
-    Add support for more dtypes and axes argument in PackBits encoder.
+    Support more dtypes and axes argument in PackBits encoder.
     Fix worst case output size in PackBits encoder.
     Fix decoding AVIF created with older libavif.
     Fix decoding GIF with disposal to previous for first frame.
@@ -273,7 +298,7 @@ Revisions
 2020.12.24
     Update dependencies and build scripts.
 2020.12.22
-    Add AVIF codec via libavif (WIP).
+    Add AVIF codec via libavif.
     Add DEFLATE/Zlib and GZIP codecs via libdeflate.
     Add LZ4F codec.
     Add high compression mode option to lz4_encode.
@@ -291,8 +316,8 @@ Revisions
     Raise ValueError if in-place decoding is not possible (except floatpred).
 2020.1.31
     Add GIF codec via giflib.
-    Add TIFF decoder via libtiff (WIP).
-    Add codec_check functions (WIP).
+    Add TIFF decoder via libtiff.
+    Add codec_check functions.
     Fix formatting libjpeg error messages.
     Use xfail in tests.
     Load extensions on demand on Python >= 3.7.
@@ -316,12 +341,12 @@ Revisions
     Update copyright notices.
 2019.12.10
     Add version functions.
-    Add Brotli codec (WIP).
-    Add optional JPEG XL codec via Brunsli repacker (WIP).
+    Add Brotli codec.
+    Add optional JPEG XL codec via Brunsli repacker.
 2019.12.3
     Sync with imagecodecs-lite.
 2019.11.28
-    Add AEC codec via libaec (WIP).
+    Add AEC codec via libaec.
     Do not require scikit-image for testing.
     Require CharLS 2.1.
 2019.11.18
@@ -344,7 +369,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add optional ZFP codec via zfp library (WIP).
+    Add optional ZFP codec via zfp library.
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
@@ -354,7 +379,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 import os
 import sys
@@ -398,6 +423,7 @@ _API = {
     'brotli': [],
     'brunsli': [],
     'bz2': [],
+    'cms': ['cms_transform', 'cms_profile'],
     'deflate': ['deflate_crc32', 'deflate_adler32', ('deflate', 'gzip')],
     'gif': [],
     'jpeg2k': [],
@@ -413,10 +439,12 @@ _API = {
     'lz4f': [],
     'lzf': [],
     'lzma': [],
+    'mozjpeg': [],
     'pglz': [],
     'png': [],
     'rcomp': [],
     'snappy': [],
+    'spng': [],
     # 'szip': [],
     'tiff': [],
     'webp': [],
