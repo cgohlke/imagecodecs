@@ -1,15 +1,34 @@
 Revisions
 ---------
+2021.11.11
+    Pass 5947 tests.
+    Require libjxl 0.6.x.
+    Add CMS codec via Little CMS library for color space transformations (WIP).
+    Add MOZJPEG codec via mozjpeg library (Windows only).
+    Add SPNG codec via libspng library.
+    Rename avif_encode maxthreads parameter to numthreads (breaking).
+    Accept n-dimensional output in non-image numcodecs decoders.
+    Support masks in LERC codec.
+    Support multi-threading and planar format in JPEG2K codec.
+    Support multi-resolution, MCT, bitspersample, and 32-bit in jpeg2k encoder.
+    Change jpeg2k_encode level parameter to fixed quality psnr (breaking).
+    Change jpegxl_encode effort parameter default to minimum 3.
+    Change JPEG encoders to use YCbCr for RGB images by default.
+    Replace lerc_encode planarconfig with planar parameter (breaking).
+    Add option to specify omp numthreads and chunksize in ZFP codec.
+    Set default numthreads to 0.
+    Fix Blosc default typesize.
+    Fix segfault in jpegxl_encode.
+    Replace many constants with enums (breaking).
 2021.8.26
-    Pass 5502 tests.
-    Add BLOSC2 codec via c-blosc2.
+    Add BLOSC2 codec via c-blosc2 library.
     Require LERC 3 and libjxl 0.5.
     Do not exceed literal-only size in PackBits encoder.
     Raise ImcdError if output is insufficient in PackBits codecs (breaking).
     Raise ImcdError if input is corrupt in PackBits decoder (breaking).
     Fix delta codec for non-native byteorder.
 2021.7.30
-    Add support for more dtypes and axes argument in PackBits encoder.
+    Support more dtypes and axes argument in PackBits encoder.
     Fix worst case output size in PackBits encoder.
     Fix decoding AVIF created with older libavif.
     Fix decoding GIF with disposal to previous for first frame.
@@ -56,7 +75,7 @@ Revisions
 2020.12.24
     Update dependencies and build scripts.
 2020.12.22
-    Add AVIF codec via libavif (WIP).
+    Add AVIF codec via libavif.
     Add DEFLATE/Zlib and GZIP codecs via libdeflate.
     Add LZ4F codec.
     Add high compression mode option to lz4_encode.
@@ -74,8 +93,8 @@ Revisions
     Raise ValueError if in-place decoding is not possible (except floatpred).
 2020.1.31
     Add GIF codec via giflib.
-    Add TIFF decoder via libtiff (WIP).
-    Add codec_check functions (WIP).
+    Add TIFF decoder via libtiff.
+    Add codec_check functions.
     Fix formatting libjpeg error messages.
     Use xfail in tests.
     Load extensions on demand on Python >= 3.7.
@@ -99,12 +118,12 @@ Revisions
     Update copyright notices.
 2019.12.10
     Add version functions.
-    Add Brotli codec (WIP).
-    Add optional JPEG XL codec via Brunsli repacker (WIP).
+    Add Brotli codec.
+    Add optional JPEG XL codec via Brunsli repacker.
 2019.12.3
     Sync with imagecodecs-lite.
 2019.11.28
-    Add AEC codec via libaec (WIP).
+    Add AEC codec via libaec.
     Do not require scikit-image for testing.
     Require CharLS 2.1.
 2019.11.18
@@ -127,7 +146,7 @@ Revisions
     Add more pixel formats to JPEG XR codec.
     Add JPEG XR encoder.
 2019.1.14
-    Add optional ZFP codec via zfp library (WIP).
+    Add optional ZFP codec via zfp library.
     Add numpy NPY and NPZ codecs.
     Fix some static codechecker errors.
 2019.1.1
