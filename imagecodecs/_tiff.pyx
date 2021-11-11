@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2021.6.8'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -50,43 +50,55 @@ from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
 
+import enum
+
 
 class _TIFF:
     """TIFF Constants."""
 
-    VERSION_CLASSIC = TIFF_VERSION_CLASSIC
-    VERSION_BIG = TIFF_VERSION_BIG
-    BIGENDIAN = TIFF_BIGENDIAN
-    LITTLEENDIAN = TIFF_LITTLEENDIAN
+    class VERSION(enum.IntEnum):
+        CLASSIC = TIFF_VERSION_CLASSIC
+        BIG = TIFF_VERSION_BIG
 
+    class ENDIAN(enum.IntEnum):
+        BIG = TIFF_BIGENDIAN
+        LITTLE = TIFF_LITTLEENDIAN
 
-_set_attributes(
-    _TIFF,
-    'TIFF',
-    COMPRESSION_NONE=COMPRESSION_NONE,
-    COMPRESSION_LZW=COMPRESSION_LZW,
-    COMPRESSION_JPEG=COMPRESSION_JPEG,
-    COMPRESSION_PACKBITS=COMPRESSION_PACKBITS,
-    COMPRESSION_DEFLATE=COMPRESSION_DEFLATE,
-    COMPRESSION_ADOBE_DEFLATE=COMPRESSION_ADOBE_DEFLATE,
-    COMPRESSION_LZMA=COMPRESSION_LZMA,
-    COMPRESSION_ZSTD=COMPRESSION_ZSTD,
-    COMPRESSION_WEBP=COMPRESSION_WEBP,
-    # COMPRESSION_LERC=COMPRESSION_LERC,
-    # COMPRESSION_JXL=COMPRESSION_JXL,
-    PHOTOMETRIC_MINISWHITE=PHOTOMETRIC_MINISWHITE,
-    PHOTOMETRIC_MINISBLACK=PHOTOMETRIC_MINISBLACK,
-    PHOTOMETRIC_RGB=PHOTOMETRIC_RGB,
-    PHOTOMETRIC_PALETTE=PHOTOMETRIC_PALETTE,
-    PHOTOMETRIC_MASK=PHOTOMETRIC_MASK,
-    PHOTOMETRIC_SEPARATED=PHOTOMETRIC_SEPARATED,
-    PHOTOMETRIC_YCBCR=PHOTOMETRIC_YCBCR,
-    PLANARCONFIG_CONTIG=PLANARCONFIG_CONTIG,
-    PLANARCONFIG_SEPARATE=PLANARCONFIG_SEPARATE,
-    PREDICTOR_NONE=PREDICTOR_NONE,
-    PREDICTOR_HORIZONTAL=PREDICTOR_HORIZONTAL,
-    PREDICTOR_FLOATINGPOINT=PREDICTOR_FLOATINGPOINT
-)
+    class COMPRESSION(enum.IntEnum):
+        NONE = COMPRESSION_NONE
+        LZW = COMPRESSION_LZW
+        JPEG = COMPRESSION_JPEG
+        PACKBITS = COMPRESSION_PACKBITS
+        DEFLATE = COMPRESSION_DEFLATE
+        ADOBE_DEFLATE = COMPRESSION_ADOBE_DEFLATE
+        LZMA = COMPRESSION_LZMA
+        ZSTD = COMPRESSION_ZSTD
+        WEBP = COMPRESSION_WEBP
+        # LERC = COMPRESSION_LERC
+        # JXL = COMPRESSION_JXL
+
+    class PHOTOMETRIC(enum.IntEnum):
+        MINISWHITE = PHOTOMETRIC_MINISWHITE
+        MINISBLACK = PHOTOMETRIC_MINISBLACK
+        RGB = PHOTOMETRIC_RGB
+        PALETTE = PHOTOMETRIC_PALETTE
+        MASK = PHOTOMETRIC_MASK
+        SEPARATED = PHOTOMETRIC_SEPARATED
+        YCBCR = PHOTOMETRIC_YCBCR
+
+    class PLANARCONFIG(enum.IntEnum):
+        CONTIG = PLANARCONFIG_CONTIG
+        SEPARATE = PLANARCONFIG_SEPARATE
+
+    class PREDICTOR(enum.IntEnum):
+        NONE = PREDICTOR_NONE
+        HORIZONTAL = PREDICTOR_HORIZONTAL
+        FLOATINGPOINT = PREDICTOR_FLOATINGPOINT
+
+    class EXTRASAMPLE(enum.IntEnum):
+        UNSPECIFIED = EXTRASAMPLE_UNSPECIFIED
+        ASSOCALPHA = EXTRASAMPLE_ASSOCALPHA
+        UNASSALPHA = EXTRASAMPLE_UNASSALPHA
 
 
 class TiffError(RuntimeError):
@@ -131,11 +143,33 @@ def tiff_check(const uint8_t[::1] data):
     )
 
 
-def tiff_encode(data, level=None, verbose=0, out=None):
+def tiff_encode(
+    data,
+    level=None,
+    bigtiff=None,
+    append=None,
+    photometric=None,
+    planarconfig=None,
+    extrasamples=None,
+    # volumetric=False,
+    tile=None,
+    rowsperstrip=None,
+    bitspersample=None,
+    compression=None,
+    predictor=None,
+    # colormap=None,
+    description=None,
+    datetime=None,
+    resolution=None,
+    subfiletype=0,
+    software=None,
+    verbose=0,
+    out=None
+):
     """Return TIFF image from numpy array.
 
     """
-    raise NotImplementedError('tiff_encode')
+    raise NotImplementedError('tiff_encode')  # TODO
 
 
 def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
@@ -187,7 +221,7 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
         dirstep = 1
         dirlist = dirlist_new(64)
         dirlist_append(dirlist, dirstart)
-    elif index == 0 or isinstance(index, int):
+    elif index == 0 or isinstance(index, (int, numpy.integer)):
         dirnum = index
         dirlist = dirlist_new(1)
         dirlist_append(dirlist, dirnum)
@@ -203,7 +237,7 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
         dirlist_extend(dirlist, index)
     elif isinstance(index, slice):
         if index.step is not None and index.step < 1:
-            raise NotImplementedError('negative steps not implemented')
+            raise NotImplementedError('negative steps not implemented')  # TODO
         dirstart = 0 if index.start is None else index.start
         dirstop = UINT16_MAX if index.stop is None else index.stop
         dirstep = 1 if index.step is None else index.step
@@ -255,8 +289,8 @@ def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
                     f'bitspersample {int(sizes[6])} not supported'
                 )
 
-            #if sizes[2] > 1:
-            #    raise NotImplementedError(f'libtiff does not support depth')
+            # if sizes[2] > 1:
+            #     raise NotImplementedError(f'libtiff does not support depth')
 
             if dirlist.size > 1 and dirlist.index == 1:
                 # index is None or slice
