@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -144,7 +144,7 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
         bint isnative = True
 
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')
+        raise NotImplementedError(f'dist {dist} not implemented')  # TODO
 
     if isinstance(data, numpy.ndarray):
         if data.dtype.kind not in 'fiu':
@@ -1032,11 +1032,6 @@ def lzw_check(const uint8_t[::1] data):
     return bool(imcd_lzw_check(&data[0], data.size))
 
 
-def lzw_encode(*args, **kwargs):
-    """Compress LZW."""
-    raise NotImplementedError('lzw_encode')
-
-
 def lzw_decode(data, buffersize=0, out=None):
     """Decompress LZW.
 
@@ -1079,6 +1074,50 @@ def lzw_decode(data, buffersize=0, out=None):
             )
         if ret < 0:
             raise LzwError('imcd_lzw_decode', ret)
+    finally:
+        imcd_lzw_del(handle)
+
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
+
+
+
+def lzw_encode(data, level=None, buffersize=0, out=None):
+    """Compress LZW.
+
+    """
+    cdef:
+        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t ret = 0
+        imcd_lzw_handle_t *handle = NULL
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = imcd_lzw_encode_size(srcsize)
+            if dstsize < 0:
+                raise LzwError(f'imcd_lzw_encode_size returned {dstsize}')
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    handle = imcd_lzw_new(buffersize)
+    if handle == NULL:
+        raise LzwError('imcd_lzw_new', None)
+
+    try:
+        with nogil:
+            ret = imcd_lzw_encode(handle, &src[0], srcsize, &dst[0], dstsize)
+        if ret < 0:
+            raise LzwError('imcd_lzw_encode', ret)
     finally:
         imcd_lzw_del(handle)
 
