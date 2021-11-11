@@ -153,7 +153,7 @@ def zlibng_decode(data, out=None):
 
     if out is None:
         if dstsize < 0:
-            raise NotImplementedError
+            raise NotImplementedError  # TODO
         out = _create_output(outtype, dstsize)
 
     src = data
