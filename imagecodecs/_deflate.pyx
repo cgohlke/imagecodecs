@@ -171,7 +171,7 @@ def deflate_decode(data, bint raw=False, out=None):
     if out is None:
         if dstsize < 0:
             if raw:
-                raise NotImplementedError
+                raise NotImplementedError  # TODO
 
             # use Python's zlib module if output size is unknwon
             import zlib
