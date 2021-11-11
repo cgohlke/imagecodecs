@@ -37,31 +37,40 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from libavif cimport *
 
+import enum
+
 
 class AVIF:
     """AVIF Constants."""
 
-    PIXEL_FORMAT_YUV444 = AVIF_PIXEL_FORMAT_YUV444
-    PIXEL_FORMAT_YUV422 = AVIF_PIXEL_FORMAT_YUV422
-    PIXEL_FORMAT_YUV420 = AVIF_PIXEL_FORMAT_YUV420
-    PIXEL_FORMAT_YUV400 = AVIF_PIXEL_FORMAT_YUV400
-    QUANTIZER_LOSSLESS = AVIF_QUANTIZER_LOSSLESS
-    QUANTIZER_BEST_QUALITY = AVIF_QUANTIZER_BEST_QUALITY
-    QUANTIZER_WORST_QUALITY = AVIF_QUANTIZER_WORST_QUALITY
-    SPEED_DEFAULT = AVIF_SPEED_DEFAULT
-    SPEED_SLOWEST = AVIF_SPEED_SLOWEST
-    SPEED_FASTEST = AVIF_SPEED_FASTEST
-    CHROMA_UPSAMPLING_AUTOMATIC = AVIF_CHROMA_UPSAMPLING_AUTOMATIC
-    CHROMA_UPSAMPLING_FASTEST = AVIF_CHROMA_UPSAMPLING_FASTEST
-    CHROMA_UPSAMPLING_BEST_QUALITY = AVIF_CHROMA_UPSAMPLING_BEST_QUALITY
-    CHROMA_UPSAMPLING_NEAREST = AVIF_CHROMA_UPSAMPLING_NEAREST
-    CHROMA_UPSAMPLING_BILINEAR = AVIF_CHROMA_UPSAMPLING_BILINEAR
+    class PIXEL_FORMAT(enum.IntEnum):
+        YUV444 = AVIF_PIXEL_FORMAT_YUV444
+        YUV422 = AVIF_PIXEL_FORMAT_YUV422
+        YUV420 = AVIF_PIXEL_FORMAT_YUV420
+        YUV400 = AVIF_PIXEL_FORMAT_YUV400
+
+    class QUANTIZER(enum.IntEnum):
+        LOSSLESS = AVIF_QUANTIZER_LOSSLESS
+        BEST_QUALITY = AVIF_QUANTIZER_BEST_QUALITY
+        WORST_QUALITY = AVIF_QUANTIZER_WORST_QUALITY
+
+    class SPEED(enum.IntEnum):
+        DEFAULT = AVIF_SPEED_DEFAULT
+        SLOWEST = AVIF_SPEED_SLOWEST
+        FASTEST = AVIF_SPEED_FASTEST
+
+    class CHROMA_UPSAMPLING(enum.IntEnum):
+        AUTOMATIC = AVIF_CHROMA_UPSAMPLING_AUTOMATIC
+        FASTEST = AVIF_CHROMA_UPSAMPLING_FASTEST
+        BEST_QUALITY = AVIF_CHROMA_UPSAMPLING_BEST_QUALITY
+        NEAREST = AVIF_CHROMA_UPSAMPLING_NEAREST
+        BILINEAR = AVIF_CHROMA_UPSAMPLING_BILINEAR
 
 
 class AvifError(RuntimeError):
@@ -110,7 +119,7 @@ def avif_encode(
     tilelog2=None,
     bitspersample=None,
     pixelformat=None,
-    maxthreads=None,
+    numthreads=None,
     out=None
 ):
     """Return AVIF image from numpy array.
@@ -128,7 +137,7 @@ def avif_encode(
         int duration = 1
         int timescale = 1
         int keyframeinterval = 0
-        int maxthreads_ = 1
+        int maxthreads = <int> _default_threads(numthreads)
         int imagecount, width, height, samples, depth
         ssize_t i, j, k, srcindex
         size_t rawsize
@@ -183,8 +192,8 @@ def avif_encode(
     hasalpha = samples in (2, 4)
 
     if monochrome:
-        # TODO: check status of libavif/aom monochome support
         raise NotImplementedError('cannot encode monochome images')
+        # TODO: check status of libavif/aom monochome support
 
     if bitspersample is None:
         depth = <int> itemsize * 8
@@ -219,9 +228,6 @@ def avif_encode(
     elif pixelformat is not None:
         yuvformat = avif_pixelformat(pixelformat)
 
-    if maxthreads is not None:
-        maxthreads_ = maxthreads
-
     try:
         with nogil:
             raw.data = NULL
@@ -231,7 +237,7 @@ def avif_encode(
             if encoder == NULL:
                 raise AvifError('avifEncoderCreate', 'NULL')
 
-            encoder.maxThreads = maxthreads_
+            encoder.maxThreads = maxthreads
             encoder.minQuantizer = quantizer
             encoder.maxQuantizer = quantizer
             encoder.minQuantizerAlpha = AVIF_QUANTIZER_LOSSLESS
@@ -395,7 +401,7 @@ def avif_encode(
     return _return_output(out, dstsize, rawsize, outgiven)
 
 
-def avif_decode(data, index=None, out=None):
+def avif_decode(data, index=None, numthreads=None, out=None):
     """Decode AVIF image to numpy array.
 
     """
