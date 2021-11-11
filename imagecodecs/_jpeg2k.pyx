@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2021.7.30'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -45,18 +45,22 @@ from openjpeg cimport *
 
 from libc.math cimport log
 
+import enum
 
 class JPEG2K:
     """OpenJPEG Constants."""
 
-    CLRSPC_UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
-    CLRSPC_SRGB = OPJ_CLRSPC_SRGB
-    CLRSPC_GRAY = OPJ_CLRSPC_GRAY
-    CLRSPC_SYCC = OPJ_CLRSPC_SYCC
-    CLRSPC_EYCC = OPJ_CLRSPC_EYCC
-    CLRSPC_CMYK = OPJ_CLRSPC_CMYK
-    CODEC_JP2 = OPJ_CODEC_JP2
-    CODEC_J2K = OPJ_CODEC_J2K
+    class CODEC(enum.IntEnum):
+        JP2 = OPJ_CODEC_JP2
+        J2K = OPJ_CODEC_J2K
+
+    class CLRSPC(enum.IntEnum):
+        UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
+        SRGB = OPJ_CLRSPC_SRGB
+        GRAY = OPJ_CLRSPC_GRAY
+        SYCC = OPJ_CLRSPC_SYCC
+        EYCC = OPJ_CLRSPC_EYCC
+        CMYK = OPJ_CLRSPC_CMYK
 
 
 class Jpeg2kError(RuntimeError):
@@ -82,18 +86,24 @@ def jpeg2k_check(const uint8_t[::1] data):
 
 def jpeg2k_encode(
     data,
-    level=None,
+    level=None,  # quality, psnr
     codecformat=None,
     colorspace=None,
-    tile=None,
+    planar=None,
+    tile=None,  # not implemented
+    bitspersample=None,
     reversible=None,
+    resolutions=None,
+    mct=True,  # multiple component transform: rgb->ycc
+    numthreads=None,
     verbose=0,
     out=None
 ):
     """Return JPEG 2000 image from numpy array.
 
-    WIP: currently only single-tile, single-resolution, single-layer formats
-    are supported.
+    WIP: currently only single-tile, single-quality-layer formats are supported
+
+    TODO: (u)int32 must contain <= 26-bits data ?
 
     """
     cdef:
@@ -113,30 +123,26 @@ def jpeg2k_encode(
         OPJ_COLOR_SPACE color_space
         OPJ_UINT32 signed, prec, width, height, samples
         ssize_t i, j
-        int numresolution = 1
         int verbosity = verbose
         int tile_width = 0
         int tile_height = 0
-        float quality = 100.0 - _default_value(level, 0, 0, 100)
+        float quality = _default_value(level, 0, 0, None)
+        int numresolution = _default_value(resolutions, 6, 1, OPJ_J2K_MAXRLVLS)
+        int num_threads = <int> _default_threads(numthreads)
         int irreversible = 0 if reversible else 1
+        bint tcp_mct = bool(mct)
 
-    if not (
-        src.dtype in (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16)
-        and src.ndim in (2, 3)
-        # and numpy.PyArray_ISCONTIGUOUS(src)
-    ):
-        raise ValueError('invalid input shape, strides, or dtype')
+    if not (src.dtype.char in 'bBhHiIlL' and src.ndim in (2, 3)):
+        raise ValueError('invalid data shape or dtype')
 
     if srcsize >= 2 ** 32:
         raise ValueError('tile size must not exceed 4 GB')
 
-    if quality > 99.9:
+    if quality < 1 or quality > 1000:
         # lossless
         quality = 0.0
         if reversible is None:
             irreversible = 0
-    elif quality < 0.1:
-        quality = 0.1
 
     if codecformat in (None, OPJ_CODEC_JP2, 'JP2'):
         codec_format = OPJ_CODEC_JP2
@@ -145,29 +151,44 @@ def jpeg2k_encode(
     else:
         raise ValueError('invalid codecformat')
 
-    signed = 1 if src.dtype in (numpy.int8, numpy.int16, numpy.int32) else 0
+    signed = 1 if src.dtype.kind == 'i' else 0
     prec = <OPJ_UINT32> src.itemsize * 8
     width = <OPJ_UINT32> src.shape[1]
     height = <OPJ_UINT32> src.shape[0]
     samples = 1 if src.ndim == 2 else <OPJ_UINT32> src.shape[2]
 
-    if samples > 4 and height <= 4:
-        # separate bands
-        samples = <OPJ_UINT32> src.shape[0]
-        width = <OPJ_UINT32> src.shape[1]
-        height = <OPJ_UINT32> src.shape[2]
-    elif samples > 1:
-        # contig
-        # TODO: avoid full copy
-        # TODO: does not work with e.g. contig (4, 4, 4)
-        src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
+    if samples > 1:
+        if planar or (planar is None and samples > 4 and height <= 4):
+            # separate bands
+            samples = <OPJ_UINT32> src.shape[0]
+            height = <OPJ_UINT32> src.shape[1]
+            width = <OPJ_UINT32> src.shape[2]
+        else:
+            # contig
+            # TODO: avoid full copy
+            src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
+
+    if bitspersample is not None:
+        if prec == 8:
+            if bitspersample > 0 and bitspersample < 8:
+                prec = bitspersample
+        elif prec == 16:
+            if bitspersample > 8 and bitspersample < 16:
+                prec = bitspersample
+        elif prec == 32:
+            if bitspersample > 16 and bitspersample < 32:
+                prec = bitspersample
+    if prec == 32:
+        # TODO: OpenJPEG currently only supports up to 31, effectively 26-bit?
+        prec = 26
 
     if tile:
         tile_height, tile_width = tile
         # if width % tile_width or height % tile_height:
         #     raise ValueError('invalid tiles')
-        raise NotImplementedError('writing tiles not implemented yet')
+        raise NotImplementedError('writing tiles not implemented yet')  # TODO
     else:
+        # TODO: use one tile for now. Other code path not implemented yet
         tile_height = height
         tile_width = width
 
@@ -185,7 +206,7 @@ def jpeg2k_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize + 2048  # ?
+            dstsize = srcsize + 2048  # TODO: ?
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -209,13 +230,13 @@ def jpeg2k_encode(
             for i in range(samples):
                 cmptparms[i].dx = 1  # subsampling
                 cmptparms[i].dy = 1
-                cmptparms[i].x0 = 0
-                cmptparms[i].y0 = 0
                 cmptparms[i].h = height
                 cmptparms[i].w = width
-                cmptparms[i].sgnd = signed
+                cmptparms[i].x0 = 0
+                cmptparms[i].y0 = 0
                 cmptparms[i].prec = prec
-                cmptparms[i].bpp = prec
+                # cmptparms[i].bpp = prec  # redundant, not required
+                cmptparms[i].sgnd = signed
 
             if tile_height > 0:
                 image = opj_image_tile_create(samples, cmptparms, color_space)
@@ -233,45 +254,69 @@ def jpeg2k_encode(
             image.color_space = color_space
             image.numcomps = samples
 
-            # set parameters
+            # Set encoding parameters to default values, that means:
+            # Lossless
+            # 1 tile
+            # Size of precinct : 2^15 x 2^15 (means 1 precinct)
+            # Size of code-block : 64 x 64
+            # Number of resolutions: 6
+            # No SOP marker in the codestream
+            # No EPH marker in the codestream
+            # No sub-sampling in x or y direction
+            # No mode switch activated
+            # Progression order: LRCP
+            # No index file
+            # No ROI upshifted
+            # No offset of the origin of the image
+            # No offset of the origin of the tiles
+            # Reversible DWT 5-3
             opj_set_default_encoder_parameters(&parameters)
 
-            parameters.tcp_numlayers = 1  # single quality layer
+            # single quality layer
+            parameters.tcp_numlayers = 1
 
-            if numresolution <= 1:
-                parameters.numresolution = 1
-                if quality == 0.0:
-                    # lossless
-                    parameters.irreversible = 0
-                    parameters.cp_disto_alloc = 1
-                    parameters.tcp_rates[0] = 0
-                else:
-                    # lossy
-                    parameters.irreversible = irreversible
-                    parameters.cp_fixed_quality = 1
-                    parameters.tcp_distoratio[0] = quality
+            # number of resolutions depends on tile size
+            parameters.numresolution = <int> (
+                (log(<double> min(tile_height, tile_width)) / log(2)) - 2
+            )
+            parameters.numresolution = min(
+                max(parameters.numresolution, 1), numresolution
+            )
+
+            if quality == 0.0:
+                # lossless
+                parameters.irreversible = 0
+                parameters.cp_disto_alloc = 1
+                parameters.tcp_rates[0] = 0
             else:
-                # multi-resolution
-                # TODO: enable this
+                # lossy
                 parameters.irreversible = irreversible
-                parameters.cp_fixed_quality = 1
+
+                # progression order resolution-position-component-layer
                 parameters.prog_order = OPJ_RPCL
-                parameters.cblockw_init = 64
-                parameters.cblockh_init = 64
-                # ? parameters.tcp_mct = 1 if samples >= 3 else 0
-                # ? parameters.csty = 1
-                parameters.numresolution = <int> (
-                    (log(<double> min(tile_height, tile_width)) / log(2)) - 4
-                )
-                parameters.numresolution = min(
-                    max(parameters.numresolution, 1), numresolution
-                )
-                # ? parameters.tcp_numlayers = parameters.numresolution - 1
+
+                # multiple component transform: rgb->ycc
+                if samples == 3:
+                    parameters.tcp_mct = <char> tcp_mct
+
+                # code block width and height
+                # parameters.cblockw_init = 64
+                # parameters.cblockh_init = 64
+
+                # fixed quality
+                parameters.cp_fixed_quality = 1
+                parameters.tcp_distoratio[0] = quality
+
+                # fixed rate
+                # parameters.cp_disto_alloc = 1
+                # parameters.tcp_rates[0] = quality
+
+                # precinct width and height
                 parameters.res_spec = parameters.numresolution
                 for i in range(parameters.res_spec):
-                    parameters.prch_init[i] = 256
                     parameters.prcw_init[i] = 256
-                    parameters.tcp_distoratio[i] = quality  # [i]
+                    parameters.prch_init[i] = 256
+                parameters.csty = 1
 
             if tile_height > 0:
                 parameters.tile_size_on = OPJ_TRUE
@@ -279,12 +324,6 @@ def jpeg2k_encode(
                 parameters.cp_ty0 = 0
                 parameters.cp_tdy = tile_height
                 parameters.cp_tdx = tile_width
-            else:
-                parameters.tile_size_on = OPJ_FALSE
-                parameters.cp_tx0 = 0
-                parameters.cp_ty0 = 0
-                parameters.cp_tdy = 0
-                parameters.cp_tdx = 0
 
             # create and setup encoder
             codec = opj_create_compress(codec_format)
@@ -314,12 +353,19 @@ def jpeg2k_encode(
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_setup_encoder failed')
 
+            if num_threads != 1 and opj_has_thread_support():
+                if num_threads == 0:
+                    num_threads = opj_get_num_cpus() / 2
+                ret = opj_codec_set_threads(codec, num_threads)
+                if ret == OPJ_FALSE:
+                    raise Jpeg2kError('opj_codec_set_threads failed')
+
             ret = opj_start_compress(codec, image, stream)
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_start_compress failed')
 
             if tile_height > 0:
-                # TODO: loop over tiles
+                # TODO: loop over tiles. Assume one tile for now
                 ret = opj_write_tile(
                     codec,
                     0,
@@ -328,8 +374,9 @@ def jpeg2k_encode(
                     stream
                 )
             else:
+                raise NotImplementedError
                 # TODO: copy data to image.comps[band].data[y, x]
-                ret = opj_encode(codec, stream)
+                # ret = opj_encode(codec, stream)
 
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_encode or opj_write_tile failed')
@@ -355,7 +402,14 @@ def jpeg2k_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpeg2k_decode(data, index=None, verbose=0, out=None):
+def jpeg2k_decode(
+    data,
+    index=None,
+    planar=None,
+    numthreads=None,
+    verbose=0,
+    out=None
+):
     """Decode JPEG 2000 J2K or JP2 image to numpy array.
 
     """
@@ -380,9 +434,11 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
         OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
         OPJ_UINT32 signed, prec, width, height, samples
-        ssize_t i, j
+        ssize_t i, j, k, bandsize
+        int num_threads = <int> _default_threads(numthreads)
         int verbosity = verbose
         bytes sig
+        bint contig = not planar
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -431,6 +487,13 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
             ret = opj_setup_decoder(codec, &parameters)
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_setup_decoder failed')
+
+            if num_threads != 1 and opj_has_thread_support():
+                if num_threads == 0:
+                    num_threads = opj_get_num_cpus() / 2
+                ret = opj_codec_set_threads(codec, num_threads)
+                if ret == OPJ_FALSE:
+                    raise Jpeg2kError('opj_codec_set_threads failed')
 
             ret = opj_read_header(stream, codec, &image)
             if ret == OPJ_FALSE:
@@ -483,69 +546,116 @@ def jpeg2k_decode(data, index=None, verbose=0, out=None):
             for i in range(samples):
                 comp = &image.comps[i]
                 if comp.sgnd != signed or comp.prec != prec:
+                    raise NotImplementedError('components dtype mismatch')
                     # TODO: support upcast
                     # use scale_component
-                    raise Jpeg2kError('components dtype mismatch')
                 if comp.w != width or comp.h != height:
-                # TODO: support upsampling
-                # use upsample_image_components in opj_decompress.c
-                    raise Jpeg2kError('subsampling not supported')
+                    raise NotImplementedError('subsampling not supported')
+                    # TODO: support upsampling
+                    # use upsample_image_components in opj_decompress.c
             if itemsize == 3:
                 itemsize = 4
             elif itemsize < 1 or itemsize > 4:
                 raise Jpeg2kError(f'unsupported itemsize {itemsize}')
 
         dtype = '{}{}'.format('i' if signed else 'u', itemsize)
-        if samples > 1:
+        if samples == 1:
+            shape = int(height), int(width)
+            contig = 0
+        elif contig:
             shape = int(height), int(width), int(samples)
         else:
-            shape = int(height), int(width)
+            shape = int(samples), int(height), int(width)
+
         out = _create_array(out, shape, dtype)
         dst = out
         dstsize = dst.size * itemsize
 
         with nogil:
+            # TODO: use OMP prange?
             # memset(<void*> dst.data, 0, dstsize)
-            # TODO: support separate in addition to contig samples
+            bandsize = height * width
             if itemsize == 1:
                 if signed:
-                    for i in range(samples):
-                        i1 = <int8_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            i1[j * samples] = <int8_t> band[j]
+                    if contig:
+                        for i in range(samples):
+                            i1 = <int8_t*> dst.data + i
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                i1[j * samples] = <int8_t> band[j]
+                    else:
+                        k = 0
+                        i1 = <int8_t*> dst.data
+                        for i in range(samples):
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                i1[k] = <int8_t> band[j]
+                                k += 1
                 else:
-                    for i in range(samples):
-                        u1 = <uint8_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            u1[j * samples] = <uint8_t> band[j]
+                    if contig:
+                        for i in range(samples):
+                            u1 = <uint8_t*> dst.data + i
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                u1[j * samples] = <uint8_t> band[j]
+                    else:
+                        k = 0
+                        u1 = <uint8_t*> dst.data
+                        for i in range(samples):
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                u1[k] = <uint8_t> band[j]
+                                k += 1
             elif itemsize == 2:
                 if signed:
-                    for i in range(samples):
-                        i2 = <int16_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            i2[j * samples] = <int16_t> band[j]
+                    if contig:
+                        for i in range(samples):
+                            i2 = <int16_t*> dst.data + i
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                i2[j * samples] = <int16_t> band[j]
+                    else:
+                        k = 0
+                        i2 = <int16_t*> dst.data
+                        for i in range(samples):
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                i2[k] = <int16_t> band[j]
+                                k += 1
                 else:
-                    for i in range(samples):
-                        u2 = <uint16_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            u2[j * samples] = <uint16_t> band[j]
-            elif itemsize == 4:
-                if signed:
-                    for i in range(samples):
-                        i4 = <int32_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            i4[j * samples] = <int32_t> band[j]
-                else:
-                    for i in range(samples):
-                        u4 = <uint32_t*> dst.data + i
-                        band = <int32_t*> image.comps[i].data
-                        for j in range(height * width):
-                            u4[j * samples] = <uint32_t> band[j]
+                    if contig:
+                        for i in range(samples):
+                            u2 = <uint16_t*> dst.data + i
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                u2[j * samples] = <uint16_t> band[j]
+                    else:
+                        k = 0
+                        u2 = <uint16_t*> dst.data
+                        for i in range(samples):
+                            band = <int32_t*> image.comps[i].data
+                            for j in range(bandsize):
+                                u2[k] = <uint16_t> band[j]
+                                k += 1
+            elif not contig:
+                for i in range(samples):
+                    memcpy(
+                        <void *> &dst.data[i * bandsize * 4],
+                        <void *> image.comps[i].data,
+                        bandsize * 4
+                    )
+            elif signed:
+                for i in range(samples):
+                    i4 = <int32_t*> dst.data + i
+                    band = <int32_t*> image.comps[i].data
+                    for j in range(bandsize):
+                        i4[j * samples] = <int32_t> band[j]
+            else:
+                for i in range(samples):
+                    u4 = <uint32_t*> dst.data + i
+                    band = <int32_t*> image.comps[i].data
+                    for j in range(bandsize):
+                        u4[j * samples] = <uint32_t> band[j]
 
     finally:
         if stream != NULL:
