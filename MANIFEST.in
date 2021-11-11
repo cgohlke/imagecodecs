@@ -23,6 +23,7 @@ include tests/*.bin
 include tests/*.npy
 include tests/*.zfp
 include tests/*.png
+include tests/*.icc
 include tests/*.jpg
 include tests/*.jxr
 include tests/*.j2k
@@ -34,6 +35,7 @@ include tests/*.avif
 include tests/*.webp
 include tests/*.br
 include tests/tiff/*.*
+include tests/lerc/testData/*.*
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
 
