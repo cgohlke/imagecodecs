@@ -37,7 +37,7 @@ The module is intended for testing and reference, not production code.
 
 """
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 import bz2
 import functools
@@ -350,9 +350,9 @@ def floatpred_decode(data, axis=-2, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')
+        raise NotImplementedError(f'dist {dist} not implemented')  # TODO
     if axis != -2:
-        raise NotImplementedError(f'axis {axis!r} != -2')
+        raise NotImplementedError(f'axis {axis!r} != -2')  # TODO
     shape = data.shape
     dtype = data.dtype
     if len(shape) < 3:
