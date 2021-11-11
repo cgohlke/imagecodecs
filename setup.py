@@ -109,7 +109,13 @@ OPTIONS = {
     'include_dirs': ['imagecodecs'],
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
-    'define_macros': [('WIN32', 1)] if sys.platform == 'win32' else [],
+    'define_macros': [
+        # ('CYTHON_LIMITED_API', '1'),
+        # ('Py_LIMITED_API', '1'),
+    ]
+    + [('WIN32', 1)]
+    if sys.platform == 'win32'
+    else [],
     'extra_compile_args': [],
     'extra_link_args': [],
     'cython_compile_time_env': {},
@@ -140,6 +146,7 @@ EXTENSIONS = {
     'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
     'brunsli': ext(libraries=['brunslidec-c', 'brunslienc-c']),
     'bz2': ext(libraries=['bz2']),
+    'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
     'gif': ext(libraries=['gif']),
     'jpeg2k': ext(
@@ -174,13 +181,20 @@ EXTENSIONS = {
         include_dirs=['3rdparty/liblzf'],
     ),
     'lzma': ext(libraries=['lzma']),
+    'mozjpeg': ext(libraries=['mozjpeg']),
     'pglz': ext(
         sources=['3rdparty/postgresql/pg_lzcompress.c'],
         include_dirs=['3rdparty/postgresql'],
     ),
-    'png': ext(libraries=['png', 'z']),
+    'png': ext(libraries=['png']),
     'rcomp': ext(libraries=['cfitsio', 'z']),
     'snappy': ext(libraries=['snappy']),
+    'spng': ext(
+        sources=['3rdparty/libspng/spng.c'],
+        include_dirs=['3rdparty/libspng'],
+        define_macros=[('SPNG_STATIC', 1)],
+        libraries=['z'],
+    ),
     # 'szip': ext(libraries=['szip']),
     'tiff': ext(libraries=['tiff']),
     'webp': ext(libraries=['webp']),
@@ -202,6 +216,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
     del EXTENSIONS['zlibng']  # zlib-ng library not commonly available
+    del EXTENSIONS['mozjpeg']  # Windows only
 
     if 'arch' not in platform.platform():
         del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
@@ -219,13 +234,18 @@ def customize_build_default(EXTENSIONS, OPTIONS):
         EXTENSIONS['zopfli']['include_dirs'].append('/usr/include/zopfli')
 
 
-def customize_build_cg(EXTENSIONS, OPTIONS):
+def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     """Customize build for Windows development environment with static libs."""
     from _inclib import INCLIB
 
     OPTIONS['include_dirs'].append(INCLIB)
     OPTIONS['library_dirs'].append(INCLIB)
 
+    # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
+    # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
+    # EXTENSIONS['szip']['libraries'] = ['szip_static']
+
+    EXTENSIONS['mozjpeg']['library_dirs'] = [INCLIB + 'mozjpeg']
     EXTENSIONS['avif']['libraries'] = [
         'avif',
         'aom',
@@ -239,16 +259,13 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
-    # EXTENSIONS['szip']['libraries'] = ['szip_static']
+    EXTENSIONS['png']['libraries'] = ['png', 'zlib']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
     EXTENSIONS['zlibng']['libraries'] = ['zlibstatic-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
-
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
     EXTENSIONS['jpegxr']['include_dirs'].append(INCLIB + 'jxrlib')
-    # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
-    # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
     EXTENSIONS['zfp']['extra_compile_args'] = ['/openmp']
     EXTENSIONS['blosc']['libraries'] = [
         'libblosc',
@@ -273,7 +290,7 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     EXTENSIONS['tiff']['define_macros'].append(('LZMA_API_STATIC', 1))
     EXTENSIONS['tiff']['libraries'] = [
         'tiff',
-        'z',
+        'zlib',
         'jpeg',
         'png',
         'webp',
@@ -312,8 +329,9 @@ def customize_build_cg(EXTENSIONS, OPTIONS):
     ]
 
 
-def customize_build_ci(EXTENSIONS, OPTIONS):
-    """Customize build for Czaki's CI environment."""
+def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
+    """Customize build for Czaki's cibuildwheel environment."""
+    del EXTENSIONS['mozjpeg']  # Windows only
 
     if not os.environ.get('SKIP_OMP', False):
         if sys.platform == 'darwin':
@@ -400,13 +418,15 @@ def customize_build_ci(EXTENSIONS, OPTIONS):
         del EXTENSIONS['lerc']
 
 
-def customize_build_cf(EXTENSIONS, OPTIONS):
+def customize_build_condaforge(EXTENSIONS, OPTIONS):
     """Customize build for conda-forge."""
 
     del EXTENSIONS['avif']
+    del EXTENSIONS['blosc2']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['zlibng']
+    del EXTENSIONS['mozjpeg']  # Windows only
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     EXTENSIONS['jpeg8']['cythonize'] = True
@@ -463,6 +483,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lz4f']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
+    del EXTENSIONS['mozjpeg']  # Windows only
 
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -470,10 +491,6 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4')
     )
-    EXTENSIONS['jpeg8']['cythonize'] = True
-    EXTENSIONS['jpeg8']['cython_compile_time_env'][
-        'HAVE_LIBJPEG_TURBO'
-    ] = False
 
 
 def customize_build_mingw(EXTENSIONS, OPTIONS):
@@ -498,16 +515,16 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
 
 # customize builds based on environment
 try:
-    from imagecodecs_distributor_setup import customize_build
+    from imagecodecs_distributor_setup import customize_build  # noqa
 except ImportError:
     if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
-        customize_build = customize_build_cg
+        customize_build = customize_build_cgohlke
+    elif os.environ.get('IMAGECODECS_CIBW', ''):
+        customize_build = customize_build_cibuildwheel
     elif os.environ.get('CONDA_BUILD', ''):
-        customize_build = customize_build_cf
+        customize_build = customize_build_condaforge
     elif shutil.which('port'):
         customize_build = customize_build_macports
-    elif os.environ.get('LD_LIBRARY_PATH', os.environ.get('LIBRARY_PATH', '')):
-        customize_build = customize_build_ci
     elif os.name == 'nt' and 'GCC' in sys.version:
         customize_build = customize_build_mingw
     else:
