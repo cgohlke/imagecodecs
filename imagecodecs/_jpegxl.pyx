@@ -37,30 +37,34 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2021.8.26'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
 from libjxl cimport *
 
+import enum
+
 
 class JPEGXL:
     """JPEG XL Constants."""
 
-    COLOR_SPACE_RGB = JXL_COLOR_SPACE_RGB
-    COLOR_SPACE_GRAY = JXL_COLOR_SPACE_GRAY
-    COLOR_SPACE_XYB = JXL_COLOR_SPACE_XYB
-    COLOR_SPACE_UNKNOWN = JXL_COLOR_SPACE_UNKNOWN
+    class COLOR_SPACE(enum.IntEnum):
+        UNKNOWN = JXL_COLOR_SPACE_UNKNOWN
+        RGB = JXL_COLOR_SPACE_RGB
+        GRAY = JXL_COLOR_SPACE_GRAY
+        XYB = JXL_COLOR_SPACE_XYB
 
-    CHANNEL_ALPHA = JXL_CHANNEL_ALPHA
-    CHANNEL_DEPTH = JXL_CHANNEL_DEPTH
-    CHANNEL_SPOT_COLOR = JXL_CHANNEL_SPOT_COLOR
-    CHANNEL_SELECTION_MASK = JXL_CHANNEL_SELECTION_MASK
-    CHANNEL_BLACK = JXL_CHANNEL_BLACK
-    CHANNEL_CFA = JXL_CHANNEL_CFA
-    CHANNEL_THERMAL = JXL_CHANNEL_THERMAL
-    CHANNEL_UNKNOWN = JXL_CHANNEL_UNKNOWN
-    CHANNEL_OPTIONAL = JXL_CHANNEL_OPTIONAL
+    class CHANNEL(enum.IntEnum):
+        UNKNOWN = JXL_CHANNEL_UNKNOWN
+        ALPHA = JXL_CHANNEL_ALPHA
+        DEPTH = JXL_CHANNEL_DEPTH
+        SPOT_COLOR = JXL_CHANNEL_SPOT_COLOR
+        SELECTION_MASK = JXL_CHANNEL_SELECTION_MASK
+        BLACK = JXL_CHANNEL_BLACK
+        CFA = JXL_CHANNEL_CFA
+        THERMAL = JXL_CHANNEL_THERMAL
+        OPTIONAL = JXL_CHANNEL_OPTIONAL
 
 
 class JpegxlError(RuntimeError):
@@ -155,9 +159,9 @@ def jpegxl_encode(
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = level is None or level < 0
         int option_tier = _default_value(level, 0, 0, 4)
-        int option_effort = _default_value(effort, 7, 3, 9)
+        int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 15.0)
-        size_t num_threads = _default_value(numthreads, 0, 0, 32)
+        size_t num_threads = <size_t> _default_threads(numthreads)
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -172,12 +176,8 @@ def jpegxl_encode(
     buffer_size = src.nbytes
     buffer = src.data
 
-    if not (
-        src.dtype.kind in 'uf'
-        and src.ndim in (2, 3, 4)
-        # and numpy.PyArray_ISCONTIGUOUS(src)
-    ):
-        raise ValueError('invalid input shape, strides, or dtype')
+    if not (src.dtype.kind in 'uf' and src.ndim in (2, 3, 4)):
+        raise ValueError('invalid data shape or dtype')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -191,11 +191,13 @@ def jpegxl_encode(
         dstsize = dst.nbytes
         compressed = output_new(<uint8_t*> &dst[0], dstsize)
     else:
-        compressed = output_new(NULL, max(1024, srcsize // 20))
+        compressed = output_new(
+            NULL, max(32768, srcsize // (4 if option_lossless else 16))
+        )
     if compressed == NULL:
         raise MemoryError('output_new failed')
 
-    memset(<void*> &basic_info, 0, sizeof(JxlBasicInfo))
+    JxlEncoderInitBasicInfo(&basic_info)
     memset(<void*> &pixel_format, 0, sizeof(JxlPixelFormat))
     memset(<void*> &color_encoding, 0, sizeof(JxlColorEncoding))
 
@@ -217,7 +219,7 @@ def jpegxl_encode(
         xsize = src.shape[2]
         samples = src.shape[3]
     else:
-        raise ValueError(f'{src.ndims} dimensions not supported')
+        raise ValueError(f'{src.ndim} dimensions not supported')
 
     colorspace = jpegxl_encode_photometric(photometric)
     if colorspace == -1:
@@ -248,22 +250,21 @@ def jpegxl_encode(
     elif dtype.byteorder == b'>':
         pixel_format.endianness = JXL_BIG_ENDIAN
 
-    if dtype == 'uint8':
+    if dtype == numpy.uint8:
         pixel_format.data_type = JXL_TYPE_UINT8
         basic_info.bits_per_sample = 8
-    elif dtype == 'uint16':
+    elif dtype == numpy.uint16:
         pixel_format.data_type = JXL_TYPE_UINT16
         basic_info.bits_per_sample = 16
-    elif dtype == 'uint32':
+    elif dtype == numpy.uint32:
         # TODO: raises JXL_ENC_NOT_SUPPORTED ?
         pixel_format.data_type = JXL_TYPE_UINT32
         basic_info.bits_per_sample = 32
-    elif dtype == 'float32':
+    elif dtype == numpy.float32:
         pixel_format.data_type = JXL_TYPE_FLOAT
         basic_info.bits_per_sample = 32
         basic_info.exponent_bits_per_sample = 8
-    elif dtype == 'float16':
-        # TODO: float16 is currently only supported in the decoder
+    elif dtype == numpy.float16:
         pixel_format.data_type = JXL_TYPE_FLOAT16
         basic_info.bits_per_sample = 16
         basic_info.exponent_bits_per_sample = 5
@@ -294,15 +295,16 @@ def jpegxl_encode(
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
 
-            runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-            if runner == NULL:
-                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            if num_threads > 1:
+                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
+                if runner == NULL:
+                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
 
-            status = JxlEncoderSetParallelRunner(
-                encoder, JxlThreadParallelRunner, runner
-            )
-            if status != JXL_ENC_SUCCESS:
-                raise JpegxlError('JxlEncoderSetParallelRunner', status)
+                status = JxlEncoderSetParallelRunner(
+                    encoder, JxlThreadParallelRunner, runner
+                )
+                if status != JXL_ENC_SUCCESS:
+                    raise JpegxlError('JxlEncoderSetParallelRunner', status)
 
             status = JxlEncoderSetBasicInfo(encoder, &basic_info)
             if status != JXL_ENC_SUCCESS:
@@ -386,7 +388,11 @@ def jpegxl_encode(
                         break
 
                     if output_resize(
-                        compressed, min(<size_t> 4194304, compressed.size * 2)
+                        compressed,
+                        min(
+                            compressed.size + <size_t> 33554432,  # 32 MB
+                            compressed.size * 2
+                        )
                     ) == 0:
                         raise RuntimeError('output_resize returned 0')
 
@@ -440,7 +446,7 @@ def jpegxl_decode(
         JxlSignature signature
         JxlBasicInfo basic_info
         JxlPixelFormat pixel_format
-        size_t num_threads = _default_value(numthreads, 0, 0, 32)
+        size_t num_threads = _default_threads(numthreads)
         bint keep_orientation = bool(keeporientation)
 
     signature = JxlSignatureCheck(&src[0], srcsize)
@@ -464,15 +470,16 @@ def jpegxl_decode(
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
 
-            runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-            if runner == NULL:
-                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            if num_threads > 1:
+                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
+                if runner == NULL:
+                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
 
-            status = JxlDecoderSetParallelRunner(
-                decoder, JxlThreadParallelRunner, runner
-            )
-            if status != JXL_DEC_SUCCESS:
-                raise JpegxlError('JxlDecoderSetParallelRunner', status)
+                status = JxlDecoderSetParallelRunner(
+                    decoder, JxlThreadParallelRunner, runner
+                )
+                if status != JXL_DEC_SUCCESS:
+                    raise JpegxlError('JxlDecoderSetParallelRunner', status)
 
             status = JxlDecoderSubscribeEvents(
                 decoder, JXL_DEC_BASIC_INFO | JXL_DEC_FULL_IMAGE
@@ -615,7 +622,7 @@ cdef object jpegxl_from_jpeg(
     out
 ):
     """Return JPEG XL from JPEG stream."""
-    raise NotImplementedError  # transcoding not yet supported by jpeg-xl
+    raise NotImplementedError  # TODO: transcoding not yet supported by libjxl
 
 
 cdef object jpegxl_to_jpeg(
@@ -624,7 +631,7 @@ cdef object jpegxl_to_jpeg(
     out
 ):
     """Return JPEG from JPEG XL stream."""
-    raise NotImplementedError  # transcoding not yet supported by jpeg-xl
+    raise NotImplementedError  # TODO: transcoding not yet supported by libjxl
 
 
 cdef int jpegxl_encode_photometric(photometric):
