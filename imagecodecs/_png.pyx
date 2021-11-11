@@ -37,7 +37,7 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2021.11.11'
 
 include '_shared.pxi'
 
@@ -70,7 +70,7 @@ def png_encode(data, level=None, out=None):
 
     """
     cdef:
-        numpy.ndarray src = data
+        numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -79,7 +79,7 @@ def png_encode(data, level=None, out=None):
         int color_type
         int bit_depth = src.itemsize * 8
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
-        int compresslevel = _default_value(level, 5, 0, 10)
+        int level_ = _default_value(level, -1, -1, 9)
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
@@ -97,7 +97,7 @@ def png_encode(data, level=None, out=None):
         and src.strides[src.ndim - 1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
-        raise ValueError('invalid input shape, strides, or dtype')
+        raise ValueError('invalid data shape, strides, or dtype')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -163,7 +163,7 @@ def png_encode(data, level=None, out=None):
             )
 
             png_write_info(png_ptr, info_ptr)
-            png_set_compression_level(png_ptr, compresslevel)
+            png_set_compression_level(png_ptr, level_)
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
@@ -300,7 +300,7 @@ def png_decode(data, index=None, out=None):
 
         out = _create_array(out, shape, dtype, strides)
         dst = out
-        rowptr = <png_bytep> &dst.data[0]
+        rowptr = <png_bytep> dst.data
         rowstride = dst.strides[0]
 
         with nogil:
@@ -334,7 +334,7 @@ cdef void png_warn_callback(
     png_structp png_ptr,
     png_const_charp msg
 ) with gil:
-    _log_warning('PNG %s', msg.decode().strip())
+    _log_warning('PNG warning: %s', msg.decode().strip())
 
 
 ctypedef struct mempng_t:
