@@ -423,7 +423,6 @@ def jpeg2k_decode(
         int32_t* i4
         int16_t* i2
         int8_t* i1
-        ssize_t dstsize
         ssize_t itemsize
         memopj_t memopj
         opj_codec_t* codec = NULL
@@ -569,11 +568,10 @@ def jpeg2k_decode(
 
         out = _create_array(out, shape, dtype)
         dst = out
-        dstsize = dst.size * itemsize
 
         with nogil:
             # TODO: use OMP prange?
-            # memset(<void*> dst.data, 0, dstsize)
+            # memset(<void*> dst.data, 0, dst.nbytes)
             bandsize = height * width
             if itemsize == 1:
                 if signed:
