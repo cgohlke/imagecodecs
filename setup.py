@@ -499,6 +499,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
+    del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -642,8 +643,8 @@ setup(
         # 'Documentation': 'https://',
     },
     python_requires='>=3.7',
-    install_requires=['numpy>=1.15.1'],
-    # setup_requires=['setuptools>=18.0', 'numpy>=1.15.1'],  # cython>=0.29.21
+    install_requires=['numpy>=1.16.5'],
+    # setup_requires=['setuptools>=18.0', 'numpy>=1.16.5'],  # cython>=0.29.21
     extras_require={
         'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11', 'numcodecs']
     },
@@ -652,10 +653,12 @@ setup(
         'tifffile',
         'czifile',
         'blosc',
+        'blosc2; platform_python_implementation!="PyPy"',
         'zstd',
         'lz4',
         'python-lzf',
-        'bitshuffle',
+        'python-snappy',
+        'bitshuffle',  # git+https://github.com/cgohlke/bitshuffle@patch-1
         'zopflipy',
         'zarr',
         'numcodecs'
