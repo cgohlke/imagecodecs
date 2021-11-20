@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.11.11'
+__version__ = '2021.11.20'
 
 __all__ = ('register_codecs',)
 
@@ -268,15 +268,16 @@ class Cms(Codec):
 
     codec_id = 'imagecodecs_cms'
 
-    def __init__(self, profilein, profileout):
-        self.profilein = profilein
-        self.profileout = profileout
+    def __init__(self, *args, **kwargs):
+        pass
 
     def encode(self, buf, out=None):
-        return imagecodecs.cms_transform(buf, self.profilein, self.profileout)
+        # return imagecodecs.cms_transform(buf)
+        raise NotImplementedError
 
     def decode(self, buf, out=None):
-        return imagecodecs.cms_transform(buf, self.profileout, self.profilein)
+        # return imagecodecs.cms_transform(buf)
+        raise NotImplementedError
 
 
 class Deflate(Codec):
