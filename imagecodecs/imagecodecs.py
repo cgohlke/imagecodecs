@@ -52,7 +52,7 @@ Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.11.11
+:Version: 2021.11.20
 
 :Status: Alpha
 
@@ -61,7 +61,7 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.10, 3.9.8, 3.10.0, 64-bit <https://www.python.org>`_
+* `CPython 3.7.9, 3.8.10, 3.9.9, 3.10.0, 64-bit <https://www.python.org>`_
 * `Cython 0.29.24 <https://cython.org>`_
 * `Numpy 1.21.4 <https://pypi.org/project/numpy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
@@ -77,13 +77,13 @@ This release has been tested with the following requirements and dependencies
 * `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
 * `lerc 3.0 <https://github.com/Esri/lerc>`_
 * `libaec 1.0.6 <https://gitlab.dkrz.de/k202009/libaec>`_
-* `libavif 0.9.2 <https://github.com/AOMediaCodec/libavif>`_
-  (`aom 3.1.3 <https://aomedia.googlesource.com/aom>`_,
+* `libavif 0.9.3 <https://github.com/AOMediaCodec/libavif>`_
+  (`aom 3.2.0 <https://aomedia.googlesource.com/aom>`_,
   `dav1d 0.9.2 <https://github.com/videolan/dav1d>`_,
   `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_)
 * `libdeflate 1.8 <https://github.com/ebiggers/libdeflate>`_
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
-* `libjpeg-turbo 2.1.1 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+* `libjpeg-turbo 2.1.2 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
 * `libjxl 0.6.1 <https://github.com/libjxl/libjxl>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
@@ -114,7 +114,7 @@ Required Python packages for testing (other versions may work):
 * `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `numcodecs 0.9.1 <https://github.com/zarr-developers/numcodecs>`_
-* `zarr 2.10.2 <https://github.com/zarr-developers/zarr-python>`_
+* `zarr 2.10.3 <https://github.com/zarr-developers/zarr-python>`_
 * `zopflipy 1.7 <https://github.com/hattya/zopflipy>`_
 
 Notes
@@ -135,9 +135,9 @@ MacOS wheels may not be available for latest releases. Consider using
 Some codecs are currently decode-only: ``tiff``, ``lzw``, ``packints``, and
 ``jpegsof3``.
 
-The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017
-and 2019 <https://support.microsoft.com/en-us/help/2977003/
-the-latest-supported-visual-c-downloads>`_ is required on Windows.
+The latest `Microsoft Visual C++ Redistributable for Visual Studio 2015-2022
+<https://docs.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist>`_
+is required on Windows.
 
 Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
@@ -223,8 +223,10 @@ Other Python packages and C libraries providing imaging or compression codecs:
 
 Revisions
 ---------
+2021.11.20
+    Pass 5949 tests.
+    Fix testing on pypy and Python 3.10.
 2021.11.11
-    Pass 5947 tests.
     Require libjxl 0.6.x.
     Add CMS codec via Little CMS library for color space transformations (WIP).
     Add MOZJPEG codec via mozjpeg library (Windows only).
@@ -379,7 +381,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2021.11.11'
+__version__ = '2021.11.20'
 
 import os
 import sys
