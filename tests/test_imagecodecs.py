@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.11.11
+:Version: 2021.11.20
 
 """
 
@@ -140,6 +140,7 @@ def test_module_exist(name):
         'lzf',
         'lzma',
         'numcodecs',
+        'snappy',
         'tifffile',
         'zopfli',
         'zstd',
@@ -149,8 +150,11 @@ def test_module_exist(name):
 def test_dependency_exist(name):
     """Assert third-party Python packages are present."""
     mayfail = not IS_CG and not IS_CIBW
-    if SKIP_NUMCODECS and IS_MAC and IS_PYPY:
+    if SKIP_NUMCODECS and IS_PYPY:
         mayfail = True
+    elif name in ('blosc2', 'snappy'):
+        if IS_PYPY or sys.version_info[1] >= 10:
+            mayfail = True
     try:
         importlib.import_module(name)
     except ImportError:
@@ -435,12 +439,12 @@ def test_packbits_array(codec, output, dtype):
     decode = imagecodecs.packbits_decode
     uncompressed, compressed = PACKBITS_DATA[-1]
     shape = (2, 7, len(uncompressed) // dtype.itemsize)
-    data = numpy.empty(shape, dtype=dtype)
+    data = numpy.zeros(shape, dtype=dtype)
     data[..., :] = numpy.frombuffer(uncompressed, dtype=dtype)
     compressed = compressed * (shape[0] * shape[1])
     if codec == 'encode':
         if output == 'array':
-            out = numpy.empty(data.nbytes, 'uint8')
+            out = numpy.zeros(data.nbytes, 'uint8')
             assert_array_equal(
                 encode(data, out=out),
                 numpy.frombuffer(compressed, dtype=dtype).view('uint8'),
@@ -449,7 +453,7 @@ def test_packbits_array(codec, output, dtype):
             assert encode(data) == compressed
     else:
         if output == 'array':
-            out = numpy.empty(data.nbytes, 'uint8')
+            out = numpy.zeros(data.nbytes, 'uint8')
             assert_array_equal(
                 decode(compressed, out=out), data.flatten().view('uint8')
             )
@@ -628,12 +632,12 @@ def test_floatpred(planar, endian, output, codec):
                 elif codec == 'encode':
                     assert_array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
-                out = numpy.empty_like(data)
+                out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
                     assert_array_equal(out, data)
                 elif codec == 'encode':
-                    out = numpy.empty_like(data)
+                    out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
         elif endian == 'be':
@@ -648,12 +652,12 @@ def test_floatpred(planar, endian, output, codec):
                 elif codec == 'encode':
                     assert_array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
-                out = numpy.empty_like(data)
+                out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
                     assert_array_equal(out, data)
                 elif codec == 'encode':
-                    out = numpy.empty_like(data)
+                    out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
     else:
@@ -670,12 +674,12 @@ def test_floatpred(planar, endian, output, codec):
                 elif codec == 'encode':
                     assert_array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
-                out = numpy.empty_like(data)
+                out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
                     assert_array_equal(out, data)
                 elif codec == 'encode':
-                    out = numpy.empty_like(data)
+                    out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
         elif endian == 'be':
@@ -690,12 +694,12 @@ def test_floatpred(planar, endian, output, codec):
                 elif codec == 'encode':
                     assert_array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
-                out = numpy.empty_like(data)
+                out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
                     assert_array_equal(out, data)
                 elif codec == 'encode':
-                    out = numpy.empty_like(data)
+                    out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
                     assert_array_equal(out, encoded)
 
@@ -849,7 +853,7 @@ def test_lzw_decode(output):
         # with pytest.raises(RuntimeError):
         decode(encoded, buffersize=32, out=decoded_size)
     elif output == 'ndarray':
-        decoded = numpy.empty_like(BYTESIMG)
+        decoded = numpy.zeros_like(BYTESIMG)
         decode(encoded, out=decoded.reshape(-1))
         delta_decode(decoded, out=decoded, axis=-1)
         assert_array_equal(BYTESIMG, decoded)
@@ -931,6 +935,8 @@ def test_compressors(codec, func, output, length):
     elif codec == 'blosc2':
         if not imagecodecs.BLOSC2 or blosc2 is None:
             pytest.skip(f'{codec} missing')
+        if IS_PYPY:
+            pytest.xfail('blosc2.compress fails under PyPy')
         encode = imagecodecs.blosc2_encode
         decode = imagecodecs.blosc2_decode
         check = imagecodecs.blosc2_check
@@ -1283,7 +1289,7 @@ def test_aec_extended(name, dtype):
         out = size
     else:
         dat = numpy.fromfile(filename, 'uint32').reshape(512, 512)
-        out = numpy.empty_like(dat)
+        out = numpy.zeros_like(dat)
 
     # decode
     decoded = decode(
@@ -1460,11 +1466,11 @@ def test_rcomp(dtype, case):
         decoded = decoded.reshape(data.shape)
         assert_array_equal(data, decoded)
     elif case == 3:
-        out = numpy.empty_like(data)
+        out = numpy.zeros_like(data)
         decode(encoded, out=out)
         assert_array_equal(data, out)
     elif case == 4:
-        out = numpy.empty_like(data)
+        out = numpy.zeros_like(data)
         decode(encoded, shape=data.shape, dtype=data.dtype, out=out)
         assert_array_equal(data, out)
 
@@ -1699,7 +1705,7 @@ def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
     outshape = (3, 256, 253) if outplanar else (256, 253, 3)
     outdtype = numpy.dtype(outdtype)
     if out:
-        out = numpy.empty(outshape, outdtype)
+        out = numpy.zeros(outshape, outdtype)
         outshape = None
         outdtype = None
 
@@ -1803,7 +1809,7 @@ def test_jpeg8_decode(output):
     if output == 'new':
         decoded = decode(data, tables=tables)
     elif output == 'out':
-        decoded = numpy.empty_like(BYTESIMG)
+        decoded = numpy.zeros_like(BYTESIMG)
         decode(data, tables=tables, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(BYTESIMG.size * BYTESIMG.itemsize)
@@ -1822,7 +1828,7 @@ def test_jpeg12_decode(output):
     if output == 'new':
         decoded = decode(data, tables=tables)
     elif output == 'out':
-        decoded = numpy.empty_like(WORDSIMG)
+        decoded = numpy.zeros_like(WORDSIMG)
         decode(data, tables=tables, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(WORDSIMG.size * WORDSIMG.itemsize)
@@ -1888,7 +1894,7 @@ def test_jpegsof3(fname, output, codec):
     if output == 'new':
         decoded = decode(data)
     elif output == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(535 * 800 * numpy.dtype(dtype).itemsize)
@@ -1913,7 +1919,7 @@ def test_jpegxr_decode(output):
     if output == 'new':
         decoded = decode(data)
     elif output == 'out':
-        decoded = numpy.empty_like(image)
+        decoded = numpy.zeros_like(image)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(image.size * image.itemsize)
@@ -1964,7 +1970,7 @@ def test_jpegls_decode(output):
     if output == 'new':
         decoded = decode(data)
     elif output == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(shape[0] * shape[1] * shape[2])
@@ -1990,7 +1996,7 @@ def test_brunsli_decode(output):
     if output == 'new':
         decoded = decode(data)
     elif output == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(shape[0] * shape[1] * shape[2])
@@ -2037,7 +2043,7 @@ def test_webp_decode(output):
     if output == 'new':
         decoded = decode(data)
     elif output == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(shape[0] * shape[1] * shape[2])
@@ -2080,7 +2086,7 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     if enout == 'new':
         pass
     elif enout == 'out':
-        encoded = numpy.empty(len(encoded), 'uint8')
+        encoded = numpy.zeros(len(encoded), 'uint8')
         encode(data, out=encoded, **kwargs)
     elif enout == 'bytearray':
         encoded = bytearray(len(encoded))
@@ -2089,10 +2095,10 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     if deout == 'new':
         decoded = decode(encoded)
     elif deout == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(encoded, out=decoded)
     elif deout == 'view':
-        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         decoded = temp[2 : 2 + shape[0], 3 : 3 + shape[1], :]
         decode(encoded, out=decoded)
     elif deout == 'bytearray':
@@ -2138,7 +2144,7 @@ def test_lerc(dtype, itype, enout, deout, planar, level, version=None):
     if enout == 'new':
         pass
     elif enout == 'out':
-        encoded = numpy.empty(len(encoded), 'uint8')
+        encoded = numpy.zeros(len(encoded), 'uint8')
         encode(data, out=encoded, **kwargs)
     elif enout == 'bytearray':
         encoded = bytearray(len(encoded))
@@ -2147,7 +2153,7 @@ def test_lerc(dtype, itype, enout, deout, planar, level, version=None):
     if deout == 'new':
         decoded = decode(encoded)
     elif deout == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         out = decoded if planar else numpy.squeeze(decoded)
         decode(encoded, out=out)
     elif deout == 'bytearray':
@@ -2179,7 +2185,7 @@ def test_lerc_files(file):
 
     decoded = imagecodecs.lerc_decode(encoded, masks=False)
     decoded1, masks = imagecodecs.lerc_decode(encoded, masks=True)
-    out = numpy.empty_like(masks)
+    out = numpy.zeros_like(masks)
     decoded1, _ = imagecodecs.lerc_decode(encoded, masks=out)
 
     assert_array_equal(decoded, decoded1)
@@ -2245,7 +2251,7 @@ def test_lerc_masks():
     assert_array_equal(masks[:3], masks1)
 
     # out
-    out = numpy.empty_like(masks[:3])
+    out = numpy.zeros_like(masks[:3])
     decoded, _ = imagecodecs.lerc_decode(encoded, masks=out)
     assert_array_equal(masks[:3], out)
 
@@ -2264,7 +2270,7 @@ def test_jpeg2k_int8_4bit(output):
     if output == 'new':
         decoded = decode(data, verbose=2)
     elif output == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(data, out=decoded)
     elif output == 'bytearray':
         decoded = bytearray(shape[0] * shape[1])
@@ -2432,7 +2438,7 @@ def test_jpegxr(itype, enout, deout, level):
     if enout == 'new':
         pass
     elif enout == 'out':
-        encoded = numpy.empty(len(encoded), 'uint8')
+        encoded = numpy.zeros(len(encoded), 'uint8')
         encode(data, out=encoded, **kwargs)
     elif enout == 'bytearray':
         encoded = bytearray(len(encoded))
@@ -2441,10 +2447,10 @@ def test_jpegxr(itype, enout, deout, level):
     if deout == 'new':
         decoded = decode(encoded)
     elif deout == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'view':
-        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         decoded = temp[2 : 2 + shape[0], 3 : 3 + shape[1], :]
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'bytearray':
@@ -2658,7 +2664,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if enout == 'new':
         encoded = encode(data, level=level)
     elif enout == 'out':
-        encoded = numpy.empty(
+        encoded = numpy.zeros(
             2 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
         )
         ret = encode(data, level=level, out=encoded)
@@ -2678,10 +2684,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if deout == 'new':
         decoded = decode(encoded)
     elif deout == 'out':
-        decoded = numpy.empty(shape, dtype)
+        decoded = numpy.zeros(shape, dtype)
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'view':
-        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         decoded = temp[2 : 2 + shape[0], 3 : 3 + shape[1], :]
         decode(encoded, out=numpy.squeeze(decoded))
     elif deout == 'bytearray':
@@ -2737,7 +2743,7 @@ def test_gif_roundtrips(index, itype, enout, deout):
     if enout == 'new':
         encoded = encode(data)
     elif enout == 'out':
-        encoded = numpy.empty(2 * data.size, 'uint8')
+        encoded = numpy.zeros(2 * data.size, 'uint8')
         encode(data, out=encoded)
     elif enout == 'bytearray':
         encoded = bytearray(2 * data.size)
@@ -2748,7 +2754,7 @@ def test_gif_roundtrips(index, itype, enout, deout):
     if deout == 'new':
         decoded = decode(encoded, index=index)
     elif deout == 'out':
-        decoded = numpy.empty(shaped, dtype)
+        decoded = numpy.zeros(shaped, dtype)
         decode(encoded, index=index, out=numpy.squeeze(decoded))
     elif deout == 'bytearray':
         decoded = bytearray(sized)
@@ -3020,6 +3026,7 @@ def test_numcodecs_register(caplog):
         'blosc2',
         # 'brotli',  # failing
         'bz2',
+        # 'cms',
         'deflate',
         'delta',
         'float24',
@@ -3440,7 +3447,7 @@ def image_data(itype, dtype):
 
     if itype == 'view':
         shape = data.shape
-        temp = numpy.empty((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
+        temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         temp[2 : 2 + shape[0], 3 : 3 + shape[1], :] = data
         data = temp[2 : 2 + shape[0], 3 : 3 + shape[1], :]
 
