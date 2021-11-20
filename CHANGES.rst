@@ -1,7 +1,9 @@
 Revisions
 ---------
+2021.11.20
+    Pass 5949 tests.
+    Fix testing on pypy and Python 3.10.
 2021.11.11
-    Pass 5947 tests.
     Require libjxl 0.6.x.
     Add CMS codec via Little CMS library for color space transformations (WIP).
     Add MOZJPEG codec via mozjpeg library (Windows only).
