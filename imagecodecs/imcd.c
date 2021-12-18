@@ -1,7 +1,7 @@
 /* imcd.c */
 
 /*
-Copyright (c) 2008-2021, Christoph Gohlke.
+Copyright (c) 2008-2022, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -555,7 +555,12 @@ ssize_t imcd_floatpred(
 
 /********************************* PackBits **********************************/
 
-/* Section 9: PackBits Compression. TIFF Revision 6.0 Final. June 3, 1992 */
+/* Section 9: PackBits Compression. TIFF Revision 6.0 Final. 1992
+
+TIFF compression type 32773, a simple byte-oriented run-length scheme.
+
+*/
+
 /* Apple Technical Note TN1023. Understanding PackBits. Feb 1, 1996 */
 
 /* Return length of uncompressed PackBits. */
@@ -773,6 +778,83 @@ ssize_t imcd_packbits_encode(
 }
 
 
+/********************************* CCITTRLE **********************************/
+
+/* Section 10: Modified Huffman Compression. TIFF Revision 6.0 Final. 1992
+
+TIFF compression scheme 2, a method for compressing bilevel data based on the
+CCITT Group 3 1D facsimile compression scheme.
+
+*/
+
+/* Return length of ompressed CCITTRLE. */
+ssize_t imcd_ccittrle_encode_size(
+    const ssize_t srcsize)
+{
+    return IMCD_NOTIMPLEMENTED_ERROR;
+}
+
+
+ssize_t imcd_ccittrle_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize)
+{
+    return IMCD_NOTIMPLEMENTED_ERROR;
+}
+
+
+/* Return length of uncompressed CCITTRLE. */
+ssize_t imcd_ccittrle_decode_size(
+    const uint8_t* src,
+    const ssize_t srcsize)
+{
+    uint8_t* srcptr = (uint8_t*)src;
+    const uint8_t* srcend = srcptr + srcsize;
+    ssize_t dstsize = 0;
+
+    if ((srcptr == NULL) || (srcsize < 0)) {
+        return IMCD_VALUE_ERROR;
+    }
+
+    return IMCD_NOTIMPLEMENTED_ERROR;
+
+    while (srcptr < srcend) {
+
+    }
+    return dstsize;
+}
+
+
+/* Decode CCITTRLE. */
+ssize_t imcd_ccittrle_decode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize)
+{
+    uint8_t* srcptr = (uint8_t*)src;
+    uint8_t* dstptr = dst;
+    const uint8_t* srcend = srcptr + srcsize;
+    const uint8_t* dstend = dstptr + dstsize;
+    uint8_t e;
+    ssize_t n;
+
+    if ((srcptr == NULL) || (srcsize < 0) || (dstptr == NULL) || (dstsize < 0))
+    {
+        return IMCD_VALUE_ERROR;
+    }
+
+    return IMCD_NOTIMPLEMENTED_ERROR;
+
+    while (srcptr < srcend) {
+
+    }
+    return (ssize_t)(dstptr - dst);
+}
+
+
 /***************************** Packed Integers *******************************/
 
 typedef union {
@@ -892,19 +974,19 @@ ssize_t imcd_packints_decode(
     /* 3, 5, 6, 7 */
     if (bps < 8) {
         int shr = 16;
-        u_uint16_t value, mask, tmp;
+        u_uint16_t val, mask, tmp;
         j = k = 0;
-        value.b[IMCD_MSB] = src[j++];
-        value.b[IMCD_LSB] = src[j++];
+        val.b[IMCD_MSB] = src[j++];
+        val.b[IMCD_LSB] = src[j++];
         mask.b[IMCD_MSB] = imcd_bitmask(bps);
         mask.b[IMCD_LSB] = 0;
         for (i = 0; i < dstsize; i++) {
             shr -= bps;
-            tmp.i = (value.i & mask.i) >> shr;
+            tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[IMCD_LSB];
             if (shr < bps) {
-                value.b[IMCD_MSB] = value.b[IMCD_LSB];
-                value.b[IMCD_LSB] = src[j++];
+                val.b[IMCD_MSB] = val.b[IMCD_LSB];
+                val.b[IMCD_LSB] = src[j++];
                 mask.i <<= 8 - bps;
                 shr += 8;
             }
@@ -917,25 +999,25 @@ ssize_t imcd_packints_decode(
     /* 9, 10, 11, 12, 13, 14, 15 */
     if (bps < 16) {
         int shr = 32;
-        u_uint32_t value, mask, tmp;
+        u_uint32_t val, mask, tmp;
         mask.i = 0;
         j = k = 0;
 #if IMCD_MSB
         for (i = 3; i >= 0; i--) {
-            value.b[i] = src[j++];
+            val.b[i] = src[j++];
         }
         mask.b[3] = 0xFF;
         mask.b[2] = imcd_bitmask(bps-8);
         for (i = 0; i < dstsize; i++) {
             shr -= bps;
-            tmp.i = (value.i & mask.i) >> shr;
+            tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
             dst[k++] = tmp.b[1];
             if (shr < bps) {
-                value.b[3] = value.b[1];
-                value.b[2] = value.b[0];
-                value.b[1] = j < srcsize ? src[j++] : 0;
-                value.b[0] = j < srcsize ? src[j++] : 0;
+                val.b[3] = val.b[1];
+                val.b[2] = val.b[0];
+                val.b[1] = j < srcsize ? src[j++] : 0;
+                val.b[0] = j < srcsize ? src[j++] : 0;
                 mask.i <<= 16 - bps;
                 shr += 16;
             }
@@ -951,12 +1033,12 @@ ssize_t imcd_packints_decode(
     /* 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 */
     if (bps < 32) {
         int shr = 64;
-        u_uint64_t value, mask, tmp;
+        u_uint64_t val, mask, tmp;
         mask.i = 0;
         j = k = 0;
 #if IMCD_MSB
         for (i = 7; i >= 0; i--) {
-            value.b[i] = src[j++];
+            val.b[i] = src[j++];
         }
         mask.b[7] = 0xFF;
         mask.b[6] = 0xFF;
@@ -964,20 +1046,20 @@ ssize_t imcd_packints_decode(
         mask.b[4] = bps < 24 ? 0x00 : imcd_bitmask(bps - 24);
         for (i = 0; i < dstsize; i++) {
             shr -= bps;
-            tmp.i = (value.i & mask.i) >> shr;
+            tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
             dst[k++] = tmp.b[1];
             dst[k++] = tmp.b[2];
             dst[k++] = tmp.b[3];
             if (shr < bps) {
-                value.b[7] = value.b[3];
-                value.b[6] = value.b[2];
-                value.b[5] = value.b[1];
-                value.b[4] = value.b[0];
-                value.b[3] = j < srcsize ? src[j++] : 0;
-                value.b[2] = j < srcsize ? src[j++] : 0;
-                value.b[1] = j < srcsize ? src[j++] : 0;
-                value.b[0] = j < srcsize ? src[j++] : 0;
+                val.b[7] = val.b[3];
+                val.b[6] = val.b[2];
+                val.b[5] = val.b[1];
+                val.b[4] = val.b[0];
+                val.b[3] = j < srcsize ? src[j++] : 0;
+                val.b[2] = j < srcsize ? src[j++] : 0;
+                val.b[1] = j < srcsize ? src[j++] : 0;
+                val.b[0] = j < srcsize ? src[j++] : 0;
                 mask.i <<= 32 - bps;
                 shr += 32;
             }
@@ -1017,13 +1099,14 @@ ssize_t imcd_packints_encode(
 
 /********************************** Float24 **********************************/
 
-/*
-Adobe Photoshop(r) TIFF Technical Note 3. April 8, 2005.
+/* Adobe Photoshop(r) TIFF Technical Note 3. April 8, 2005.
+
 24 bit floating point numbers have 1 sign bit, 7 exponent bits (biased by 64),
 and 16 mantissa bits. The interpretation of the sign, exponent and mantissa
 is analogous to IEEE-754 floating-point numbers. The 24 bit floating point
 format supports normalized and denormalized numbers, infinities and NANs
 (Not A Number).
+
 */
 
 ssize_t imcd_float24_decode(
@@ -1093,7 +1176,7 @@ ssize_t imcd_float24_decode(
                 } while ((mantissa & 0x10000) == 0);
                 s2 = mantissa & 0xFF;
                 s1 = (mantissa >> 8) & 0xFF;
-                exponent = exponent - 63 + 127 - shift;  /* change bias */
+                exponent = exponent - 63 + 127 - (uint8_t) shift;  /* change bias */
             }
             else {
                 /* normalized */
@@ -1295,7 +1378,11 @@ ssize_t imcd_float24_encode(
 
 /************************************ LZW ************************************/
 
-/* Section 13: LZW Compression. TIFF Revision 6.0 Final. June 3, 1992 */
+/* Section 13: LZW Compression. TIFF Revision 6.0 Final. 1992
+
+TIFF compression scheme 5, an adaptive compression scheme for raster images.
+
+*/
 
 /* LZW table size is 4098 + 1024 buffer for old style */
 #define LZW_TABLESIZE 5120
@@ -1679,7 +1766,7 @@ ssize_t imcd_lzw_decode(
 
             remaining--;
 
-            *dst++ = code;
+            *dst++ = (uint8_t) code;
             oldcode = code;
             continue;
         }
@@ -1705,14 +1792,14 @@ ssize_t imcd_lzw_decode(
                 }
                 if (handle->buffer != oldbuffer) {
                     /* correct pointers */
-                    uint32_t i;
+                    uint32_t j;
                     const ssize_t bufferdiff = handle->buffer - oldbuffer;
 
-                    for (i = 256; i < tablesize; i++) {
-                        if ((table[i].buf >= oldbuffer) &&
-                            (table[i].buf < buffer))
+                    for (j = 256; j < tablesize; j++) {
+                        if ((table[j].buf >= oldbuffer) &&
+                            (table[j].buf < buffer))
                         {
-                            table[i].buf += bufferdiff;
+                            table[j].buf += bufferdiff;
                         }
                     }
                 }
@@ -1724,7 +1811,7 @@ ssize_t imcd_lzw_decode(
             /* decompressed.append(table[code]) */
             if (code < 256) {
                 remaining--;
-                *dst++ = code;
+                *dst++ = (uint8_t) code;
             }
             else {
                 uint8_t* pstr = table[code].buf;
@@ -1740,7 +1827,7 @@ ssize_t imcd_lzw_decode(
             /* table.append(table[oldcode] + table[code][0]) */
             table[tablesize].buf = buffer;
             if (oldcode < 256) {
-                *buffer++ = oldcode;
+                *buffer++ = (uint8_t) oldcode;
             }
             else {
                 uint8_t* pstr = table[oldcode].buf;
@@ -1749,7 +1836,7 @@ ssize_t imcd_lzw_decode(
                 }
             }
             if (code < 256) {
-                *buffer++ = code;
+                *buffer++ = (uint8_t) code;
             }
             else {
                 *buffer++ = table[code].buf[0];
@@ -1767,9 +1854,9 @@ ssize_t imcd_lzw_decode(
             table[tablesize].buf = dst;
             if (oldcode < 256) {
                 remaining--;
-                *dst++ = oldcode;
+                *dst++ = (uint8_t) oldcode;
                 if (--remaining < 0) break;
-                *dst++ = oldcode;
+                *dst++ = (uint8_t) oldcode;
             }
             else {
                 uint8_t* pstr = table[oldcode].buf;
