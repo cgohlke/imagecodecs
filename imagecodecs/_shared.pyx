@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -279,7 +279,7 @@ cdef _default_value(value, default, smallest, largest):
 cdef size_t _default_threads(numthreads):
     """Return default number of threads or value in range."""
     if numthreads is None:
-        return 0  # return 1 to disable multi-threading by default
+        return 1
     if numthreads <= 0:
         return 0
     if numthreads >= 32:
