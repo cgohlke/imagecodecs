@@ -1,7 +1,7 @@
 # imagecodecs/zstd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zstd 1.5.0` library (aka Zstandard).
+# Cython declarations for the `zstd 1.5.2` library (aka Zstandard).
 # https://github.com/facebook/zstd
 
 cdef extern from 'zstd.h':
@@ -471,7 +471,6 @@ cdef extern from 'zstd.h':
     int ZSTD_TARGETCBLOCKSIZE_MAX
     int ZSTD_SRCSIZEHINT_MIN
     int ZSTD_SRCSIZEHINT_MAX
-    int ZSTD_HASHLOG3_MAX
 
     ctypedef struct ZSTD_CCtx_params:
         pass
@@ -574,6 +573,26 @@ cdef extern from 'zstd.h':
         size_t inSeqsSize,
         const void* src,
         size_t srcSize
+    ) nogil
+
+    size_t ZSTD_writeSkippableFrame(
+        void* dst,
+        size_t dstCapacity,
+        const void* src,
+        size_t srcSize,
+        unsigned magicVariant
+    ) nogil
+
+    size_t ZSTD_readSkippableFrame(
+        void* dst,
+        size_t dstCapacity,
+        unsigned* magicVariant,
+        const void* src, size_t srcSize
+    ) nogil
+
+    unsigned ZSTD_isSkippableFrame(
+        const void* buffer,
+        size_t size
     ) nogil
 
     size_t ZSTD_estimateCCtxSize(
@@ -827,7 +846,7 @@ cdef extern from 'zstd.h':
     int ZSTD_c_stableOutBuffer
     int ZSTD_c_blockDelimiters
     int ZSTD_c_validateSequences
-    int ZSTD_c_splitBlocks
+    int ZSTD_c_useBlockSplitter
     int ZSTD_c_useRowMatchFinder
     int ZSTD_c_deterministicRefPrefix
 
