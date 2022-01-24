@@ -3,7 +3,10 @@
 
 # Include file for imagecodecs extensions.
 
+import enum
+
 import numpy
+
 cimport numpy
 cimport cython
 
