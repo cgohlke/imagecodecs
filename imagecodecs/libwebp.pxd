@@ -1,7 +1,7 @@
 # imagecodecs/libwebp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libwebp 1.2.0` library.
+# Cython declarations for the `libwebp 1.2.2` library.
 # https://github.com/webmproject/libwebp
 
 from libc.stdint cimport uint8_t, uint32_t
