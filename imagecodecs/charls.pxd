@@ -1,7 +1,7 @@
 # imagecodecs/charls.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `CharLS 2.1.0` library.
+# Cython declarations for the `CharLS 2.3.3` library.
 # https://github.com/team-charls/charls
 
 from libc.stdint cimport int32_t, uint32_t
@@ -57,6 +57,12 @@ cdef extern from 'charls/charls.h':
         CHARLS_INTERLEAVE_MODE_NONE
         CHARLS_INTERLEAVE_MODE_LINE
         CHARLS_INTERLEAVE_MODE_SAMPLE
+
+    ctypedef enum charls_encoding_options:
+        CHARLS_ENCODING_OPTIONS_NONE = 0
+        CHARLS_ENCODING_OPTIONS_EVEN_DESTINATION_SIZE
+        CHARLS_ENCODING_OPTIONS_INCLUDE_VERSION_NUMBER
+        CHARLS_ENCODING_OPTIONS_INCLUDE_PC_PARAMETERS_JAI
 
     ctypedef enum charls_color_transformation:
         CHARLS_COLOR_TRANSFORMATION_NONE
@@ -116,6 +122,12 @@ cdef extern from 'charls/charls.h':
         CHARLS_SPIFF_ENTRY_TAG_TILE_INDEX
         CHARLS_SPIFF_ENTRY_TAG_SCAN_INDEX
         CHARLS_SPIFF_ENTRY_TAG_SET_REFERENCE
+
+    ctypedef void (*charls_at_comment_handler)(
+        const void* data,
+        size_t size,
+        void* user_context
+    ) nogil
 
     struct charls_jpegls_decoder:
         pass
@@ -210,6 +222,12 @@ cdef extern from 'charls/charls.h':
         uint32_t stride
     ) nogil
 
+    charls_jpegls_errc charls_jpegls_decoder_at_comment(
+        charls_jpegls_decoder* decoder,
+        charls_at_comment_handler handler,
+        void* user_context
+    ) nogil
+
     charls_jpegls_encoder* charls_jpegls_encoder_create() nogil
 
     void charls_jpegls_encoder_destroy(
@@ -224,6 +242,11 @@ cdef extern from 'charls/charls.h':
     charls_jpegls_errc charls_jpegls_encoder_set_near_lossless(
         charls_jpegls_encoder* encoder,
         int32_t near_lossless
+    ) nogil
+
+    charls_jpegls_errc charls_jpegls_encoder_set_encoding_options(
+        charls_jpegls_encoder* encoder,
+        charls_encoding_options encoding_options
     ) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_set_interleave_mode(
@@ -272,6 +295,12 @@ cdef extern from 'charls/charls.h':
         size_t entry_data_size
     ) nogil
 
+    charls_jpegls_errc charls_jpegls_encoder_write_comment(
+        charls_jpegls_encoder* encoder,
+        const void* comment,
+        size_t comment_size_bytes
+    ) nogil
+
     charls_jpegls_errc charls_jpegls_encoder_encode_from_buffer(
         charls_jpegls_encoder* encoder,
         const void* source_buffer,
@@ -282,4 +311,8 @@ cdef extern from 'charls/charls.h':
     charls_jpegls_errc charls_jpegls_encoder_get_bytes_written(
         const charls_jpegls_encoder* encoder,
         size_t* bytes_written
+    ) nogil
+
+    charls_jpegls_errc charls_jpegls_encoder_rewind(
+        charls_jpegls_encoder* encoder
     ) nogil
