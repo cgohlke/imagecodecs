@@ -295,7 +295,7 @@ cdef extern from 'jxl/decode.h':
         JxlDecoder* dec
     ) nogil
 
-    JxlDecoderSkipFrames(
+    void JxlDecoderSkipFrames(
         JxlDecoder* dec,
         size_t amount
     ) nogil
@@ -408,7 +408,8 @@ cdef extern from 'jxl/decode.h':
 
     JxlDecoderStatus JxlDecoderGetFrameName(
         const JxlDecoder* dec,
-        char* name, size_t size
+        char* name,
+        size_t size
     ) nogil
 
     # DEPRECATED
