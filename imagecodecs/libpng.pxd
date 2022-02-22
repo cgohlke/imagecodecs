@@ -3,6 +3,7 @@
 
 # Cython declarations for the `libpng 1.6.37` library.
 # https://github.com/glennrp/libpng
+# https://sourceforge.net/projects/libpng-apng/
 
 from libc.stdio cimport FILE
 from libc.setjmp cimport jmp_buf
@@ -1962,6 +1963,22 @@ cdef extern from 'png.h':
         int onoff
     ) nogil
 
+    void png_composite(
+        png_byte composite,
+        png_byte fg,
+        png_byte alpha,
+        png_byte bg
+    ) nogil
+
+    void png_composite_16(
+        png_uint_16 composite,
+        png_uint_16 fg,
+        png_uint_16 alpha,
+        png_uint_16 bg
+    ) nogil
+
+    # PNG_APNG_SUPPORTED
+
     png_uint_32 png_get_acTL(
         png_structp png_ptr,
         png_infop info_ptr,
@@ -2063,6 +2080,8 @@ cdef extern from 'png.h':
         png_byte is_hidden
     ) nogil
 
+    # PNG_READ_APNG_SUPPORTED
+
     void png_read_frame_head(
         png_structp png_ptr,
         png_infop info_ptr
@@ -2073,6 +2092,8 @@ cdef extern from 'png.h':
         png_progressive_frame_ptr frame_info_fn,
         png_progressive_frame_ptr frame_end_fn
     ) nogil
+
+    # PNG_WRITE_APNG_SUPPORTED
 
     void png_write_frame_head(
         png_structp png_ptr,
