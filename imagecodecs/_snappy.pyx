@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Snappy codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -72,7 +72,7 @@ def snappy_check(arg):
     """Return True if data likely contains Snappy data."""
 
 
-def snappy_encode(data, level=None, out=None):
+def snappy_encode(data, level=None, numthreads=None, out=None):
     """Encode Snappy.
 
     """
@@ -135,7 +135,7 @@ def snappy_encode(data, level=None, out=None):
     return _return_output(out, dstsize, output_length, outgiven)
 
 
-def snappy_decode(data, out=None):
+def snappy_decode(data, numthreads=None, out=None):
     """Decode Snappy.
 
     """
