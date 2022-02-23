@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """SPNG codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from libspng cimport *
-
-import enum
 
 
 class SPNG:
@@ -91,7 +89,7 @@ def spng_check(data):
     return sig == b'\x89PNG\r\n\x1a\n'
 
 
-def spng_encode(data, level=None, out=None):
+def spng_encode(data, level=None, numthreads=None, out=None):
     """Return PNG image from numpy array.
 
     """
@@ -210,7 +208,7 @@ def spng_encode(data, level=None, out=None):
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def spng_decode(data, index=None, out=None):
+def spng_decode(data, index=None, numthreads=None, out=None):
     """Decode PNG image to numpy array.
 
     Supported formats: G8, RGB8, RGBA8, RGBA16
