@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@ Brunsli 0.1 is not compatible with the final JPEG XL specification.
 
 """
 
-__version__ = '2021.4.28'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -92,6 +92,7 @@ def brunsli_encode(
     subsampling=None,
     optimize=None,
     smoothing=None,
+    numthreads=None,
     out=None
 ):
     """Return Brunsli encoded image from numpy array.
@@ -156,6 +157,7 @@ def brunsli_decode(
     colorspace=None,
     outcolorspace=None,
     asjpeg=False,
+    numthreads=None,
     out=None
 ):
     """Return numpy array from Brunsli encoded image.
