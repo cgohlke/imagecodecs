@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from zfp cimport *
-
-import enum
 
 
 class ZFP:
@@ -85,9 +83,9 @@ def zfp_encode(
     level=None,
     mode=None,
     execution=None,
-    numthreads=None,
     chunksize=None,
     header=True,
+    numthreads=None,
     out=None
 ):
     """Return ZFP stream from numpy array.
