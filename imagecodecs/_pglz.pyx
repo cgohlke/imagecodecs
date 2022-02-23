@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """PGLZ (PostgreSQL LZ) codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -61,7 +61,9 @@ def pglz_check(data):
     """Return True if data likely contains LZF data."""
 
 
-def pglz_encode(data, level=None, header=False, strategy=None, out=None):
+def pglz_encode(
+    data, level=None, header=False, strategy=None, numthreads=None, out=None
+):
     """Compress PGLZ.
 
     Raise PglzError if pglz_compress is unable to significantly compress
@@ -144,7 +146,9 @@ def pglz_encode(data, level=None, header=False, strategy=None, out=None):
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def pglz_decode(data, header=False, checkcomplete=None, out=None):
+def pglz_decode(
+    data, header=False, checkcomplete=None, numthreads=None, out=None
+):
     """Decompress PGLZ.
 
     """
