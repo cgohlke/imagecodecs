@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """AEC codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -87,6 +87,7 @@ def aec_encode(
     flags=None,
     blocksize=None,
     rsi=None,
+    numthreads=None,
     out=None
 ):
     """Compress AEC.
@@ -189,6 +190,7 @@ def aec_decode(
     flags=None,
     blocksize=None,
     rsi=None,
+    numthreads=None,
     out=None
 ):
     """Decompress AEC.
