@@ -1,7 +1,15 @@
 Revisions
 ---------
+2022.2.22
+    Pass 6176 tests.
+    Fix jpeg numcodecs with tables (#28).
+    Add APNG codec via libpng-apng patch.
+    Add lossless and decodingspeed parameters to jpegxl_encode (#30).
+    Add option to read JPEG XL animations.
+    Add dummy numthreads parameter to codec functions.
+    Set default numthreads to 1 (disable multi-threading).
+    Drop support for Python 3.7 and numpy < 1.19 (NEP29).
 2021.11.20
-    Pass 5949 tests.
     Fix testing on pypy and Python 3.10.
 2021.11.11
     Require libjxl 0.6.x.
