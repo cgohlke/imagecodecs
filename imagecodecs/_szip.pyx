@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """SZIP codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -73,14 +73,16 @@ def szip_check(data):
     return False
 
 
-def szip_encode(data, level=None, bitspersample=None, flags=None, out=None):
+def szip_encode(
+    data, level=None, bitspersample=None, flags=None, numthreads=None, out=None
+):
     """Compress SZIP.
 
     """
     raise NotImplementedError('szip_encode')  # TODO
 
 
-def szip_decode(data, out=None):
+def szip_decode(data, numthreads=None, out=None):
     """Decompress SZIP.
 
     """
