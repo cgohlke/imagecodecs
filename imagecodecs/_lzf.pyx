@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Lzf codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -61,7 +61,7 @@ def lzf_check(data):
     """Return True if data likely contains LZF data."""
 
 
-def lzf_encode(data, level=None, header=False, out=None):
+def lzf_encode(data, level=None, header=False, numthreads=None, out=None):
     """Compress LZF.
 
     """
@@ -119,7 +119,7 @@ def lzf_encode(data, level=None, header=False, out=None):
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def lzf_decode(data, header=False, out=None):
+def lzf_decode(data, header=False, numthreads=None, out=None):
     """Decompress LZF.
 
     """
