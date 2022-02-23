@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """JPEG LS codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -77,7 +77,7 @@ def jpegls_check(data):
     """Return True if data likely contains a JPEG LS image."""
 
 
-def jpegls_encode(data, level=None, out=None):
+def jpegls_encode(data, level=None, numthreads=None, out=None):
     """Return JPEG LS image from numpy array.
 
     """
@@ -248,7 +248,7 @@ def jpegls_encode(data, level=None, out=None):
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegls_decode(data, index=None, out=None):
+def jpegls_decode(data, index=None, numthreads=None, out=None):
     """Return numpy array from JPEG LS image.
 
     """
