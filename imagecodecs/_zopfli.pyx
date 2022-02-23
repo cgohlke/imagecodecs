@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """Zopfli codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from zopfli cimport *
-
-import enum
 
 
 class ZOPFLI:
@@ -69,7 +67,7 @@ def zopfli_version():
 # zopfli_decode = zlib_decode
 
 
-def zopfli_encode(data, level=None, out=None, **kwargs):
+def zopfli_encode(data, level=None, numthreads=None, out=None, **kwargs):
     """Compress Zlib format using Zopfli.
 
     """
