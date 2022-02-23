@@ -1,6 +1,6 @@
 # imagecodecs/numcodecs.py
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2021.11.20'
+__version__ = '2022.2.22'
 
 __all__ = ('register_codecs',)
 
@@ -73,6 +73,29 @@ class Aec(Codec):
             rsi=self.rsi,
             out=_flat(out),
         )
+
+
+class Apng(Codec):
+    """APNG codec for numcodecs."""
+
+    codec_id = 'imagecodecs_apng'
+
+    def __init__(self, level=None, photometric=None, delay=None):
+        self.level = level
+        self.photometric = photometric
+        self.delay = delay
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.apng_encode(
+            buf,
+            level=self.level,
+            photometric=self.photometric,
+            delay=self.delay,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.apng_decode(buf, out=out)
 
 
 class Avif(Codec):
@@ -444,7 +467,7 @@ class Jpeg(Codec):
                 if value is not None and key in ('header', 'tables'):
                     import base64
 
-                    value = base64.b64encode(value.decode())
+                    value = base64.b64encode(value).decode()
                 config[key] = value
         return config
 
@@ -535,6 +558,8 @@ class JpegXl(Codec):
         level=None,
         effort=None,
         distance=None,
+        lossless=None,
+        decodingspeed=None,
         photometric=None,
         usecontainer=None,
         # decode
@@ -546,6 +571,8 @@ class JpegXl(Codec):
         self.level = level
         self.effort = effort
         self.distance = distance
+        self.lossless = bool(lossless)
+        self.decodingspeed = decodingspeed
         self.photometric = photometric
         self.usecontainer = usecontainer
         self.index = index
@@ -559,6 +586,8 @@ class JpegXl(Codec):
             level=self.level,
             effort=self.effort,
             distance=self.distance,
+            lossless=self.lossless,
+            decodingspeed=self.decodingspeed,
             photometric=self.photometric,
             usecontainer=self.usecontainer,
             numthreads=self.numthreads,
