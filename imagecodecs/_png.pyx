@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -46,6 +46,12 @@ from libpng cimport *
 
 class PNG:
     """PNG Constants."""
+
+    class COLOR_TYPE(enum.IntEnum):
+        GRAY = PNG_COLOR_TYPE_GRAY
+        GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
+        RGB = PNG_COLOR_TYPE_RGB
+        RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
 
 
 class PngError(RuntimeError):
@@ -65,7 +71,7 @@ def png_check(const uint8_t[::1] data):
     return sig == b'\x89PNG\r\n\x1a\n'
 
 
-def png_encode(data, level=None, out=None):
+def png_encode(data, level=None, numthreads=None, out=None):
     """Return PNG image from numpy array.
 
     """
@@ -76,14 +82,14 @@ def png_encode(data, level=None, out=None):
         ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
         png_bytep rowptr = <png_bytep> &src.data[0]
-        int color_type
+        int color_type = PNG_COLOR_TYPE_GRAY
         int bit_depth = src.itemsize * 8
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int level_ = _default_value(level, -1, -1, 9)
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
-        png_bytepp image = NULL  # row pointers
+        png_bytepp rowpointers = NULL
         png_uint_32 width = <png_uint_32> src.shape[1]
         png_uint_32 height = <png_uint_32> src.shape[0]
         png_uint_32 row
@@ -127,8 +133,6 @@ def png_encode(data, level=None, out=None):
                 color_type = PNG_COLOR_TYPE_RGB
             elif samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
-            else:
-                raise ValueError('PNG color type not supported')
 
             png_ptr = png_create_write_struct(
                 PNG_LIBPNG_VER_STRING,
@@ -153,8 +157,8 @@ def png_encode(data, level=None, out=None):
             png_set_IHDR(
                 png_ptr,
                 info_ptr,
-                width,
-                height,
+                <png_uint_32> width,
+                <png_uint_32> height,
                 bit_depth,
                 color_type,
                 PNG_INTERLACE_NONE,
@@ -167,19 +171,19 @@ def png_encode(data, level=None, out=None):
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
-            image = <png_bytepp> malloc(sizeof(png_bytep) * height)
-            if image == NULL:
+            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
-                image[row] = rowptr
+                rowpointers[row] = rowptr
                 rowptr += rowstride
 
-            png_write_image(png_ptr, image)
+            png_write_image(png_ptr, rowpointers)
             png_write_end(png_ptr, info_ptr)
 
     finally:
-        if image != NULL:
-            free(image)
+        if rowpointers != NULL:
+            free(rowpointers)
         if png_ptr != NULL and info_ptr != NULL:
             png_destroy_write_struct(&png_ptr, &info_ptr)
         elif png_ptr != NULL:
@@ -189,10 +193,8 @@ def png_encode(data, level=None, out=None):
     return _return_output(out, dstsize, mempng.offset, outgiven)
 
 
-def png_decode(data, index=None, out=None):
+def png_decode(data, index=None, numthreads=None, out=None):
     """Decode PNG image to numpy array.
-
-    The Animated PNG format (apng) is not supported.
 
     """
     cdef:
@@ -209,7 +211,7 @@ def png_decode(data, index=None, out=None):
         png_uint_32 row
         int bit_depth = 0
         int color_type = -1
-        png_bytepp image = NULL  # row pointers
+        png_bytepp rowpointers = NULL
         png_bytep rowptr
         ssize_t rowstride
         ssize_t itemsize
@@ -293,7 +295,7 @@ def png_decode(data, index=None, out=None):
         dtype = numpy.dtype(f'u{itemsize}')
         if samples > 1:
             shape = int(height), int(width), int(samples)
-            strides = None, shape[2] * int(itemsize), int(itemsize)
+            strides = None, int(samples * itemsize), int(itemsize)
         else:
             shape = int(height), int(width)
             strides = None, int(itemsize)
@@ -304,17 +306,17 @@ def png_decode(data, index=None, out=None):
         rowstride = dst.strides[0]
 
         with nogil:
-            image = <png_bytepp> malloc(sizeof(png_bytep) * height)
-            if image == NULL:
+            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
-                image[row] = <png_bytep> rowptr
+                rowpointers[row] = rowptr
                 rowptr += rowstride
-            png_read_image(png_ptr, image)
+            png_read_image(png_ptr, rowpointers)
 
     finally:
-        if image != NULL:
-            free(image)
+        if rowpointers != NULL:
+            free(rowpointers)
         if png_ptr != NULL and info_ptr != NULL:
             png_destroy_read_struct(&png_ptr, &info_ptr, NULL)
         elif png_ptr != NULL:
