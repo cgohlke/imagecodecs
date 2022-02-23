@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2021, Christoph Gohlke
+# Copyright (c) 2020-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """LZ4 Frame codec for the imagecodecs package."""
 
-__version__ = '2020.3.31'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -91,6 +91,7 @@ def lz4f_encode(
     blocksizeid=None,
     contentchecksum=None,
     blockchecksum=None,
+    numthreads=None,
     out=None
 ):
     """Compress LZ4 Frame.
@@ -145,7 +146,7 @@ def lz4f_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def lz4f_decode(data, out=None):
+def lz4f_decode(data, numthreads=None, out=None):
     """Decompress LZ4 Frame.
 
     """
