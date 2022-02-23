@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """CMS codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -46,8 +46,6 @@ from lcms2 cimport *
 from cpython.bytes cimport (
     PyBytes_Check, PyBytes_Size, PyBytes_AsString, PyBytes_FromStringAndSize
 )
-
-import enum
 
 
 class CMS:
@@ -138,6 +136,7 @@ def cms_transform(
     intent=None,
     flags=None,
     verbose=None,
+    numthreads=None,
     out=None
 ):
     """Color transform (experimental).
@@ -374,13 +373,13 @@ def cms_profile(
                     pTransferFunction = cmsBuildTabulatedToneCurve16(
                         <cmsContext> NULL,
                         <cmsUInt32Number> tf.shape[0],
-                        <const cmsUInt16Number*> &tf.data
+                        <const cmsUInt16Number*> &tf.data[0]
                     )
                 elif tf.char == 'f':
                     pTransferFunction = cmsBuildTabulatedToneCurveFloat(
                         <cmsContext> NULL,
                         <cmsUInt32Number> tf.shape[0],
-                        <const cmsFloat32Number*> &tf.data
+                        <const cmsFloat32Number*> &tf.data[0]
                     )
                 else:
                     raise ValueError('invalid transferfunction dtype')
@@ -569,7 +568,10 @@ def _cms_format_decode(cmsUInt32Number cmsformat):
         ]
     )
 
-    isfloat = bool(T_FLOAT(cmsformat))
+
+    # can't use lcms T_FLOAT macro; it is redefined in Python structmember.h
+    # isfloat = bool(T_FLOAT(cmsformat))
+    isfloat = bool((((cmsformat) >> 22 ) & 1))
     itemsize = int(T_BYTES(cmsformat))
     if itemsize == 0:
         itemsize = 8
