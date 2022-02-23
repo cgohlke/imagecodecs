@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2021, Christoph Gohlke
+# Copyright (c) 2020-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from libavif cimport *
-
-import enum
 
 
 class AVIF:
@@ -274,6 +272,7 @@ def avif_encode(
                 if rgb.format != AVIF_RGB_FORMAT_RGBA:
                     raise RuntimeError('rgb.format != AVIF_RGB_FORMAT_RGBA')
                 srcptr = <uint8_t *> src.data
+                size = 0
             else:
                 rgb.format = (
                     AVIF_RGB_FORMAT_RGBA if hasalpha else AVIF_RGB_FORMAT_RGB
@@ -296,8 +295,8 @@ def avif_encode(
                         # uint8
                         if hasalpha:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     temp = srcptr[srcindex]
                                     dstptr[k] = temp
                                     dstptr[k + 1] = temp
@@ -308,8 +307,8 @@ def avif_encode(
                         else:
                             rgb.ignoreAlpha = AVIF_TRUE
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     temp = srcptr[srcindex]
                                     dstptr[k] = temp
                                     dstptr[k + 1] = temp
@@ -321,8 +320,8 @@ def avif_encode(
                         # uint16
                         if hasalpha:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     temp = srcptr[srcindex]
                                     dstptr[k] = temp
                                     dstptr[k + 2] = temp
@@ -338,8 +337,8 @@ def avif_encode(
                         else:
                             rgb.ignoreAlpha = AVIF_TRUE
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     temp = srcptr[srcindex]
                                     dstptr[k] = temp
                                     dstptr[k + 2] = temp
@@ -455,9 +454,8 @@ def avif_decode(data, index=None, numthreads=None, out=None):
             if frameindex >= imagecount:
                 raise IndexError('image index out of range')
 
-            if frameindex >= 0 or imagecount == 1:
-                if imagecount == 1:
-                    frameindex = 0
+            if imagecount == 1:
+                frameindex = 0
 
             res = avifDecoderNthImage(
                 decoder, <uint32_t> (frameindex if frameindex > 0 else 0)
@@ -528,8 +526,8 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                         # uint8
                         if hasalpha:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     # red
                                     dstptr[dstindex] = srcptr[k]
                                     dstindex += 1
@@ -540,8 +538,8 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                                     k += 1
                         else:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     dstptr[dstindex] = srcptr[k]
                                     dstindex += 1
                                     k += 4  # requires RGBA buffer
@@ -549,8 +547,8 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                         # uint16
                         if hasalpha:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     # red
                                     dstptr[dstindex] = srcptr[k]
                                     dstindex += 1
@@ -567,8 +565,8 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                                     k += 1
                         else:
                             for j in range(<ssize_t> rgb.height):
-                                k = j * rgb.rowBytes
-                                while k < (j + 1) * rgb.rowBytes:
+                                k = j * <ssize_t> rgb.rowBytes
+                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
                                     dstptr[dstindex] = srcptr[k]
                                     dstindex += 1
                                     k += 1
