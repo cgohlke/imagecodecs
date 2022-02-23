@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2016-2021, Christoph Gohlke
+# Copyright (c) 2016-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -41,13 +41,11 @@ The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
 
-__version__ = '2021.5.20'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from jxrlib cimport *
-
-import enum
 
 
 class JPEGXR:
@@ -116,6 +114,7 @@ def jpegxr_encode(
     photometric=None,
     hasalpha=None,
     resolution=None,
+    numthreads=None,
     out=None
 ):
     """Return JPEG XR image from numpy array.
@@ -277,7 +276,7 @@ def jpegxr_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegxr_decode(data, index=None, fp2int=False, out=None):
+def jpegxr_decode(data, index=None, fp2int=False, numthreads=None, out=None):
     """Decode JPEG XR image to numpy array.
 
     fp2int: bool
