@@ -1,6 +1,6 @@
 # test_imagecodecs.py
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2021.11.20
+:Version: 2022.2.22
 
 """
 
@@ -85,7 +85,7 @@ else:
 
 
 TEST_DIR = osp.dirname(__file__)
-IS_32BIT = sys.maxsize < 2 ** 32
+IS_32BIT = sys.maxsize < 2**32
 IS_WIN = sys.platform == 'win32'
 IS_MAC = sys.platform == 'darwin'
 IS_AARCH64 = platform.machine() == 'aarch64'
@@ -117,13 +117,18 @@ def test_module_exist(name):
         exists = False
     if exists:
         return
-    if not IS_CG and not IS_CIBW:
-        pytest.xfail(f'imagecodecs._{name} may be missing')
-    elif IS_CIBW and (
-        (name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0))
-        or (name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64))
-        or name == 'mozjpeg'
-    ):
+    if IS_CG:
+        pass  # all extensions should be present
+    elif IS_CIBW:
+        if (
+            (name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0))
+            or (name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64))
+            or name == 'mozjpeg'
+            # or name == 'nvjpeg'
+            # or name == 'nvjpeg2k'
+        ):
+            pytest.xfail(f'imagecodecs._{name} may be missing')
+    else:
         pytest.xfail(f'imagecodecs._{name} may be missing')
     assert exists, f'no module named imagecodecs._{name}'
 
@@ -782,7 +787,7 @@ def test_float24(f3, f4, f3_expected, byteorder, mode):
 @pytest.mark.parametrize('byteorder', ['>', '<'])
 def test_float24_roundtrip(byteorder):
     """Test all float24 numbers."""
-    f3_bytes = numpy.arange(2 ** 24, dtype='>u4').astype('u1').reshape((-1, 4))
+    f3_bytes = numpy.arange(2**24, dtype='>u4').astype('u1').reshape((-1, 4))
     if byteorder == '>':
         f3_bytes = f3_bytes[:, :3].tobytes()
     else:
@@ -2470,6 +2475,29 @@ def test_jpegxr(itype, enout, deout, level):
     assert_allclose(data, decoded, atol=atol, rtol=0)
 
 
+@pytest.mark.skipif(not imagecodecs.APNG, reason='apng missing')
+@pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
+@pytest.mark.parametrize('samples', [1, 2, 3, 4])
+def test_apng(samples, dtype):
+    """Test APNG codec."""
+    shape = (9, 32, 31, samples) if samples > 1 else (9, 32, 31)
+    data = numpy.random.randint(
+        numpy.iinfo(dtype).max, size=9 * 32 * 31 * samples, dtype=dtype
+    ).reshape(shape)
+    encoded = imagecodecs.apng_encode(data, delay=100)
+    decoded = imagecodecs.apng_decode(encoded)
+    assert_array_equal(data, decoded, verbose=True)
+    decoded = imagecodecs.apng_decode(encoded, index=0)
+    assert_array_equal(data[0], decoded, verbose=True)
+    for index in (0, 5, 8):
+        decoded = imagecodecs.apng_decode(encoded, index=index)
+        assert_array_equal(data[index], decoded, verbose=True)
+    if imagecodecs.PNG:
+        assert_array_equal(
+            imagecodecs.png_decode(encoded), data[0], verbose=True
+        )
+
+
 @pytest.mark.parametrize('itype', ['rgb', 'rgba', 'gray', 'graya'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
 @pytest.mark.parametrize('level', [None, 5, -1])
@@ -2500,6 +2528,7 @@ def test_spng_encode(itype, dtype, level):
         'ljpeg',
         'mozjpeg',
         'png',
+        'apng',
         'spng',
         'webp',
     ],
@@ -2576,6 +2605,14 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decode = imagecodecs.png_decode
         encode = imagecodecs.png_encode
         check = imagecodecs.png_check
+    elif codec == 'apng':
+        if not imagecodecs.APNG:
+            pytest.skip(f'{codec} missing')
+        if itype == 'view' or deout == 'view':
+            pytest.xfail('apng does not support this case')
+        decode = imagecodecs.apng_decode
+        encode = imagecodecs.apng_encode
+        check = imagecodecs.apng_check
     elif codec == 'spng':
         if not imagecodecs.SPNG:
             pytest.skip(f'{codec} missing')
@@ -2773,6 +2810,11 @@ def test_png_rgba_palette():
     image = imagecodecs.png_decode(png)
     assert tuple(image[6, 15]) == (255, 255, 255, 0)
     assert tuple(image[6, 16]) == (141, 37, 52, 255)
+
+    if imagecodecs.APNG:
+        image = imagecodecs.apng_decode(png)
+        assert tuple(image[6, 15]) == (255, 255, 255, 0)
+        assert tuple(image[6, 16]) == (141, 37, 52, 255)
 
 
 TIFF_TEST_DIR = osp.join(TEST_DIR, 'tiff/')
@@ -3019,6 +3061,7 @@ def test_numcodecs_register(caplog):
     'codec',
     [
         'aec',
+        'apng',
         'avif',
         'bitorder',
         'bitshuffle',
@@ -3081,6 +3124,10 @@ def test_numcodecs(codec, photometric):
         compressor = numcodecs.Aec(
             bitspersample=None, flags=None, blocksize=None, rsi=None
         )
+    elif codec == 'apng':
+        if not imagecodecs.APNG:
+            pytest.skip(msg=f'{codec} not found')
+        compressor = numcodecs.Apng(photometric=photometric, delay=100)
     elif codec == 'avif':
         if not imagecodecs.AVIF:
             pytest.skip(msg=f'{codec} not found')
