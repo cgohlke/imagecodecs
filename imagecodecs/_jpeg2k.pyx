@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -45,14 +45,15 @@ from openjpeg cimport *
 
 from libc.math cimport log
 
-import enum
-
 class JPEG2K:
     """OpenJPEG Constants."""
 
     class CODEC(enum.IntEnum):
         JP2 = OPJ_CODEC_JP2
         J2K = OPJ_CODEC_J2K
+        # JPT = OPJ_CODEC_JPT
+        # JPP = OPJ_CODEC_JPP
+        # JPX = OPJ_CODEC_JPX
 
     class CLRSPC(enum.IntEnum):
         UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
@@ -78,9 +79,9 @@ def jpeg2k_check(const uint8_t[::1] data):
         bytes sig = bytes(data[:12])
 
     return (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
-        or sig[:4] == b'\xff\x4f\xff\x51'
-        or sig[:4] == b'\x0d\x0a\x87\x0a'
+        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2
+        or sig[:4] == b'\xff\x4f\xff\x51'  # J2K
+        or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2
     )
 
 
@@ -95,8 +96,8 @@ def jpeg2k_encode(
     reversible=None,
     resolutions=None,
     mct=True,  # multiple component transform: rgb->ycc
-    numthreads=None,
     verbose=0,
+    numthreads=None,
     out=None
 ):
     """Return JPEG 2000 image from numpy array.
@@ -144,9 +145,11 @@ def jpeg2k_encode(
         if reversible is None:
             irreversible = 0
 
-    if codecformat in (None, OPJ_CODEC_JP2, 'JP2'):
+    if codecformat is None:
+        codec_format = OPJ_CODEC_JP2  # use container format by default
+    elif codecformat in (OPJ_CODEC_JP2, 'JP2', 'jp2'):
         codec_format = OPJ_CODEC_JP2
-    elif codecformat in (OPJ_CODEC_J2K, 'J2K'):
+    elif codecformat in (OPJ_CODEC_J2K, 'J2K', 'j2k'):
         codec_format = OPJ_CODEC_J2K
     else:
         raise ValueError('invalid codecformat')
@@ -227,7 +230,7 @@ def jpeg2k_encode(
 
             # create image
             memset(&cmptparms, 0, sizeof(cmptparms))
-            for i in range(samples):
+            for i in range(<ssize_t> samples):
                 cmptparms[i].dx = 1  # subsampling
                 cmptparms[i].dy = 1
                 cmptparms[i].h = height
@@ -388,7 +391,7 @@ def jpeg2k_encode(
             if memopj.written > memopj.size:
                 raise Jpeg2kError('output buffer too small')
 
-            byteswritten = memopj.written
+            byteswritten = <ssize_t> memopj.written
 
     finally:
         if stream != NULL:
@@ -406,8 +409,8 @@ def jpeg2k_decode(
     data,
     index=None,
     planar=None,
-    numthreads=None,
     verbose=0,
+    numthreads=None,
     out=None
 ):
     """Decode JPEG 2000 J2K or JP2 image to numpy array.
@@ -432,8 +435,8 @@ def jpeg2k_decode(
         opj_dparameters_t parameters
         OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
-        OPJ_UINT32 signed, prec, width, height, samples
-        ssize_t i, j, k, bandsize
+        OPJ_UINT32 signed, prec, width, height
+        ssize_t i, j, k, bandsize, samples
         int num_threads = <int> _default_threads(numthreads)
         int verbosity = verbose
         bytes sig
@@ -539,7 +542,7 @@ def jpeg2k_decode(
             prec = comp.prec
             height = comp.h * comp.dy
             width = comp.w * comp.dx
-            samples = image.numcomps
+            samples = <ssize_t> image.numcomps
             itemsize = (prec + 7) // 8
 
             for i in range(samples):
@@ -572,7 +575,7 @@ def jpeg2k_decode(
         with nogil:
             # TODO: use OMP prange?
             # memset(<void*> dst.data, 0, dst.nbytes)
-            bandsize = height * width
+            bandsize = <ssize_t> (height * width)
             if itemsize == 1:
                 if signed:
                     if contig:
@@ -682,7 +685,7 @@ cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
     if memopj.offset >= memopj.size:
         return <OPJ_SIZE_T> -1
     if size > memopj.size - memopj.offset:
-        count = memopj.size - memopj.offset
+        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
     memcpy(
         <void*> dst,
         <const void*> &(memopj.data[memopj.offset]),
@@ -701,7 +704,7 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
     if memopj.offset >= memopj.size:
         return <OPJ_SIZE_T> -1
     if size > memopj.size - memopj.offset:
-        count = memopj.size - memopj.offset
+        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
         memopj.written = memopj.size + 1  # indicates error
     memcpy(
         <void*> &(memopj.data[memopj.offset]),
@@ -735,7 +738,7 @@ cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) nogil:
         return -1
     count = <OPJ_SIZE_T> size
     if count > memopj.size - memopj.offset:
-        count = memopj.size - memopj.offset
+        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
     memopj.offset += count
     return count
 
