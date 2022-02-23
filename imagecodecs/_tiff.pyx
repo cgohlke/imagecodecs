@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -49,8 +49,6 @@ from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 
 cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
-
-import enum
 
 
 class _TIFF:
@@ -164,6 +162,7 @@ def tiff_encode(
     subfiletype=0,
     software=None,
     verbose=0,
+    numthreads=None,
     out=None
 ):
     """Return TIFF image from numpy array.
@@ -172,7 +171,9 @@ def tiff_encode(
     raise NotImplementedError('tiff_encode')  # TODO
 
 
-def tiff_decode(data, index=0, asrgb=False, verbose=0, out=None):
+def tiff_decode(
+    data, index=0, asrgb=False, verbose=0, numthreads=None, out=None
+):
     """Return numpy array from TIFF image.
 
     By default the image from the first directory/page is returned.
