@@ -1,7 +1,7 @@
 /* imcd.h */
 
 /*
-Copyright (c) 2008-2021, Christoph Gohlke.
+Copyright (c) 2008-2022, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2021.11.11"
+#define IMCD_VERSION "2022.2.22"
 
 #include <stdint.h>
 
@@ -132,6 +132,7 @@ ssize_t imcd_packbits_encode_size(
     const ssize_t srcsize
 );
 
+
 ssize_t imcd_packbits_decode(
     const uint8_t* src,
     const ssize_t srcsize,
@@ -141,6 +142,33 @@ ssize_t imcd_packbits_decode(
 
 
 ssize_t imcd_packbits_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize
+);
+
+
+ssize_t imcd_ccittrle_decode_size(
+    const uint8_t* src,
+    const ssize_t srcsize
+);
+
+
+ssize_t imcd_ccittrle_encode_size(
+    const ssize_t srcsize
+);
+
+
+ssize_t imcd_ccittrle_decode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t dstsize
+);
+
+
+ssize_t imcd_ccittrle_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
