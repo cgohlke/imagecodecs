@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -81,7 +81,7 @@ def gif_check(const uint8_t[::1] data):
     return sig == b'GIF87a' or sig == b'GIF89a'
 
 
-def gif_encode(data, level=None, colormap=None, out=None):
+def gif_encode(data, level=None, colormap=None, numthreads=None, out=None):
     """Return GIF image from numpy array."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -186,7 +186,7 @@ def gif_encode(data, level=None, colormap=None, out=None):
     return _return_output(out, dstsize, memgif.offset, outgiven)
 
 
-def gif_decode(data, index=None, asrgb=True, out=None):
+def gif_decode(data, index=None, asrgb=True, numthreads=None, out=None):
     """Decode GIF image to numpy array.
 
     By default all images in the file are returned in one array.
