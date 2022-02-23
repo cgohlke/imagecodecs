@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """LZ4 codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from lz4 cimport *
-
-import enum
 
 
 class LZ4:
@@ -71,7 +69,9 @@ def lz4_check(data):
     """Return True if data likely contains LZ4 data."""
 
 
-def lz4_encode(data, level=None, hc=False, header=False, out=None):
+def lz4_encode(
+    data, level=None, hc=False, header=False, numthreads=None, out=None
+):
     """Compress LZ4.
 
     """
@@ -147,7 +147,7 @@ def lz4_encode(data, level=None, hc=False, header=False, out=None):
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def lz4_decode(data, header=False, out=None):
+def lz4_decode(data, header=False, numthreads=None, out=None):
     """Decompress LZ4.
 
     """
