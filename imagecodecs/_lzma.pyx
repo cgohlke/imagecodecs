@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """LZMA codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -81,7 +81,7 @@ def lzma_check(const uint8_t[::1] data):
     """Return True if data likely contains LZMA data."""
 
 
-def lzma_encode(data, level=None, out=None):
+def lzma_encode(data, level=None, numthreads=None, out=None):
     """Compress LZMA.
 
     """
@@ -134,7 +134,7 @@ def lzma_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def lzma_decode(data, out=None):
+def lzma_decode(data, numthreads=None, out=None):
     """Decompress LZMA.
 
     """
@@ -201,14 +201,14 @@ def _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
         ret = lzma_stream_footer_decode(&options, &data[offset])
         if ret != LZMA_OK:
             raise LzmaError('lzma_stream_footer_decode', ret)
-        offset -= options.backward_size
+        offset -= <ssize_t> options.backward_size
         ret = lzma_index_buffer_decode(
             &index,
             &memlimit,
             NULL,
             &data[offset],
             &pos,
-            options.backward_size
+            <ssize_t> options.backward_size
         )
         if ret != LZMA_OK or pos != options.backward_size:
             raise LzmaError('lzma_index_buffer_decode', ret)
