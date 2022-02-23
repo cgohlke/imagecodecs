@@ -34,7 +34,7 @@ version += ('.' + buildnumber) if buildnumber else ''
 description = re.search(r'"""(.*)\.(?:\r\n|\r|\n)', code).groups()[0]
 
 readme = re.search(
-    r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}__version__',
+    r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}[__version__|from]',
     code,
     re.MULTILINE | re.DOTALL,
 ).groups()[0]
@@ -129,6 +129,7 @@ EXTENSIONS = {
     ),
     'imcd': ext(sources=['imagecodecs/imcd.c']),
     'aec': ext(libraries=['aec']),
+    'apng': ext(libraries=['png']),
     'avif': ext(libraries=['avif']),
     # 'exr': ext(
     #     sources=['3rdparty/tinyexr/tinyexr.cc'],
@@ -149,6 +150,7 @@ EXTENSIONS = {
     'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
     'gif': ext(libraries=['gif']),
+    # 'heif': ext(libraries=['heif']),
     'jpeg2k': ext(
         sources=['3rdparty/openjpeg/color.c'],
         include_dirs=['3rdparty/openjpeg'],
@@ -182,6 +184,8 @@ EXTENSIONS = {
     ),
     'lzma': ext(libraries=['lzma']),
     'mozjpeg': ext(libraries=['mozjpeg']),
+    # 'nvjpeg': ext(libraries=['nvjpeg', 'cuda']),
+    # 'nvjpeg2k': ext(libraries=['nvjpeg2k', 'cuda']),
     'pglz': ext(
         sources=['3rdparty/postgresql/pg_lzcompress.c'],
         include_dirs=['3rdparty/postgresql'],
@@ -210,13 +214,14 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     """Customize build for common platforms: recent Debian, arch..."""
     import platform
 
+    del EXTENSIONS['apng']  # apng patch not commonly available
     del EXTENSIONS['avif']  # libavif library not commonly available
     del EXTENSIONS['blosc2']  # c-blosc2 library not commonly available
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
+    del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']  # zlib-ng library not commonly available
-    del EXTENSIONS['mozjpeg']  # Windows only
 
     if 'arch' not in platform.platform():
         del EXTENSIONS['jpegls']  # CharLS 2.1 library not commonly available
@@ -236,7 +241,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
 
 def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     """Customize build for Windows development environment with static libs."""
-    from _inclib import INCLIB
+    INCLIB = os.environ['INCLIB']
 
     OPTIONS['include_dirs'].append(INCLIB)
     OPTIONS['library_dirs'].append(INCLIB)
@@ -244,8 +249,10 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
     # EXTENSIONS['szip']['libraries'] = ['szip_static']
+    # if '64 bit' not in sys.version:
+    #     del EXTENSIONS['nvjpeg2k']  # 64-bit only
 
-    EXTENSIONS['mozjpeg']['library_dirs'] = [INCLIB + 'mozjpeg']
+    EXTENSIONS['mozjpeg']['library_dirs'] = [os.path.join(INCLIB, 'mozjpeg')]
     EXTENSIONS['avif']['libraries'] = [
         'avif',
         'aom',
@@ -254,18 +261,21 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'Ws2_32',
         'Advapi32',
         'Userenv',
+        'Bcrypt',
     ]
-    EXTENSIONS['aec']['libraries'] = ['aec_static']
+    EXTENSIONS['aec']['libraries'] = ['aec-static']
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
     EXTENSIONS['png']['libraries'] = ['png', 'zlib']
+    EXTENSIONS['apng']['libraries'] = ['png', 'zlib']
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
     EXTENSIONS['zlibng']['libraries'] = ['zlibstatic-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
-    EXTENSIONS['jpegxr']['include_dirs'].append(INCLIB + 'jxrlib')
+    EXTENSIONS['jpegxr']['include_dirs'].append(os.path.join(INCLIB, 'jxrlib'))
+    EXTENSIONS['zopfli']['include_dirs'].append(os.path.join(INCLIB, 'zopfli'))
     EXTENSIONS['zfp']['extra_compile_args'] = ['/openmp']
     EXTENSIONS['blosc']['libraries'] = [
         'libblosc',
@@ -331,7 +341,8 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
 
 def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's cibuildwheel environment."""
-    del EXTENSIONS['mozjpeg']  # Windows only
+
+    del EXTENSIONS['mozjpeg']  # Win32 only
 
     if not os.environ.get('SKIP_OMP', False):
         if sys.platform == 'darwin':
@@ -421,12 +432,12 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
 def customize_build_condaforge(EXTENSIONS, OPTIONS):
     """Customize build for conda-forge."""
 
-    del EXTENSIONS['avif']
+    del EXTENSIONS['apng']
     del EXTENSIONS['blosc2']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
+    del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']
-    del EXTENSIONS['mozjpeg']  # Windows only
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
     EXTENSIONS['jpeg8']['cythonize'] = True
@@ -471,6 +482,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
 def customize_build_macports(EXTENSIONS, OPTIONS):
     """Customize build for MacPorts."""
 
+    del EXTENSIONS['apng']
     del EXTENSIONS['avif']
     del EXTENSIONS['blosc2']
     del EXTENSIONS['brunsli']
@@ -481,9 +493,9 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpegxr']
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
+    del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
-    del EXTENSIONS['mozjpeg']  # Windows only
 
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -496,6 +508,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
 def customize_build_mingw(EXTENSIONS, OPTIONS):
     """Customize build for mingw-w64."""
 
+    del EXTENSIONS['apng']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
@@ -514,24 +527,25 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     EXTENSIONS['rcomp']['sources'].append('3rdparty/cfitsio/ricecomp.c')
 
 
-# customize builds based on environment
-try:
-    from imagecodecs_distributor_setup import customize_build  # noqa
-except ImportError:
-    if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
-        customize_build = customize_build_cgohlke
-    elif os.environ.get('IMAGECODECS_CIBW', ''):
-        customize_build = customize_build_cibuildwheel
-    elif os.environ.get('CONDA_BUILD', ''):
-        customize_build = customize_build_condaforge
-    elif shutil.which('port'):
-        customize_build = customize_build_macports
-    elif os.name == 'nt' and 'GCC' in sys.version:
-        customize_build = customize_build_mingw
-    else:
-        customize_build = customize_build_default
+if 'sdist' not in sys.argv:
+    # customize builds based on environment
+    try:
+        from imagecodecs_distributor_setup import customize_build  # noqa
+    except ImportError:
+        if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
+            customize_build = customize_build_cgohlke
+        elif os.environ.get('IMAGECODECS_CIBW', ''):
+            customize_build = customize_build_cibuildwheel
+        elif os.environ.get('CONDA_BUILD', ''):
+            customize_build = customize_build_condaforge
+        elif shutil.which('port'):
+            customize_build = customize_build_macports
+        elif os.name == 'nt' and 'GCC' in sys.version:
+            customize_build = customize_build_mingw
+        else:
+            customize_build = customize_build_default
 
-customize_build(EXTENSIONS, OPTIONS)
+    customize_build(EXTENSIONS, OPTIONS)
 
 if any(opt['cythonize'] for opt in EXTENSIONS.values()):
     OPTIONS['cythonize'] = True
@@ -546,7 +560,6 @@ try:
 except ImportError:
     if OPTIONS['cythonize']:
         raise
-    Cython = None
     EXT = '.c'
 
 
@@ -642,11 +655,11 @@ setup(
         'Source Code': 'https://github.com/cgohlke/imagecodecs',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.7',
-    install_requires=['numpy>=1.16.5'],
-    # setup_requires=['setuptools>=18.0', 'numpy>=1.16.5'],  # cython>=0.29.21
+    python_requires='>=3.8',
+    install_requires=['numpy>=1.19.2'],
+    # setup_requires=['setuptools>=18.0', 'numpy>=1.19.2'],  # cython>=0.29.27
     extras_require={
-        'all': ['matplotlib>=3.2', 'tifffile>=2021.1.11', 'numcodecs']
+        'all': ['matplotlib>=3.3', 'tifffile>=2021.11.2', 'numcodecs']
     },
     tests_require=[
         'pytest',
@@ -685,7 +698,6 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
