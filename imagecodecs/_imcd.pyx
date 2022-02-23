@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -108,7 +108,7 @@ delta_version = imcd_version
 delta_check = imcd_check
 
 
-def delta_encode(data, axis=-1, dist=1, out=None):
+def delta_encode(data, axis=-1, dist=1, numthreads=None, out=None):
     """Encode differencing.
 
     Preserve byteorder.
@@ -117,7 +117,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
     return _delta(data, axis=axis, dist=dist, out=out, decode=False)
 
 
-def delta_decode(data, axis=-1, dist=1, out=None):
+def delta_decode(data, axis=-1, dist=1, numthreads=None, out=None):
     """Decode differencing.
 
     Same as numpy.cumsum. Preserve byteorder.
@@ -246,14 +246,14 @@ xor_version = imcd_version
 xor_check = imcd_check
 
 
-def xor_encode(data, axis=-1, out=None):
+def xor_encode(data, axis=-1, numthreads=None, out=None):
     """Encode XOR.
 
     """
     return _xor(data, axis=axis, out=out, decode=False)
 
 
-def xor_decode(data, axis=-1, out=None):
+def xor_decode(data, axis=-1, numthreads=None, out=None):
     """Decode XOR.
 
     """
@@ -367,7 +367,7 @@ floatpred_version = imcd_version
 floatpred_check = imcd_check
 
 
-def floatpred_encode(data, axis=-1, dist=1, out=None):
+def floatpred_encode(data, axis=-1, dist=1, numthreads=None, out=None):
     """Encode Floating Point Predictor.
 
     The output array should not be treated as floating-point numbers but as an
@@ -378,7 +378,7 @@ def floatpred_encode(data, axis=-1, dist=1, out=None):
     return _floatpred(data, axis=axis, dist=dist, out=out, decode=False)
 
 
-def floatpred_decode(data, axis=-1, dist=1, out=None):
+def floatpred_decode(data, axis=-1, dist=1, numthreads=None, out=None):
     """Decode Floating Point Predictor.
 
     The data array is not really an array of floating-point numbers but an
@@ -488,7 +488,7 @@ bitorder_version = imcd_version
 bitorder_check = imcd_check
 
 
-def bitorder_encode(data, out=None):
+def bitorder_encode(data, numthreads=None, out=None):
     """"Reverse bits in each byte of bytes, bytearray or numpy array.
 
     """
@@ -640,7 +640,7 @@ PackbitsError = ImcdError
 packbits_version = imcd_version
 packbits_check = imcd_check
 
-def packbits_encode(data, level=None, axis=None, out=None):
+def packbits_encode(data, level=None, axis=None, numthreads=None, out=None):
     """Compress PackBits.
 
     """
@@ -736,7 +736,7 @@ def packbits_encode(data, level=None, axis=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def packbits_decode(data, out=None):
+def packbits_decode(data, numthreads=None, out=None):
     """Decompress PackBits.
 
     """
@@ -777,6 +777,61 @@ def packbits_decode(data, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
+# CCITTRLE ####################################################################
+
+CCITTRLE = IMCD
+CcittrleError = ImcdError
+ccittrle_version = imcd_version
+ccittrle_check = imcd_check
+
+def ccittrle_encode(data, level=None, axis=None, numthreads=None, out=None):
+    """Compress CCITTRLE.
+
+    """
+    raise NotImplementedError('ccittrle_encode')
+
+
+def ccittrle_decode(data, numthreads=None, out=None):
+    """Decompress CCITTRLE.
+
+    """
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t ret = 0
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            with nogil:
+                dstsize = imcd_ccittrle_decode_size(&src[0], srcsize)
+            if dstsize < 0:
+                raise CcittrleError('imcd_ccittrle_decode_size', dstsize)
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    with nogil:
+        ret = imcd_ccittrle_decode(
+            &src[0],
+            srcsize,
+            <uint8_t*> &dst[0],
+            dstsize
+        )
+    if ret < 0:
+        raise CcittrleError('imcd_ccittrle_decode', ret)
+
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
+
+
 # Packed Integers #############################################################
 
 PACKINTS = IMCD
@@ -785,14 +840,16 @@ packints_version = imcd_version
 packints_check = imcd_check
 
 
-def packints_encode(data, int bitspersample, int axis=-1, out=None):
+def packints_encode(
+    data, int bitspersample, int axis=-1, numthreads=None, out=None
+):
     """Pack integers."""
 
     raise NotImplementedError('packints_encode')
 
 
 def packints_decode(
-    data, dtype, int bitspersample, ssize_t runlen=0, out=None
+    data, dtype, int bitspersample, ssize_t runlen=0, numthreads=None, out=None
 ):
     """Unpack groups of bits in byte sequence into numpy array."""
     cdef:
@@ -898,13 +955,16 @@ float24_check = imcd_check
 class FLOAT24:
     """Float24 Constants."""
 
-    ROUND_TONEAREST = FE_TONEAREST
-    ROUND_UPWARD = FE_UPWARD
-    ROUND_DOWNWARD = FE_DOWNWARD
-    ROUND_TOWARDZERO = FE_TOWARDZERO
+    class ROUND(enum.IntEnum):
+        TONEAREST = FE_TONEAREST
+        UPWARD = FE_UPWARD
+        DOWNWARD = FE_DOWNWARD
+        TOWARDZERO = FE_TOWARDZERO
 
 
-def float24_encode(data, byteorder=None, rounding=None, out=None):
+def float24_encode(
+    data, byteorder=None, rounding=None, numthreads=None, out=None
+):
     """Return byte sequence of float24 from numpy.float32 array.
 
     """
@@ -965,7 +1025,7 @@ def float24_encode(data, byteorder=None, rounding=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def float24_decode(data, byteorder=None, out=None):
+def float24_decode(data, byteorder=None, numthreads=None, out=None):
     """Return numpy.float32 array from byte sequence of float24.
 
     """
@@ -1032,7 +1092,7 @@ def lzw_check(const uint8_t[::1] data):
     return bool(imcd_lzw_check(&data[0], data.size))
 
 
-def lzw_decode(data, buffersize=0, out=None):
+def lzw_decode(data, buffersize=0, numthreads=None, out=None):
     """Decompress LZW.
 
     """
@@ -1082,7 +1142,7 @@ def lzw_decode(data, buffersize=0, out=None):
 
 
 
-def lzw_encode(data, level=None, buffersize=0, out=None):
+def lzw_encode(data, level=None, buffersize=0, numthreads=None, out=None):
     """Compress LZW.
 
     """
