@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2021, Christoph Gohlke
+# Copyright (c) 2018-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Template codec for the imagecodecs package."""
 
-__version__ = '2020.12.22'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -63,14 +63,14 @@ def template_check(const uint8_t[::1] data):
     return False
 
 
-def template_encode(data, level=None, out=None):
+def template_encode(data, level=None, numthreads=None, out=None):
     """Compress Template.
 
     """
     raise NotImplementedError('template_encode')
 
 
-def template_decode(data, index=None, out=None):
+def template_decode(data, index=None, numthreads=None, out=None):
     """Decompress Template.
 
     """
