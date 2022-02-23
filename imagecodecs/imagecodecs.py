@@ -1,6 +1,6 @@
 # imagecodecs.py
 
-# Copyright (c) 2008-2021, Christoph Gohlke
+# Copyright (c) 2008-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,9 +37,9 @@ tifffile, czifile, zarr, and other scientific image input/output modules.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC,
-LZW, LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY,
+LZW, LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY, APNG,
 PNG, GIF, TIFF, WebP, JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3),
-MOZJPEG, JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, AVIF,
+JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, MOZJPEG, AVIF,
 PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
 Bitorder reversal, Bitshuffle, CMS (color space transformations), and
 Float24 (24-bit floating point).
@@ -52,7 +52,7 @@ Float24 (24-bit floating point).
 
 :License: BSD 3-Clause
 
-:Version: 2021.11.20
+:Version: 2022.2.22
 
 :Status: Alpha
 
@@ -61,9 +61,9 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-* `CPython 3.7.9, 3.8.10, 3.9.9, 3.10.0, 64-bit <https://www.python.org>`_
-* `Cython 0.29.24 <https://cython.org>`_
-* `Numpy 1.21.4 <https://pypi.org/project/numpy>`_
+* `CPython 3.8.10, 3.9.10, 3.10.2, 64-bit <https://www.python.org>`_
+* `Cython 0.29.28 <https://cython.org>`_
+* `Numpy 1.21.5 <https://pypi.org/project/numpy>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `brotli 1.0.9 <https://github.com/google/brotli>`_
 * `brunsli 0.1 <https://github.com/google/brunsli>`_
@@ -71,47 +71,48 @@ This release has been tested with the following requirements and dependencies
 * `c-blosc 1.21.1 <https://github.com/Blosc/c-blosc>`_
 * `c-blosc2 2.0.4 <https://github.com/Blosc/c-blosc2>`_
 * `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
-* `charls 2.2.0 <https://github.com/team-charls/charls>`_
+* `charls 2.3.4 <https://github.com/team-charls/charls>`_
 * `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
 * `jxrlib 1.1 <https://packages.debian.org/source/sid/jxrlib>`_
-* `lcms 2.12 <https://github.com/mm2/Little-CMS>`_
+* `lcms 2.13.1 <https://github.com/mm2/Little-CMS>`_
 * `lerc 3.0 <https://github.com/Esri/lerc>`_
 * `libaec 1.0.6 <https://gitlab.dkrz.de/k202009/libaec>`_
 * `libavif 0.9.3 <https://github.com/AOMediaCodec/libavif>`_
-  (`aom 3.2.0 <https://aomedia.googlesource.com/aom>`_,
+  (`aom 3.3.0 <https://aomedia.googlesource.com/aom>`_,
   `dav1d 0.9.2 <https://github.com/videolan/dav1d>`_,
-  `rav1e 0.4.1 <https://github.com/xiph/rav1e>`_)
-* `libdeflate 1.8 <https://github.com/ebiggers/libdeflate>`_
+  `rav1e 0.5.1 <https://github.com/xiph/rav1e>`_)
+* `libdeflate 1.10 <https://github.com/ebiggers/libdeflate>`_
 * `libjpeg 9d <http://libjpeg.sourceforge.net/>`_
 * `libjpeg-turbo 2.1.2 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
 * `libjxl 0.6.1 <https://github.com/libjxl/libjxl>`_
 * `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 * `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 * `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
-* `libspng 0.7.0 <https://github.com/randy408/libspng>`_
+* `libpng-apng 1.6.37 <https://sourceforge.net/projects/libpng-apng/>`_
+* `libspng 0.7.2 <https://github.com/randy408/libspng>`_
 * `libtiff 4.3.0 <https://gitlab.com/libtiff/libtiff>`_
-* `libwebp 1.2.1 <https://github.com/webmproject/libwebp>`_
+* `libwebp 1.2.2 <https://github.com/webmproject/libwebp>`_
 * `lz4 1.9.3 <https://github.com/lz4/lz4>`_
 * `mozjpeg 4.0.3 <https://github.com/mozilla/mozjpeg>`_
 * `openjpeg 2.4.0 <https://github.com/uclouvain/openjpeg>`_
 * `snappy 1.1.9 <https://github.com/google/snappy>`_
 * `zfp 0.5.5 <https://github.com/LLNL/zfp>`_
 * `zlib 1.2.11 <https://github.com/madler/zlib>`_
-* `zlib-ng 2.0.5 <https://github.com/zlib-ng/zlib-ng>`_
+* `zlib-ng 2.0.6 <https://github.com/zlib-ng/zlib-ng>`_
 * `zopfli-1.0.3 <https://github.com/google/zopfli>`_
-* `zstd 1.5.0 <https://github.com/facebook/zstd>`_
+* `zstd 1.5.2 <https://github.com/facebook/zstd>`_
 
 Required Python packages for testing (other versions may work):
 
-* `tifffile 2021.11.2  <https://pypi.org/project/tifffile>`_
+* `tifffile 2022.2.9   <https://pypi.org/project/tifffile>`_
 * `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
 * `python-blosc 1.10.6 <https://github.com/Blosc/python-blosc>`_
 * `python-blosc2-0.2.0 <https://github.com/Blosc/python-blosc2>`_
 * `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
-* `python-lz4 3.1.3 <https://github.com/python-lz4/python-lz4>`_
+* `python-lz4 4.0.0 <https://github.com/python-lz4/python-lz4>`_
 * `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
 * `python-snappy 0.6.0 <https://github.com/andrix/python-snappy>`_
-* `python-zstd 1.5.0.2 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
+* `python-zstd 1.5.1 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 * `bitshuffle 0.3.5 <https://github.com/kiyo-masui/bitshuffle>`_
 * `numcodecs 0.9.1 <https://github.com/zarr-developers/numcodecs>`_
 * `zarr 2.10.3 <https://github.com/zarr-developers/zarr-python>`_
@@ -183,9 +184,9 @@ specific extensions, e.g.:
     ``python -m pip install imagecodecs --global-option="build_ext"
     --global-option="--skip-bitshuffle"``
 
-The ``jpeg12``, ``jpegls``, ``jpegxl``, ``zfp``, ``avif``, ``lz4f``, ``lerc``,
-``mozjpeg``, and ``zlibng`` extensions are disabled by default when building
-from source.
+The ``apng``, ``avif``, ``jpeg12``, ``jpegls``, ``jpegxl``, ``lerc``, ``lz4f``,
+``mozjpeg``, ``zfp``, and ``zlibng`` extensions are disabled by default when
+building from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
@@ -205,8 +206,8 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `isa-l.igzip <https://github.com/intel/isa-l>`_
 * `fpzip <https://github.com/seung-lab/fpzip>`_
 * `libmng <https://sourceforge.net/projects/libmng/>`_
-* `APNG patch for libpng <https://sourceforge.net/projects/libpng-apng/>`_
 * `OpenEXR <https://github.com/AcademySoftwareFoundation/openexr>`_
+  (EXR, PIZ, PXR24, B44, DWA)
 * `tinyexr <https://github.com/syoyo/tinyexr>`_
 * `pytinyexr <https://github.com/syoyo/pytinyexr>`_
 * `libjpeg <https://github.com/thorfdbg/libjpeg>`_ (GPL)
@@ -220,11 +221,26 @@ Other Python packages and C libraries providing imaging or compression codecs:
 * `pyrus-cramjam <https://github.com/milesgranger/pyrus-cramjam>`_
 * `QuickLZ <http://www.quicklz.com/>`_ (GPL)
 * `LZO <http://www.oberhumer.com/opensource/lzo/>`_ (GPL)
+* `nvJPEG <https://developer.nvidia.com/nvjpeg>`_
+* `nvJPEG2K <https://developer.nvidia.com/nvjpeg>`_
+* `PyTurboJPEG <https://github.com/lilohuang/PyTurboJPEG>`_
+* `CCSDS123 <https://github.com/drowzie/CCSDS123-Issue-2>`_
+* `LPC-Rice <https://sourceforge.net/projects/lpcrice/>`_
+* `MAFISC
+  <https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_
 
 Revisions
 ---------
+2022.2.22
+    Pass 6176 tests.
+    Fix jpeg numcodecs with tables (#28).
+    Add APNG codec via libpng-apng patch.
+    Add lossless and decodingspeed parameters to jpegxl_encode (#30).
+    Add option to read JPEG XL animations.
+    Add dummy numthreads parameter to codec functions.
+    Set default numthreads to 1 (disable multi-threading).
+    Drop support for Python 3.7 and numpy < 1.19 (NEP29).
 2021.11.20
-    Pass 5949 tests.
     Fix testing on pypy and Python 3.10.
 2021.11.11
     Require libjxl 0.6.x.
@@ -381,7 +397,7 @@ Refer to the CHANGES file for older revisions.
 
 """
 
-__version__ = '2021.11.20'
+__version__ = '2022.2.22'
 
 import os
 import sys
@@ -408,6 +424,7 @@ _API = {
         (
             'bitorder',
             'delta',
+            # 'ccittrle',
             'float24',
             'floatpred',
             'lzw',
@@ -417,6 +434,7 @@ _API = {
         ),
     ],
     'aec': [],
+    'apng': [],
     'avif': [],
     # 'exr': [],
     'bitshuffle': [],
@@ -428,6 +446,7 @@ _API = {
     'cms': ['cms_transform', 'cms_profile'],
     'deflate': ['deflate_crc32', 'deflate_adler32', ('deflate', 'gzip')],
     'gif': [],
+    # 'heif': [],  # LGPL
     'jpeg2k': [],
     'jpeg8': [],
     'jpeg12': [],
@@ -442,6 +461,8 @@ _API = {
     'lzf': [],
     'lzma': [],
     'mozjpeg': [],
+    # 'nvjpeg': [],  # CUDA
+    # 'nvjpeg2k': [],  # CUDA
     'pglz': [],
     'png': [],
     'rcomp': [],
@@ -721,6 +742,7 @@ def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
             c
             for c in (
                 'tiff',
+                'apng',
                 'png',
                 'gif',
                 'webp',
@@ -849,10 +871,12 @@ def _imcodecs(_codecs_={}):
     """Return map of image file extensions to codec names."""
     if not _codecs_:
         codecs = {
+            'apng': ('apng',),
             'avif': ('avif', 'avifs'),
             'brunsli': ('brn',),
             # 'exr': ('exr',),
             'gif': ('gif',),
+            # 'heif': ('heif',),
             'jpeg': ('jpg', 'jpeg', 'jpe', 'jfif', 'jif', 'ljpeg'),
             'jpeg2k': ('j2k', 'jp2', 'j2c', 'jpc', 'jpx', 'jpf'),  # jpm, mj2
             'jpegls': ('jls',),
@@ -916,7 +940,7 @@ def numpy_check(data):
     return data.startswith(magic) or (data.startswith(b'PK') and magic in data)
 
 
-def numpy_decode(data, index=0, out=None, **kwargs):
+def numpy_decode(data, index=0, numthreads=None, out=None, **kwargs):
     """Decode NPY and NPZ."""
     with io.BytesIO(data) as fh:
         try:
@@ -932,7 +956,7 @@ def numpy_decode(data, index=0, out=None, **kwargs):
     return out
 
 
-def numpy_encode(data, level=None, out=None):
+def numpy_encode(data, level=None, numthreads=None, out=None):
     """Encode NPY and NPZ."""
     with io.BytesIO() as fh:
         if level:
@@ -955,6 +979,7 @@ def jpeg_decode(
     colorspace=None,
     outcolorspace=None,
     shape=None,
+    numthreads=None,
     out=None,
 ):
     """Decode JPEG 8-bit, 12-bit, and SOF3."""
@@ -968,6 +993,7 @@ def jpeg_decode(
                 colorspace=colorspace,
                 outcolorspace=outcolorspace,
                 shape=shape,
+                numthreads=numthreads,
                 out=out,
             )
         except Exception as exc:
@@ -980,13 +1006,18 @@ def jpeg_decode(
                     colorspace=colorspace,
                     outcolorspace=outcolorspace,
                     shape=shape,
+                    numthreads=numthreads,
                     out=out,
                 )
             if 'SOF type' in msg:
                 try:
-                    return imagecodecs.jpegsof3_decode(data, out=out)
+                    return imagecodecs.jpegsof3_decode(
+                        data, numthreads=numthreads, out=out
+                    )
                 except Exception:
-                    return imagecodecs.ljpeg_decode(data, out=out)
+                    return imagecodecs.ljpeg_decode(
+                        data, numthreads=numthreads, out=out
+                    )
             # if 'Empty JPEG image' in msg:
             # e.g. Hamamatsu NDPI slides with dimensions > 65500
             # Unsupported marker type
@@ -999,6 +1030,7 @@ def jpeg_decode(
                 colorspace=colorspace,
                 outcolorspace=outcolorspace,
                 shape=shape,
+                numthreads=numthreads,
                 out=out,
             )
         if bitspersample == 12:
@@ -1008,19 +1040,28 @@ def jpeg_decode(
                 colorspace=colorspace,
                 outcolorspace=outcolorspace,
                 shape=shape,
+                numthreads=numthreads,
                 out=out,
             )
         try:
-            return imagecodecs.jpegsof3_decode(data, out=out)
+            return imagecodecs.jpegsof3_decode(
+                data, numthreads=numthreads, out=out
+            )
         except Exception:
-            return imagecodecs.ljpeg_decode(data, out=out)
+            return imagecodecs.ljpeg_decode(
+                data, numthreads=numthreads, out=out
+            )
     except Exception as exc:
         msg = str(exc)
         if 'SOF type' in msg:
             try:
-                return imagecodecs.jpegsof3_decode(data, out=out)
+                return imagecodecs.jpegsof3_decode(
+                    data, numthreads=numthreads, out=out
+                )
             except Exception:
-                return imagecodecs.ljpeg_decode(data, out=out)
+                return imagecodecs.ljpeg_decode(
+                    data, numthreads=numthreads, out=out
+                )
         # if 'Empty JPEG image' in msg:
         raise exc
 
@@ -1035,6 +1076,7 @@ def jpeg_encode(
     smoothing=None,
     lossless=None,
     bitspersample=None,
+    numthreads=None,
     out=None,
 ):
     """Encode JPEG 8-bit or 12-bit."""
@@ -1056,6 +1098,7 @@ def jpeg_encode(
         subsampling=subsampling,
         optimize=optimize,
         smoothing=smoothing,
+        numthreads=numthreads,
         out=out,
     )
 
