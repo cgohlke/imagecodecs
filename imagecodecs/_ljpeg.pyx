@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -71,7 +71,9 @@ def ljpeg_check(data):
     """Return True if data likely contains a LJPEG image."""
 
 
-def ljpeg_encode(data, level=None, bitspersample=None, out=None):
+def ljpeg_encode(
+    data, level=None, bitspersample=None, numthreads=None, out=None
+):
     """Return Lossless JPEG image from numpy array."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -146,7 +148,7 @@ def ljpeg_encode(data, level=None, bitspersample=None, out=None):
     return _return_output(out, dstsize, <ssize_t> encodedlength, outgiven)
 
 
-def ljpeg_decode(data, index=None, out=None):
+def ljpeg_decode(data, index=None, numthreads=None, out=None):
     """Decode Lossless JPEG image to numpy array.
 
     Beware, the underlying lj92 library is known to crash on some valid input.
