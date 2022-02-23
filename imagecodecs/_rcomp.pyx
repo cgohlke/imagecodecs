@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@ Conf. AIAA-93-4541-CP, 1993. https://doi.org/10.2514/6.1993-4541
 
 """
 
-__version__ = '2021.5.20'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -80,7 +80,7 @@ def rcomp_check(data):
     return False
 
 
-def rcomp_encode(data, level=None, nblock=None, out=None):
+def rcomp_encode(data, level=None, nblock=None, numthreads=None, out=None):
     """Compress Rcomp.
 
     """
@@ -157,7 +157,9 @@ def rcomp_encode(data, level=None, nblock=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def rcomp_decode(data, shape=None, dtype=None, nblock=None, out=None):
+def rcomp_decode(
+    data, shape=None, dtype=None, nblock=None, numthreads=None, out=None
+):
     """Decompress Rcomp.
 
     """
