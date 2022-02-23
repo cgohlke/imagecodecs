@@ -1,8 +1,8 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2021.11.11` library.
-# https://www.lfd.uci.edu/~gohlke/
+# Cython declarations for the `imcd 2022.2.22` library.
+# https://github.com/cgohlke/imagecodecs
 
 from libc.stdint cimport uint8_t
 
@@ -90,6 +90,29 @@ cdef extern from 'imcd.h':
     ) nogil
 
     ssize_t imcd_packbits_encode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t dstsize
+    ) nogil
+
+    ssize_t imcd_ccittrle_decode_size(
+        const uint8_t* src,
+        const ssize_t srcsize
+    ) nogil
+
+    ssize_t imcd_ccittrle_encode_size(
+        const ssize_t srcsize
+    ) nogil
+
+    ssize_t imcd_ccittrle_decode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t dstsize
+    ) nogil
+
+    ssize_t imcd_ccittrle_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
