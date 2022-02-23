@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2021, Christoph Gohlke
+# Copyright (c) 2019-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,13 +37,11 @@
 
 """Brotli codec for the imagecodecs package."""
 
-__version__ = '2021.11.11'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
 from brotli cimport *
-
-import enum
 
 
 class BROTLI:
@@ -85,7 +83,9 @@ def brotli_check(data):
     """Return True if data likely contains Brotli data."""
 
 
-def brotli_encode(data, level=None, mode=None, lgwin=None, out=None):
+def brotli_encode(
+    data, level=None, mode=None, lgwin=None, numthreads=None, out=None
+):
     """Compress Brotli.
 
     """
@@ -133,7 +133,7 @@ def brotli_encode(data, level=None, mode=None, lgwin=None, out=None):
     return _return_output(out, dstsize, encoded_size, outgiven)
 
 
-def brotli_decode(data, out=None):
+def brotli_decode(data, numthreads=None, out=None):
     """Decompress Brotli.
 
     """
