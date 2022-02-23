@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021, Christoph Gohlke
+# Copyright (c) 2021-2022, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Zlib-ng codec for the imagecodecs package."""
 
-__version__ = '2021.5.20'
+__version__ = '2022.2.22'
 
 include '_shared.pxi'
 
@@ -83,7 +83,7 @@ def zlibng_check(data):
     """Return True if data likely contains Zlib data."""
 
 
-def zlibng_encode(data, level=None, out=None):
+def zlibng_encode(data, level=None, numthreads=None, out=None):
     """Compress Zlib-ng.
 
     """
@@ -129,7 +129,7 @@ def zlibng_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def zlibng_decode(data, out=None):
+def zlibng_decode(data, numthreads=None, out=None):
     """Decompress Zlib-ng.
 
     """
