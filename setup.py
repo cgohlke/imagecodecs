@@ -511,7 +511,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['apng']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['jpeg12']
-    del EXTENSIONS['jpegxl']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
