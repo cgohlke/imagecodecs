@@ -47,8 +47,8 @@
 // These are usually set in the setup.py.
 #ifndef BSHUF_VERSION_MAJOR
 #define BSHUF_VERSION_MAJOR 0
-#define BSHUF_VERSION_MINOR 3
-#define BSHUF_VERSION_POINT 5
+#define BSHUF_VERSION_MINOR 4
+#define BSHUF_VERSION_POINT 0
 #endif
 
 #ifdef __cplusplus
@@ -65,6 +65,18 @@ extern "C" {
  *
  */
 int bshuf_using_SSE2(void);
+
+
+/* ---- bshuf_using_NEON ----
+ *
+ * Whether routines where compiled with the NEON instruction set.
+ *
+ * Returns
+ * -------
+ *  1 if using NEON, 0 otherwise.
+ *
+ */
+int bshuf_using_NEON(void);
 
 
 /* ---- bshuf_using_AVX2 ----
