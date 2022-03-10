@@ -186,7 +186,7 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
     try:
         with nogil:
 
-            stream.next_in = <const Bytef*> &src[0]
+            stream.next_in = <Bytef*> &src[0]  # <z_const Bytef*>
             stream.avail_in = 0
             stream.zalloc = NULL
             stream.zfree = NULL
