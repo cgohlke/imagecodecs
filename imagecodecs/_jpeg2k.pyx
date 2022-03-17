@@ -575,7 +575,7 @@ def jpeg2k_decode(
         with nogil:
             # TODO: use OMP prange?
             # memset(<void*> dst.data, 0, dst.nbytes)
-            bandsize = <ssize_t> (height * width)
+            bandsize = <ssize_t> height * <ssize_t> width
             if itemsize == 1:
                 if signed:
                     if contig:
