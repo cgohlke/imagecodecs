@@ -1,7 +1,7 @@
 # imagecodecs/zlib.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zlib 1.2.11` library.
+# Cython declarations for the `zlib 1.2.12` library.
 # https://github.com/madler/zlib
 
 cdef extern from 'zlib.h':
@@ -447,7 +447,13 @@ cdef extern from 'zlib.h':
     ) nogil
 
     uLong crc32_z(
-        uLong adler,
+        uLong crc,
         const Bytef* buf,
         z_size_t len
+    ) nogil
+
+    uLong crc32_combine_op(
+        uLong crc1,
+        uLong crc2,
+        uLong op
     ) nogil
