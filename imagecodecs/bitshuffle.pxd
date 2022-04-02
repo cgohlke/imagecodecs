@@ -1,7 +1,7 @@
 # imagecodecs/bitshuffle.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Bitshuffle 0.3.5` library.
+# Cython declarations for the `Bitshuffle 0.4.2` library.
 # https://github.com/kiyo-masui/bitshuffle
 
 from libc.stdint cimport int64_t
@@ -18,6 +18,12 @@ cdef extern from 'bitshuffle.h':
 
     size_t bshuf_default_block_size(
         const size_t elem_size
+    ) nogil
+
+    size_t bshuf_compress_lz4_bound(
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size
     ) nogil
 
     int64_t bshuf_compress_lz4(
@@ -52,8 +58,26 @@ cdef extern from 'bitshuffle.h':
         size_t block_size
     ) nogil
 
-    size_t bshuf_compress_lz4_bound(
+    size_t bshuf_compress_zstd_bound(
         const size_t size,
         const size_t elem_size,
         size_t block_size
     ) nogil
+
+    int64_t bshuf_compress_zstd(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t
+        elem_size,
+        size_t block_size,
+        const int comp_lvl
+    ) nogil
+
+    int64_t bshuf_decompress_zstd(
+        const void* inp,
+        void* out,
+        const size_t size,
+        const size_t elem_size,
+        size_t block_size
+     ) nogil
