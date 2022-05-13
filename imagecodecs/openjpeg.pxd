@@ -1,7 +1,7 @@
 # imagecodecs/openjpeg.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `OpenJPEG 2.4.0` library.
+# Cython declarations for the `OpenJPEG 2.5.0` library.
 # https://github.com/uclouvain/openjpeg
 
 from libc.stdint cimport (
@@ -326,7 +326,7 @@ cdef extern from 'openjpeg.h':
         OPJ_UINT32 x0
         OPJ_UINT32 y0
         OPJ_UINT32 prec
-        OPJ_UINT32 bpp
+        OPJ_UINT32 bpp  # obsolete: use prec instead
         OPJ_UINT32 sgnd
         OPJ_UINT32 resno_decoded
         OPJ_UINT32 factor
@@ -603,6 +603,11 @@ cdef extern from 'openjpeg.h':
     OPJ_BOOL opj_setup_decoder(
         opj_codec_t* p_codec,
         opj_dparameters_t* parameters
+    ) nogil
+
+    OPJ_BOOL opj_decoder_set_strict_mode(
+        opj_codec_t *p_codec,
+        OPJ_BOOL strict
     ) nogil
 
     OPJ_BOOL opj_codec_set_threads(
