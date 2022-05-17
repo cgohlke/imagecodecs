@@ -1,7 +1,7 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 0.9.3` library.
+# Cython declarations for the `libavif 0.10.1` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -93,6 +93,9 @@ cdef extern from 'avif/avif.h':
         AVIF_RESULT_IO_NOT_SET
         AVIF_RESULT_IO_ERROR
         AVIF_RESULT_WAITING_ON_IO
+        AVIF_RESULT_INVALID_ARGUMENT
+        AVIF_RESULT_NOT_IMPLEMENTED
+        AVIF_RESULT_OUT_OF_MEMORY
 
     const char* avifResultToString(
         avifResult result
@@ -329,6 +332,12 @@ cdef extern from 'avif/avif.h':
         avifPlanesFlags planes
     ) nogil
 
+    avifResult avifImageSetViewRect(
+        avifImage* dstImage,
+        const avifImage* srcImage,
+        const avifCropRect* rect
+    ) nogil
+
     void avifImageDestroy(
         avifImage* image
     ) nogil
@@ -397,6 +406,7 @@ cdef extern from 'avif/avif.h':
         avifRGBFormat format
         avifChromaUpsampling chromaUpsampling
         avifBool ignoreAlpha
+        avifBool isFloat
         avifBool alphaPremultiplied
         uint8_t* pixels
         uint32_t rowBytes
@@ -612,24 +622,39 @@ cdef extern from 'avif/avif.h':
         double duration
         uint64_t durationInTimescales
 
+    ctypedef enum avifProgressiveState:
+        AVIF_PROGRESSIVE_STATE_UNAVAILABLE
+        AVIF_PROGRESSIVE_STATE_AVAILABLE
+        AVIF_PROGRESSIVE_STATE_ACTIVE
+
+    const char * avifProgressiveStateToString(
+        avifProgressiveState progressiveState
+    )
+
     ctypedef struct avifDecoder:
         avifCodecChoice codecChoice
+        int maxThreads
         avifDecoderSource requestedSource
+        avifBool allowProgressive
+        avifBool allowIncremental
+        avifBool ignoreExif
+        avifBool ignoreXMP
+        uint32_t imageSizeLimit
+        uint32_t imageCountLimit
+        avifStrictFlags strictFlags
+
         avifImage* image
         int imageIndex
         int imageCount
+        avifProgressiveState progressiveState
         avifImageTiming imageTiming
         uint64_t timescale
         double duration
         uint64_t durationInTimescales
         avifBool alphaPresent
-        avifBool ignoreExif
-        avifBool ignoreXMP
-        uint32_t imageCountLimit
-        avifStrictFlags strictFlags
         avifIOStats ioStats
-        avifIO* io
         avifDiagnostics diag
+        avifIO* io
         avifDecoderData* data
 
     avifDecoder* avifDecoderCreate() nogil
@@ -708,6 +733,10 @@ cdef extern from 'avif/avif.h':
         const avifDecoder* decoder,
         uint32_t frameIndex,
         avifImageTiming* outTiming
+    ) nogil
+
+    uint32_t avifDecoderDecodedRowCount(
+        const avifDecoder* decoder
     ) nogil
 
     # avifEncoder
