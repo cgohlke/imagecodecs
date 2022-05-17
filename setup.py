@@ -233,7 +233,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
         EXTENSIONS['bz2']['libraries'] = ['libbz2']
     else:
         EXTENSIONS['jpeg2k']['include_dirs'].extend(
-            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4')
+            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4', '/usr/include/openjpeg-2.5')
         )
         EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
         EXTENSIONS['zopfli']['include_dirs'].append('/usr/include/zopfli')
@@ -501,7 +501,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['gif']['include_dirs'] = ['%PREFIX%/include/giflib5']
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
-        ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4')
+        ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4', '%PREFIX%/include/openjpeg-2.5')
     )
 
 
@@ -520,6 +520,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
         (
             sys.prefix + '/include/openjpeg-2.3',
             sys.prefix + '/include/openjpeg-2.4',
+            sys.prefix + '/include/openjpeg-2.5',
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
