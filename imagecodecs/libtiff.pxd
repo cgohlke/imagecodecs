@@ -1,7 +1,7 @@
 # imagecodecs/libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.3.0` library.
+# Cython declarations for the `libtiff 4.4.0` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stdio cimport FILE
@@ -409,6 +409,18 @@ cdef extern from 'tiffio.h':
         TIFFField*
     ) nogil
 
+    int TIFFFieldSetGetSize(
+        const TIFFField*
+    ) nogil
+
+    int TIFFFieldSetGetCountSize(
+        const TIFFField*
+    ) nogil
+
+    int TIFFFieldIsAnonymous(
+        const TIFFField *
+    ) nogil
+
     ctypedef int (*TIFFVSetMethod)(
         TIFF*,
         uint32_t,
@@ -627,6 +639,10 @@ cdef extern from 'tiffio.h':
     ) nogil
 
     int TIFFIsBigEndian(
+        TIFF*
+    ) nogil
+
+    int TIFFIsBigTIFF(
         TIFF*
     ) nogil
 
