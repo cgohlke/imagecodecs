@@ -233,7 +233,8 @@ def customize_build_default(EXTENSIONS, OPTIONS):
         EXTENSIONS['bz2']['libraries'] = ['libbz2']
     else:
         EXTENSIONS['jpeg2k']['include_dirs'].extend(
-            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4')
+            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4',
+             '/usr/include/openjpeg-2.5')
         )
         EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
         EXTENSIONS['zopfli']['include_dirs'].append('/usr/include/zopfli')
