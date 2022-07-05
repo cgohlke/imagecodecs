@@ -1,10 +1,12 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.0.4` library.
+# Cython declarations for the `c-blosc2 2.2.0` library.
 # https://github.com/Blosc/c-blosc2
 
-from libc.stdint cimport uint8_t, int16_t, int32_t, uint32_t, int64_t
+from libc.stdint cimport (
+    int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t
+)
 
 ctypedef bint bool
 
@@ -17,6 +19,8 @@ cdef extern from 'blosc2.h':
     char* BLOSC_VERSION_STRING
     char* BLOSC_VERSION_DATE
 
+    int BLOSC2_MAX_DIM
+
     int BLOSC_VERSION_FORMAT_PRE1
     int BLOSC1_VERSION_FORMAT
     int BLOSC2_VERSION_FORMAT_ALPHA
@@ -27,6 +31,14 @@ cdef extern from 'blosc2.h':
     int BLOSC2_VERSION_FRAME_FORMAT_BETA2
     int BLOSC2_VERSION_FRAME_FORMAT_RC1
     int BLOSC2_VERSION_FRAME_FORMAT
+
+    ctypedef struct blosc2_instr:
+        float cratio
+        float cspeed
+        float filter_speed
+        # float memory
+        # float power
+        uint8_t flags[4]
 
     int BLOSC_MIN_HEADER_LENGTH
     int BLOSC_EXTENDED_HEADER_LENGTH
@@ -61,6 +73,7 @@ cdef extern from 'blosc2.h':
 
     int BLOSC2_USEDICT
     int BLOSC2_BIGENDIAN
+    int BLOSC2_INSTR_CODEC
 
     int BLOSC2_MAXDICTSIZE
     int BLOSC2_MAXBLOCKSIZE
@@ -396,6 +409,8 @@ cdef extern from 'blosc2.h':
         int32_t out_size
         int32_t out_typesize
         int32_t out_offset
+        int64_t nchunk
+        int32_t nblock
         int32_t tid
         uint8_t* ttmp
         size_t ttmp_nbytes
@@ -408,6 +423,8 @@ cdef extern from 'blosc2.h':
         int32_t size
         int32_t typesize
         int32_t offset
+        int64_t nchunk
+        int32_t nblock
         int32_t tid
         uint8_t* ttmp
         size_t ttmp_nbytes
@@ -436,6 +453,7 @@ cdef extern from 'blosc2.h':
         blosc2_prefilter_fn prefilter
         blosc2_prefilter_params* preparams
         blosc2_btune* udbtune
+        bool instr_codec
 
     const blosc2_cparams BLOSC2_CPARAMS_DEFAULTS
 
@@ -510,31 +528,31 @@ cdef extern from 'blosc2.h':
 
     int blosc2_chunk_zeros(
         blosc2_cparams cparams,
-        size_t nbytes,
+        int32_t nbytes,
         void* dest,
-        size_t destsize
+        int32_t destsize
     ) nogil
 
     int blosc2_chunk_nans(
         blosc2_cparams cparams,
-        size_t nbytes,
+        int32_t nbytes,
         void* dest,
-        size_t destsize
+        int32_t destsize
     ) nogil
 
     int blosc2_chunk_repeatval(
         blosc2_cparams cparams,
-        size_t nbytes,
+        int32_t nbytes,
         void* dest,
-        size_t destsize,
+        int32_t destsize,
         void* repeatval
     ) nogil
 
     int blosc2_chunk_uninit(
         blosc2_cparams cparams,
-        size_t nbytes,
+        int32_t nbytes,
         void* dest,
-        size_t destsize
+        int32_t destsize
     ) nogil
 
     int blosc2_getitem_ctx(
@@ -580,7 +598,8 @@ cdef extern from 'blosc2.h':
         int32_t chunksize
         uint8_t filters[6]  # BLOSC2_MAX_FILTERS
         uint8_t filters_meta[6]  # BLOSC2_MAX_FILTERS
-        int32_t nchunks
+        int64_t nchunks
+        int64_t current_nchunk
         int64_t nbytes
         int64_t cbytes
         uint8_t** data
@@ -590,10 +609,12 @@ cdef extern from 'blosc2.h':
         blosc2_context* cctx
         blosc2_context* dctx
         blosc2_metalayer* metalayers[16]  # BLOSC2_MAX_METALAYERS
-        int16_t nmetalayers
+        uint16_t nmetalayers
         blosc2_metalayer* vlmetalayers[8 * 1024]  # BLOSC2_MAX_VLMETALAYERS
         int16_t nvlmetalayers
         blosc2_btune* udbtune
+        int8_t ndim
+        int64_t *blockshape
 
     blosc2_schunk* blosc2_schunk_new(
         blosc2_storage* storage
@@ -614,6 +635,11 @@ cdef extern from 'blosc2.h':
         const char* urlpath
     ) nogil
 
+    blosc2_schunk* blosc2_schunk_open_offset(
+        const char* urlpath,
+        int64_t offset
+    ) nogil
+
     blosc2_schunk* blosc2_schunk_open_udio(
         const char* urlpath,
         const blosc2_io* udio
@@ -630,36 +656,41 @@ cdef extern from 'blosc2.h':
         const char* urlpath
     ) nogil
 
+    int64_t blosc2_schunk_append_file(
+        blosc2_schunk* schunk,
+        const char* urlpath
+    ) nogil
+
     int blosc2_schunk_free(
         blosc2_schunk* schunk
     ) nogil
 
-    int blosc2_schunk_append_chunk(
+    int64_t blosc2_schunk_append_chunk(
         blosc2_schunk* schunk,
         uint8_t* chunk,
         bool copy
     ) nogil
 
-    int blosc2_schunk_update_chunk(
+    int64_t blosc2_schunk_update_chunk(
         blosc2_schunk* schunk,
-        int nchunk,
+        int64_t nchunk,
         uint8_t* chunk,
         bool copy
     ) nogil
 
-    int blosc2_schunk_insert_chunk(
+    int64_t blosc2_schunk_insert_chunk(
         blosc2_schunk* schunk,
-        int nchunk,
+        int64_t nchunk,
         uint8_t* chunk,
         bool copy
     ) nogil
 
-    int blosc2_schunk_delete_chunk(
+    int64_t blosc2_schunk_delete_chunk(
         blosc2_schunk* schunk,
-        int nchunk
+        int64_t nchunk
     ) nogil
 
-    int blosc2_schunk_append_buffer(
+    int64_t blosc2_schunk_append_buffer(
         blosc2_schunk* schunk,
         void* src,
         int32_t nbytes
@@ -667,21 +698,21 @@ cdef extern from 'blosc2.h':
 
     int blosc2_schunk_decompress_chunk(
         blosc2_schunk* schunk,
-        int nchunk,
+        int64_t nchunk,
         void* dest,
         int32_t nbytes
     ) nogil
 
     int blosc2_schunk_get_chunk(
         blosc2_schunk* schunk,
-        int nchunk,
+        int64_t nchunk,
         uint8_t** chunk,
         bool* needs_free
     ) nogil
 
     int blosc2_schunk_get_lazychunk(
         blosc2_schunk* schunk,
-        int nchunk,
+        int64_t nchunk,
         uint8_t** chunk,
         bool* needs_free
     ) nogil
@@ -698,14 +729,14 @@ cdef extern from 'blosc2.h':
 
     int blosc2_schunk_reorder_offsets(
         blosc2_schunk* schunk,
-        int* offsets_order
+        int64_t* offsets_order
     ) nogil
 
     int64_t blosc2_schunk_frame_len(
         blosc2_schunk* schunk
     ) nogil
 
-    int blosc2_schunk_fill_special(
+    int64_t blosc2_schunk_fill_special(
         blosc2_schunk* schunk,
         int64_t nitems,
         int special_value,
@@ -721,21 +752,21 @@ cdef extern from 'blosc2.h':
         blosc2_schunk* schunk,
         const char* name,
         uint8_t* content,
-        uint32_t content_len
+        int32_t content_len
     ) nogil
 
     int blosc2_meta_update(
         blosc2_schunk* schunk,
         const char* name,
         uint8_t* content,
-        uint32_t content_len
+        int32_t content_len
     ) nogil
 
     int blosc2_meta_get(
         blosc2_schunk* schunk,
         const char* name,
         uint8_t** content,
-        uint32_t* content_len
+        int32_t* content_len
     ) nogil
 
     int blosc2_vlmeta_exists(
@@ -747,7 +778,7 @@ cdef extern from 'blosc2.h':
         blosc2_schunk* schunk,
         const char* name,
         uint8_t* content,
-        uint32_t content_len,
+        int32_t content_len,
         blosc2_cparams* cparams
     ) nogil
 
@@ -755,7 +786,7 @@ cdef extern from 'blosc2.h':
         blosc2_schunk* schunk,
         const char* name,
         uint8_t* content,
-        uint32_t content_len,
+        int32_t content_len,
         blosc2_cparams* cparams
     ) nogil
 
@@ -763,12 +794,17 @@ cdef extern from 'blosc2.h':
         blosc2_schunk* schunk,
         const char* name,
         uint8_t** content,
-        uint32_t* content_len
+        int32_t* content_len
     ) nogil
 
     int blosc2_vlmeta_delete(
         blosc2_schunk *schunk,
         const char *name
+    ) nogil
+
+    int blosc2_vlmeta_get_names(
+        blosc2_schunk *schunk,
+        char **names
     ) nogil
 
     ctypedef struct blosc_timestamp_t:
@@ -799,13 +835,18 @@ cdef extern from 'blosc2.h':
         blosc2_schunk* schunk
     ) nogil
 
+    int64_t* blosc2_frame_get_offsets(
+        blosc2_schunk *schunk
+    ) nogil
+
     ctypedef int (*blosc2_codec_encoder_cb)(
         const uint8_t* input,
         int32_t input_len,
         uint8_t* output,
         int32_t output_len,
         uint8_t meta,
-        blosc2_cparams* cparams
+        blosc2_cparams* cparams,
+        const void* chunk
     ) nogil
 
     ctypedef int (*blosc2_codec_decoder_cb)(
@@ -814,7 +855,8 @@ cdef extern from 'blosc2.h':
         uint8_t* output,
         int32_t output_len,
         uint8_t meta,
-        blosc2_dparams* dparams
+        blosc2_dparams* dparams,
+        const void* chunk
     ) nogil
 
     ctypedef struct blosc2_codec:
@@ -865,4 +907,19 @@ cdef extern from 'blosc2.h':
     int blosc2_rename_urlpath(
         char* old_urlpath,
         char* new_path
+    ) nogil
+
+    void blosc2_unidim_to_multidim(
+        uint8_t ndim,
+        int64_t *shape,
+        int64_t i,
+        int64_t *index
+    ) nogil
+
+    void blosc2_multidim_to_unidim(
+        const int64_t *index,
+        int8_t ndim,
+        const int64_t
+        *strides,
+        int64_t *i
     ) nogil
