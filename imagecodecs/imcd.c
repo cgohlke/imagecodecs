@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "imcd.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -168,9 +169,9 @@ ssize_t imcd_delta(
     const ssize_t dstsize,
     const ssize_t dststride,
     const ssize_t itemsize,
-    const int decode)
+    const bool decode)
 {
-    const int inplace = (dst == NULL) || (dst == src);
+    const bool inplace = (dst == NULL) || (dst == src);
     const ssize_t size = inplace ? srcsize : MIN_(srcsize, dstsize);
     const ssize_t stride = inplace ? srcstride : dststride;
     char* srcptr = (char*)src;
@@ -216,9 +217,9 @@ ssize_t imcd_diff(
     const ssize_t dststride,
     const ssize_t itemsize,
     const char itemtype,
-    const int decode)
+    const bool decode)
 {
-    const int inplace = (dst == NULL) || (dst == src);
+    const bool inplace = (dst == NULL) || (dst == src);
     const ssize_t size = inplace ? srcsize : MIN_(srcsize, dstsize);
     const ssize_t stride = inplace ? srcstride : dststride;
     char* srcptr = (char*)src;
@@ -344,9 +345,9 @@ ssize_t imcd_xor(
     const ssize_t dstsize,
     const ssize_t dststride,
     const ssize_t itemsize,
-    const int decode)
+    const bool decode)
 {
-    const int inplace = (dst == NULL) || (dst == src);
+    const bool inplace = (dst == NULL) || (dst == src);
     const ssize_t size = inplace ? srcsize : MIN_(srcsize, dstsize);
     const ssize_t stride = inplace ? srcstride : dststride;
     char* srcptr = (char*)src;
@@ -461,8 +462,8 @@ ssize_t imcd_bitorder(
 
 /* TIFF Technical Note 3. April 8, 2005. */
 
-/* Encode or decode floating point predictor. */
-ssize_t imcd_floatpred(
+/* Encode or decode byteshuffle or floating point predictor. */
+ssize_t imcd_byteshuffle(
     void* src,
     const ssize_t srcsize,  /* size in bytes */
     const ssize_t srcstride,
@@ -472,7 +473,8 @@ ssize_t imcd_floatpred(
     const ssize_t itemsize,
     const ssize_t samples,
     const char byteorder,
-    const int decode)
+    const bool delta,
+    const bool decode)
 {
     uint8_t* srcptr = (uint8_t*)src;
     uint8_t* dstptr = (uint8_t*)dst;
@@ -494,9 +496,11 @@ ssize_t imcd_floatpred(
             return IMCD_VALUE_ERROR;
         }
         /* TODO: do not temporarily modify src */
-        /* undo byte differencing; separate for interleaved samples */
-        for (i = samples; i < size*itemsize; i++) {
-            srcptr[i] += srcptr[i - samples];
+        if (delta) {
+            /* undo byte differencing; separate for interleaved samples */
+            for (i = samples; i < size*itemsize; i++) {
+                srcptr[i] += srcptr[i - samples];
+            }
         }
         /* restore byte order into dst buffer */
         if (byteorder != '>') {
@@ -516,9 +520,11 @@ ssize_t imcd_floatpred(
                 }
             }
         }
-        /* restore byte differencing in src */
-        for (i = size * itemsize - 1; i >= samples; i--) {
-            srcptr[i] -= srcptr[i - samples];
+        if (delta) {
+            /* restore byte differencing in src */
+            for (i = size * itemsize - 1; i >= samples; i--) {
+                srcptr[i] -= srcptr[i - samples];
+            }
         }
     }
     else {
@@ -544,9 +550,11 @@ ssize_t imcd_floatpred(
                 }
             }
         }
-        /* byte differencing; separate for interleaved samples */
-        for (i = size * itemsize - 1; i >= samples; i--) {
-            dstptr[i] -= dstptr[i - samples];
+        if (delta) {
+            /* byte differencing; separate for interleaved samples */
+            for (i = size * itemsize - 1; i >= samples; i--) {
+                dstptr[i] -= dstptr[i - samples];
+            }
         }
     }
     return size;
@@ -1389,7 +1397,9 @@ TIFF compression scheme 5, an adaptive compression scheme for raster images.
 #define LZW_BUFFERSIZE 65536  /* 64 KB */
 #define LZW_CLEAR 256
 #define LZW_EOI 257
-
+#define LZW_FIRST 258
+#define LZW_HASH_SIZE 7349
+#define LZW_HASH_STEP 257
 
 /* Allocate buffer or re-allocate in multiples of LZW_BUFFERSIZE */
 ssize_t _lzw_alloc_buffer(
@@ -1414,8 +1424,15 @@ ssize_t _lzw_alloc_buffer(
     }
     else {
         /* reallocate buffer */
+        void *tmp = NULL;
         buffersize = (((buffersize-1) / LZW_BUFFERSIZE) + 1) * LZW_BUFFERSIZE;
-        handle->buffer = (uint8_t*)realloc((void*)handle->buffer, buffersize);
+        tmp = realloc((void *)handle->buffer, buffersize);
+        if (tmp == NULL) {
+            free(handle->buffer);
+            handle->buffer = NULL;
+        } else {
+            handle->buffer = (uint8_t *)tmp;
+        }
     }
 
     if (handle->buffer == NULL) {
@@ -1545,7 +1562,7 @@ ssize_t imcd_lzw_decode_size(
     ssize_t buffersize = 0;
     const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
     ssize_t i;
-    int msb = 1;  /* bit ordering of codes */
+    bool msb = true;  /* bit ordering of codes */
 
     if ((handle == NULL) || (src == NULL) || (srcsize < 0)) {
         return IMCD_VALUE_ERROR;
@@ -1559,7 +1576,7 @@ ssize_t imcd_lzw_decode_size(
     table = handle->table;
 
     if ((*src == 0) && (*(src + 1) & 1)) {
-        msb = 0;
+        msb = false;
         mask = 511;
     }
     else if ((*src != 128) || ((*(src + 1) & 128))) {
@@ -1683,6 +1700,7 @@ ssize_t imcd_lzw_decode(
     uint8_t* dst,
     const ssize_t dstsize)
 {
+    const uint8_t *dstin = dst;
     imcd_lzw_table_t* table;
     uint8_t* buffer;
     uint32_t tablesize = 258;
@@ -1696,7 +1714,7 @@ ssize_t imcd_lzw_decode(
     ssize_t remaining = dstsize;
     ssize_t i;
     const uint64_t srcbitsize = srcsize * 8;  /* size in bits */
-    int msb = 1;  /* bit ordering of codes */
+    bool msb = true;  /* bit ordering of codes */
 
     if ((handle == NULL) ||
         (src == NULL) || (srcsize < 0) ||
@@ -1714,7 +1732,7 @@ ssize_t imcd_lzw_decode(
     buffer = handle->buffer;
 
     if ((*src == 0) && (*(src + 1) & 1)) {
-        msb = 0;
+        msb = false;
         mask = 511;
     }
     else if ((*src != 128) || ((*(src + 1) & 128))) {
@@ -1907,7 +1925,7 @@ ssize_t imcd_lzw_decode(
         }
     }
 
-    return dstsize;
+    return (ssize_t)(dst - dstin);
 }
 
 
@@ -1918,32 +1936,175 @@ ssize_t imcd_lzw_encode_size(const ssize_t srcsize)
 }
 
 
+#define LZW_WRITE_DST  \
+{  \
+    if (dstindex >= dstsize) { \
+        dstindex = IMCD_OUTPUT_TOO_SMALL;  \
+        goto DONE;  \
+    }  \
+    dst[dstindex++] = (uint8_t)(dstbyte >> bitc);  \
+}
+
+
 /* Encode LZW. */
 ssize_t imcd_lzw_encode(
-    imcd_lzw_handle_t* handle,
-    const uint8_t* src,
+    const uint8_t *src,
     const ssize_t srcsize,
-    uint8_t* dst,
-    const ssize_t dstsize)
-{
-    imcd_lzw_table_t* table;
-    uint8_t* buffer;
-    uint32_t tablesize = 258;
+    uint8_t *dst,
+    const ssize_t dstsize
+) {
+    ssize_t i = 0;
+    ssize_t dstindex = 0;
+    ssize_t srcindex = 0;
+    int *hash_keys = NULL;
+    int *hash_values = NULL;
+    int hashkey = 0;
+    int hashcode = 0;
+    int nextcode = LZW_FIRST;
+    int dstbyte = LZW_CLEAR;
+    int bitw = 9;  /* current number of bits in code */
+    int bitc = 1;  /* used bits */
+    int omega = 0;
+    int k = 0;
 
-    if ((handle == NULL) ||
-        (src == NULL) || (srcsize < 0) ||
-        (dst == NULL) || (dstsize < 0)) {
+    if ((src == NULL) || (srcsize < 0) || (dst == NULL) || (dstsize < 0)) {
         return IMCD_VALUE_ERROR;
     }
-    if ((srcsize == 0) || (dstsize == 0)) {
-        return 0;
-    }
-    if (srcsize < 2) {
-        return IMCD_LZW_INVALID;
+    if (dstsize < 3) {
+        return IMCD_OUTPUT_TOO_SMALL;
     }
 
-    table = handle->table;
-    buffer = handle->buffer;
+    /* write CLEAR code */
+    bitc = 1;
+    dstbyte = LZW_CLEAR;
+    LZW_WRITE_DST;
 
-    return IMCD_LZW_NOTIMPLEMENTED;
+    if (srcsize < 1) {
+        /* write EOI */
+        dstbyte = ((dstbyte << bitw) | LZW_EOI) << 8;
+        bitc += bitw;
+        LZW_WRITE_DST;
+        bitc -= 8;
+        LZW_WRITE_DST;
+        return dstindex;
+    }
+
+    /* allocate and init hash table */
+    hash_values = malloc(sizeof(int) * LZW_HASH_SIZE);
+    if (hash_values == NULL) {
+        return IMCD_MEMORY_ERROR;
+    }
+
+    hash_keys = malloc(sizeof(int) * LZW_HASH_SIZE);
+    if (hash_keys == NULL) {
+        free(hash_values);
+        return IMCD_MEMORY_ERROR;
+    }
+    for (i = 0; i < LZW_HASH_SIZE; i++) {
+        hash_keys[i] = -1;
+    }
+
+    omega = src[0] & 0xff;
+
+    for (srcindex = 1; srcindex < srcsize; srcindex++) {
+        k = src[srcindex] & 0xff;
+        hashkey = (omega << 8) | k;
+        hashcode = (hashkey * LZW_HASH_STEP) % LZW_HASH_SIZE;
+
+        while (hash_keys[hashcode] >= 0) {
+            if (hash_keys[hashcode] == hashkey) {
+                // Omega+K in table
+                omega = hash_values[hashcode];
+                goto OUTER;
+            }
+            hashcode++;
+            if (hashcode == LZW_HASH_SIZE) {
+                hashcode = 0;
+            }
+        }
+
+        // Omega+K not in table
+        /* add entry to table */
+        hash_keys[hashcode] = hashkey;
+        hash_values[hashcode] = nextcode++;
+
+        /* write last code */
+        dstbyte = (dstbyte << bitw) | omega;
+        bitc += bitw - 8;
+        LZW_WRITE_DST;
+        if (bitc >= 8) {
+            bitc -= 8;
+            LZW_WRITE_DST;
+        }
+
+        omega = k;
+
+        switch (nextcode) {
+            case 512:
+                bitw = 10;
+                break;
+            case 1024:
+                bitw = 11;
+                break;
+            case 2048:
+                bitw = 12;
+                break;
+            case 4096:
+                /* write CLEAR */
+                dstbyte = (dstbyte << bitw) | LZW_CLEAR;
+                bitc += bitw - 8;
+                LZW_WRITE_DST;
+                if (bitc >= 8) {
+                    bitc -= 8;
+                    LZW_WRITE_DST;
+                }
+                /* init table */
+                for (i = 0; i < LZW_HASH_SIZE; i++) {
+                    hash_keys[i] = -1;
+                }
+                nextcode = LZW_FIRST;
+                bitw = 9;
+                break;
+            }
+  OUTER:;
+    }
+
+    /* write Omega code */
+    dstbyte = (dstbyte << bitw) | omega;
+    bitc += bitw - 8;
+    LZW_WRITE_DST;
+    if (bitc >= 8) {
+        bitc -= 8;
+        LZW_WRITE_DST;
+    }
+
+    /* write EOI */
+    switch (nextcode) {
+        case 511:
+            bitw = 10;
+            break;
+        case 1023:
+            bitw = 11;
+            break;
+        case 2047:
+            bitw = 12;
+            break;
+    }
+    dstbyte = ((dstbyte << bitw) | LZW_EOI) << 8;
+    bitc += bitw;
+    LZW_WRITE_DST;
+    if (bitc >= 8) {
+        bitc -= 8;
+        LZW_WRITE_DST;
+        if (bitc >= 8) {
+            bitc -= 8;
+            LZW_WRITE_DST;
+        }
+    }
+
+  DONE:
+    free(hash_values);
+    free(hash_keys);
+
+    return dstindex;
 }
