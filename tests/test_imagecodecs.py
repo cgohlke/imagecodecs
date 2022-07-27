@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.2.22
+:Version: 2022.7.27
 
 """
 
@@ -118,12 +118,15 @@ def test_module_exist(name):
     if exists:
         return
     if IS_CG:
-        pass  # all extensions should be present
+        if IS_32BIT and name in ('heif', 'jetraw'):
+            pytest.xfail(f'imagecodecs._{name} may be missing')
     elif IS_CIBW:
         if (
             (name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0))
             or (name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64))
             or name == 'mozjpeg'
+            or name == 'heif'
+            or name == 'jetraw'
             # or name == 'nvjpeg'
             # or name == 'nvjpeg2k'
         ):
@@ -915,6 +918,7 @@ def test_lzw_decode_image_noeoi():
         'lz4f',
         'lzf',
         'lzma',
+        'lzw',
         'snappy',
         'zlib',
         'zlibng',
@@ -990,6 +994,14 @@ def test_compressors(codec, func, output, length):
         check = imagecodecs.lzma_check
         level = 6
         encoded = lzma.compress(data)
+    elif codec == 'lzw':
+        if not imagecodecs.LZW:
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.lzw_encode
+        decode = imagecodecs.lzw_decode
+        check = imagecodecs.lzw_check
+        level = 6
+        encoded = encode(data, level)
     elif codec == 'zstd':
         if not imagecodecs.ZSTD or zstd is None:
             pytest.skip(f'{codec} missing')
@@ -1173,7 +1185,7 @@ def test_compressors(codec, func, output, length):
         elif output == 'trunc':
             size = max(0, size - 1)
             out = bytearray(size)
-            if length == 0 or codec in ('bz2', 'lzma', 'lz4f'):
+            if length == 0 or codec in ('bz2', 'lzma', 'lz4f', 'lzw'):
                 decode(encoded, out=out)
                 assert data[:size] == out
             else:
@@ -1478,6 +1490,28 @@ def test_rcomp(dtype, case):
         out = numpy.zeros_like(data)
         decode(encoded, shape=data.shape, dtype=data.dtype, out=out)
         assert_array_equal(data, out)
+
+
+@pytest.mark.skipif(not imagecodecs.JETRAW, reason='jetraw missing')
+def test_jetraw():
+    """Test Jetraw codec."""
+    data = readfile('jetraw.bin')
+    im = numpy.empty((2304, 2304), numpy.uint16)
+    imagecodecs.jetraw_decode(data, out=im)
+    assert im[1490, 1830] == 36569
+
+    imagecodecs.jetraw_init()
+    try:
+        encoded = imagecodecs.jetraw_encode(im, '500202_fast_bin1x')
+    except imagecodecs.JetrawError as exc:
+        errmsg = str(exc)
+        if 'license' in errmsg:  # or 'identifier' in errmsg:
+            # encoding requires a license
+            return
+        raise exc
+    decoded = numpy.empty((2304, 2304), numpy.uint16)
+    imagecodecs.jetraw_decode(encoded, out=decoded)
+    assert im[1490, 1830] == 36569
 
 
 @pytest.mark.skipif(not imagecodecs.CMS, reason='cms missing')
@@ -2517,8 +2551,10 @@ def test_spng_encode(itype, dtype, level):
 @pytest.mark.parametrize(
     'codec',
     [
+        'apng',
         'avif',
         'brunsli',
+        'heif',
         'jpeg2k',
         'jpeg8',
         'jpeg12',
@@ -2528,7 +2564,7 @@ def test_spng_encode(itype, dtype, level):
         'ljpeg',
         'mozjpeg',
         'png',
-        'apng',
+        'qoi',
         'spng',
         'webp',
     ],
@@ -2625,6 +2661,18 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decode = imagecodecs.spng_decode
         encode = imagecodecs.spng_encode
         check = imagecodecs.spng_check
+    elif codec == 'qoi':
+        if not imagecodecs.QOI:
+            pytest.skip(f'{codec} missing')
+        decode = imagecodecs.qoi_decode
+        encode = imagecodecs.qoi_encode
+        check = imagecodecs.qoi_check
+        if (
+            itype in ('view', 'gray', 'graya')
+            or deout == 'view'
+            or dtype == 'uint16'
+        ):
+            pytest.xfail('qoi does not support this case')
     elif codec == 'jpeg2k':
         if not imagecodecs.JPEG2K:
             pytest.skip(f'{codec} missing')
@@ -2690,6 +2738,23 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
                 )
 
         atol = 10
+    elif codec == 'heif':
+        if not imagecodecs.HEIF:
+            pytest.skip(f'{codec} missing')
+        if (
+            itype in ('gray', 'graya', 'view')
+            or deout == 'view'
+            or dtype == 'uint16'
+        ):
+            pytest.xfail('heif does not support this case')
+        decode = imagecodecs.heif_decode
+        encode = imagecodecs.heif_encode
+        check = imagecodecs.heif_check
+        atol = 10
+        if level:
+            level += 95
+        if int(imagecodecs.heif_version().split('.')[1]) < 12:
+            pytest.xfail('libheif < 1.12 cannot encode small images')
     else:
         raise ValueError(codec)
 
@@ -2738,7 +2803,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if codec == 'webp' and (level != -1 or itype == 'rgba'):
         # RGBA roundtip does not work for A=0
         assert_allclose(data, decoded, atol=255)
-    elif codec in ('jpeg8', 'jpeg12', 'jpegxr', 'brunsli', 'mozjpeg'):
+    elif codec in ('jpeg8', 'jpeg12', 'jpegxr', 'brunsli', 'mozjpeg', 'heif'):
         assert_allclose(data, decoded, atol=atol)
     elif codec == 'jpegls' and level == 5:
         assert_allclose(data, decoded, atol=6)
@@ -2928,7 +2993,8 @@ def test_tiff_asrgb():
 @pytest.mark.parametrize('dtype', ['u1', 'u2', 'f2', 'f4'])
 @pytest.mark.parametrize('predictor', [False, True])
 @pytest.mark.parametrize(
-    'codec', ['deflate', 'lzma', 'zstd', 'packbits', 'lerc', 'webp', 'jpeg']
+    'codec',
+    ['deflate', 'lzw', 'lzma', 'zstd', 'packbits', 'lerc', 'webp', 'jpeg'],
 )
 def test_tifffile(byteorder, dtype, codec, predictor):
     """Test tifffile compression."""
@@ -3068,6 +3134,7 @@ def test_numcodecs_register(caplog):
         'blosc',
         'blosc2',
         # 'brotli',  # failing
+        'byteshuffle',
         'bz2',
         # 'cms',
         'deflate',
@@ -3075,6 +3142,8 @@ def test_numcodecs_register(caplog):
         'float24',
         'floatpred',
         'gif',
+        'heif',
+        'jetraw',
         'jpeg',
         'jpeg12',
         'jpeg2k',
@@ -3087,10 +3156,11 @@ def test_numcodecs_register(caplog):
         'lz4f',
         'lzf',
         'lzma',
-        'lzw',  # no encoder
+        'lzw',
         'packbits',
         'pglz',
         'png',
+        'qoi',
         'rcomp',
         'snappy',
         'spng',
@@ -3120,19 +3190,19 @@ def test_numcodecs(codec, photometric):
     lossless = True
     if codec == 'aec':
         if not imagecodecs.AEC:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Aec(
             bitspersample=None, flags=None, blocksize=None, rsi=None
         )
     elif codec == 'apng':
         if not imagecodecs.APNG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Apng(photometric=photometric, delay=100)
     elif codec == 'avif':
         if not imagecodecs.AVIF:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         if photometric != 'rgb':
-            pytest.xfail(reason='AVIF does not support grayscale')
+            pytest.xfail('AVIF does not support grayscale')
         compressor = numcodecs.Avif(
             level=0,
             speed=None,
@@ -3143,17 +3213,17 @@ def test_numcodecs(codec, photometric):
         )  # lossless
     elif codec == 'bitorder':
         if not imagecodecs.BITORDER:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Bitorder()
     elif codec == 'bitshuffle':
         if not imagecodecs.BITSHUFFLE:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Bitshuffle(
             itemsize=data.dtype.itemsize, blocksize=0
         )
     elif codec == 'blosc':
         if not imagecodecs.BLOSC:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Blosc(
             level=9,
             compressor='blosclz',
@@ -3164,7 +3234,7 @@ def test_numcodecs(codec, photometric):
         )
     elif codec == 'blosc2':
         if not imagecodecs.BLOSC2:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Blosc2(
             level=9,
             compressor='blosclz',
@@ -3175,87 +3245,111 @@ def test_numcodecs(codec, photometric):
         )
     elif codec == 'brotli':
         if not imagecodecs.BROTLI:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
             # TODO: why are these failing?
-        pytest.xfail(reason='not sure why this is failing')
+        pytest.xfail('not sure why this is failing')
         compressor = numcodecs.Brotli(level=11, mode=None, lgwin=None)
+    elif codec == 'byteshuffle':
+        if not imagecodecs.BYTESHUFFLE:
+            pytest.skip(f'{codec} not found')
+        data = data.astype('int16')
+        compressor = numcodecs.ByteShuffle(
+            shape=chunks, dtype=data.dtype, axis=axis
+        )
     elif codec == 'bz2':
         if not imagecodecs.BZ2:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Bz2(level=9)
     elif codec == 'deflate':
         if not imagecodecs.DEFLATE:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Deflate(level=8)
     elif codec == 'delta':
         if not imagecodecs.DELTA:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Delta(shape=chunks, dtype=data.dtype, axis=axis)
     elif codec == 'float24':
         if not imagecodecs.FLOAT24:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         data = data.astype('float32')
         compressor = numcodecs.Float24()
     elif codec == 'floatpred':
         if not imagecodecs.FLOATPRED:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         data = data.astype('float32')
         compressor = numcodecs.FloatPred(
             shape=chunks, dtype=data.dtype, axis=axis
         )
     elif codec == 'gif':
         if not imagecodecs.GIF:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Gif()
+    elif codec == 'heif':
+        if not imagecodecs.HEIF:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Heif(photometric=photometric)
+        lossless = False  # TODO: lossless not working
+        atol = 1
+    elif codec == 'jetraw':
+        if not imagecodecs.JETRAW:
+            pytest.skip(f'{codec} not found')
+        if photometric == 'rgb':
+            pytest.xfail('Jetraw does not support RGB')
+        compressor = numcodecs.Jetraw(
+            shape=chunks, identifier='500202_fast_bin1x'
+        )
+        data = data.astype('uint16')
+        lossless = False
+        atol = 32
     elif codec == 'jpeg':
         if not imagecodecs.JPEG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         lossless = False
         atol = 4
         compressor = numcodecs.Jpeg(level=99)
     elif codec == 'jpeg12':
         if not imagecodecs.JPEG12:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         lossless = False
         atol = 4 << 4
         data = data.astype('uint16') << 4
         compressor = numcodecs.Jpeg(level=99, bitspersample=12)
     elif codec == 'jpeg2k':
         if not imagecodecs.JPEG2K:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Jpeg2k(level=0)  # lossless
     elif codec == 'jpegls':
         if not imagecodecs.JPEGLS:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.JpegLs(level=0)  # lossless
     elif codec == 'jpegxl':
         if not imagecodecs.JPEGXL:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.JpegXl(level=-1)  # lossless
     elif codec == 'jpegxr':
         if not imagecodecs.JPEGXR:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.JpegXr(
             level=1.0, photometric='RGB' if photometric == 'rgb' else None
         )  # lossless
     elif codec == 'lerc':
         if not imagecodecs.LERC:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lerc(level=0.0)
     elif codec == 'ljpeg':
         if not imagecodecs.LJPEG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         if photometric == 'rgb':
-            pytest.xfail(reason='LJPEG does not support rgb')
+            pytest.xfail('LJPEG does not support rgb')
         data = data.astype('uint16') << 2
         compressor = numcodecs.Ljpeg(bitspersample=10)
     elif codec == 'lz4':
         if not imagecodecs.LZ4:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lz4(level=10, hc=True, header=True)
     elif codec == 'lz4f':
         if not imagecodecs.LZ4F:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lz4f(
             level=12,
             blocksizeid=False,
@@ -3264,81 +3358,86 @@ def test_numcodecs(codec, photometric):
         )
     elif codec == 'lzf':
         if not imagecodecs.LZF:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lzf(header=True)
     elif codec == 'lzma':
         if not imagecodecs.LZMA:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lzma(level=6)
     elif codec == 'lzw':
         if not imagecodecs.LZW:
-            pytest.skip(msg=f'{codec} not found')
-        pytest.xfail(reason='LZW encode not implemented')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lzw()
     elif codec == 'packbits':
         if not imagecodecs.PACKBITS:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         if photometric == 'rgb':
             compressor = numcodecs.PackBits(axis=-2)
         else:
             compressor = numcodecs.PackBits()
     elif codec == 'pglz':
         if not imagecodecs.PGLZ:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Pglz(strategy=None)
     elif codec == 'png':
         if not imagecodecs.PNG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Png()
+    elif codec == 'qoi':
+        if not imagecodecs.QOI:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Qoi()
+        if photometric != 'rgb':
+            pytest.xfail('QOI does not support grayscale')
     elif codec == 'rcomp':
         if not imagecodecs.RCOMP:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Rcomp(shape=chunks, dtype=data.dtype)
     elif codec == 'snappy':
         if not imagecodecs.SNAPPY:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Snappy()
     elif codec == 'spng':
         if not imagecodecs.SPNG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Spng()
     elif codec == 'tiff':
         if not imagecodecs.TIFF:
-            pytest.skip(msg=f'{codec} not found')
-        pytest.xfail(reason='TIFF encode not implemented')
+            pytest.skip(f'{codec} not found')
+        pytest.xfail('TIFF encode not implemented')
         compressor = numcodecs.Tiff()
     elif codec == 'webp':
         if not imagecodecs.WEBP:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         if photometric != 'rgb':
-            pytest.xfail(reason='WebP does not support grayscale')
+            pytest.xfail('WebP does not support grayscale')
         compressor = numcodecs.Webp(level=-1)
     elif codec == 'xor':
         if not imagecodecs.XOR:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Xor(shape=chunks, dtype=data.dtype, axis=axis)
     elif codec == 'zfp':
         if not imagecodecs.ZFP:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         data = data.astype('float32')
         compressor = numcodecs.Zfp(
             shape=chunks, dtype=data.dtype, header=False
         )
     elif codec == 'zlib':
         if not imagecodecs.ZLIB:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Zlib(level=6)
     elif codec == 'zlibng':
         if not imagecodecs.ZLIBNG:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Zlibng(level=6)
     elif codec == 'zopfli':
         if not imagecodecs.ZOPFLI:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Zopfli()
     elif codec == 'zstd':
         if not imagecodecs.ZSTD:
-            pytest.skip(msg=f'{codec} not found')
+            pytest.skip(f'{codec} not found')
         compressor = numcodecs.Zstd(level=10)
     else:
         raise RuntimeError()
@@ -3361,7 +3460,9 @@ def test_numcodecs(codec, photometric):
     del z
 
     z = zarr.open(store, mode='r')
-    if lossless:
+    if codec == 'jetraw':
+        pass  # it does not make sense to test Jetraw on tiled, synthetic data
+    elif lossless:
         assert_array_equal(z[:], data)
     else:
         assert_allclose(z[:150, :150], data[:150, :150], atol=atol)
