@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 include '_shared.pxi'
 
@@ -60,6 +60,7 @@ class LercError(RuntimeError):
             WrongParam: 'WrongParam',
             BufferTooSmall: 'BufferTooSmall',
             NaN: 'NaN',
+            # HasNoData: 'HasNoData',  # requires LERC 4
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -101,7 +102,7 @@ def lerc_encode(
         lerc_status ret
         unsigned int nBytesWritten
         unsigned int dataType
-        int nDim = 1
+        int nDepth = 1
         int nCols = 1
         int nRows = 1
         int nBands = 1
@@ -141,12 +142,12 @@ def lerc_encode(
         else:
             nRows = <int> src.shape[0]
             nCols = <int> src.shape[1]
-            nDim = <int> src.shape[2]
+            nDepth = <int> src.shape[2]
     elif ndim == 4:
         nBands = <int> src.shape[0]
         nRows = <int> src.shape[1]
         nCols = <int> src.shape[2]
-        nDim = <int> src.shape[3]
+        nDepth = <int> src.shape[3]
     elif ndim == 1:
         nCols = <int> src.shape[0]
     else:
@@ -175,7 +176,7 @@ def lerc_encode(
                 <const void*> src.data,
                 iversion,
                 dataType,
-                nDim,
+                nDepth,
                 nCols,
                 nRows,
                 nBands,
@@ -198,7 +199,7 @@ def lerc_encode(
             <const void*> src.data,
             iversion,
             dataType,
-            nDim,
+            nDepth,
             nCols,
             nRows,
             nBands,
@@ -231,7 +232,7 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
         unsigned char* pValidBytes = NULL
         lerc_status ret
         int version
-        int nDim
+        int nDepth
         int nCols
         int nRows
         int nBands
@@ -260,7 +261,7 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
 
     version = infoArray[0]
     dataType = infoArray[1]
-    nDim = infoArray[2]
+    nDepth = infoArray[2]
     nCols = infoArray[3]
     nRows = infoArray[4]
     nBands = infoArray[5]
@@ -291,12 +292,12 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
         raise RuntimeError('invalid data type')
 
     if nBands > 1:
-        if nDim > 1:
-            shape = nBands, nRows, nCols, nDim
+        if nDepth > 1:
+            shape = nBands, nRows, nCols, nDepth
         else:
             shape = nBands, nRows, nCols
-    elif nDim > 1:
-        shape = nRows, nCols, nDim
+    elif nDepth > 1:
+        shape = nRows, nCols, nDepth
     else:
         shape = nRows, nCols
 
@@ -316,7 +317,7 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
             blobSize,
             nMasks,
             pValidBytes,
-            nDim,
+            nDepth,
             nCols,
             nRows,
             nBands,
