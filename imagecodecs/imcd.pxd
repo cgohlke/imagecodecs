@@ -1,7 +1,7 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2022.2.22` library.
+# Cython declarations for the `imcd 2022.7.27` library.
 # https://github.com/cgohlke/imagecodecs
 
 from libc.stdint cimport uint8_t
@@ -36,7 +36,7 @@ cdef extern from 'imcd.h':
         const ssize_t dstsize,
         const ssize_t dststride,
         const ssize_t itemsize,
-        const int decode
+        const bint decode
     ) nogil
 
     ssize_t imcd_xor(
@@ -47,10 +47,10 @@ cdef extern from 'imcd.h':
         const ssize_t dstsize,
         const ssize_t dststride,
         const ssize_t itemsize,
-        const int decode
+        const bint decode
     ) nogil
 
-    ssize_t imcd_floatpred(
+    ssize_t imcd_byteshuffle(
         void* src,
         const ssize_t srcsize,
         const ssize_t srcstride,
@@ -60,7 +60,8 @@ cdef extern from 'imcd.h':
         const ssize_t itemsize,
         const ssize_t samples,
         const char byteorder,
-        const int decode
+        const bint diff,
+        const bint decode,
     ) nogil
 
     ssize_t imcd_bitorder(
@@ -191,7 +192,6 @@ cdef extern from 'imcd.h':
     ) nogil
 
     ssize_t imcd_lzw_encode(
-        imcd_lzw_handle_t* handle,
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
