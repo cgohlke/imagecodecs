@@ -1,7 +1,7 @@
 # imagecodecs/lerc.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `LERC 3.0` library.
+# Cython declarations for the `LERC 4.0.0` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h':
@@ -18,7 +18,7 @@ cdef extern from 'Lerc_c_api.h':
     lerc_status lerc_computeCompressedSize(
         const void* pData,
         unsigned int dataType,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
@@ -31,7 +31,7 @@ cdef extern from 'Lerc_c_api.h':
     lerc_status lerc_encode_c 'lerc_encode'(
         const void* pData,
         unsigned int dataType,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
@@ -45,9 +45,9 @@ cdef extern from 'Lerc_c_api.h':
 
     lerc_status lerc_computeCompressedSizeForVersion(
         const void* pData,
-        int version,
+        int codecVersion,
         unsigned int dataType,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
@@ -59,9 +59,9 @@ cdef extern from 'Lerc_c_api.h':
 
     lerc_status lerc_encodeForVersion(
         const void* pData,
-        int version,
+        int codecVersion,
         unsigned int dataType,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
@@ -82,12 +82,21 @@ cdef extern from 'Lerc_c_api.h':
         int dataRangeArraySize
     ) nogil
 
+    lerc_status lerc_getDataRanges(
+        const unsigned char* pLercBlob,
+        unsigned int blobSize,
+        int nDepth,
+        int nBands,
+        double* pMins,
+        double* pMaxs
+    ) nogil
+
     lerc_status lerc_decode_c 'lerc_decode'(
         const unsigned char* pLercBlob,
         unsigned int blobSize,
         int nMasks,
         unsigned char* pValidBytes,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
@@ -100,11 +109,72 @@ cdef extern from 'Lerc_c_api.h':
         unsigned int blobSize,
         int nMasks,
         unsigned char* pValidBytes,
-        int nDim,
+        int nDepth,
         int nCols,
         int nRows,
         int nBands,
         double* pData
+    ) nogil
+
+    lerc_status lerc_computeCompressedSize_4D(
+        const void* pData,
+        unsigned int dataType,
+        int nDepth,
+        int nCols,
+        int nRows,
+        int nBands,
+        int nMasks,
+        const unsigned char* pValidBytes,
+        double maxZErr,
+        unsigned int* numBytes,
+        const unsigned char* pUsesNoData,
+        const double* noDataValues
+    ) nogil
+
+    lerc_status lerc_encode_4D(
+        const void* pData,
+        unsigned int dataType,
+        int nDepth,
+        int nCols,
+        int nRows,
+        int nBands,
+        int nMasks,
+        const unsigned char* pValidBytes,
+        double maxZErr,
+        unsigned char* pOutBuffer,
+        unsigned int outBufferSize,
+        unsigned int* nBytesWritten,
+        const unsigned char* pUsesNoData,
+        const double* noDataValues
+    ) nogil
+
+    lerc_status lerc_decode_4D(
+        const unsigned char* pLercBlob,
+        unsigned int blobSize,
+        int nMasks,
+        unsigned char* pValidBytes,
+        int nDepth,
+        int nCols,
+        int nRows,
+        int nBands,
+        unsigned int dataType,
+        void* pData,
+        unsigned char* pUsesNoData,
+        double* noDataValues
+    ) nogil
+
+    lerc_status lerc_decodeToDouble_4D(
+        const unsigned char* pLercBlob,
+        unsigned int blobSize,
+        int nMasks,
+        unsigned char* pValidBytes,
+        int nDepth,
+        int nCols,
+        int nRows,
+        int nBands,
+        double* pData,
+        unsigned char* pUsesNoData,
+        double* noDataValues
     ) nogil
 
 
@@ -116,6 +186,7 @@ ctypedef enum ErrCode:
     WrongParam
     BufferTooSmall
     NaN
+    HasNoData
 
 ctypedef enum DataType:
     dt_char
@@ -137,6 +208,8 @@ ctypedef enum InfoArrOrder:
     nValidPixels
     blobSize
     nMasks
+    nDepth
+    nUsesNoDataValue
 
 ctypedef enum DataRangeArrOrder:
     zMin
