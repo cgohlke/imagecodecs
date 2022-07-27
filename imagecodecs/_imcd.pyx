@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 include '_shared.pxi'
 
@@ -357,40 +357,72 @@ cdef _xor(data, int axis, out, int decode):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-# Floating Point Predictor ####################################################
+# ByteShuffle Predictor #######################################################
 
-# TIFF Technical Note 3. April 8, 2005.
+# Separately pack bytes of values
 
-FLOATPRED = IMCD
-FloatpredError = ImcdError
-floatpred_version = imcd_version
-floatpred_check = imcd_check
-
-
-def floatpred_encode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Encode Floating Point Predictor.
-
-    The output array should not be treated as floating-point numbers but as an
-    encoded byte sequence viewed as a numpy array with shape and dtype of the
-    input data.
-
-    """
-    return _floatpred(data, axis=axis, dist=dist, out=out, decode=False)
+BYTESHUFFLE = IMCD
+ByteshuffleError = ImcdError
+byteshuffle_version = imcd_version
+byteshuffle_check = imcd_check
 
 
-def floatpred_decode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Decode Floating Point Predictor.
+def byteshuffle_encode(
+    data,
+    axis=-1,
+    dist=1,
+    delta=False,
+    reorder=False,
+    numthreads=None,
+    out=None
+):
+    """Encode ByteShuffle Predictor.
 
-    The data array is not really an array of floating-point numbers but an
-    encoded byte sequence viewed as a numpy array of requested output shape
-    and dtype.
+    The output array should not be treated as numbers but as an encoded byte
+    sequence viewed as a numpy array with shape and dtype of the input data.
 
     """
-    return _floatpred(data, axis=axis, dist=dist, out=out, decode=True)
+    return _byteshuffle(
+        data,
+        axis=axis,
+        dist=dist,
+        delta=delta,
+        reorder=reorder,
+        decode=False,
+        out=out
+    )
 
 
-cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
-    """Encode or decode Floating Point Predictor."""
+def byteshuffle_decode(
+    data,
+    axis=-1,
+    dist=1,
+    delta=False,
+    reorder=False,
+    numthreads=None,
+    out=None
+):
+    """Decode ByteShuffle Predictor.
+
+    The data array is not really an array of numbers but an encoded byte
+    sequence viewed as a numpy array of requested output shape and dtype.
+
+    """
+    return _byteshuffle(
+        data,
+        axis=axis,
+        dist=dist,
+        delta=delta,
+        reorder=reorder,
+        decode=True,
+        out=out
+    )
+
+
+cdef _byteshuffle(
+    data, int axis, ssize_t dist, bint delta, bint reorder, bint decode, out
+):
+    """Encode or decode ByteShuffle Predictor."""
     cdef:
         void* srcptr = NULL
         void* dstptr = NULL
@@ -405,8 +437,8 @@ cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
         ssize_t ret = 0
         char byteorder
 
-    if not isinstance(data, numpy.ndarray) or data.dtype.kind != 'f':
-        raise ValueError('not a floating-point numpy array')
+    if not isinstance(data, numpy.ndarray):
+        raise ValueError('not a numpy array')
 
     # this needs to pass silently in tifffile
     # if data is out:
@@ -437,7 +469,9 @@ cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
     dst = out.view()
     dst.shape = src.shape
 
-    if src.dtype.byteorder == '=':
+    if not reorder:
+        byteorder = b'>'  # use order of bytes in data
+    elif src.dtype.byteorder == '=':
         byteorder = IMCD_BOC
     else:
         byteorder = <char> ord(src.dtype.byteorder)
@@ -449,16 +483,16 @@ cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
     dstsize = dst.shape[axis] * itemsize
     srcstride = src.strides[axis]
     dststride = dst.strides[axis]
-    if decode != 0 and srcstride != itemsize:
+    if decode and srcstride != itemsize:
         raise ValueError('data not contiguous on dimensions >= axis')
-    elif decode == 0 and dststride != itemsize:
+    elif decode and dststride != itemsize:
         raise ValueError('output not contiguous on dimensions >= axis')
 
     with nogil:
         while numpy.PyArray_ITER_NOTDONE(srciter):
             srcptr = numpy.PyArray_ITER_DATA(srciter)
             dstptr = numpy.PyArray_ITER_DATA(dstiter)
-            ret = imcd_floatpred(
+            ret = imcd_byteshuffle(
                 <void*> srcptr,
                 srcsize,
                 srcstride,
@@ -468,16 +502,65 @@ cdef _floatpred(data, int axis, ssize_t dist, out, int decode):
                 itemsize,
                 samples,
                 byteorder,
-                decode
+                delta,
+                decode,
             )
             if ret < 0:
                 break
             numpy.PyArray_ITER_NEXT(srciter)
             numpy.PyArray_ITER_NEXT(dstiter)
     if ret < 0:
-        raise FloatpredError('imcd_floatpred', ret)
+        raise ByteshuffleError('imcd_byteshuffle', ret)
 
     return out
+
+
+# Floating Point Predictor ####################################################
+
+# TIFF Technical Note 3. April 8, 2005.
+
+FLOATPRED = IMCD
+FloatpredError = ImcdError
+floatpred_version = imcd_version
+floatpred_check = imcd_check
+
+
+def floatpred_encode(data, axis=-1, dist=1, numthreads=None, out=None):
+    """Encode Floating Point Predictor.
+
+    The output array should not be treated as floating-point numbers but as an
+    encoded byte sequence viewed as a numpy array with shape and dtype of the
+    input data.
+
+    """
+    return _byteshuffle(
+        data,
+        axis=axis,
+        dist=dist,
+        delta=True,
+        reorder=True,
+        decode=False,
+        out=out
+    )
+
+
+def floatpred_decode(data, axis=-1, dist=1, numthreads=None, out=None):
+    """Decode Floating Point Predictor.
+
+    The data array is not really an array of floating-point numbers but an
+    encoded byte sequence viewed as a numpy array of requested output shape
+    and dtype.
+
+    """
+    return _byteshuffle(
+        data,
+        axis=axis,
+        dist=dist,
+        delta=True,
+        reorder=True,
+        decode=True,
+        out=out
+    )
 
 
 # BitOrder Reversal ###########################################################
@@ -1152,7 +1235,6 @@ def lzw_encode(data, level=None, buffersize=0, numthreads=None, out=None):
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t ret = 0
-        imcd_lzw_handle_t *handle = NULL
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -1169,17 +1251,10 @@ def lzw_encode(data, level=None, buffersize=0, numthreads=None, out=None):
     dst = out
     dstsize = dst.size
 
-    handle = imcd_lzw_new(buffersize)
-    if handle == NULL:
-        raise LzwError('imcd_lzw_new', None)
-
-    try:
-        with nogil:
-            ret = imcd_lzw_encode(handle, &src[0], srcsize, &dst[0], dstsize)
-        if ret < 0:
-            raise LzwError('imcd_lzw_encode', ret)
-    finally:
-        imcd_lzw_del(handle)
+    with nogil:
+        ret = imcd_lzw_encode(&src[0], srcsize, &dst[0], dstsize)
+    if ret < 0:
+        raise LzwError('imcd_lzw_encode', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
