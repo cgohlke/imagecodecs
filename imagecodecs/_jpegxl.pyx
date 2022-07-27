@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 include '_shared.pxi'
 
@@ -113,7 +113,8 @@ def jpegxl_version():
 
 def jpegxl_check(const uint8_t[::1] data):
     """Return True if data likely contains a JPEG XL image."""
-    cdef JxlSignature sig = JxlSignatureCheck(&data[0], min(data.size, 16))
+    cdef:
+        JxlSignature sig = JxlSignatureCheck(&data[0], min(data.size, 16))
 
     return sig != JXL_SIG_NOT_ENOUGH_BYTES and sig != JXL_SIG_INVALID
 
@@ -210,16 +211,24 @@ def jpegxl_encode(
     memset(<void*> &pixel_format, 0, sizeof(JxlPixelFormat))
     memset(<void*> &color_encoding, 0, sizeof(JxlColorEncoding))
 
+    colorspace = jpegxl_encode_photometric(photometric)
+
     if src.ndim == 2:
         frames = 1
         ysize = src.shape[0]
         xsize = src.shape[1]
         samples = 1
     elif src.ndim == 3:
-        frames = 1
-        ysize = src.shape[0]
-        xsize = src.shape[1]
-        samples = src.shape[2]
+        if src.shape[2] > 4 or colorspace == JXL_COLOR_SPACE_GRAY:
+            frames = src.shape[0]
+            ysize = src.shape[1]
+            xsize = src.shape[2]
+            samples = 1
+        else:
+            frames = 1
+            ysize = src.shape[0]
+            xsize = src.shape[1]
+            samples = src.shape[2]
     elif src.ndim == 4:
         frames = src.shape[0]
         ysize = src.shape[1]
@@ -228,7 +237,6 @@ def jpegxl_encode(
     else:
         raise ValueError(f'{src.ndim} dimensions not supported')
 
-    colorspace = jpegxl_encode_photometric(photometric)
     if colorspace == -1:
         if samples > 2:
             colorspace = JXL_COLOR_SPACE_RGB
@@ -707,7 +715,8 @@ cdef size_t jpegxl_framecount(JxlDecoder* decoder) nogil:
     while True:
         status = JxlDecoderProcessInput(decoder)
         if (status == JXL_DEC_ERROR or status == JXL_DEC_NEED_MORE_INPUT):
-            raise JpegxlError('JxlDecoderProcessInput', status)
+            # raise JpegxlError('JxlDecoderProcessInput', status)
+            break
         if status == JXL_DEC_SUCCESS:
             break
         if status == JXL_DEC_FRAME:
