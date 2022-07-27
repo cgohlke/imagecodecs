@@ -1,6 +1,6 @@
 # imagecodecs/setup.py
 
-"""Imagecodecs package setuptools script."""
+"""Imagecodecs package Setuptools script."""
 
 import sys
 import os
@@ -24,32 +24,31 @@ buildnumber = ''  # e.g 'pre1' or 'post1'
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
+
+def search(pattern, code, flags=0):
+    # return first match for pattern in code
+    match = re.search(pattern, code, flags)
+    if match is None:
+        raise ValueError(f'{pattern!r} not found')
+    return match.groups()[0]
+
+
 with open(os.path.join(base_dir, 'imagecodecs/imagecodecs.py')) as fh:
-    code = fh.read().replace('\r', '')
+    code = fh.read().replace('\r\n', '\n').replace('\r', '\n')
 
-version = re.search(r"__version__ = '(.*?)'", code).groups()[0]
-
+version = search(r"__version__ = '(.*?)'", code)
 version += ('.' + buildnumber) if buildnumber else ''
 
-description = re.search(r'"""(.*)\.(?:\r\n|\r|\n)', code).groups()[0]
+description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
 
-readme = re.search(
+readme = search(
     r'(?:\r\n|\r|\n){2}"""(.*)"""(?:\r\n|\r|\n){2}[__version__|from]',
     code,
     re.MULTILINE | re.DOTALL,
-).groups()[0]
-
+)
 readme = '\n'.join(
     [description, '=' * len(description)] + readme.splitlines()[1:]
 )
-
-license = re.search(
-    r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
-    code,
-    re.MULTILINE | re.DOTALL,
-).groups()[0]
-
-license = license.replace('# ', '').replace('#', '')
 
 if 'sdist' in sys.argv:
     # update README, LICENSE, and CHANGES files
@@ -57,27 +56,22 @@ if 'sdist' in sys.argv:
     with open('README.rst', 'w') as fh:
         fh.write(readme)
 
-    license = re.search(
+    license = search(
         r'(# Copyright.*?(?:\r\n|\r|\n))(?:\r\n|\r|\n)+""',
         code,
         re.MULTILINE | re.DOTALL,
-    ).groups()[0]
-
+    )
     license = license.replace('# ', '').replace('#', '')
 
     with open('LICENSE', 'w') as fh:
         fh.write('BSD 3-Clause License\n\n')
         fh.write(license)
 
-    revisions = (
-        re.search(
-            r'(?:\r\n|\r|\n){2}(Revisions.*)   \.\.\.',
-            readme,
-            re.MULTILINE | re.DOTALL,
-        )
-        .groups()[0]
-        .strip()
-    )
+    revisions = search(
+        r'(?:\r\n|\r|\n){2}(Revisions.*)- \.\.\.',
+        readme,
+        re.MULTILINE | re.DOTALL,
+    ).strip()
 
     with open('CHANGES.rst', 'r') as fh:
         old = fh.read()
@@ -113,7 +107,7 @@ OPTIONS = {
         # ('CYTHON_LIMITED_API', '1'),
         # ('Py_LIMITED_API', '1'),
     ]
-    + [('WIN32', 1)]
+    + [('WIN32', 1)]  # type: ignore
     if sys.platform == 'win32'
     else [],
     'extra_compile_args': [],
@@ -150,7 +144,8 @@ EXTENSIONS = {
     'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
     'gif': ext(libraries=['gif']),
-    # 'heif': ext(libraries=['heif']),
+    'heif': ext(libraries=['heif']),
+    'jetraw': ext(libraries=['jetraw', 'dpcore']),
     'jpeg2k': ext(
         sources=['3rdparty/openjpeg/color.c'],
         include_dirs=['3rdparty/openjpeg'],
@@ -191,6 +186,10 @@ EXTENSIONS = {
         include_dirs=['3rdparty/postgresql'],
     ),
     'png': ext(libraries=['png']),
+    'qoi': ext(
+        include_dirs=['3rdparty/qoi'],
+        define_macros=[('QOI_IMPLEMENTATION', 1)],
+    ),
     'rcomp': ext(libraries=['cfitsio', 'z']),
     'snappy': ext(libraries=['snappy']),
     'spng': ext(
@@ -217,6 +216,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['apng']  # apng patch not commonly available
     del EXTENSIONS['avif']  # libavif library not commonly available
     del EXTENSIONS['blosc2']  # c-blosc2 library not commonly available
+    del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
@@ -233,7 +233,11 @@ def customize_build_default(EXTENSIONS, OPTIONS):
         EXTENSIONS['bz2']['libraries'] = ['libbz2']
     else:
         EXTENSIONS['jpeg2k']['include_dirs'].extend(
-            ('/usr/include/openjpeg-2.3', '/usr/include/openjpeg-2.4')
+            (
+                '/usr/include/openjpeg-2.3',
+                '/usr/include/openjpeg-2.4',
+                '/usr/include/openjpeg-2.5',
+            )
         )
         EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
         EXTENSIONS['zopfli']['include_dirs'].append('/usr/include/zopfli')
@@ -246,11 +250,23 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     OPTIONS['include_dirs'].append(INCLIB)
     OPTIONS['library_dirs'].append(INCLIB)
 
+    dlls = []  # 'heif.dll'
+    if '64 bit' in sys.version:
+        for dll in dlls:
+            shutil.copyfile(os.path.join(INCLIB, dll), 'imagecodecs/' + dll)
+    else:
+        # del EXTENSIONS['nvjpeg2k']
+        del EXTENSIONS['jetraw']
+        del EXTENSIONS['heif']
+        for dll in dlls:
+            try:
+                os.remove('imagecodecs/' + dll)
+            except FileNotFoundError:
+                pass
+
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
     # EXTENSIONS['szip']['libraries'] = ['szip_static']
-    # if '64 bit' not in sys.version:
-    #     del EXTENSIONS['nvjpeg2k']  # 64-bit only
 
     EXTENSIONS['mozjpeg']['library_dirs'] = [os.path.join(INCLIB, 'mozjpeg')]
     EXTENSIONS['avif']['libraries'] = [
@@ -272,6 +288,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
     EXTENSIONS['zlibng']['libraries'] = ['zlibstatic-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
+    EXTENSIONS['lerc']['define_macros'].append(('LERC_STATIC', 1))
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
     EXTENSIONS['jpegxr']['include_dirs'].append(os.path.join(INCLIB, 'jxrlib'))
@@ -297,7 +314,9 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     ]
     EXTENSIONS['lzma']['libraries'] = ['lzma-static']
     EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
-    EXTENSIONS['tiff']['define_macros'].append(('LZMA_API_STATIC', 1))
+    EXTENSIONS['tiff']['define_macros'].extend(
+        (('LZMA_API_STATIC', 1), ('LERC_STATIC', 1))
+    )
     EXTENSIONS['tiff']['libraries'] = [
         'tiff',
         'zlib',
@@ -342,6 +361,8 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
 def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's cibuildwheel environment."""
 
+    del EXTENSIONS['heif']  # Win32 only
+    del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['mozjpeg']  # Win32 only
 
     if not os.environ.get('SKIP_OMP', False):
@@ -434,6 +455,8 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
 
     del EXTENSIONS['apng']
     del EXTENSIONS['blosc2']
+    del EXTENSIONS['heif']
+    del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['mozjpeg']  # Win32 only
@@ -487,6 +510,8 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['blosc2']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['deflate']
+    del EXTENSIONS['heif']
+    del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegls']
     del EXTENSIONS['jpegxl']
@@ -501,7 +526,11 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['gif']['include_dirs'] = ['%PREFIX%/include/giflib5']
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
-        ('%PREFIX%/include/openjpeg-2.3', '%PREFIX%/include/openjpeg-2.4')
+        (
+            '%PREFIX%/include/openjpeg-2.3',
+            '%PREFIX%/include/openjpeg-2.4',
+            '%PREFIX%/include/openjpeg-2.5',
+        )
     )
 
 
@@ -510,8 +539,9 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
 
     del EXTENSIONS['apng']
     del EXTENSIONS['brunsli']
+    del EXTENSIONS['heif']
+    del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
-    del EXTENSIONS['jpegxl']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
@@ -520,6 +550,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
         (
             sys.prefix + '/include/openjpeg-2.3',
             sys.prefix + '/include/openjpeg-2.4',
+            sys.prefix + '/include/openjpeg-2.5',
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
@@ -530,7 +561,9 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
 if 'sdist' not in sys.argv:
     # customize builds based on environment
     try:
-        from imagecodecs_distributor_setup import customize_build  # noqa
+        from imagecodecs_distributor_setup import (  # type: ignore
+            customize_build,
+        )
     except ImportError:
         if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
             customize_build = customize_build_cgohlke
@@ -644,12 +677,12 @@ def extension(name):
 setup(
     name='imagecodecs',
     version=version,
+    license='BSD',
     description=description,
     long_description=readme,
     author='Christoph Gohlke',
-    author_email='cgohlke@uci.edu',
-    license='BSD',
-    url='https://www.lfd.uci.edu/~gohlke/',
+    author_email='cgohlke@cgohlke.com',
+    url='https://www.cgohlke.com',
     project_urls={
         'Bug Tracker': 'https://github.com/cgohlke/imagecodecs/issues',
         'Source Code': 'https://github.com/cgohlke/imagecodecs',
@@ -657,7 +690,7 @@ setup(
     },
     python_requires='>=3.8',
     install_requires=['numpy>=1.19.2'],
-    # setup_requires=['setuptools>=18.0', 'numpy>=1.19.2'],  # cython>=0.29.27
+    setup_requires=['setuptools>=18.0', 'numpy>=1.19.2'],  # cython>=0.29.30
     extras_require={
         'all': ['matplotlib>=3.3', 'tifffile>=2021.11.2', 'numcodecs']
     },
@@ -701,6 +734,7 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
 )
