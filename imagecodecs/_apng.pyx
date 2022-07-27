@@ -37,7 +37,7 @@
 
 """APNG codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 include '_shared.pxi'
 
@@ -96,7 +96,7 @@ def apng_encode(
         ssize_t row, frame
         bint isapng
 
-    color_type = png_photometric(photometric)
+    color_type = png_colortype(photometric)
 
     if src.ndim == 2:
         frames = 1
@@ -652,7 +652,7 @@ cdef void png_composite_uint16(
                 j += 1
 
 
-cdef int png_photometric(photometric):
+cdef int png_colortype(photometric):
     """Return color_type value from photometric argument."""
     if photometric is None:
         return -1
@@ -673,7 +673,7 @@ cdef int png_photometric(photometric):
         return PNG_COLOR_TYPE_RGB_ALPHA
     if photometric == 'GRAY_ALPHA':
         return PNG_COLOR_TYPE_GRAY_ALPHA
-    if photometric[:4] in (
+    if photometric in (
         'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
     ):
         return PNG_COLOR_TYPE_GRAY
