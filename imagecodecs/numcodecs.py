@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 __all__ = ('register_codecs',)
 
@@ -271,6 +271,46 @@ class Brotli(Codec):
         return imagecodecs.brotli_decode(buf, out=_flat(out))
 
 
+class ByteShuffle(Codec):
+    """ByteShuffle codec for numcodecs."""
+
+    codec_id = 'imagecodecs_byteshuffle'
+
+    def __init__(
+        self, shape, dtype, axis=-1, dist=1, delta=False, reorder=False
+    ):
+        self.shape = tuple(shape)
+        self.dtype = numpy.dtype(dtype).str
+        self.axis = axis
+        self.dist = dist
+        self.delta = bool(delta)
+        self.reorder = bool(reorder)
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        assert buf.shape == self.shape
+        assert buf.dtype == self.dtype
+        return imagecodecs.byteshuffle_encode(
+            buf,
+            axis=self.axis,
+            dist=self.dist,
+            delta=self.delta,
+            reorder=self.reorder,
+        ).tobytes()
+
+    def decode(self, buf, out=None):
+        if not isinstance(buf, numpy.ndarray):
+            buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
+        return imagecodecs.byteshuffle_decode(
+            buf,
+            axis=self.axis,
+            dist=self.dist,
+            delta=self.delta,
+            reorder=self.reorder,
+            out=out,
+        )
+
+
 class Bz2(Codec):
     """Bz2 codec for numcodecs."""
 
@@ -406,6 +446,77 @@ class Gif(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.gif_decode(buf, asrgb=False, out=out)
+
+
+class Heif(Codec):
+    """HEIF codec for numcodecs."""
+
+    codec_id = 'imagecodecs_heif'
+
+    def __init__(
+        self,
+        level=None,
+        bitspersample=None,
+        photometric=None,
+        compression=None,
+        numthreads=None,
+        index=None,
+    ):
+        self.level = level
+        self.bitspersample = bitspersample
+        self.photometric = photometric
+        self.compression = compression
+        self.numthreads = numthreads
+        self.index = index
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.heif_encode(
+            buf,
+            level=self.level,
+            bitspersample=self.bitspersample,
+            photometric=self.photometric,
+            compression=self.compression,
+            numthreads=self.numthreads,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.heif_decode(
+            buf,
+            index=self.index,
+            photometric=self.photometric,
+            numthreads=self.numthreads,
+            out=out,
+        )
+
+
+class Jetraw(Codec):
+    """Jetraw codec for numcodecs."""
+
+    codec_id = 'imagecodecs_jetraw'
+
+    def __init__(
+        self,
+        shape,
+        identifier,
+        parameters=None,
+        verbosity=None,
+        errorbound=None,
+    ):
+        self.shape = shape
+        self.identifier = identifier
+        self.errorbound = errorbound
+        imagecodecs.jetraw_init(parameters, verbosity)
+
+    def encode(self, buf):
+        return imagecodecs.jetraw_encode(
+            buf, identifier=self.identifier, errorbound=self.errorbound
+        )
+
+    def decode(self, buf, out=None):
+        if out is None:
+            out = numpy.empty(self.shape, numpy.uint16)
+        return imagecodecs.jetraw_decode(buf, out=out)
 
 
 class Jpeg(Codec):
@@ -762,7 +873,6 @@ class Lzw(Codec):
     codec_id = 'imagecodecs_lzw'
 
     def encode(self, buf):
-        # TODO: not implemented
         return imagecodecs.lzw_encode(buf)
 
     def decode(self, buf, out=None):
@@ -818,6 +928,22 @@ class Png(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.png_decode(buf, out=out)
+
+
+class Qoi(Codec):
+    """QOI codec for numcodecs."""
+
+    codec_id = 'imagecodecs_qoi'
+
+    def __init__(self):
+        pass
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.qoi_encode(buf)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.qoi_decode(buf, out=out)
 
 
 class Rcomp(Codec):
