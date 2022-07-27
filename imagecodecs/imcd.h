@@ -34,9 +34,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2022.2.22"
+#define IMCD_VERSION "2022.7.27"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef HAVE_SSIZE_T
 #if defined(_MSC_VER)
@@ -184,7 +185,7 @@ ssize_t imcd_delta(
     const ssize_t dstsize,
     const ssize_t dststride,
     const ssize_t itemsize,
-    const int decode
+    const bool decode
 );
 
 
@@ -197,7 +198,7 @@ ssize_t imcd_diff(
     const ssize_t dststride,
     const ssize_t itemsize,
     const char itemtype,
-    const int decode
+    const bool decode
 );
 
 
@@ -209,11 +210,11 @@ ssize_t imcd_xor(
     const ssize_t dstsize,
     const ssize_t dststride,
     const ssize_t itemsize,
-    const int decode
+    const bool decode
 );
 
 
-ssize_t imcd_floatpred(
+ssize_t imcd_byteshuffle(
     void* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -223,7 +224,8 @@ ssize_t imcd_floatpred(
     const ssize_t itemsize,
     const ssize_t samples,
     const char byteorder,
-    const int decode
+    const bool delta,
+    const bool decode
 );
 
 
@@ -292,7 +294,6 @@ ssize_t imcd_lzw_encode_size(
 
 
 ssize_t imcd_lzw_encode(
-    imcd_lzw_handle_t* handle,
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
