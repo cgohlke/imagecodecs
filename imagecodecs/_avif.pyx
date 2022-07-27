@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.7.27'
 
 include '_shared.pxi'
 
@@ -409,7 +409,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
         ssize_t frameindex = -1 if index is None else index
-        ssize_t samples, size, itemsize, i, j, k, dstindex
+        ssize_t samples, size, itemsize, i, j, k, dstindex, imagecount
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
         uint8_t* dstptr = NULL
@@ -452,7 +452,9 @@ def avif_decode(data, index=None, numthreads=None, out=None):
             imagecount = decoder.imageCount
 
             if frameindex >= imagecount:
-                raise IndexError('image index out of range')
+                raise IndexError(
+                    f'index {frameindex} out of bounds {imagecount}'
+                )
 
             if imagecount == 1:
                 frameindex = 0
