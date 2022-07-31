@@ -363,9 +363,6 @@ cdef extern from 'webp/encode.h':
 
     int WEBP_ENCODER_ABI_VERSION
 
-    ctypedef struct WebPPicture:
-        pass
-
     int WebPGetEncoderVersion() nogil
 
     size_t WebPEncodeRGB(
@@ -582,7 +579,7 @@ cdef extern from 'webp/encode.h':
 
     int WEBP_MAX_DIMENSION
 
-    struct WebPPicture:
+    ctypedef struct WebPPicture:
         int use_argb
         WebPEncCSP colorspace
         int width
