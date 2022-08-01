@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2022.7.27'
+__version__ = '2022.7.31'
 
 __all__ = ('register_codecs',)
 
@@ -1027,15 +1027,20 @@ class Webp(Codec):
 
     codec_id = 'imagecodecs_webp'
 
-    def __init__(self, level=None):
+    def __init__(self, level=None, lossless=None, method=None, hasalpha=None):
         self.level = level
+        self.hasalpha = bool(hasalpha)
+        self.method = method
+        self.lossless = lossless
 
     def encode(self, buf):
         buf = numpy.asarray(buf)
-        return imagecodecs.webp_encode(buf, level=self.level)
+        return imagecodecs.webp_encode(
+            buf, level=self.level, lossless=self.lossless, method=self.method
+        )
 
     def decode(self, buf, out=None):
-        return imagecodecs.webp_decode(buf, out=out)
+        return imagecodecs.webp_decode(buf, hasalpha=self.hasalpha, out=out)
 
 
 class Xor(Codec):
