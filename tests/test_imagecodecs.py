@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.7.27
+:Version: 2022.7.31
 
 """
 
@@ -2094,6 +2094,22 @@ def test_webp_decode(output):
     assert decoded[-1, -1, -1] == 63
 
 
+@pytest.mark.skipif(not imagecodecs.WEBP, reason='webp missing')
+def test_webp_opaque():
+    """Test WebpP roundtrip with opaque image."""
+    # libwebp drops all-opaque alpha channel
+    data = image_data('rgba', 'uint8')
+    data[..., 3] = 255
+
+    encoded = imagecodecs.webp_encode(data, level=90, lossless=True, method=5)
+    decoded = imagecodecs.webp_decode(encoded)
+    assert decoded.shape == (data.shape[0], data.shape[1], 3)
+    assert_array_equal(decoded, data[..., :3])
+
+    decoded = imagecodecs.webp_decode(encoded, hasalpha=True)
+    assert_array_equal(decoded, data)
+
+
 @pytest.mark.skipif(not imagecodecs.ZFP, reason='zfp missing')
 @pytest.mark.parametrize('execution', [None, 'omp'])
 @pytest.mark.parametrize('mode', [(None, None), ('p', None)])  # ('r', 24)
@@ -2635,6 +2651,11 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         check = imagecodecs.webp_check
         if dtype != 'uint8' or itype.startswith('gray'):
             pytest.xfail('webp does not support this case')
+        if itype == 'rgba':
+            def decode(data, out=None):
+                return imagecodecs.webp_decode(data, hasalpha=True, out=out)
+        if level:
+            level += 95
     elif codec == 'png':
         if not imagecodecs.PNG:
             pytest.skip(f'{codec} missing')
@@ -2800,9 +2821,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     if itype == 'gray':
         decoded = decoded.reshape(shape)
 
-    if codec == 'webp' and (level != -1 or itype == 'rgba'):
-        # RGBA roundtip does not work for A=0
-        assert_allclose(data, decoded, atol=255)
+    if codec == 'webp' and level is not None:  # or itype == 'rgba'
+        assert_allclose(data, decoded, atol=32)
     elif codec in ('jpeg8', 'jpeg12', 'jpegxr', 'brunsli', 'mozjpeg', 'heif'):
         assert_allclose(data, decoded, atol=atol)
     elif codec == 'jpegls' and level == 5:
@@ -3143,7 +3163,7 @@ def test_numcodecs_register(caplog):
         'floatpred',
         'gif',
         'heif',
-        'jetraw',
+        # 'jetraw',  # encoder requires a license
         'jpeg',
         'jpeg12',
         'jpeg2k',
