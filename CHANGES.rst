@@ -1,9 +1,15 @@
 Revisions
 ---------
 
-2022.7.27
+2022.7.31
 
 - Pass 6348 tests.
+- Add option to decode WebP as RGBA.
+- Add option to specify WebP compression method.
+- Use exact lossless WebP encoding.
+
+2022.7.27
+
 - Add LZW encoder.
 - Add QOI codec via qoi.h (#37).
 - Add HEIF codec via libheif (source only; #33).
