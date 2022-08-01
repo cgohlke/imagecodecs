@@ -29,7 +29,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Image transformation, compression, and decompression codecs.
+r"""Image transformation, compression, and decompression codecs.
 
 Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in Tifffile,
@@ -39,14 +39,15 @@ Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZW,
 LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY, PNG, APNG,
 GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3),
-JPEG 2000, JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, MOZJPEG, AVIF, HEIF,
-Jetraw, PackBits, Packed Integers, Delta, XOR Delta, Floating Point Predictor,
-Bitorder reversal, Byteshuffle, Bitshuffle, CMS (color space transformations),
-and Float24 (24-bit floating point).
+JPEG 2000 (JP2, J2K), JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, MOZJPEG,
+AVIF, HEIF, Jetraw, PackBits, Packed Integers, Delta, XOR Delta,
+Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
+CMS (color space transformations), and Float24 (24-bit floating point).
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2022.7.27
+:Version: 2022.7.31
+:DOI: 10.5281/zenodo.6915978
 
 Installation
 ------------
@@ -76,7 +77,7 @@ This release has been tested with the following requirements and dependencies
 
 Build requirements:
 
-- `Cython 0.29.31 <https://github.com/cython/cython>`_
+- `Cython 0.29.32 <https://github.com/cython/cython>`_
 - `bitshuffle 0.4.2 <https://github.com/kiyo-masui/bitshuffle>`_
 - `brotli 1.0.9 <https://github.com/google/brotli>`_
 - `brunsli 0.1 <https://github.com/google/brunsli>`_
@@ -121,7 +122,7 @@ Build requirements:
 
 Test requirements:
 
-- `tifffile 2022.5.4 <https://pypi.org/project/tifffile>`_
+- `tifffile 2022.7.31 <https://pypi.org/project/tifffile>`_
 - `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
 - `python-blosc 1.10.6 <https://github.com/Blosc/python-blosc>`_
 - `python-blosc2-0.2.0 <https://github.com/Blosc/python-blosc2>`_
@@ -138,9 +139,15 @@ Test requirements:
 Revisions
 ---------
 
-2022.7.27
+2022.7.31
 
 - Pass 6348 tests.
+- Add option to decode WebP as RGBA.
+- Add option to specify WebP compression method.
+- Use exact lossless WebP encoding.
+
+2022.7.27
+
 - Add LZW encoder.
 - Add QOI codec via qoi.h (#37).
 - Add HEIF codec via libheif (source only; #33).
@@ -305,9 +312,76 @@ Other Python packages and C libraries providing imaging or compression codecs:
 `MAFISC
 <https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_.
 
+Examples
+--------
+
+Import the JPEG2K codec:
+
+>>> from imagecodecs import (
+...     jpeg2k_encode, jpeg2k_decode, jpeg2k_check, jpeg2k_version, JPEG2K
+... )
+
+Check that the JPEG2K codec is available in the imagecodecs build:
+
+>>> bool(JPEG2K)
+True
+
+Print the version of the JPEG2K codec's underlying OpenJPEG library:
+
+>>> jpeg2k_version()
+'openjpeg 2.5.0'
+
+Encode a numpy array in lossless JP2 format:
+
+>>> array = numpy.random.randint(100, 200, (256, 256, 3), numpy.uint8)
+>>> encoded = jpeg2k_encode(array, level=0)
+>>> encoded[:12]
+b'\x00\x00\x00\x0cjP  \r\n\x87\n'
+
+Check that the encoded bytes likely contain a JPEG 2000 stream:
+
+>>> jpeg2k_check(encoded)
+True
+
+Decode the JP2 encoded bytes to a numpy array:
+
+>>> decoded = jpeg2k_decode(encoded)
+>>> numpy.array_equal(decoded, array)
+True
+
+Decode the JP2 encoded bytes to an existing numpy array:
+
+>>> out = numpy.empty_like(array)
+>>> _ = jpeg2k_decode(encoded, out=out)
+>>> numpy.array_equal(out, array)
+True
+
+Not all codecs are fully implemented, raising exceptions at runtime:
+
+>>> from imagecodecs import tiff_encode
+>>> tiff_encode(array)
+Traceback (most recent call last):
+ ...
+NotImplementedError: tiff_encode
+
+Write the numpy array to a JP2 file:
+
+>>> from imagecodecs import imwrite, imread
+>>> imwrite('_test.jp2', array)
+
+Read the image from the JP2 file as numpy array:
+
+>>> image = imread('_test.jp2')
+>>> numpy.array_equal(image, array)
+True
+
+View the image in the JP2 file from the command line::
+
+    $ python -m imagecodecs _test.jp2
+
 """
 
-__version__ = '2022.7.27'
+__version__ = '2022.7.31'
 
 import os
 import sys
