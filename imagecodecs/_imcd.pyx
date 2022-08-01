@@ -1176,7 +1176,7 @@ def lzw_check(const uint8_t[::1] data):
 
 
 def lzw_decode(data, buffersize=0, numthreads=None, out=None):
-    """Decompress LZW.
+    """Decompress LZW according to TIFF Revision 6, Section 13, June 3, 1992
 
     """
     cdef:
@@ -1226,7 +1226,7 @@ def lzw_decode(data, buffersize=0, numthreads=None, out=None):
 
 
 def lzw_encode(data, level=None, buffersize=0, numthreads=None, out=None):
-    """Compress LZW.
+    """Compress LZW according to TIFF Revision 6, Section 13, June 3, 1992
 
     """
     cdef:
