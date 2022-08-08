@@ -37,7 +37,7 @@
 
 """MOZJPEG codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.8.8'
 
 include '_shared.pxi'
 
@@ -105,6 +105,7 @@ def mozjpeg_encode(
     smoothing=None,
     notrellis=None,
     quanttable=None,
+    progressive=None,
     numthreads=None,
     out=None
 ):
@@ -133,6 +134,7 @@ def mozjpeg_encode(
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
         int quant_table = _default_value(quanttable, -1, 0, 5)
         bint no_trellis = bool(notrellis)
+        bint optimize_scans = progressive is None or progressive
 
     if not (
         src.dtype == numpy.uint8
@@ -219,10 +221,14 @@ def mozjpeg_encode(
 
         if in_color_space != JCS_UNKNOWN:
             cinfo.in_color_space = in_color_space
-        if jpeg_color_space != JCS_UNKNOWN:
-            cinfo.jpeg_color_space = jpeg_color_space
 
         jpeg_set_defaults(&cinfo)
+        jpeg_set_colorspace(&cinfo, jpeg_color_space)
+        if not optimize_scans:
+            cinfo.scan_info = NULL
+            cinfo.num_scans = 0
+            # cinfo.optimize_scans = FALSE
+
         jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
         jpeg_set_quality(&cinfo, quality, 1)
 
