@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.7.31
+:Version: 2022.8.8
 
 """
 
@@ -1881,6 +1881,24 @@ def test_jpeg12_decode(output):
     )
 
 
+@pytest.mark.skipif(not imagecodecs.JPEG8, reason='jpeg8 missing')
+def test_jpeg_rgb_mode():
+    """Test JPEG encoder in RGBA mode."""
+    # https://github.com/cgohlke/tifffile/issues/146
+    RGB = imagecodecs.JPEG8.CS.RGB
+    data = image_data('rgb', 'uint8')
+    encoded = imagecodecs.jpeg_encode(
+        data, colorspace=RGB, outcolorspace=RGB, subsampling='444', level=99
+    )
+    assert b'JFIF' not in encoded[:16]
+    decoded = imagecodecs.jpeg_decode(
+        encoded,
+        colorspace=RGB,
+        outcolorspace=RGB,
+    )
+    assert_allclose(data, decoded, atol=8)
+
+
 @pytest.mark.skipif(not imagecodecs.MOZJPEG, reason='mozjpeg missing')
 def test_mozjpeg():
     """Test MOZJPEG codec parameters."""
@@ -2071,7 +2089,7 @@ def test_brunsli_encode_jpeg():
 @pytest.mark.skipif(not imagecodecs.WEBP, reason='webp missing')
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_webp_decode(output):
-    """Test WebpP decoder with RGBA32 image."""
+    """Test WebP decoder with RGBA32 image."""
     decode = imagecodecs.webp_decode
     data = readfile('rgba.u1.webp')
     dtype = 'uint8'
@@ -2096,7 +2114,7 @@ def test_webp_decode(output):
 
 @pytest.mark.skipif(not imagecodecs.WEBP, reason='webp missing')
 def test_webp_opaque():
-    """Test WebpP roundtrip with opaque image."""
+    """Test WebP roundtrip with opaque image."""
     # libwebp drops all-opaque alpha channel
     data = image_data('rgba', 'uint8')
     data[..., 3] = 255
@@ -2652,8 +2670,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if dtype != 'uint8' or itype.startswith('gray'):
             pytest.xfail('webp does not support this case')
         if itype == 'rgba':
+
             def decode(data, out=None):
                 return imagecodecs.webp_decode(data, hasalpha=True, out=out)
+
         if level:
             level += 95
     elif codec == 'png':
