@@ -37,7 +37,7 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.8.8'
 
 include '_shared.pxi'
 
@@ -59,6 +59,12 @@ class ZFP:
         FIXED_PRECISION = zfp_mode_fixed_precision
         FIXED_ACCURACY = zfp_mode_fixed_accuracy
         REVERSIBLE = zfp_mode_reversible
+
+    class HEADER(enum.IntEnum):
+        MAGIC = ZFP_HEADER_MAGIC
+        META = ZFP_HEADER_META
+        MODE = ZFP_HEADER_MODE
+        FULL = ZFP_HEADER_FULL
 
 
 class ZfpError(RuntimeError):
@@ -109,11 +115,11 @@ def zfp_encode(
         uint threads = <uint> _default_threads(numthreads)
         uint chunk_size = 0
         uint minbits, maxbits, maxprec, minexp
-        uint nx, ny, nz, nw
-        int sx, sy, sz, sw
-        int ret
+        size_t nx, ny, nz, nw
+        ptrdiff_t sx, sy, sz, sw
+        zfp_bool ret
         double tolerance, rate
-        int bheader = header
+        bint bheader = header
 
     if src.dtype == numpy.int32:
         ztype = zfp_type_int32
@@ -127,29 +133,29 @@ def zfp_encode(
         raise ValueError('data type not supported by ZFP')
 
     if ndim == 1:
-        nx = <uint> src.shape[0]
-        sx = <int> (src.strides[0] // itemsize)
+        nx = <size_t> src.shape[0]
+        sx = <ptrdiff_t> (src.strides[0] // itemsize)
     elif ndim == 2:
-        ny = <uint> src.shape[0]
-        nx = <uint> src.shape[1]
-        sy = <int> (src.strides[0] // itemsize)
-        sx = <int> (src.strides[1] // itemsize)
+        ny = <size_t> src.shape[0]
+        nx = <size_t> src.shape[1]
+        sy = <ptrdiff_t> (src.strides[0] // itemsize)
+        sx = <ptrdiff_t> (src.strides[1] // itemsize)
     elif ndim == 3:
-        nz = <uint> src.shape[0]
-        ny = <uint> src.shape[1]
-        nx = <uint> src.shape[2]
-        sz = <int> (src.strides[0] // itemsize)
-        sy = <int> (src.strides[1] // itemsize)
-        sx = <int> (src.strides[2] // itemsize)
+        nz = <size_t> src.shape[0]
+        ny = <size_t> src.shape[1]
+        nx = <size_t> src.shape[2]
+        sz = <ptrdiff_t> (src.strides[0] // itemsize)
+        sy = <ptrdiff_t> (src.strides[1] // itemsize)
+        sx = <ptrdiff_t> (src.strides[2] // itemsize)
     elif ndim == 4:
-        nw = <uint> src.shape[0]
-        nz = <uint> src.shape[1]
-        ny = <uint> src.shape[2]
-        nx = <uint> src.shape[3]
-        sw = <int> (src.strides[0] // itemsize)
-        sz = <int> (src.strides[1] // itemsize)
-        sy = <int> (src.strides[2] // itemsize)
-        sx = <int> (src.strides[3] // itemsize)
+        nw = <size_t> src.shape[0]
+        nz = <size_t> src.shape[1]
+        ny = <size_t> src.shape[2]
+        nx = <size_t> src.shape[3]
+        sw = <ptrdiff_t> (src.strides[0] // itemsize)
+        sz = <ptrdiff_t> (src.strides[1] // itemsize)
+        sy = <ptrdiff_t> (src.strides[2] // itemsize)
+        sx = <ptrdiff_t> (src.strides[3] // itemsize)
     else:
         raise ValueError('data shape not supported by ZFP')
 
@@ -222,7 +228,7 @@ def zfp_encode(
             tolerance = zfp_stream_set_accuracy(zfp, tolerance)
         elif zmode == zfp_mode_expert:
             ret = zfp_stream_set_params(zfp, minbits, maxbits, maxprec, minexp)
-            if ret == 0:
+            if ret == zfp_false:
                 raise ZfpError('zfp_stream_set_params failed')
 
         out, dstsize, outgiven, outtype = _parse_output(out)
@@ -243,17 +249,17 @@ def zfp_encode(
             zfp_stream_rewind(zfp)
 
             ret = zfp_stream_set_execution(zfp, zexec)
-            if ret == 0:
+            if ret == zfp_false:
                 raise ZfpError('zfp_stream_set_execution failed')
 
             if zexec == zfp_exec_omp:
                 if threads > 1:
                     ret = zfp_stream_set_omp_threads(zfp, threads)
-                    if ret == 0:
+                    if ret == zfp_false:
                         raise ZfpError('zfp_stream_set_omp_threads failed')
-                if chunk_size > 0:
+                if chunk_size > zfp_false:
                     ret = zfp_stream_set_omp_chunk_size(zfp, chunk_size)
-                    if ret == 0:
+                    if ret == zfp_false:
                         raise ZfpError('zfp_stream_set_omp_chunk_size failed')
 
             byteswritten = zfp_write_header(
@@ -304,12 +310,11 @@ def zfp_decode(
         ssize_t ndim
         size_t size
         # uint threads = <uint> _default_threads(numthreads)
-        uint nx, ny, nz, nw
-        int sx = 0
-        int sy = 0
-        int sz = 0
-        int sw = 0
-        int ret
+        size_t nx, ny, nz, nw
+        ptrdiff_t sx = 0
+        ptrdiff_t sy = 0
+        ptrdiff_t sz = 0
+        ptrdiff_t sw = 0
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -331,33 +336,33 @@ def zfp_decode(
     if ndim == -1:
         pass
     elif ndim == 1:
-        nx = <uint> shape[0]
+        nx = <size_t> shape[0]
         if strides is not None:
-            sx = <int> strides[0]
+            sx = <ptrdiff_t> strides[0]
     elif ndim == 2:
-        nx = <uint> shape[1]
-        ny = <uint> shape[0]
+        nx = <size_t> shape[1]
+        ny = <size_t> shape[0]
         if strides is not None:
-            sx = <int> strides[1]
-            sy = <int> strides[0]
+            sx = <ptrdiff_t> strides[1]
+            sy = <ptrdiff_t> strides[0]
     elif ndim == 3:
-        nx = <uint> shape[2]
-        ny = <uint> shape[1]
-        nz = <uint> shape[0]
+        nx = <size_t> shape[2]
+        ny = <size_t> shape[1]
+        nz = <size_t> shape[0]
         if strides is not None:
-            sx = <int> strides[2]
-            sy = <int> strides[1]
-            sz = <int> strides[0]
+            sx = <ptrdiff_t> strides[2]
+            sy = <ptrdiff_t> strides[1]
+            sz = <ptrdiff_t> strides[0]
     elif ndim == 4:
-        nx = <uint> shape[3]
-        ny = <uint> shape[2]
-        nz = <uint> shape[1]
-        nw = <uint> shape[0]
+        nx = <size_t> shape[3]
+        ny = <size_t> shape[2]
+        nz = <size_t> shape[1]
+        nw = <size_t> shape[0]
         if strides is not None:
-            sx = <int> strides[3]
-            sy = <int> strides[2]
-            sz = <int> strides[1]
-            sw = <int> strides[0]
+            sx = <ptrdiff_t> strides[3]
+            sy = <ptrdiff_t> strides[2]
+            sz = <ptrdiff_t> strides[1]
+            sw = <ptrdiff_t> strides[0]
     else:
         raise ValueError('shape not supported by ZFP')
 
@@ -391,7 +396,7 @@ def zfp_decode(
         zfp_stream_rewind(zfp)
 
         # ret = zfp_stream_set_execution(zfp, zexec)
-        # if ret == 0:
+        # if ret == zfp_false:
         #     raise ZfpError('zfp_stream_set_execution failed')
 
         if ztype == zfp_type_none or ndim == -1:
