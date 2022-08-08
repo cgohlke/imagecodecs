@@ -37,7 +37,7 @@
 
 """JPEG 8-bit codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.8.8'
 
 include '_shared.pxi'
 
@@ -224,10 +224,14 @@ def jpeg8_encode(
 
         if in_color_space != JCS_UNKNOWN:
             cinfo.in_color_space = in_color_space
-        if jpeg_color_space != JCS_UNKNOWN:
-            cinfo.jpeg_color_space = jpeg_color_space
 
         jpeg_set_defaults(&cinfo)
+
+        IF HAVE_LIBJPEG_TURBO:
+            jpeg_set_colorspace(&cinfo, jpeg_color_space)
+        ELSE:
+            if jpeg_color_space != JCS_UNKNOWN:
+                cinfo.jpeg_color_space = jpeg_color_space
         jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
         jpeg_set_quality(&cinfo, quality, 1)
 
