@@ -1,9 +1,15 @@
 Revisions
 ---------
 
+2022.8.8
+
+- Pass 6349 tests.
+- Drop support for libjpeg.
+- Fix encoding JPEG in RGB color space.
+- Require ZFP 1.0.
+
 2022.7.31
 
-- Pass 6348 tests.
 - Add option to decode WebP as RGBA.
 - Add option to specify WebP compression method.
 - Use exact lossless WebP encoding.
