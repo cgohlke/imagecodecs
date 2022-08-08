@@ -6,6 +6,7 @@ import sys
 import os
 import re
 import shutil
+import warnings
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
@@ -73,7 +74,7 @@ if 'sdist' in sys.argv:
         re.MULTILINE | re.DOTALL,
     ).strip()
 
-    with open('CHANGES.rst', 'r') as fh:
+    with open('CHANGES.rst') as fh:
         old = fh.read()
 
     old = old.split(revisions.splitlines()[-1])[-1]
@@ -158,7 +159,6 @@ EXTENSIONS = {
     'jpeg12': ext(
         libraries=['jpeg12'],
         define_macros=[('BITS_IN_JSAMPLE', 12)],
-        cython_compile_time_env={'HAVE_LIBJPEG_TURBO': True},
     ),
     'jpegls': ext(libraries=['charls']),
     'jpegsof3': ext(sources=['imagecodecs/jpegsof3.cpp']),
@@ -463,6 +463,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zlibng']
 
     # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
+    warnings.warn('support for libjpeg is being removed', DeprecationWarning)
     EXTENSIONS['jpeg8']['cythonize'] = True
     EXTENSIONS['jpeg8']['cython_compile_time_env'][
         'HAVE_LIBJPEG_TURBO'
