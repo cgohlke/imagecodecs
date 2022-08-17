@@ -1,7 +1,7 @@
 # imagecodecs/lz4.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `lz4 1.9.3` library.
+# Cython declarations for the `lz4 1.9.4` library.
 # https://github.com/lz4/lz4
 
 cdef extern from 'lz4.h':
@@ -157,6 +157,16 @@ cdef extern from 'lz4.h':
         char* dst,
         int srcSize,
         int dstCapcity,
+        const char* dictStart,
+        int dictSize
+    ) nogil
+
+    int LZ4_decompress_safe_partial_usingDict(
+        const char* src,
+        char* dst,
+        int compressedSize,
+        int targetOutputSize,
+        int maxOutputSize,
         const char* dictStart,
         int dictSize
     ) nogil
