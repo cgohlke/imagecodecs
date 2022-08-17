@@ -1,7 +1,7 @@
 # imagecodecs/mozjpeg.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `mozjpeg 4.0.3` library.
+# Cython declarations for the `mozjpeg 4.1.1` library.
 # https://github.com/mozilla/mozjpeg
 
 from libc.stdio cimport FILE
