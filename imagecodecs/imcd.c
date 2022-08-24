@@ -1184,7 +1184,8 @@ ssize_t imcd_float24_decode(
                 } while ((mantissa & 0x10000) == 0);
                 s2 = mantissa & 0xFF;
                 s1 = (mantissa >> 8) & 0xFF;
-                exponent = exponent - 63 + 127 - (uint8_t) shift;  /* change bias */
+                /* change bias */
+                exponent = exponent - 63 + 127 - (uint8_t) shift;
             }
             else {
                 /* normalized */
