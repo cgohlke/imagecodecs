@@ -1,0 +1,61 @@
+<HTML>
+The rgbe image file format was invented by Greg Ward to reduce the precision
+problems inherent in normal 24bit file formats.  Many programs including
+photorealistic renderers produce pixels with a wide range of values.  
+Internally the programs usually handle this by representing colors by
+floating point values.  However writing out the floating point values
+directly would produce very large files (~96 bits/pixel).  The rgbe format
+works by having all channels (typically red, green, and blue) share a single
+exponent.  Thus a pixel consists of three 8 bit mantissas and an 8 bit
+exponent for 32 bits per pixel.  This makes for a compact format which
+can handle wide range of pixels values (from 0 to 2^127) with reasonable
+precision.  See "Real Pixels" by Greg Ward in Graphics Gems II for more
+details.
+
+This code was written based on Greg Ward's code (available from the
+radiance home page ftp://radsite.lbl.gov/home.html) for reading and
+writing rgbe files.  I have rewritten the code as ANSI C and tried to
+clean up the code and comment it to make it easier to understand.  I've
+also tried to make the error detection a little more robust.  Here's the
+minimal code for using these files.
+
+sample minimal writing code:
+  f = fopen(image_filename,"wb");
+  RGBE_WriteHeader(f,image_width,image_height,NULL);
+  RGBE_WritePixels(f,image,image_width*image_height);
+  fclose(f);
+For run length encoding instead of RGBE_WritePixels, use 
+RGBE_WritePixels_RLE(f,image,image_width,image_height).
+
+sample minimal reading code:
+  f = fopen(image_filename,"rb");
+  RGBE_ReadHeader(f,&image_width,&image_height,NULL);
+  image = (float *)malloc(sizeof(float)*3*image_width*image_height);
+  RGBE_ReadPixels_RLE(f,image,image_width,image_height);
+  fclose(f);
+You can use RGBE_Read_Pixels instead but it will not handle run length
+encoded file correctly.  For more information see the rgbe.c file.
+(Note: these files are available at http://www.graphics.cornell.edu/~bjw/ )
+
+Please note: By definition of the rgbe format, all pixels should be in 
+units of watts/steradian/meter^2 unless otherwise noted in the header.
+If the header contains an exposure field then dividing pixels values by
+the <exposure value> should result in values in watts/steradian/meter^2.
+See the rgbe.h file for other fields in the header which are supported.
+
+The ReadPixels and WritePixels routines can read/write and entire image, or
+a single pixel, or anything in between.  The run length encoding routines
+can only handle complete scanlines, but can handle single scanlines.  No
+checking is done to see that an image contains the correct number of pixels.
+
+The return codes for routines are defined by RGBE_RETURN_SUCCESS and
+RGBE_RETURN_FAILURE and these can be modified to be compatible with whatever
+error convention you are using.  Error reporting is handled by the rgbe_error
+routine.  You can easily modify this if you want errors to be reported 
+somewhere other than STDERR.
+
+/* THIS CODE CARRIES NO GUARANTEE OF USABILITY OR FITNESS FOR ANY PURPOSE.
+ * WHILE THE AUTHORS HAVE TRIED TO ENSURE THE PROGRAM WORKS CORRECTLY,
+ * IT IS STRICTLY USE AT YOUR OWN RISK.  */
+</HTML>
+
