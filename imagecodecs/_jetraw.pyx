@@ -71,7 +71,7 @@ def jetraw_version():
     return 'jetraw ' + jetraw.jetraw_version().decode()
 
 
-def template_check(const uint8_t[::1] data):
+def jetraw_check(const uint8_t[::1] data):
     """Return True if data likely contains Jetraw data."""
     return None
 
