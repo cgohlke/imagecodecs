@@ -289,7 +289,7 @@ def avif_encode(
             for i in range(imagecount):
 
                 if monochrome:
-                    # TODO: do not to copy array to avifRGBImage first
+                    # TODO: do not copy array to avifRGBImage first
                     dstptr = <uint8_t *> rgb.pixels
                     if itemsize == 1:
                         # uint8
