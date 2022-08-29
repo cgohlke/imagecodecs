@@ -190,6 +190,10 @@ EXTENSIONS = {
         include_dirs=['3rdparty/qoi'],
         define_macros=[('QOI_IMPLEMENTATION', 1)],
     ),
+    'rgbe': ext(
+        sources=['3rdparty/rgbe/rgbe.c'],
+        include_dirs=['3rdparty/rgbe'],
+    ),
     'rcomp': ext(libraries=['cfitsio', 'z']),
     'snappy': ext(libraries=['snappy']),
     'spng': ext(
