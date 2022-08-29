@@ -31,6 +31,7 @@ include tests/*.jp2
 include tests/*.jls
 include tests/*.jxl
 include tests/*.tif
+include tests/*.hdr
 include tests/*.apng
 include tests/*.avif
 include tests/*.webp
