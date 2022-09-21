@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.2.0` library.
+# Cython declarations for the `c-blosc2 2.4.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -12,21 +12,21 @@ ctypedef bint bool
 
 cdef extern from 'blosc2.h':
 
-    int  BLOSC_VERSION_MAJOR
-    int  BLOSC_VERSION_MINOR
-    int  BLOSC_VERSION_RELEASE
+    int  BLOSC2_VERSION_MAJOR
+    int  BLOSC2_VERSION_MINOR
+    int  BLOSC2_VERSION_RELEASE
 
-    char* BLOSC_VERSION_STRING
-    char* BLOSC_VERSION_DATE
+    char* BLOSC2_VERSION_STRING
+    char* BLOSC2_VERSION_DATE
 
     int BLOSC2_MAX_DIM
 
-    int BLOSC_VERSION_FORMAT_PRE1
+    int BLOSC1_VERSION_FORMAT_PRE1
     int BLOSC1_VERSION_FORMAT
     int BLOSC2_VERSION_FORMAT_ALPHA
     int BLOSC2_VERSION_FORMAT_BETA1
     int BLOSC2_VERSION_FORMAT_STABLE
-    int BLOSC_VERSION_FORMAT
+    int BLOSC2_VERSION_FORMAT
 
     int BLOSC2_VERSION_FRAME_FORMAT_BETA2
     int BLOSC2_VERSION_FRAME_FORMAT_RC1
@@ -42,8 +42,8 @@ cdef extern from 'blosc2.h':
 
     int BLOSC_MIN_HEADER_LENGTH
     int BLOSC_EXTENDED_HEADER_LENGTH
-    int BLOSC_MAX_OVERHEAD
-    int BLOSC_MAX_BUFFERSIZE
+    int BLOSC2_MAX_OVERHEAD
+    int BLOSC2_MAX_BUFFERSIZE
     int BLOSC_MAX_TYPESIZE
     int BLOSC_MIN_BUFFERSIZE
 
@@ -183,11 +183,11 @@ cdef extern from 'blosc2.h':
     int BLOSC2_ERROR_PLUGIN_IO
     int BLOSC2_ERROR_FILE_REMOVE
 
-    void blosc_init() nogil
+    void blosc2_init() nogil
 
-    void blosc_destroy() nogil
+    void blosc2_destroy() nogil
 
-    int blosc_compress(
+    int blosc1_compress(
         int clevel,
         int doshuffle,
         size_t typesize,
@@ -197,13 +197,13 @@ cdef extern from 'blosc2.h':
         size_t destsize
     ) nogil
 
-    int blosc_decompress(
+    int blosc1_decompress(
         const void* src,
         void* dest,
         size_t destsize
     ) nogil
 
-    int blosc_getitem(
+    int blosc1_getitem(
         const void* src,
         int start,
         int nitems,
@@ -227,49 +227,49 @@ cdef extern from 'blosc2.h':
         void* jobdata
     ) nogil
 
-    void blosc_set_threads_callback(
+    void blosc2_set_threads_callback(
         blosc_threads_callback callback,
         void* callback_data
     ) nogil
 
-    int16_t blosc_get_nthreads() nogil
+    int16_t blosc2_get_nthreads() nogil
 
-    int16_t blosc_set_nthreads(
+    int16_t blosc2_set_nthreads(
         int16_t nthreads
     ) nogil
 
-    const char* blosc_get_compressor() nogil
+    const char* blosc1_get_compressor() nogil
 
-    int blosc_set_compressor(
+    int blosc1_set_compressor(
         const char* compname
     ) nogil
 
-    void blosc_set_delta(
+    void blosc2_set_delta(
         int dodelta
     ) nogil
 
-    int blosc_compcode_to_compname(
+    int blosc2_compcode_to_compname(
         int compcode,
         const char** compname
     ) nogil
 
-    int blosc_compname_to_compcode(
+    int blosc2_compname_to_compcode(
         const char* compname
     ) nogil
 
-    const char* blosc_list_compressors() nogil
+    const char* blosc2_list_compressors() nogil
 
-    const char* blosc_get_version_string() nogil
+    const char* blosc2_get_version_string() nogil
 
-    int blosc_get_complib_info(
+    int blosc2_get_complib_info(
         const char* compname,
         char** complib,
         char** version
     ) nogil
 
-    int blosc_free_resources() nogil
+    int blosc2_free_resources() nogil
 
-    void blosc_cbuffer_sizes(
+    void blosc1_cbuffer_sizes(
         const void* cbuffer,
         size_t* nbytes,
         size_t* cbytes,
@@ -283,25 +283,25 @@ cdef extern from 'blosc2.h':
         int32_t* blocksize
     ) nogil
 
-    int blosc_cbuffer_validate(
+    int blosc1_cbuffer_validate(
         const void* cbuffer,
         size_t cbytes,
         size_t* nbytes
     ) nogil
 
-    void blosc_cbuffer_metainfo(
+    void blosc1_cbuffer_metainfo(
         const void* cbuffer,
         size_t* typesize,
         int* flags
     ) nogil
 
-    void blosc_cbuffer_versions(
+    void blosc2_cbuffer_versions(
         const void* cbuffer,
         int* version,
         int* versionlz
     ) nogil
 
-    const char* blosc_cbuffer_complib(
+    const char* blosc2_cbuffer_complib(
         const void* cbuffer
     ) nogil
 
@@ -631,6 +631,11 @@ cdef extern from 'blosc2.h':
         bool copy
     ) nogil
 
+    void blosc2_schunk_avoid_cframe_free(
+        blosc2_schunk *schunk,
+        bool avoid_cframe_free
+    ) nogil
+
     blosc2_schunk* blosc2_schunk_open(
         const char* urlpath
     ) nogil
@@ -715,6 +720,20 @@ cdef extern from 'blosc2.h':
         int64_t nchunk,
         uint8_t** chunk,
         bool* needs_free
+    ) nogil
+
+    int blosc2_schunk_get_slice_buffer(
+        blosc2_schunk *schunk,
+        int64_t start,
+        int64_t stop,
+        void *buffer
+    ) nogil
+
+    int blosc2_schunk_set_slice_buffer(
+        blosc2_schunk *schunk,
+        int64_t start,
+        int64_t stop,
+        void *buffer
     ) nogil
 
     int blosc2_schunk_get_cparams(
@@ -824,16 +843,20 @@ cdef extern from 'blosc2.h':
         blosc_timestamp_t end_time
     ) nogil
 
-    int blosc_get_blocksize(
+    int blosc1_get_blocksize(
     ) nogil
 
-    void blosc_set_blocksize(
+    void blosc1_set_blocksize(
         size_t blocksize
     ) nogil
 
-    void blosc_set_schunk(
-        blosc2_schunk* schunk
+    void blosc1_set_splitmode(
+        int splitmode
     ) nogil
+
+    # void blosc_set_schunk(
+    #     blosc2_schunk* schunk
+    # ) nogil
 
     int64_t* blosc2_frame_get_offsets(
         blosc2_schunk *schunk
