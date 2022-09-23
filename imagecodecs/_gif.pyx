@@ -175,7 +175,7 @@ def gif_encode(data, level=None, colormap=None, numthreads=None, out=None):
                         width
                     )
                     if ret != GIF_OK:
-                        raise GifError('EGifPutImageDesc', gif.Error)
+                        raise GifError('EGifPutLine', gif.Error)
     finally:
         free(colormapobj)
         ret = EGifCloseFile(gif, &err)
