@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.9.26'
 
 include '_shared.pxi'
 
@@ -550,6 +550,14 @@ cdef int tiff_read_ifd(
     dtype[1] = 0
     if asrgb[0]:
         dtype[0] = b'u'
+    elif photometric == PHOTOMETRIC_LOGLUV:
+        # return LogLuv as float32
+        dtype[0] = b'f'
+        sizes[0] = <ssize_t> SAMPLEFORMAT_IEEEFP
+        bitspersample = 32
+        ret = TIFFSetField(tif, TIFFTAG_SGILOGDATAFMT, SGILOGDATAFMT_FLOAT)
+        if ret == 0:
+            return 0
     elif sampleformat == SAMPLEFORMAT_UINT:
         dtype[0] = b'u'
     elif sampleformat == SAMPLEFORMAT_INT:
