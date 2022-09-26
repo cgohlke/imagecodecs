@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2022.7.27'
+__version__ = '2022.9.26'
 
 include '_shared.pxi'
 
@@ -88,14 +88,17 @@ class JpegxlError(RuntimeError):
                 JXL_DEC_FRAME: 'JXL_DEC_FRAME',
                 JXL_DEC_DC_IMAGE: 'JXL_DEC_DC_IMAGE',
                 JXL_DEC_FULL_IMAGE: 'JXL_DEC_FULL_IMAGE',
-                JXL_DEC_JPEG_RECONSTRUCTION: 'JXL_DEC_JPEG_RECONSTRUCTION'
+                JXL_DEC_JPEG_RECONSTRUCTION: 'JXL_DEC_JPEG_RECONSTRUCTION',
+                JXL_DEC_BOX: 'JXL_DEC_BOX',
+                JXL_DEC_FRAME_PROGRESSION: 'JXL_DEC_FRAME_PROGRESSION',
             }.get(err, f'unknown error {err!r}')
         elif 'Encoder' in func:
+            # TODO: use JxlEncoderGetError for JXL_ENC_ERROR
             msg = {
                 JXL_ENC_SUCCESS: 'JXL_ENC_SUCCESS',
                 JXL_ENC_ERROR: 'JXL_ENC_ERROR',
                 JXL_ENC_NEED_MORE_OUTPUT: 'JXL_ENC_NEED_MORE_OUTPUT',
-                JXL_ENC_NOT_SUPPORTED: 'JXL_ENC_NOT_SUPPORTED',
+                # JXL_ENC_NOT_SUPPORTED: 'JXL_ENC_NOT_SUPPORTED',
             }.get(err, f'unknown error {err!r}')
         else:
             msg = f'error {err!r}'
@@ -127,6 +130,9 @@ def jpegxl_encode(
     lossless=None,
     decodingspeed=None,
     photometric=None,
+    # bitspersample=None,
+    # extrasamples=None,
+    planar=None,
     usecontainer=None,
     numthreads=None,
     out=None
@@ -134,6 +140,9 @@ def jpegxl_encode(
     """Return JPEG XL image from numpy array.
 
     Float must be in nominal range 0..1.
+
+    Currently L, LA, RGB, RGBA images are supported in contig mode.
+    Extra channels are only supported for grayscale images in planar mode.
 
     """
     cdef:
@@ -154,17 +163,23 @@ def jpegxl_encode(
         char* buffer = NULL
         void* runner = NULL
         JxlEncoder* encoder = NULL
-        JxlEncoderOptions* options = NULL
+        JxlEncoderFrameSettings* frame_settings = NULL
+        JxlFrameHeader frame_header
         JxlEncoderStatus status = JXL_ENC_SUCCESS
         JxlBasicInfo basic_info
         JxlPixelFormat pixel_format
         JxlColorEncoding color_encoding
+        JxlExtraChannelType extra_channel_type = JXL_CHANNEL_OPTIONAL
+        JxlExtraChannelInfo extra_channel_info
+        # JxlBlendInfo blend_info
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
         int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 15.0)
         size_t num_threads = <size_t> _default_threads(numthreads)
+        size_t channel_index
+        bint is_planar = bool(planar)
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -213,11 +228,34 @@ def jpegxl_encode(
 
     colorspace = jpegxl_encode_photometric(photometric)
 
+    # TODO: support multi-channel in non-planar mode
     if src.ndim == 2:
         frames = 1
         ysize = src.shape[0]
         xsize = src.shape[1]
         samples = 1
+        is_planar = False
+    elif is_planar:
+        if colorspace != -1 and colorspace != JXL_COLOR_SPACE_GRAY:
+            raise NotImplementedError(
+                'only grayscale images are supported in planar mode'
+            )
+        if colorspace == -1:
+            colorspace = JXL_COLOR_SPACE_GRAY
+        if src.ndim == 3:
+            frames = 1
+            samples = src.shape[0]
+            ysize = src.shape[1]
+            xsize = src.shape[2]
+        elif src.ndim == 4:
+            frames = src.shape[0]
+            samples = src.shape[1]
+            ysize = src.shape[2]
+            xsize = src.shape[3]
+        else:
+            raise ValueError(f'{src.ndim} dimensions not supported')
+        if samples == 1:
+            is_planar = False
     elif src.ndim == 3:
         if src.shape[2] > 4 or colorspace == JXL_COLOR_SPACE_GRAY:
             frames = src.shape[0]
@@ -245,10 +283,6 @@ def jpegxl_encode(
     elif samples < 3:
         colorspace = JXL_COLOR_SPACE_GRAY
 
-    pixel_format.num_channels = <uint32_t> samples
-    pixel_format.endianness = JXL_NATIVE_ENDIAN
-    pixel_format.align = 0  # TODO: allow strides
-
     basic_info.xsize = <uint32_t> xsize
     basic_info.ysize = <uint32_t> ysize
     if colorspace == JXL_COLOR_SPACE_GRAY:
@@ -259,6 +293,13 @@ def jpegxl_encode(
     basic_info.num_extra_channels = (
         <uint32_t> samples - basic_info.num_color_channels
     )
+
+    if is_planar:
+        pixel_format.num_channels = basic_info.num_color_channels
+    else:
+        pixel_format.num_channels = <uint32_t> samples
+    pixel_format.endianness = JXL_NATIVE_ENDIAN
+    pixel_format.align = 0  # TODO: allow strides
 
     if dtype.byteorder == b'<':
         pixel_format.endianness = JXL_LITTLE_ENDIAN
@@ -271,10 +312,6 @@ def jpegxl_encode(
     elif dtype == numpy.uint16:
         pixel_format.data_type = JXL_TYPE_UINT16
         basic_info.bits_per_sample = 16
-    elif dtype == numpy.uint32:
-        # TODO: raises JXL_ENC_NOT_SUPPORTED ?
-        pixel_format.data_type = JXL_TYPE_UINT32
-        basic_info.bits_per_sample = 32
     elif dtype == numpy.float32:
         pixel_format.data_type = JXL_TYPE_FLOAT
         basic_info.bits_per_sample = 32
@@ -286,32 +323,35 @@ def jpegxl_encode(
     else:
         raise ValueError(f'dtype {dtype!r} not supported')
 
-    if option_lossless != 0:
-        # avoid lossy colorspace conversion
-        basic_info.uses_original_profile = JXL_TRUE
-
-    if basic_info.num_extra_channels > 0:
-        basic_info.alpha_bits = basic_info.bits_per_sample
-        basic_info.alpha_exponent_bits = basic_info.exponent_bits_per_sample
-
-    # TODO: there seems to be no API to add JxlExtraChannelInfo (?)
-    if basic_info.num_extra_channels > 1:
-        raise ValueError(
-            f'{basic_info.num_extra_channels} extra channels not supported'
-        )
-
-    if frames > 1:
-        # TODO: writing animations not supported by libjxl 0.6.x
-        basic_info.have_animation = JXL_TRUE
-        basic_info.animation.tps_numerator = 10
-        basic_info.animation.tps_denominator = 1
-        basic_info.animation.num_loops = 0
-        basic_info.animation.have_timecodes = JXL_FALSE
-
-    framesize = ysize * xsize * samples * basic_info.bits_per_sample // 8
-
     try:
         with nogil:
+
+            if option_lossless != 0:
+                # avoid lossy colorspace conversion
+                basic_info.uses_original_profile = JXL_TRUE
+
+            if is_planar:
+                pass
+            elif basic_info.num_extra_channels == 1:
+                basic_info.alpha_bits = basic_info.bits_per_sample
+                basic_info.alpha_exponent_bits = (
+                    basic_info.exponent_bits_per_sample
+                )
+            elif basic_info.num_extra_channels > 1:
+                raise NotImplementedError(
+                    f'{basic_info.num_extra_channels} extra channels '
+                    'not supported in contig mode'
+                )
+            if frames > 1:
+                basic_info.have_animation = JXL_TRUE
+                basic_info.animation.tps_numerator = 10
+                basic_info.animation.tps_denominator = 1
+                basic_info.animation.num_loops = 0
+                basic_info.animation.have_timecodes = JXL_FALSE
+
+            framesize = ysize * xsize * basic_info.bits_per_sample // 8
+            if not is_planar:
+                framesize *= samples
 
             encoder = JxlEncoderCreate(NULL)
             if encoder == NULL:
@@ -353,44 +393,104 @@ def jpegxl_encode(
             if status != JXL_ENC_SUCCESS:
                 raise JpegxlError('JxlEncoderUseContainer', status)
 
-            options = JxlEncoderOptionsCreate(encoder, NULL)
-            if options == NULL:
-                raise JpegxlError('JxlEncoderOptionsCreate', None)
+            frame_settings = JxlEncoderFrameSettingsCreate(encoder, NULL)
+            if frame_settings == NULL:
+                raise JpegxlError('JxlEncoderFrameSettingsCreate', None)
 
             if option_lossless != 0:
-                status = JxlEncoderOptionsSetLossless(options, option_lossless)
+                status = JxlEncoderSetFrameLossless(
+                    frame_settings, option_lossless
+                )
                 if status != JXL_ENC_SUCCESS:
-                    raise JpegxlError('JxlEncoderOptionsSetLossless', status)
+                    raise JpegxlError('JxlEncoderSetFrameLossless', status)
 
             elif option_distance != 1.0:
-                status = JxlEncoderOptionsSetDistance(options, option_distance)
+                status = JxlEncoderSetFrameDistance(
+                    frame_settings, option_distance
+                )
                 if status != JXL_ENC_SUCCESS:
-                    raise JpegxlError('JxlEncoderOptionsSetDistance', status)
+                    raise JpegxlError('JxlEncoderSetFrameDistance', status)
 
             if option_tier != 0:
-                status = JxlEncoderOptionsSetDecodingSpeed(
-                    options, option_tier
+                status = JxlEncoderFrameSettingsSetOption(
+                    frame_settings,
+                    JXL_ENC_FRAME_SETTING_DECODING_SPEED,
+                    option_tier
                 )
                 if status != JXL_ENC_SUCCESS:
                     raise JpegxlError(
-                        'JxlEncoderOptionsSetDecodingSpeed', status
+                        'JxlEncoderFrameSettingsSetOption '
+                        'JXL_ENC_FRAME_SETTING_DECODING_SPEED',
+                        status
                     )
 
             if option_effort != 7:
-                status = JxlEncoderOptionsSetEffort(options, option_effort)
+                status = JxlEncoderFrameSettingsSetOption(
+                    frame_settings,
+                    JXL_ENC_FRAME_SETTING_EFFORT,
+                    option_effort
+                )
                 if status != JXL_ENC_SUCCESS:
-                    raise JpegxlError('JxlEncoderOptionsSetEffort', status)
+                    raise JpegxlError(
+                        'JxlEncoderFrameSettingsSetOption '
+                        'JXL_ENC_FRAME_SETTING_EFFORT',
+                        status
+                    )
+
+            if is_planar:
+                for channel_index in range(basic_info.num_extra_channels):
+                    JxlEncoderInitExtraChannelInfo(
+                        extra_channel_type, &extra_channel_info
+                    )
+                    extra_channel_info.bits_per_sample = (
+                        basic_info.bits_per_sample
+                    )
+                    extra_channel_info.exponent_bits_per_sample = (
+                        basic_info.exponent_bits_per_sample
+                    )
+                    status = JxlEncoderSetExtraChannelInfo(
+                        encoder, channel_index, &extra_channel_info
+                    )
+                    if status != JXL_ENC_SUCCESS:
+                        raise JpegxlError(
+                            'JxlEncoderSetExtraChannelInfo', status
+                        )
+
+            JxlEncoderInitFrameHeader(&frame_header)
+            frame_header.duration = 1
 
             for frame in range(frames):
 
-                status = JxlEncoderAddImageFrame(
-                    options,
-                    &pixel_format,
-                    <void*> (buffer + frame * framesize),
-                    framesize
+                status = JxlEncoderSetFrameHeader(
+                    frame_settings, &frame_header
                 )
                 if status != JXL_ENC_SUCCESS:
+                    raise JpegxlError('JxlEncoderSetFrameHeader', status)
+
+                status = JxlEncoderAddImageFrame(
+                    frame_settings,
+                    &pixel_format,
+                    <const void*> buffer,
+                    framesize
+                )
+                buffer += framesize
+                if status != JXL_ENC_SUCCESS:
                     raise JpegxlError('JxlEncoderAddImageFrame', status)
+
+                if is_planar:
+                    for channel_index in range(basic_info.num_extra_channels):
+                        status = JxlEncoderSetExtraChannelBuffer(
+                            frame_settings,
+                            &pixel_format,
+                            <const void*> buffer,
+                            framesize,
+                            <uint32_t> channel_index
+                        )
+                        buffer += framesize
+                        if status != JXL_ENC_SUCCESS:
+                            raise JpegxlError(
+                                'JxlEncoderAddImageFrame', status
+                            )
 
                 if frame == frames - 1:
                     JxlEncoderCloseInput(encoder)
@@ -468,7 +568,7 @@ def jpegxl_decode(
         size_t buffersize = 0
         size_t framesize = 0
         size_t frameindex = 0
-        void* buffer = NULL
+        char* buffer = NULL
         void* runner = NULL
         JxlDecoder* decoder = NULL
         JxlDecoderStatus status = JXL_DEC_SUCCESS
@@ -476,7 +576,9 @@ def jpegxl_decode(
         JxlBasicInfo basic_info
         JxlPixelFormat pixel_format
         size_t num_threads = _default_threads(numthreads)
+        size_t channel_index
         bint keep_orientation = bool(keeporientation)
+        bint is_planar = False
 
     signature = JxlSignatureCheck(&src[0], srcsize)
     if signature != JXL_SIG_CODESTREAM and signature != JXL_SIG_CONTAINER:
@@ -494,7 +596,7 @@ def jpegxl_decode(
         frameindex = index
     else:
         # TODO: implement advanced indexing
-        raise NotImplementedError('advanced indexing not implemented')
+        raise NotImplementedError('advanced indexing not supported')
 
     try:
         with nogil:
@@ -573,22 +675,56 @@ def jpegxl_decode(
 
                     with gil:
 
-                        if samples > 1:
+                        if samples == 1:
+                            # L
+                            shape = (
+                                int(basic_info.ysize),
+                                int(basic_info.xsize)
+                            )
+                            is_planar = False
+                        elif basic_info.num_extra_channels == 0:
+                            # RGB
                             shape = (
                                 int(basic_info.ysize),
                                 int(basic_info.xsize),
                                 int(samples)
                             )
-                        else:
+                            is_planar = False
+                        elif basic_info.alpha_bits > 0:
+                            # LA, RGBA: ignore other extra channels
+                            samples = basic_info.num_color_channels + 1
                             shape = (
                                 int(basic_info.ysize),
-                                int(basic_info.xsize)
+                                int(basic_info.xsize),
+                                int(samples)
+                            )
+                            is_planar = False
+                        elif basic_info.num_color_channels != 1:
+                            # RGB + C: ignore extra channels
+                            samples = basic_info.num_color_channels
+                            shape = (
+                                int(basic_info.ysize),
+                                int(basic_info.xsize),
+                                int(samples)
+                            )
+                            is_planar = False
+                        else:
+                            # L + C
+                            is_planar = True
+                            shape = (
+                                int(samples),
+                                int(basic_info.ysize),
+                                int(basic_info.xsize),
                             )
 
                         if frames > 1:
                             shape = (int(frames), *shape)
 
-                        pixel_format.num_channels = <uint32_t> samples
+                        if is_planar:
+                            pixel_format.num_channels = 1
+                        else:
+                            pixel_format.num_channels = <uint32_t> samples
+
                         pixel_format.endianness = JXL_NATIVE_ENDIAN
                         pixel_format.align = 0  # TODO: allow strides
 
@@ -614,9 +750,6 @@ def jpegxl_decode(
                         elif basic_info.bits_per_sample <= 16:
                             pixel_format.data_type = JXL_TYPE_UINT16
                             dtype = numpy.uint16
-                        elif basic_info.bits_per_sample <= 32:
-                            pixel_format.data_type = JXL_TYPE_UINT32
-                            dtype = numpy.uint32
                         else:
                             dtype = numpy.float32
                             pixel_format.data_type = JXL_TYPE_FLOAT
@@ -625,7 +758,9 @@ def jpegxl_decode(
                         dst = out
                         dstsize = dst.nbytes
                         framesize = dstsize // frames
-                        buffer = <void*> dst.data
+                        if is_planar:
+                            framesize //= samples
+                        buffer = dst.data
 
                 # elif status == JXL_DEC_COLOR_ENCODING:
                 #     pass
@@ -647,7 +782,6 @@ def jpegxl_decode(
                         raise JpegxlError(
                             'JxlDecoderImageOutBufferSize', status
                         )
-
                     if buffersize != framesize:
                         raise RuntimeError(
                             f'buffersize {buffersize} != framesize {framesize}'
@@ -656,13 +790,47 @@ def jpegxl_decode(
                     status = JxlDecoderSetImageOutBuffer(
                         decoder,
                         &pixel_format,
-                        <void*> (<uint8_t *> buffer + frameindex * framesize),
+                        <void*> buffer,
                         buffersize
                     )
+                    buffer += framesize
                     if status != JXL_DEC_SUCCESS:
                         raise JpegxlError(
                             'JxlDecoderSetImageOutBuffer', status
                         )
+
+                    if is_planar:
+                        for channel_index in range(
+                            basic_info.num_extra_channels
+                        ):
+                            status = JxlDecoderExtraChannelBufferSize(
+                                decoder,
+                                &pixel_format,
+                                &buffersize,
+                                <uint32_t> channel_index
+                            )
+                            if status != JXL_DEC_SUCCESS:
+                                raise JpegxlError(
+                                    'JxlDecoderExtraChannelBufferSize', status
+                                )
+                            if buffersize != framesize:
+                                raise RuntimeError(
+                                    f'buffersize {buffersize} '
+                                    f'!= framesize {framesize}'
+                                )
+
+                            status = JxlDecoderSetExtraChannelBuffer(
+                                decoder,
+                                &pixel_format,
+                                <void*> buffer,
+                                buffersize,
+                                <uint32_t> channel_index
+                            )
+                            buffer += framesize
+                            if status != JXL_DEC_SUCCESS:
+                                raise JpegxlError(
+                                    'JxlDecoderSetExtraChannelBuffer', status
+                                )
 
                 elif status == JXL_DEC_FULL_IMAGE:
                     frameindex += 1
@@ -757,6 +925,49 @@ cdef int jpegxl_encode_photometric(photometric):
         return JXL_COLOR_SPACE_UNKNOWN
     raise ValueError(
         'photometric interpretation {photometric!r} not supported'
+    )
+
+
+cdef JxlExtraChannelType jpegxl_encode_extrasamples(extrasample):
+    """Return JxlExtraChannelType from extrasample argument."""
+    if extrasample is None:
+        return JXL_CHANNEL_OPTIONAL
+    if isinstance(extrasample, int):
+        # if extrasample not in (
+        #     -1,
+        #     JXL_CHANNEL_ALPHA
+        #     JXL_CHANNEL_DEPTH
+        #     JXL_CHANNEL_SPOT_COLOR
+        #     JXL_CHANNEL_SELECTION_MASK
+        #     JXL_CHANNEL_BLACK
+        #     JXL_CHANNEL_CFA
+        #     JXL_CHANNEL_THERMAL
+        #     JXL_CHANNEL_UNKNOWN
+        #     JXL_CHANNEL_OPTIONAL
+        # ):
+        #     raise ValueError('ExtraChannelType not supported')
+        return extrasample
+    extrasample = extrasample.upper()
+    if extrasample == 'ALPHA':
+        return JXL_CHANNEL_ALPHA
+    if extrasample == 'OPTIONAL':
+        return JXL_CHANNEL_OPTIONAL
+    if extrasample == 'UNKNOWN':
+        return JXL_CHANNEL_UNKNOWN
+    if extrasample == 'DEPTH':
+        return JXL_CHANNEL_DEPTH
+    if extrasample == 'SPOT_COLOR':
+        return JXL_CHANNEL_SPOT_COLOR
+    if extrasample == 'SELECTION_MASK':
+        return JXL_CHANNEL_SELECTION_MASK
+    if extrasample == 'BLACK':
+        return JXL_CHANNEL_BLACK
+    if extrasample == 'CFA':
+        return JXL_CHANNEL_CFA
+    if extrasample == 'THERMAL':
+        return JXL_CHANNEL_THERMAL
+    raise ValueError(
+        'ExtraChannelType {extrasample!r} not supported'
     )
 
 
