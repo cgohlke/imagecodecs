@@ -1,9 +1,17 @@
 Revisions
 ---------
 
+2022.9.26
+
+- Pass 6357 tests.
+- Support JPEG XL multi-channel (planar grayscale only) and multi-frame.
+- Require libjxl 0.7 (breaking).
+- Switch to Blosc2 API and require c-blosc 2.4 (breaking).
+- Return LogLuv encoded TIFF as float32.
+- Add RGBE codec via rgbe.c.
+
 2022.8.8
 
-- Pass 6349 tests.
 - Drop support for libjpeg.
 - Fix encoding JPEG in RGB color space.
 - Require ZFP 1.0.
