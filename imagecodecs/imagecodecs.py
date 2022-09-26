@@ -40,13 +40,13 @@ ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZW,
 LZF, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, LERC, NPY, PNG, APNG,
 GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit, Lossless JPEG (LJPEG, SOF3),
 JPEG 2000 (JP2, J2K), JPEG LS, JPEG XR (WDP, HD Photo), JPEG XL, MOZJPEG,
-AVIF, HEIF, Jetraw, PackBits, Packed Integers, Delta, XOR Delta,
+AVIF, HEIF, RGBE (HDR), Jetraw, PackBits, Packed Integers, Delta, XOR Delta,
 Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
 CMS (color space transformations), and Float24 (24-bit floating point).
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2022.8.8
+:Version: 2022.9.26
 :DOI: 10.5281/zenodo.6915978
 
 Installation
@@ -71,9 +71,9 @@ Requirements
 This release has been tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython 3.8.10, 3.9.13, 3.10.6, 3.11.0rc1 <https://www.python.org>`_
+- `CPython 3.8.10, 3.9.13, 3.10.7, 3.11.0rc2 <https://www.python.org>`_
   (AMD64 platforms only, 32-bit versions are deprecated)
-- `Numpy 1.21.5 <https://pypi.org/project/numpy>`_
+- `Numpy 1.22.4 <https://pypi.org/project/numpy>`_
 
 Build requirements:
 
@@ -83,7 +83,7 @@ Build requirements:
 - `brunsli 0.1 <https://github.com/google/brunsli>`_
 - `bzip2 1.0.8 <https://gitlab.com/bzip2/bzip2>`_
 - `c-blosc 1.21.1 <https://github.com/Blosc/c-blosc>`_
-- `c-blosc2 2.2.0 <https://github.com/Blosc/c-blosc2>`_
+- `c-blosc2 2.4.1 <https://github.com/Blosc/c-blosc2>`_
 - `cfitsio 3.49 <https://heasarc.gsfc.nasa.gov/fitsio/>`_
 - `charls 2.3.4 <https://github.com/team-charls/charls>`_
 - `giflib 5.2.1 <http://giflib.sourceforge.net/>`_
@@ -96,11 +96,11 @@ Build requirements:
   (`aom 3.4.0 <https://aomedia.googlesource.com/aom>`_,
   `dav1d 1.0.0 <https://github.com/videolan/dav1d>`_,
   `rav1e 0.5.1 <https://github.com/xiph/rav1e>`_)
-- `libdeflate 1.13 <https://github.com/ebiggers/libdeflate>`_
+- `libdeflate 1.14 <https://github.com/ebiggers/libdeflate>`_
 - `libheif 1.12.0 <https://github.com/strukturag/libheif>`_
   (`libde265 1.0.8 <https://github.com/strukturag/libde265>`_)
-- `libjpeg-turbo 2.1.3 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
-- `libjxl 0.6.1 <https://github.com/libjxl/libjxl>`_
+- `libjpeg-turbo 2.1.4 <https://github.com/libjpeg-turbo/libjpeg-turbo>`_
+- `libjxl 0.7.0 <https://github.com/libjxl/libjxl>`_
 - `liblzf 3.6 <http://oldhome.schmorp.de/marc/liblzf.html>`_
 - `liblzma 5.2.5 <https://github.com/xz-mirror/xz>`_
 - `libpng 1.6.37 <https://github.com/glennrp/libpng>`_
@@ -108,10 +108,11 @@ Build requirements:
 - `libspng 0.7.2 <https://github.com/randy408/libspng>`_
 - `libtiff 4.4.0 <https://gitlab.com/libtiff/libtiff>`_
 - `libwebp 1.2.3 <https://github.com/webmproject/libwebp>`_
-- `lz4 1.9.3 <https://github.com/lz4/lz4>`_
-- `mozjpeg 4.0.3 <https://github.com/mozilla/mozjpeg>`_
+- `lz4 1.9.4 <https://github.com/lz4/lz4>`_
+- `mozjpeg 4.1.1 <https://github.com/mozilla/mozjpeg>`_
 - `openjpeg 2.5.0 <https://github.com/uclouvain/openjpeg>`_
 - `qoi 75e7f30 <https://github.com/phoboslab/qoi>`_
+- `rgbe.c 5/26/95 <https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c>`_
 - `snappy 1.1.9 <https://github.com/google/snappy>`_
 - `zfp 1.0.0 <https://github.com/LLNL/zfp>`_
 - `zlib 1.2.12 <https://github.com/madler/zlib>`_
@@ -124,7 +125,7 @@ Test requirements:
 - `tifffile 2022.8.8 <https://pypi.org/project/tifffile>`_
 - `czifile 2019.7.2 <https://pypi.org/project/czifile>`_
 - `python-blosc 1.10.6 <https://github.com/Blosc/python-blosc>`_
-- `python-blosc2-0.3.0 <https://github.com/Blosc/python-blosc2>`_
+- `python-blosc2-0.3.2 <https://github.com/Blosc/python-blosc2>`_
 - `python-brotli 1.0.9 <https://github.com/google/brotli/tree/master/python>`_
 - `python-lz4 4.0.2 <https://github.com/python-lz4/python-lz4>`_
 - `python-lzf 0.2.4 <https://github.com/teepark/python-lzf>`_
@@ -132,15 +133,23 @@ Test requirements:
 - `python-zstd 1.5.3 <https://github.com/sergey-dryabzhinsky/python-zstd>`_
 - `bitshuffle 0.4.2 <https://github.com/kiyo-masui/bitshuffle>`_
 - `numcodecs 0.10.2 <https://github.com/zarr-developers/numcodecs>`_
-- `zarr 2.12.0 <https://github.com/zarr-developers/zarr-python>`_
+- `zarr 2.13.1 <https://github.com/zarr-developers/zarr-python>`_
 - `zopflipy 1.7 <https://github.com/hattya/zopflipy>`_
 
 Revisions
 ---------
 
+2022.9.26
+
+- Pass 6357 tests.
+- Support JPEG XL multi-channel (planar grayscale only) and multi-frame.
+- Require libjxl 0.7 (breaking).
+- Switch to Blosc2 API and require c-blosc 2.4 (breaking).
+- Return LogLuv encoded TIFF as float32.
+- Add RGBE codec via rgbe.c.
+
 2022.8.8
 
-- Pass 6349 tests.
 - Drop support for libjpeg.
 - Fix encoding JPEG in RGB color space.
 - Require ZFP 1.0.
@@ -247,6 +256,9 @@ This software includes a modified version of `liblj92
 <https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_.
 
 This software includes `qoi.h <https://github.com/phoboslab/qoi/>`_.
+
+This software includes a modified version of `rgbe.c
+<https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c>`_.
 
 Build instructions and wheels for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
@@ -411,7 +423,7 @@ View the image in the JP2 file from the command line::
 
 """
 
-__version__ = '2022.8.8'
+__version__ = '2022.9.26'
 
 import os
 import sys
@@ -482,6 +494,7 @@ _API = {
     'pglz': [],
     'qoi': [],
     'png': [],
+    'rgbe': [],
     'rcomp': [],
     'snappy': [],
     'spng': [],
@@ -777,6 +790,7 @@ def imread(fileobj, codec=None, memmap=True, return_codec=False, **kwargs):
                 # 'exr',
                 'zfp',
                 'lerc',
+                'rgbe',
                 'numpy',
             )
             if c not in codecs
@@ -910,6 +924,7 @@ def _imcodecs(_codecs_={}):
             'numpy': ('npy', 'npz'),
             'png': ('png',),
             'qoi': ('qoi',),
+            'rgbe': ('hdr', 'rgbe', 'pic'),
             'tiff': ('tif', 'tiff', 'ptif', 'ptiff', 'tf8', 'tf2', 'btf'),
             'webp': ('webp',),
             'zfp': ('zfp',),
