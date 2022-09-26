@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.8.8
+:Version: 2022.9.26
 
 """
 
@@ -949,8 +949,8 @@ def test_compressors(codec, func, output, length):
         encode = imagecodecs.blosc2_encode
         decode = imagecodecs.blosc2_decode
         check = imagecodecs.blosc2_check
-        level = 9
-        encoded = blosc2.compress(data, clevel=level, typesize=1)
+        level = 5
+        encoded = blosc2.compress2(data, clevel=level, typesize=1)
     elif codec == 'zlib':
         if not imagecodecs.ZLIB or zlib is None:
             pytest.skip(f'{codec} missing')
@@ -1514,6 +1514,145 @@ def test_jetraw():
     assert im[1490, 1830] == 36569
 
 
+@pytest.mark.skipif(not imagecodecs.RGBE, reason='rgbe missing')
+def test_rgbe_decode():
+    """Test RGBE decoding."""
+    decode = imagecodecs.rgbe_decode
+    encoded = readfile('384x256.hdr')
+
+    out = decode(encoded)
+    assert out.shape == (384, 256, 3)
+    assert out.dtype == 'float32'
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    out[:] = 0.0
+    decode(encoded, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    with pytest.raises(ValueError):
+        decode(encoded, header=False)
+
+    with pytest.raises(ValueError):
+        decode(encoded[77:])
+
+    out[:] = 0.0
+    decode(encoded[77:], out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    out[:] = 0.0
+    decode(encoded[77:], rle=True, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    with pytest.raises(ValueError):
+        decode(encoded[77:], rle=False, out=out)
+
+    with pytest.raises(imagecodecs.RgbeError):
+        # RGBE_ReadPixels_RLE returned READ_ERROR
+        decode(encoded, header=False, out=out)
+
+    # no header, no rle
+    encoded = readfile('384x256.rgbe.bin')
+    with pytest.raises(ValueError):
+        # output required if no header
+        decode(encoded)
+
+    out[:] = 0.0
+    decode(encoded, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+    image = out.copy()
+
+    out[:] = 0.0
+    decode(encoded, header=False, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    out[:] = 0.0
+    decode(encoded, header=False, rle=False, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    # TODO: not sure why this succeeds
+    # decoding non-rle data with rle=True
+    out[:] = 0.0
+    decode(encoded, header=False, rle=True, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+    assert_array_equal(out, image)
+
+    encoded_array = numpy.frombuffer(
+        encoded, count=-1, dtype=numpy.uint8
+    ).reshape((384, 256, 4))
+    out = decode(encoded_array)
+    assert out.shape == (384, 256, 3)
+    assert out.dtype == 'float32'
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+    out[:] = 0.0
+    decode(encoded_array, out=out)
+    assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
+
+
+@pytest.mark.skipif(not imagecodecs.RGBE, reason='rgbe missing')
+def test_rgbe_roundtrip():
+    """Test RGBE roundtrips."""
+    encode = imagecodecs.rgbe_encode
+    decode = imagecodecs.rgbe_decode
+
+    data = decode(readfile('384x256.hdr'))
+    assert data.shape == (384, 256, 3)
+    assert data.dtype == 'float32'
+    assert tuple(data[227, 201]) == (133.0, 73.0, 39.0)
+
+    # encode to bytes
+    encoded = encode(data)
+    assert encoded[:10] == b'#?RADIANCE'
+    assert_array_equal(data, decode(encoded))
+    assert_array_equal(data, decode(encode(data, header=True)))
+    assert_array_equal(data, decode(encode(data, header=True, rle=True)))
+    assert_array_equal(data, decode(encode(data, out=bytearray)))
+
+    assert_array_equal(data[0, 0], numpy.squeeze(decode(encode(data[0, 0]))))
+
+    assert_array_equal(data, decode(encode(data, out=len(encoded))))
+    assert_array_equal(data, decode(encode(data, out=len(encoded) + 4)))
+    assert_array_equal(data, decode(encode(data, out=bytearray(len(encoded)))))
+
+    with pytest.raises(imagecodecs.RgbeError):
+        encode(data, out=1)
+
+    with pytest.raises(imagecodecs.RgbeError):
+        encode(data, out=len(encoded) - 1)
+
+    # encode to bytes without header
+    encoded = encode(data, header=False)
+    assert encoded[:10] != b'#?RADIANCE'
+    out = numpy.zeros_like(data)
+    decode(encoded, out=out)
+    assert_array_equal(data, out)
+
+    encoded = encode(data, header=False, rle=True)
+    out = numpy.zeros_like(data)
+    decode(encoded, out=out)
+    assert_array_equal(data, out)
+
+    encoded = encode(data, header=False, rle=True)
+    out = numpy.zeros_like(data)
+    decode(encoded, out=out)
+    assert_array_equal(data, out)
+
+    # encode to output
+    out = numpy.zeros((384, 256, 4), numpy.uint8)
+    encode(data, out=out)
+    assert_array_equal(decode(out), data)
+
+    with pytest.raises(ValueError):
+        encode(data, out=numpy.zeros((384, 256, 3), numpy.uint8))
+
+    with pytest.raises(ValueError):
+        encode(data, out=numpy.zeros((384, 255, 4), numpy.uint8))
+
+    out = numpy.zeros((384 * 256 * 4), numpy.uint8)
+    encode(data, out=out)
+    assert_array_equal(decode(out.reshape((384, 256, 4))), data)
+
+
 @pytest.mark.skipif(not imagecodecs.CMS, reason='cms missing')
 def test_cms_profile():
     """Test cms_profile function."""
@@ -1960,6 +2099,17 @@ def test_jpegsof3(fname, output, codec):
     assert decoded.shape == shape
     assert decoded.dtype == dtype
     assert decoded[500, 600] == value
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXL, reason='jpegxl missing')
+@pytest.mark.parametrize('dtype', ['uint8', 'uint16', 'float16', 'float32'])
+def test_jpegxl_planar(dtype):
+    """Test JPEG XL roundtrip with frames and planar channels."""
+    image = image_data('channels', dtype, planar=True, frames=True)
+    assert image.shape == (11, 8, 32, 31)
+    encoded = imagecodecs.jpegxl_encode(image, photometric='gray', planar=True)
+    decoded = imagecodecs.jpegxl_decode(encoded)
+    assert_array_equal(image, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXR, reason='jpegxr missing')
@@ -2867,16 +3017,16 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
 @pytest.mark.skipif(not imagecodecs.GIF, reason='GIF missing')
 @pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])  # 'view'
 @pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
-@pytest.mark.parametrize('itype', ['gray', 'stack'])
+@pytest.mark.parametrize('frames', [False, True])
 @pytest.mark.parametrize('index', [None, 0])
-def test_gif_roundtrips(index, itype, enout, deout):
+def test_gif_roundtrips(index, frames, enout, deout):
     """Test GIF codec."""
     decode = imagecodecs.gif_decode
     encode = imagecodecs.gif_encode
 
     dtype = numpy.dtype('uint8')
-    data = numpy.squeeze(image_data(itype, dtype))
-    if index == 0 and itype == 'stack':
+    data = numpy.squeeze(image_data('gray', dtype, frames=frames))
+    if index == 0 and frames:
         shaped = data.shape[1:] + (3,)
     else:
         shaped = data.shape + (3,)
@@ -2903,7 +3053,7 @@ def test_gif_roundtrips(index, itype, enout, deout):
         decoded = decode(encoded, index=index, out=decoded)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shaped)
 
-    if index == 0 and itype == 'stack':
+    if index == 0 and frames:
         data = data[index]
     assert_array_equal(data, decoded[..., 1], verbose=True)
 
@@ -3201,6 +3351,7 @@ def test_numcodecs_register(caplog):
         'pglz',
         'png',
         'qoi',
+        'rgbe',
         'rcomp',
         'snappy',
         'spng',
@@ -3429,6 +3580,14 @@ def test_numcodecs(codec, photometric):
         compressor = numcodecs.Qoi()
         if photometric != 'rgb':
             pytest.xfail('QOI does not support grayscale')
+    elif codec == 'rgbe':
+        if not imagecodecs.RGBE:
+            pytest.skip(f'{codec} not found')
+        if photometric != 'rgb':
+            pytest.xfail('RGBE does not support grayscale')
+        data = data.astype('float32')
+        # lossless = False
+        compressor = numcodecs.Rgbe(shape=chunks, header=False, rle=True)
     elif codec == 'rcomp':
         if not imagecodecs.RCOMP:
             pytest.skip(f'{codec} not found')
@@ -3581,34 +3740,41 @@ def readfile(fname, memmap=False):
     return data
 
 
-def image_data(itype, dtype):
+def image_data(itype, dtype, planar=False, frames=False):
     """Return test image array."""
+    if frames:
+        data = DATA
+    else:
+        data = DATA[0]
+
     if itype in ('rgb', 'view'):
-        data = DATA[..., [0, 2, 4]]
+        data = data[..., [0, 2, 4]]
     elif itype == 'rgba':
-        data = DATA[..., [0, 2, 4, -1]]
+        data = data[..., [0, 2, 4, -1]]
     elif itype == 'cmyk':
-        data = DATA[..., [0, 2, 4, 6]]
+        data = data[..., [0, 2, 4, 6]]
     elif itype == 'cmyka':
-        data = DATA[..., [0, 2, 4, 6, -1]]
+        data = data[..., [0, 2, 4, 6, -1]]
     elif itype == 'gray':
-        data = DATA[..., 0:1]
+        data = data[..., 0:1]
     elif itype == 'graya':
-        data = DATA[..., [0, -1]]
-    elif itype == 'rrggbbaa':
-        data = numpy.moveaxis(DATA[..., [0, 2, 4, -1]], -1, 0)
-    elif itype == 'rrggbb':
-        data = numpy.moveaxis(DATA[..., [0, 2, 4]], -1, 0)
+        data = data[..., [0, -1]]
     elif itype == 'channels':
-        data = DATA[..., :-1]
+        data = data[..., :-1]
     elif itype == 'channelsa':
-        data = DATA[..., :]
+        data = data[..., :]
     elif itype == 'line':
-        data = DATA[0:1, :, 0:1]
+        data = data[0:1, :, 0:1]
     elif itype == 'stack':
-        data = numpy.moveaxis(DATA, -1, 0)
+        # TODO: remove this
+        assert not frames
+        assert not planar
+        data = numpy.moveaxis(data, -1, 0)
     else:
         raise ValueError('itype not found')
+
+    if planar:
+        data = numpy.moveaxis(data, -1, -3)
 
     data = data.copy()
 
@@ -3634,6 +3800,8 @@ def image_data(itype, dtype):
         data //= 16
 
     if itype == 'view':
+        assert not frames
+        assert not planar
         shape = data.shape
         temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         temp[2 : 2 + shape[0], 3 : 3 + shape[1], :] = data
