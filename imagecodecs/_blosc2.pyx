@@ -37,7 +37,7 @@
 
 """Blosc2 codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.9.26'
 
 include '_shared.pxi'
 
@@ -113,7 +113,7 @@ class Blosc2Error(RuntimeError):
 
 def blosc2_version():
     """Return Blosc library version string."""
-    return 'c-blosc2 ' + BLOSC_VERSION_STRING.decode()
+    return 'c-blosc2 ' + BLOSC2_VERSION_STRING.decode()
 
 
 def blosc2_check(data):
@@ -138,12 +138,14 @@ def blosc2_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize
         ssize_t dstsize
-        size_t cblocksize
-        size_t ctypesize
-        char* compname = NULL
+        int32_t cblocksize
+        int32_t ctypesize
+        uint8_t compcode
+        uint8_t cfilter
         int16_t nthreads = <int16_t> _default_threads(numthreads)
-        int clevel = _default_value(level, 9, 0, 9)
-        int doshuffle
+        int clevel = _default_value(level, 5, 0, 9)
+        blosc2_context* context = NULL
+        blosc2_cparams cparams = BLOSC2_CPARAMS_DEFAULTS
         int ret
 
     if data is out:
@@ -162,7 +164,7 @@ def blosc2_encode(
 
     srcsize = src.size
 
-    if srcsize > 2147483647 - BLOSC_MAX_OVERHEAD:
+    if srcsize > 2147483647 - BLOSC2_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
 
     if blocksize is None:
@@ -171,68 +173,83 @@ def blosc2_encode(
         cblocksize = blocksize
 
     if compressor is None:
-        compname = BLOSC_BLOSCLZ_COMPNAME
-    elif compressor == BLOSC_BLOSCLZ:
-        compname = BLOSC_BLOSCLZ_COMPNAME
-    elif compressor == BLOSC_LZ4:
-        compname = BLOSC_LZ4_COMPNAME
-    elif compressor == BLOSC_LZ4HC:
-        compname = BLOSC_LZ4HC_COMPNAME
-    elif compressor == BLOSC_ZLIB:
-        compname = BLOSC_ZLIB_COMPNAME
-    elif compressor == BLOSC_ZSTD:
-        compname = BLOSC_ZSTD_COMPNAME
-    else:
+        compcode = BLOSC_BLOSCLZ
+    elif isinstance(compressor, str):
         compressor = compressor.lower().encode()
-        compname = compressor
+        if compressor == BLOSC_BLOSCLZ_COMPNAME:
+            compcode = BLOSC_BLOSCLZ
+        elif compressor == BLOSC_LZ4_COMPNAME:
+            compcode = BLOSC_LZ4
+        elif compressor == BLOSC_LZ4HC_COMPNAME:
+            compcode = BLOSC_LZ4HC
+        elif compressor == BLOSC_ZLIB_COMPNAME:
+            compcode = BLOSC_ZLIB
+        elif compressor == BLOSC_ZSTD_COMPNAME:
+            compcode = BLOSC_ZSTD
+        else:
+            raise ValueError(f'unknown Blosc2 compressor {compressor!r}')
+    else:
+        compcode = compressor
 
     if shuffle is None:
-        doshuffle = BLOSC_SHUFFLE
+        cfilter = BLOSC_SHUFFLE
     elif not shuffle:
-        doshuffle = BLOSC_NOSHUFFLE
-    elif shuffle == BLOSC_NOSHUFFLE or shuffle == 'noshuffle':
-        doshuffle = BLOSC_NOSHUFFLE
-    elif shuffle == BLOSC_BITSHUFFLE or shuffle == 'bitshuffle':
-        doshuffle = BLOSC_BITSHUFFLE
+        cfilter = BLOSC_NOFILTER
+    elif isinstance(shuffle, str):
+        shuffle = shuffle.lower()
+        if shuffle[:2] == 'no':
+            cfilter = BLOSC_NOSHUFFLE
+        elif shuffle == 'shuffle':
+            cfilter = BLOSC_SHUFFLE
+        elif shuffle == 'bitshuffle':
+            cfilter = BLOSC_BITSHUFFLE
+        elif shuffle == 'delta':
+            cfilter = BLOSC_DELTA
+        elif shuffle == 'trunc_prec':
+            cfilter = BLOSC_TRUNC_PREC
+        else:
+            raise ValueError(f'unknown Blosc2 filter {shuffle!r}')
     else:
-        doshuffle = BLOSC_SHUFFLE
+        cfilter = shuffle
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize + BLOSC_MAX_OVERHEAD
-        if dstsize < 17:
-            dstsize = 17
+            dstsize = srcsize + BLOSC2_MAX_OVERHEAD
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
 
     with nogil:
-        ret = blosc_set_compressor(compname)
-        if ret < 0:
-            raise Blosc2Error(f'blosc_set_compressor', None, ret)
 
         if nthreads == 0:
-            nthreads = blosc_get_nthreads()
-        ret = blosc_set_nthreads(nthreads)
-        if ret < 0:
-            raise Blosc2Error(f'blosc_set_nthreads', None, ret)
+            nthreads = blosc2_get_nthreads()
 
-        blosc_set_blocksize(cblocksize)
+        cparams.typesize = ctypesize
+        cparams.blocksize = cblocksize
+        cparams.compcode = compcode
+        cparams.clevel = clevel
+        cparams.nthreads = nthreads
+        cparams.filters[BLOSC2_MAX_FILTERS - 1] = cfilter
 
-        ret = blosc2_compress(
-            clevel,
-            doshuffle,
-            ctypesize,
+        context = blosc2_create_cctx(cparams)
+        if context == NULL:
+            raise Blosc2Error(f'blosc2_create_cctx', ret='NULL')
+
+        ret = blosc2_compress_ctx(
+            context,
             <const void*> &src[0],
             <int32_t> srcsize,
             <void*> &dst[0],
             <int32_t> dstsize
         )
+
+        blosc2_free_ctx(context)
+
     if ret <= 0:
-        raise Blosc2Error(f'blosc2_compress', ret)
+        raise Blosc2Error(f'blosc2_compress_ctx', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -249,6 +266,8 @@ def blosc2_decode(data, numthreads=None, out=None):
         ssize_t srcsize = src.size
         int32_t nbytes, cbytes, blocksize
         int16_t nthreads = <int16_t> _default_threads(numthreads)
+        blosc2_context* context = NULL
+        blosc2_dparams dparams = BLOSC2_DPARAMS_DEFAULTS
         int ret
 
     if data is out:
@@ -281,19 +300,26 @@ def blosc2_decode(data, numthreads=None, out=None):
 
     with nogil:
         if nthreads == 0:
-            nthreads = blosc_get_nthreads()
-        ret = blosc_set_nthreads(nthreads)
-        if ret < 0:
-            raise Blosc2Error(f'blosc_set_nthreads', None, ret)
+            nthreads = blosc2_get_nthreads()
 
-        ret = blosc2_decompress(
+        dparams.nthreads = nthreads
+
+        context = blosc2_create_dctx(dparams)
+        if context == NULL:
+            raise Blosc2Error(f'blosc2_create_dctx', ret='NULL')
+
+        ret = blosc2_decompress_ctx(
+            context,
             <const void*> &src[0],
             <int32_t> srcsize,
             <void*> &dst[0],
             <int32_t> dstsize
         )
+
+        blosc2_free_ctx(context)
+
     if ret < 0:
-        raise Blosc2Error(f'blosc_decompress', ret)
+        raise Blosc2Error(f'blosc2_decompress_ctx', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
