@@ -31,7 +31,7 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2022.7.31'
+__version__ = '2022.9.26'
 
 __all__ = ('register_codecs',)
 
@@ -672,6 +672,7 @@ class JpegXl(Codec):
         lossless=None,
         decodingspeed=None,
         photometric=None,
+        planar=None,
         usecontainer=None,
         # decode
         index=None,
@@ -685,6 +686,7 @@ class JpegXl(Codec):
         self.lossless = bool(lossless)
         self.decodingspeed = decodingspeed
         self.photometric = photometric
+        self.planar = planar
         self.usecontainer = usecontainer
         self.index = index
         self.keeporientation = keeporientation
@@ -700,6 +702,7 @@ class JpegXl(Codec):
             lossless=self.lossless,
             decodingspeed=self.decodingspeed,
             photometric=self.photometric,
+            planar=self.planar,
             usecontainer=self.usecontainer,
             numthreads=self.numthreads,
         )
@@ -944,6 +947,32 @@ class Qoi(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.qoi_decode(buf, out=out)
+
+
+class Rgbe(Codec):
+    """RGBE codec for numcodecs."""
+
+    codec_id = 'imagecodecs_rgbe'
+
+    def __init__(self, header=False, shape=None, rle=None):
+        if not header and shape is None:
+            raise ValueError('must specify data shape if no header')
+        if shape and shape[-1] != 3:
+            raise ValueError('invalid shape')
+        self.shape = shape
+        self.header = bool(header)
+        self.rle = None if rle is None else bool(rle)
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.rgbe_encode(buf, header=self.header, rle=self.rle)
+
+    def decode(self, buf, out=None):
+        if out is None and not self.header:
+            out = numpy.empty(self.shape, numpy.float32)
+        return imagecodecs.rgbe_decode(
+            buf, header=self.header, rle=self.rle, out=out
+        )
 
 
 class Rcomp(Codec):
