@@ -1,7 +1,7 @@
 # imagecodecs/lcms2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Little 2.13.1` library.
+# Cython declarations for the `Little 2.14` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stdint cimport uint8_t
@@ -51,6 +51,7 @@ cdef extern from 'lcms2.h':
 
     ctypedef enum cmsTagTypeSignature:
         cmsSigChromaticityType
+        cmsSigcicpType
         cmsSigColorantOrderType
         cmsSigColorantTableType
         cmsSigCrdInfoType
@@ -158,6 +159,7 @@ cdef extern from 'lcms2.h':
         cmsSigViewingConditionsTag
         cmsSigVcgtTag
         cmsSigMetaTag
+        cmsSigcicpTag
         cmsSigArgyllArtsTag
 
     ctypedef enum cmsTechnologySignature:
@@ -666,6 +668,12 @@ cdef extern from 'lcms2.h':
         cmsCIEXYZ IlluminantXYZ
         cmsCIEXYZ SurroundXYZ
         cmsUInt32Number IlluminantType
+
+    ctypedef struct cmsVideoSignalType:
+        cmsUInt8Number ColourPrimaries
+        cmsUInt8Number TransferCharacteristics
+        cmsUInt8Number MatrixCoefficients
+        cmsUInt8Number VideoFullRangeFlag
 
     int cmsGetEncodedCMMversion() nogil
 
@@ -1643,6 +1651,10 @@ cdef extern from 'lcms2.h':
     ) nogil
 
     cmsUInt32Number cmsChannelsOf(
+        cmsColorSpaceSignature ColorSpace
+    ) nogil
+
+    cmsInt32Number cmsChannelsOfColorSpace(
         cmsColorSpaceSignature ColorSpace
     ) nogil
 
