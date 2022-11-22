@@ -998,6 +998,24 @@ static int write_iend(spng_ctx *ctx)
     return write_data(ctx, iend_chunk, 12);
 }
 
+static int write_unknown_chunks(spng_ctx *ctx, enum spng_location location)
+{
+    if(!ctx->stored.unknown) return 0;
+
+    const struct spng_unknown_chunk *chunk = ctx->chunk_list;
+
+    uint32_t i;
+    for(i=0; i < ctx->n_chunks; i++, chunk++)
+    {
+        if(chunk->location != location) continue;
+
+        int ret = write_chunk(ctx, chunk->type, chunk->data, chunk->length);
+        if(ret) return ret;
+    }
+
+    return 0;
+}
+
 /* Read and check the current chunk's crc,
    returns -SPNG_CRC_DISCARD if the chunk should be discarded */
 static inline int read_and_check_crc(spng_ctx *ctx)
@@ -1259,7 +1277,7 @@ static int spng__inflate_stream(spng_ctx *ctx, char **out, size_t *len, size_t e
 
     while(ret != Z_STREAM_END)
     {
-        ret = inflate(stream, 0);
+        ret = inflate(stream, Z_NO_FLUSH);
 
         if(ret == Z_STREAM_END) break;
 
@@ -1382,7 +1400,7 @@ static int read_scanline_bytes(spng_ctx *ctx, unsigned char *dest, size_t len)
 
     while(zstream->avail_out != 0)
     {
-        ret = inflate(&ctx->zstream, 0);
+        ret = inflate(zstream, Z_NO_FLUSH);
 
         if(ret == Z_OK) continue;
 
@@ -2829,7 +2847,7 @@ static int read_non_idat_chunks(spng_ctx *ctx)
 
                     translated_keyword_offset = term - data + 1;
 
-                    const unsigned char *zlib_stream = memchr(data + translated_keyword_offset, 0, peek_bytes - translated_keyword_offset);
+                    zlib_stream = memchr(data + translated_keyword_offset, 0, peek_bytes - translated_keyword_offset);
                     if(zlib_stream == NULL) return SPNG_EITXT;
                     if(zlib_stream == peek_end) return SPNG_EITXT;
 
@@ -4145,20 +4163,8 @@ static int write_chunks_before_idat(spng_ctx *ctx)
         if(ret) return ret;
     }
 
-    if(ctx->stored.unknown)
-    {
-        uint32_t i;
-        for(i=0; i < ctx->n_chunks; i++)
-        {
-            struct spng_unknown_chunk *chunk = &ctx->chunk_list[i];
-
-            if(chunk->location == SPNG_AFTER_IHDR)
-            {
-                int ret = write_chunk(ctx, chunk->type, chunk->data, chunk->length);
-                if(ret) return ret;
-            }
-        }
-    }
+    ret = write_unknown_chunks(ctx, SPNG_AFTER_IHDR);
+    if(ret) return ret;
 
     if(ctx->stored.plte)
     {
@@ -4460,20 +4466,8 @@ static int write_chunks_before_idat(spng_ctx *ctx)
         if(ret) return ret;
     }
 
-    if(ctx->stored.unknown)
-    {
-        uint32_t i;
-        for(i=0; i < ctx->n_chunks; i++)
-        {
-            struct spng_unknown_chunk *chunk = &ctx->chunk_list[i];
-
-            if(chunk->location == SPNG_AFTER_PLTE)
-            {
-                int ret = write_chunk(ctx, chunk->type, chunk->data, chunk->length);
-                if(ret) return ret;
-            }
-        }
-    }
+    ret = write_unknown_chunks(ctx, SPNG_AFTER_PLTE);
+    if(ret) return ret;
 
     return 0;
 }
@@ -4482,20 +4476,8 @@ static int write_chunks_after_idat(spng_ctx *ctx)
 {
     if(ctx == NULL) return SPNG_EINTERNAL;
 
-    if(ctx->stored.unknown)
-    {
-        uint32_t i;
-        for(i=0; i < ctx->n_chunks; i++)
-        {
-            struct spng_unknown_chunk *chunk = &ctx->chunk_list[i];
-
-            if(chunk->location == SPNG_AFTER_IDAT)
-            {
-                int ret = write_chunk(ctx, chunk->type, chunk->data, chunk->length);
-                if(ret) return ret;
-            }
-        }
-    }
+    int ret = write_unknown_chunks(ctx, SPNG_AFTER_IDAT);
+    if(ret) return ret;
 
     return write_iend(ctx);
 }
@@ -5017,11 +4999,11 @@ void spng_ctx_free(spng_ctx *ctx)
     spng__free(ctx, ctx->prev_scanline_buf);
     spng__free(ctx, ctx->filtered_scanline_buf);
 
-    spng_free_fn *free_func = ctx->alloc.free_fn;
+    spng_free_fn *free_fn = ctx->alloc.free_fn;
 
     memset(ctx, 0, sizeof(spng_ctx));
 
-    free_func(ctx);
+    free_fn(ctx);
 }
 
 static int buffer_read_fn(spng_ctx *ctx, void *user, void *data, size_t n)
@@ -5761,7 +5743,8 @@ int spng_set_iccp(spng_ctx *ctx, struct spng_iccp *iccp)
     SPNG_SET_CHUNK_BOILERPLATE(iccp);
 
     if(check_png_keyword(iccp->profile_name)) return SPNG_EICCP_NAME;
-    if(!iccp->profile_len || iccp->profile_len > UINT_MAX) return 1;
+    if(!iccp->profile_len) return SPNG_ECHUNK_SIZE;
+    if(iccp->profile_len > spng_u32max) return SPNG_ECHUNK_STDLEN;
 
     if(ctx->iccp.profile && !ctx->user.iccp) spng__free(ctx, ctx->iccp.profile);
 
