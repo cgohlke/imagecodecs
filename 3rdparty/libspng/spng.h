@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: (BSD-2-Clause AND libpng-2.0) */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef SPNG_H
 #define SPNG_H
 
@@ -28,7 +28,7 @@ extern "C" {
 
 #define SPNG_VERSION_MAJOR 0
 #define SPNG_VERSION_MINOR 7
-#define SPNG_VERSION_PATCH 2
+#define SPNG_VERSION_PATCH 3
 
 enum spng_errno
 {
@@ -177,8 +177,8 @@ enum spng_format
     SPNG_FMT_G8 = 64,
 
     /* No conversion or scaling */
-    SPNG_FMT_PNG = 256, /* host-endian */
-    SPNG_FMT_RAW = 512  /* big-endian */
+    SPNG_FMT_PNG = 256,
+    SPNG_FMT_RAW = 512  /* big-endian (everything else is host-endian) */
 };
 
 enum spng_ctx_flags
