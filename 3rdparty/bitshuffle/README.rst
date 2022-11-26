@@ -17,7 +17,7 @@ except it operates at the bit level instead of the byte level. Arranging a
 typed data array in to a matrix with the elements as the rows and the bits
 within the elements as the columns, Bitshuffle "transposes" the matrix,
 such that all the least-significant-bits are in a row, etc.  This transpose
-is performed within blocks of data roughly 8kB long [1]_.
+is performed within blocks of data roughly 8 kB long [1]_.
 
 This does not in itself compress data, only rearranges it for more efficient
 compression. To perform the actual compression you will need a compression
@@ -97,20 +97,35 @@ Comparing Bitshuffle to other compression algorithms and HDF5 filters:
 Installation for Python
 -----------------------
 
-Installation requires python 2.7+ or 3.3+, HDF5 1.8.4 or later, HDF5 for python
-(h5py), Numpy and Cython. Bitshuffle is linked against HDF5. To use the dynamically 
-loaded HDF5 filter requires HDF5 1.8.11 or later. If ZSTD support is enabled the ZSTD 
-repo needs to pulled into bitshuffle before installation with::
+
+In most cases bitshuffle can be installed by `pip`::
+
+    pip install bitshuffle
+
+On Linux and macOS x86_64 platforms binary wheels are available, on other platforms a
+source build will be performed. The binary wheels are built with AVX2 support and will
+only run processors that support these instructions (most processors from 2015 onwards,
+i.e. Intel Haswell, AMD Excavator and later). On an unsupported processor these builds
+of bitshuffle will crash with `SIGILL`. To run on unsupported x86_64 processors, or
+target newer instructions such as AVX512, you should perform a build from source.
+This can be forced by giving pip the `--no-binary=bitshuffle` option.
+
+Source installation requires python 2.7+ or 3.3+, HDF5 1.8.4 or later, HDF5 for python
+(h5py), Numpy and Cython. Bitshuffle is linked against HDF5. To use the dynamically
+loaded HDF5 filter requires HDF5 1.8.11 or later.
+
+For total control, bitshuffle can be built using `python setup.py`. If ZSTD support is
+to be enabled the ZSTD repo needs to pulled into bitshuffle before installation with::
 
     git submodule update --init
 
-To install bitshuffle::
+To build and install bitshuffle::
 
     python setup.py install [--h5plugin [--h5plugin-dir=spam] --zstd]
 
-To get finer control of installation options, including whether to compile
-with OpenMP multi-threading, copy the ``setup.cfg.example`` to ``setup.cfg``
-and edit the values therein.
+To get finer control of installation options, including whether to compile with OpenMP
+multi-threading and the target microarchitecture copy the ``setup.cfg.example`` to
+``setup.cfg`` and edit the values therein.
 
 If using the dynamically loaded HDF5 filter (which gives you access to the
 Bitshuffle and LZF filters outside of python), set the environment variable
@@ -143,9 +158,9 @@ interface or through the convenience functions provided in
 version 2.5.0 and later Bitshuffle can be added to new datasets through the
 high level interface, as in the example below.
 
-The compression algorithm can be configured using the `filter_opts` in 
-`bitshuffle.h5.create_dataset()`. LZ4 is chosen with: 
-`(BLOCK_SIZE, h5.H5_COMPRESS_LZ4)` and ZSTD with: 
+The compression algorithm can be configured using the `filter_opts` in
+`bitshuffle.h5.create_dataset()`. LZ4 is chosen with:
+`(BLOCK_SIZE, h5.H5_COMPRESS_LZ4)` and ZSTD with:
 `(BLOCK_SIZE, h5.H5_COMPRESS_ZSTD, COMP_LVL)`. See `test_h5filter.py` for an example.
 
 Example h5py
@@ -213,6 +228,27 @@ Then, you use them like this::
 
 .. _`snappy-java`: https://github.com/xerial/snappy-java
 
+
+Rust HDF5 plugin
+----------------
+
+If you wish to open HDF5 files compressed with bitshuffle in your Rust program, there is a `Rust binding`_ for it.
+In your Cargo.toml::
+
+    [dependencies]
+    ...
+    hdf5-bitshuffle = "0.9"
+    ...
+
+To register the plugin in your code::
+
+    use hdf5_bitshuffle::register_bitshuffle_plugin;
+
+    fn main() {
+        register_bitshuffle_plugin();
+    }
+
+.. _`Rust binding`: https://docs.rs/hdf5-bitshuffle/latest/hdf5_bitshuffle/
 
 Anaconda
 --------
