@@ -1,7 +1,7 @@
 # imagecodecs/bitshuffle.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Bitshuffle 0.4.2` library.
+# Cython declarations for the `Bitshuffle 0.5.1` library.
 # https://github.com/kiyo-masui/bitshuffle
 
 from libc.stdint cimport int64_t
@@ -15,6 +15,7 @@ cdef extern from 'bitshuffle.h':
     int bshuf_using_NEON() nogil
     int bshuf_using_SSE2() nogil
     int bshuf_using_AVX2() nogil
+    int bshuf_using_AVX512() nogil
 
     size_t bshuf_default_block_size(
         const size_t elem_size
