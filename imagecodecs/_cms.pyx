@@ -364,7 +364,11 @@ def cms_profile(
         ppTransferFunction[2] = NULL
 
         if gamma is not None:
-            raise NotImplementedError  # TODO: implement gamma functions
+            if profile == 'gray':
+                pTransferFunction = cmsBuildGamma(<cmsContext> NULL, <cmsFloat64Number> gamma)
+            elif profile == 'rgb':
+                for i in range(3):
+                    ppTransferFunction[i] = cmsBuildGamma(<cmsContext> NULL, <cmsFloat64Number> gamma)
             # cmsBuildGamma(<cmsContext> NULL, gamma)
         elif transferfunction is not None:
             tf = numpy.ascontiguousarray(transferfunction)
