@@ -105,10 +105,3 @@ cdef extern from 'rgbe.h':
         size_t n,
         rgbe_stream_t *stream
     ) nogil
-
-    ssize_t memsearch(
-        const char *src,
-        const ssize_t srclen,
-        const char *dst,
-        const ssize_t dstlen
-    ) nogil
