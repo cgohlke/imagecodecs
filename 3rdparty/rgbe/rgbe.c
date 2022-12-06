@@ -534,32 +534,3 @@ rgbe_stream_gets(char *str, size_t n, rgbe_stream_t *stream) {
     stream->pos += size;
     return str;
 }
-
-/* search for bytes in bytes */
-
-ssize_t
-memsearch(
-    const char *src,
-    const ssize_t srclen,
-    const char *dst,
-    const ssize_t dstlen) {
-    for (ssize_t i = 0; i < srclen; i++) {
-        if (src[i] == '\0') {
-            return -1;
-        }
-        if (src[i] == dst[0]) {
-            int found = 1;
-            for (ssize_t j = 0; j < dstlen; j++) {
-                ssize_t k = i + j;
-                if ((k >= srclen) || (dst[j] != src[k])) {
-                    found = 0;
-                    break;
-                }
-            }
-            if (found) {
-                return i;
-            }
-        }
-    }
-    return -1;
-}
