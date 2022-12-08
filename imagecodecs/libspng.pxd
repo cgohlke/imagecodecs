@@ -1,7 +1,7 @@
 # imagecodecs/libspng.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libspng 0.7.0` library.
+# Cython declarations for the `libspng 0.7.3` library.
 # https://github.com/randy408/libspng/
 
 from libc.stdio cimport FILE
@@ -227,7 +227,7 @@ cdef extern from 'spng.h':
 
     struct spng_text:
         char keyword[80]
-        int type_
+        int type_ 'type'
         size_t length
         char* text
         uint8_t compression_flag
