@@ -47,8 +47,11 @@ exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
 exclude tests/jetraw.bin
 
+exclude *.cmd
 exclude build_utils/*
 
+recursive-exclude doc *
+recursive-exclude docs *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *-
