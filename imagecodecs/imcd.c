@@ -846,8 +846,6 @@ ssize_t imcd_ccittrle_decode(
     uint8_t* dstptr = dst;
     const uint8_t* srcend = srcptr + srcsize;
     const uint8_t* dstend = dstptr + dstsize;
-    uint8_t e;
-    ssize_t n;
 
     if ((srcptr == NULL) || (srcsize < 0) || (dstptr == NULL) || (dstsize < 0))
     {
@@ -2108,4 +2106,59 @@ ssize_t imcd_lzw_encode(
     free(hash_keys);
 
     return dstindex;
+}
+
+
+/********************************* Utilities *********************************/
+
+/* search for bytes in bytes */
+ssize_t imcd_memsearch(
+    const char *src,
+    const ssize_t srclen,
+    const char *dst,
+    const ssize_t dstlen) {
+    for (ssize_t i = 0; i < srclen; i++) {
+        if (src[i] == dst[0]) {
+            int found = 1;
+            for (ssize_t j = 0; j < dstlen; j++) {
+                ssize_t k = i + j;
+                if ((k >= srclen) || (dst[j] != src[k])) {
+                    found = 0;
+                    break;
+                }
+            }
+            if (found) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+
+/* search for bytes in string; stop at null character */
+ssize_t imcd_strsearch(
+    const char *src,
+    const ssize_t srclen,
+    const char *dst,
+    const ssize_t dstlen) {
+    for (ssize_t i = 0; i < srclen; i++) {
+        if (src[i] == '\0') {
+            return -1;
+        }
+        if (src[i] == dst[0]) {
+            int found = 1;
+            for (ssize_t j = 0; j < dstlen; j++) {
+                ssize_t k = i + j;
+                if ((k >= srclen) || (dst[j] != src[k])) {
+                    found = 0;
+                    break;
+                }
+            }
+            if (found) {
+                return i;
+            }
+        }
+    }
+    return -1;
 }
