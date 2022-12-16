@@ -1,10 +1,11 @@
 # imagecodecs/libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.4.0` library.
+# Cython declarations for the `libtiff 4.5.0` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stdio cimport FILE
+from libc.stddef cimport wchar_t
 from libc.stdint cimport (
     uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
 )
@@ -18,6 +19,10 @@ cdef extern from 'tiffio.h':
 
     char* TIFFLIB_VERSION_STR
     int TIFFLIB_VERSION
+
+    int TIFFLIB_MAJOR_VERSION
+    int TIFFLIB_MINOR_VERSION
+    int TIFFLIB_MICRO_VERSION
 
     int TIFF_VERSION_CLASSIC
     int TIFF_VERSION_BIG
@@ -74,7 +79,7 @@ cdef extern from 'tiffio.h':
     ctypedef int64_t tmsize_t
     ctypedef uint64_t toff_t
     ctypedef uint32_t ttag_t
-    ctypedef uint16_t tdir_t
+    ctypedef uint32_t tdir_t
     ctypedef uint16_t tsample_t
     ctypedef uint32_t tstrile_t
     ctypedef tstrile_t tstrip_t
@@ -251,6 +256,14 @@ cdef extern from 'tiffio.h':
         thandle_t,
         char*,
         char*,
+        va_list
+    ) nogil
+
+    ctypedef int (*TIFFErrorHandlerExtR)(
+        TIFF*,
+        void* user_data,
+        const char*,
+        const char*,
         va_list
     ) nogil
 
@@ -678,11 +691,11 @@ cdef extern from 'tiffio.h':
         TIFF*
     ) nogil
 
-    uint16_t TIFFCurrentDirectory(
+    tdir_t TIFFCurrentDirectory(
         TIFF*
     ) nogil
 
-    uint16_t TIFFNumberOfDirectories(
+    tdir_t TIFFNumberOfDirectories(
         TIFF*
     ) nogil
 
@@ -743,7 +756,7 @@ cdef extern from 'tiffio.h':
 
     int TIFFSetDirectory(
         TIFF*,
-        uint16_t
+        tdir_t
     ) nogil
 
     int TIFFSetSubDirectory(
@@ -753,7 +766,7 @@ cdef extern from 'tiffio.h':
 
     int TIFFUnlinkDirectory(
         TIFF*,
-        uint16_t
+        tdir_t
     ) nogil
 
     int TIFFSetField(
@@ -886,30 +899,6 @@ cdef extern from 'tiffio.h':
         TIFFRGBAImage*
     ) nogil
 
-    TIFF* TIFFOpen(
-        char*,
-        char*
-    ) nogil
-
-    TIFF* TIFFFdOpen(
-        int,
-        char*,
-        char*
-    ) nogil
-
-    TIFF* TIFFClientOpen(
-        char*,
-        char*,
-        thandle_t,
-        TIFFReadWriteProc,
-        TIFFReadWriteProc,
-        TIFFSeekProc,
-        TIFFCloseProc,
-        TIFFSizeProc,
-        TIFFMapFileProc,
-        TIFFUnmapFileProc
-    ) nogil
-
     char* TIFFFileName(
         TIFF*
     ) nogil
@@ -955,6 +944,108 @@ cdef extern from 'tiffio.h':
 
     TIFFErrorHandlerExt TIFFSetWarningHandlerExt(
         TIFFErrorHandlerExt
+    ) nogil
+
+    TIFFErrorHandlerExt TIFFWarningExtR(
+        TIFF*,
+        const char*,
+        const char*,
+        ...
+    ) nogil
+
+    TIFFErrorHandlerExt TIFFErrorExtR(
+        TIFF*,
+        const char*,
+        const char*,
+        ...
+    ) nogil
+
+    ctypedef struct TIFFOpenOptions:
+        pass
+
+    TIFFOpenOptions *TIFFOpenOptionsAlloc() nogil
+
+    void TIFFOpenOptionsFree(
+        TIFFOpenOptions*
+    ) nogil
+
+    void TIFFOpenOptionsSetMaxSingleMemAlloc(
+        TIFFOpenOptions* opts,
+        tmsize_t max_single_mem_alloc
+    ) nogil
+
+    void TIFFOpenOptionsSetErrorHandlerExtR(
+        TIFFOpenOptions* opts,
+        TIFFErrorHandlerExtR handler,
+        void* errorhandler_user_data
+    ) nogil
+
+    void TIFFOpenOptionsSetWarningHandlerExtR(
+        TIFFOpenOptions* opts,
+        TIFFErrorHandlerExtR handler,
+        void* warnhandler_user_data
+    ) nogil
+
+    TIFF* TIFFOpen(
+        const char*,
+        const char*
+    ) nogil
+
+    TIFF* TIFFOpenExt(
+        const char*,
+        const char*,
+        TIFFOpenOptions* opts
+    ) nogil
+
+    TIFF* TIFFOpenW(
+        const wchar_t*,
+        const char*
+    ) nogil
+
+    TIFF* TIFFOpenWExt(
+        const wchar_t*,
+        const char*,
+        TIFFOpenOptions* opts
+    ) nogil
+
+    TIFF* TIFFFdOpen(
+        int,
+        const char*,
+        const char*
+    ) nogil
+
+    TIFF* TIFFFdOpenExt(
+        int,
+        const char*,
+        const char*,
+        TIFFOpenOptions* opts
+    ) nogil
+
+    TIFF* TIFFClientOpen(
+        const char*,
+        const char*,
+        thandle_t,
+        TIFFReadWriteProc,
+        TIFFReadWriteProc,
+        TIFFSeekProc,
+        TIFFCloseProc,
+        TIFFSizeProc,
+        TIFFMapFileProc,
+        TIFFUnmapFileProc
+    ) nogil
+
+    TIFF* TIFFClientOpenExt(
+        const char*,
+        const char*,
+        thandle_t,
+        TIFFReadWriteProc,
+        TIFFReadWriteProc,
+        TIFFSeekProc,
+        TIFFCloseProc,
+        TIFFSizeProc,
+        TIFFMapFileProc,
+        TIFFUnmapFileProc,
+        TIFFOpenOptions *opts
     ) nogil
 
     TIFFExtendProc TIFFSetTagExtender(
