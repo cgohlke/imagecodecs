@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.4.1` library.
+# Cython declarations for the `c-blosc2 2.6.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -404,11 +404,11 @@ cdef extern from 'blosc2.h':
 
     ctypedef struct blosc2_prefilter_params:
         void* user_data
-        const uint8_t* in_
-        uint8_t* out
-        int32_t out_size
-        int32_t out_typesize
-        int32_t out_offset
+        const uint8_t* input
+        uint8_t* output
+        int32_t output_size
+        int32_t output_typesize
+        int32_t output_offset
         int64_t nchunk
         int32_t nblock
         int32_t tid
@@ -418,8 +418,8 @@ cdef extern from 'blosc2.h':
 
     ctypedef struct blosc2_postfilter_params:
         void* user_data
-        const uint8_t* in_
-        uint8_t* out
+        const uint8_t* input
+        uint8_t* output
         int32_t size
         int32_t typesize
         int32_t offset
@@ -593,6 +593,7 @@ cdef extern from 'blosc2.h':
         uint8_t compcode
         uint8_t compcode_meta
         uint8_t clevel
+        uint8_t splitmode
         int32_t typesize
         int32_t blocksize
         int32_t chunksize
