@@ -37,10 +37,11 @@
 
 """APNG codec for the imagecodecs package."""
 
-__version__ = '2022.7.27'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
+from zlib cimport *
 from libpng cimport *
 
 
@@ -53,6 +54,28 @@ class APNG:
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
 
+    class COMPRESSION(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_COMPRESSION
+        NO = Z_NO_COMPRESSION
+        BEST = Z_BEST_COMPRESSION
+        SPEED = Z_BEST_SPEED
+
+    class STRATEGY(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_STRATEGY
+        FILTERED = Z_FILTERED
+        HUFFMAN_ONLY = Z_HUFFMAN_ONLY
+        RLE = Z_RLE
+        FIXED = Z_FIXED
+
+    class FILTER(enum.IntEnum):  # IntFlag
+        NO = PNG_NO_FILTERS
+        NONE = PNG_FILTER_NONE
+        SUB = PNG_FILTER_SUB
+        UP = PNG_FILTER_UP
+        AVG = PNG_FILTER_AVG
+        PAETH = PNG_FILTER_PAETH
+        FAST = PNG_FAST_FILTERS
+        ALL = PNG_ALL_FILTERS
 
 class ApngError(RuntimeError):
     """APNG Exceptions."""
@@ -72,9 +95,23 @@ def apng_check(const uint8_t[::1] data):
 
 
 def apng_encode(
-    data, level=None, photometric=None, delay=None, numthreads=None, out=None
+    data,
+    level=None,
+    strategy=None,
+    filter=None,
+    photometric=None,
+    delay=None,
+    numthreads=None,
+    out=None
 ):
     """Return APNG image from numpy array.
+
+    For fast encoding, matching OpenCV settings, set:
+
+    - level=1 (APNG.LEVEL.SPEED)
+    - strategy=3 (APNG.STRATEGY.RLE)
+    - filter=16 (APNG.FILTER.SUB)
+
 
     """
     cdef:
@@ -86,7 +123,13 @@ def apng_encode(
         png_bytep rowptr = NULL
         int color_type
         int bit_depth = src.itemsize * 8
-        int level_ = _default_value(level, -1, -1, 9)
+        int level_ = _default_value(
+            level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
+        )
+        int strategy_ = _default_value(
+            strategy, Z_DEFAULT_STRATEGY, 0, Z_FIXED
+        )
+        int filter_ = -1 if filter is None else <int> filter
         png_uint_16 delay_num = _default_value(delay, 1000, 1, 3600000)
         mempng_t mempng
         png_structp png_ptr = NULL
@@ -202,6 +245,9 @@ def apng_encode(
                 # png_set_first_frame_is_hidden(png_ptr, info_ptr, 1)
             png_write_info(png_ptr, info_ptr)
             png_set_compression_level(png_ptr, level_)
+            png_set_compression_strategy(png_ptr, strategy_)
+            if filter_ >= 0:
+                png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
@@ -248,7 +294,7 @@ def apng_encode(
 def apng_decode(data, index=None, numthreads=None, out=None):
     """Decode APNG image to numpy array.
 
-    By default all images in the file are returned in one array, including
+    By default, all images in the file are returned in one array, including
     hidden frames and those not part of the animation.
     If an image index >= 0 is specified, ignore the disposal and blending
     modes and return the frame data on black background.
