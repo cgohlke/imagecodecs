@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -47,10 +47,18 @@ from zlib cimport *
 class ZLIB:
     """Zlib Constants."""
 
-    NO_COMPRESSION = Z_NO_COMPRESSION
-    BEST_SPEED = Z_BEST_SPEED
-    BEST_COMPRESSION = Z_BEST_COMPRESSION
-    DEFAULT_COMPRESSION = Z_DEFAULT_COMPRESSION
+    class COMPRESSION(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_COMPRESSION
+        NO = Z_NO_COMPRESSION
+        BEST = Z_BEST_COMPRESSION
+        SPEED = Z_BEST_SPEED
+
+    class STRATEGY(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_STRATEGY
+        FILTERED = Z_FILTERED
+        HUFFMAN_ONLY = Z_HUFFMAN_ONLY
+        RLE = Z_RLE
+        FIXED = Z_FIXED
 
 
 class ZlibError(RuntimeError):
@@ -93,7 +101,7 @@ def zlib_encode(data, level=None, numthreads=None, out=None):
         unsigned long srclen, dstlen
         int ret
         int compresslevel = _default_value(
-            level, Z_DEFAULT_COMPRESSION, Z_NO_COMPRESSION, Z_BEST_COMPRESSION
+            level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
 
     if data is out:
