@@ -37,12 +37,12 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
+from zlib cimport *
 from libpng cimport *
-
 
 class PNG:
     """PNG Constants."""
@@ -52,6 +52,29 @@ class PNG:
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
+
+    class COMPRESSION(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_COMPRESSION
+        NO = Z_NO_COMPRESSION
+        BEST = Z_BEST_COMPRESSION
+        SPEED = Z_BEST_SPEED
+
+    class STRATEGY(enum.IntEnum):
+        DEFAULT = Z_DEFAULT_STRATEGY
+        FILTERED = Z_FILTERED
+        HUFFMAN_ONLY = Z_HUFFMAN_ONLY
+        RLE = Z_RLE
+        FIXED = Z_FIXED
+
+    class FILTER(enum.IntEnum):  # IntFlag
+        NO = PNG_NO_FILTERS
+        NONE = PNG_FILTER_NONE
+        SUB = PNG_FILTER_SUB
+        UP = PNG_FILTER_UP
+        AVG = PNG_FILTER_AVG
+        PAETH = PNG_FILTER_PAETH
+        FAST = PNG_FAST_FILTERS
+        ALL = PNG_ALL_FILTERS
 
 
 class PngError(RuntimeError):
@@ -71,8 +94,16 @@ def png_check(const uint8_t[::1] data):
     return sig == b'\x89PNG\r\n\x1a\n'
 
 
-def png_encode(data, level=None, numthreads=None, out=None):
+def png_encode(
+    data, level=None, strategy=None, filter=None, numthreads=None, out=None
+):
     """Return PNG image from numpy array.
+
+    For fast encoding, matching OpenCV settings, set:
+
+    - level=1 (PNG.LEVEL.SPEED)
+    - strategy=3 (PNG.STRATEGY.RLE)
+    - filter=16 (PNG.FILTER.SUB)
 
     """
     cdef:
@@ -85,7 +116,13 @@ def png_encode(data, level=None, numthreads=None, out=None):
         int color_type = PNG_COLOR_TYPE_GRAY
         int bit_depth = src.itemsize * 8
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
-        int level_ = _default_value(level, -1, -1, 9)
+        int level_ = _default_value(
+            level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
+        )
+        int strategy_ = _default_value(
+            strategy, Z_DEFAULT_STRATEGY, 0, Z_FIXED
+        )
+        int filter_ = -1 if filter is None else <int> filter
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
@@ -168,6 +205,9 @@ def png_encode(data, level=None, numthreads=None, out=None):
 
             png_write_info(png_ptr, info_ptr)
             png_set_compression_level(png_ptr, level_)
+            png_set_compression_strategy(png_ptr, strategy_)
+            if filter_ >= 0:
+                png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
