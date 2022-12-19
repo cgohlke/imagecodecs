@@ -37,7 +37,7 @@ The module is intended for testing and reference, not production code.
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 import bz2
 import functools
@@ -93,6 +93,16 @@ except ImportError:
     lzf = None
 
 try:
+    import liblzfse as lzfse
+except ImportError:
+    lzfse = None
+
+try:
+    import lzham
+except ImportError:
+    lzham = None
+
+try:
     import snappy
 except ImportError:
     snappy = None
@@ -143,6 +153,8 @@ def version(astype=None, _versions_=[]):
                 ('zstd', zstd.version()[1:-1] if zstd else 'n/a'),
                 ('lz4', lz4.VERSION if lz4 else 'n/a'),
                 ('lzf', 'unknown' if lzf else 'n/a'),
+                ('lzham', 'unknown' if lzham else 'n/a'),
+                ('pyliblzfse', 'unknown' if lzfse else 'n/a'),
                 ('snappy', 'unknown' if snappy else 'n/a'),
                 ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
                 ('zfpy', zfp.__version__ if zfp else 'n/a'),
@@ -797,6 +809,30 @@ def lzf_encode(data, level=None, header=False, out=None):
 def lzf_decode(data, header=False, out=None):
     """Decompress LZF."""
     return lzf.decompress(data)
+
+
+@notimplemented(lzfse)
+def lzfse_encode(data, level=None, out=None):
+    """Compress LZFSE."""
+    return lzfse.compress(data)
+
+
+@notimplemented(lzfse)
+def lzfse_decode(data, out=None):
+    """Decompress LZFSE."""
+    return lzfse.decompress(data)
+
+
+@notimplemented(lzham)
+def lzham_encode(data, level=None, out=None):
+    """Compress LZHAM."""
+    return lzham.compress(data, level=level)
+
+
+@notimplemented(lzham)
+def lzham_decode(data, out=None):
+    """Decompress LZHAM."""
+    return lzham.decompress(data, out)
 
 
 @notimplemented(zfp)
