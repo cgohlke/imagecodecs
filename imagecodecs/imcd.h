@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2022.7.27"
+#define IMCD_VERSION "2022.12.22"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -391,5 +391,20 @@ void imcd_stream_data(
     ssize_t* size
 );
 
+
+ssize_t imcd_memsearch(
+    const char *src,
+    const ssize_t srclen,
+    const char *dst,
+    const ssize_t dstlen
+);
+
+
+ssize_t imcd_strsearch(
+    const char *src,
+    const ssize_t srclen,
+    const char *dst,
+    const ssize_t dstlen
+);
 
 #endif /* IMCD_H */
