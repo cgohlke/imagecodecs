@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2022.7.27'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -136,7 +136,7 @@ def avif_encode(
         int timescale = 1
         int keyframeinterval = 0
         int maxthreads = <int> _default_threads(numthreads)
-        int imagecount, width, height, samples, depth
+        uint32_t imagecount, width, height, samples, depth
         ssize_t i, j, k, srcindex
         size_t rawsize
         bint monochrome = 0  # must be initialized
@@ -156,35 +156,35 @@ def avif_encode(
         src.dtype in (numpy.uint8, numpy.uint16)
         # and numpy.PyArray_ISCONTIGUOUS(src)
         and src.ndim in (2, 3, 4)
-        and src.shape[0] < 2 ** 32
-        and src.shape[1] < 2 ** 32
-        and src.shape[src.ndim - 1] < 2 ** 32
-        and src.shape[src.ndim - 2] < 2 ** 32
+        and src.shape[0] < 2 ** 31
+        and src.shape[1] < 2 ** 31
+        and src.shape[src.ndim - 1] < 2 ** 31
+        and src.shape[src.ndim - 2] < 2 ** 31
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
     if src.ndim == 2:
         samples = 1
         imagecount = 1
-        height = <int> src.shape[0]
-        width = <int> src.shape[1]
+        height = <uint32_t> src.shape[0]
+        width = <uint32_t> src.shape[1]
     elif src.ndim == 4:
-        imagecount = <int> src.shape[0]
-        height = <int> src.shape[1]
-        width = <int> src.shape[2]
-        samples = <int> src.shape[3]
+        imagecount = <uint32_t> src.shape[0]
+        height = <uint32_t> src.shape[1]
+        width = <uint32_t> src.shape[2]
+        samples = <uint32_t> src.shape[3]
         if samples > 4:
             raise ValueError('invalid number of samples')
     elif src.shape[src.ndim - 1] < 5:
         imagecount = 1
-        height = <int> src.shape[0]
-        width = <int> src.shape[1]
-        samples = <int> src.shape[2]
+        height = <uint32_t> src.shape[0]
+        width = <uint32_t> src.shape[1]
+        samples = <uint32_t> src.shape[2]
     else:
         samples = 1
-        imagecount = <int> src.shape[0]
-        height = <int> src.shape[1]
-        width = <int> src.shape[2]
+        imagecount = <uint32_t> src.shape[0]
+        height = <uint32_t> src.shape[1]
+        width = <uint32_t> src.shape[2]
 
     monochrome = samples < 3
     hasalpha = samples in (2, 4)
@@ -194,7 +194,7 @@ def avif_encode(
         # TODO: check status of libavif/aom monochome support
 
     if bitspersample is None:
-        depth = <int> itemsize * 8
+        depth = <uint32_t> itemsize * 8
     else:
         depth = bitspersample
         if depth not in (8, 10, 12, 16) or (depth == 8 and itemsize == 2):
