@@ -10,7 +10,7 @@
 
 #include <stddef.h>
 
-#define RGBE_VERSION "2022.8.30"
+#define RGBE_VERSION "2022.12.22"
 
 #ifndef HAVE_SSIZE_T
 #if defined(_MSC_VER)
@@ -101,14 +101,5 @@ rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...);
 
 char *
 rgbe_stream_gets(char *str, size_t n, rgbe_stream_t *stream);
-
-/* search for bytes in bytes */
-
-ssize_t
-memsearch(
-    const char *src,
-    const ssize_t srclen,
-    const char *dst,
-    const ssize_t dstlen);
 
 #endif /* _H_RGBE */
