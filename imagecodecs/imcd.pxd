@@ -1,7 +1,7 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2022.7.27` library.
+# Cython declarations for the `imcd 2022.12.22` library.
 # https://github.com/cgohlke/imagecodecs
 
 from libc.stdint cimport uint8_t
@@ -198,6 +198,19 @@ cdef extern from 'imcd.h':
         const ssize_t dstsize
     ) nogil
 
+    ssize_t imcd_memsearch(
+        const char *src,
+        const ssize_t srclen,
+        const char *dst,
+        const ssize_t dstlen
+    ) nogil
+
+    ssize_t imcd_strsearch(
+        const char *src,
+        const ssize_t srclen,
+        const char *dst,
+        const ssize_t dstlen
+    ) nogil
 
 cdef extern from 'fenv.h':
 
