@@ -37,13 +37,12 @@
 
 """RGBE codec for the imagecodecs package."""
 
-__version__ = '2022.9.26'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
 from rgbe cimport *
-
-from libc.string cimport strstr
+from imcd cimport imcd_strsearch
 
 
 class RGBE:
@@ -254,7 +253,7 @@ def rgbe_decode(
         if header is None:
             if src[0] == 35 and src[1] == 63:
                 header = True
-            elif memsearch(
+            elif imcd_strsearch(
                 <const char *> &src[0],
                 <ssize_t> min(srcsize, 8192),
                 "FORMAT=32-bit_rle_",
