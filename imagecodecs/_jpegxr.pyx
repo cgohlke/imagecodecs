@@ -41,7 +41,7 @@ The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -145,7 +145,7 @@ def jpegxr_encode(
 
     if (
         dtype not in (
-            numpy.bool8,
+            numpy.bool_,
             numpy.uint8,
             numpy.uint16,
             numpy.float16,
@@ -167,7 +167,7 @@ def jpegxr_encode(
     if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
         raise ValueError('invalid data shape')
 
-    if dtype == numpy.bool8:
+    if dtype == numpy.bool_:
         if src.ndim != 2:
             raise ValueError('invalid data shape, strides, or dtype')
         src = numpy.packbits(src, axis=-1)
