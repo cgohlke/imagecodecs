@@ -37,10 +37,11 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2022.9.26'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
+from libc.math cimport pow
 from libjxl cimport *
 
 
@@ -124,7 +125,7 @@ def jpegxl_check(const uint8_t[::1] data):
 
 def jpegxl_encode(
     data,
-    level=None,  # None or < 0: lossless, 0-4: tier/speed
+    level=None,  # -inf-100: quality; > 100: lossless
     effort=None,
     distance=None,
     lossless=None,
@@ -174,6 +175,7 @@ def jpegxl_encode(
         # JxlBlendInfo blend_info
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
+        int quality = 0
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
         int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 15.0)
@@ -189,12 +191,21 @@ def jpegxl_encode(
         return jpegxl_from_jpeg(data, use_container, num_threads, out)
 
     if level is not None:
-        if level < 0:
-            option_lossless = JXL_TRUE
-        elif level > 4:
-            option_tier = 4
-        else:
-            option_tier = level
+        if level > 100:
+            if lossless is None:
+                option_lossless = JXL_TRUE
+        elif distance is None:
+            # formula from JpegXlSaveOpts::UpdateDistance
+            quality = level if level < 100 else 100
+            option_distance = (
+                (0.1 + (100 - quality) * 0.09)
+                if quality >= 30 else
+                min(6.24 + pow(2.5, (30 - quality) / 5.0) / 6.25, 15)
+            )
+            if lossless is None:
+                option_lossless = JXL_FALSE
+    elif distance is not None and lossless is None:
+        option_lossless = JXL_FALSE
 
     src = numpy.ascontiguousarray(data)
     dtype = src.dtype
