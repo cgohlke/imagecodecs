@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2022.7.27'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -306,9 +306,9 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
 
     if nMasks > 0:
         if nMasks <= 1:
-            valid = _create_array(masks, (nRows, nCols), numpy.bool8)
+            valid = _create_array(masks, (nRows, nCols), numpy.bool_)
         else:
-            valid = _create_array(masks, (nMasks, nRows, nCols), numpy.bool8)
+            valid = _create_array(masks, (nMasks, nRows, nCols), numpy.bool_)
         pValidBytes = <unsigned char*> valid.data
 
     with nogil:
