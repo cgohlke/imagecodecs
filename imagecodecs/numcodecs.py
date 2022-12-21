@@ -31,9 +31,9 @@
 
 """Additional numcodecs implemented using imagecodecs."""
 
-__version__ = '2022.9.26'
+__version__ = '2022.12.22'
 
-__all__ = ('register_codecs',)
+__all__ = ['register_codecs']
 
 import numpy
 from numcodecs.abc import Codec
@@ -80,8 +80,17 @@ class Apng(Codec):
 
     codec_id = 'imagecodecs_apng'
 
-    def __init__(self, level=None, photometric=None, delay=None):
+    def __init__(
+        self,
+        level=None,
+        strategy=None,
+        filter=None,
+        photometric=None,
+        delay=None,
+    ):
         self.level = level
+        self.strategy = strategy
+        self.filter = filter
         self.photometric = photometric
         self.delay = delay
 
@@ -90,6 +99,8 @@ class Apng(Codec):
         return imagecodecs.apng_encode(
             buf,
             level=self.level,
+            strategy=self.strategy,
+            filter=self.filter,
             photometric=self.photometric,
             delay=self.delay,
         )
@@ -683,7 +694,7 @@ class JpegXl(Codec):
         self.level = level
         self.effort = effort
         self.distance = distance
-        self.lossless = bool(lossless)
+        self.lossless = lossless is None or bool(lossless)
         self.decodingspeed = decodingspeed
         self.photometric = photometric
         self.planar = planar
@@ -855,16 +866,47 @@ class Lzf(Codec):
         return imagecodecs.lzf_decode(buf, header=self.header, out=_flat(out))
 
 
-class Lzma(Codec):
-    """LZMA codec for numcodecs."""
+class Lzfse(Codec):
+    """LZFSE codec for numcodecs."""
 
-    codec_id = 'imagecodecs_lzma'
+    codec_id = 'imagecodecs_lzfse'
+
+    def __init__(self):
+        pass
+
+    def encode(self, buf):
+        return imagecodecs.lzfse_encode(buf)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.lzfse_decode(buf, out=_flat(out))
+
+
+class Lzham(Codec):
+    """LZHAM codec for numcodecs."""
+
+    codec_id = 'imagecodecs_lzham'
 
     def __init__(self, level=None):
         self.level = level
 
     def encode(self, buf):
-        return imagecodecs.lzma_encode(buf, level=self.level)
+        return imagecodecs.lzham_encode(buf, level=self.level)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.lzham_decode(buf, out=_flat(out))
+
+
+class Lzma(Codec):
+    """LZMA codec for numcodecs."""
+
+    codec_id = 'imagecodecs_lzma'
+
+    def __init__(self, level=None, check=None):
+        self.level = level
+        self.check = check
+
+    def encode(self, buf):
+        return imagecodecs.lzma_encode(buf, level=self.level, check=self.check)
 
     def decode(self, buf, out=None):
         return imagecodecs.lzma_decode(buf, out=_flat(out))
@@ -922,12 +964,19 @@ class Png(Codec):
 
     codec_id = 'imagecodecs_png'
 
-    def __init__(self, level=None):
+    def __init__(self, level=None, strategy=None, filter=None):
         self.level = level
+        self.strategy = strategy
+        self.filter = filter
 
     def encode(self, buf):
         buf = numpy.asarray(buf)
-        return imagecodecs.png_encode(buf, level=self.level)
+        return imagecodecs.png_encode(
+            buf,
+            level=self.level,
+            strategy=self.strategy,
+            filter=self.filter,
+        )
 
     def decode(self, buf, out=None):
         return imagecodecs.png_decode(buf, out=out)
