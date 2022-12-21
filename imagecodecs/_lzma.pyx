@@ -37,7 +37,7 @@
 
 """LZMA codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -46,6 +46,12 @@ from liblzma cimport *
 
 class LZMA:
     """LZMA Constants."""
+
+    class CHECK(enum.IntEnum):
+        NONE = LZMA_CHECK_NONE
+        CRC32 = LZMA_CHECK_CRC32
+        CRC64 = LZMA_CHECK_CRC64
+        SHA256 = LZMA_CHECK_SHA256
 
 
 class LzmaError(RuntimeError):
@@ -65,6 +71,7 @@ class LzmaError(RuntimeError):
             LZMA_DATA_ERROR: 'LZMA_DATA_ERROR',
             LZMA_BUF_ERROR: 'LZMA_BUF_ERROR',
             LZMA_PROG_ERROR: 'LZMA_PROG_ERROR',
+            # LZMA_SEEK_NEEDED: 'LZMA_SEEK_NEEDED',  # version 3.4.0
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -81,7 +88,7 @@ def lzma_check(const uint8_t[::1] data):
     """Return True if data likely contains LZMA data."""
 
 
-def lzma_encode(data, level=None, numthreads=None, out=None):
+def lzma_encode(data, level=None, check=None, numthreads=None, out=None):
     """Compress LZMA.
 
     """
@@ -92,6 +99,7 @@ def lzma_encode(data, level=None, numthreads=None, out=None):
         ssize_t dstsize
         ssize_t dstlen
         uint32_t preset = _default_value(level, 6, 0, 9)
+        lzma_check_t check_ = LZMA_CHECK_CRC64 if check is None else check
         lzma_stream strm
         lzma_ret ret
 
@@ -110,13 +118,12 @@ def lzma_encode(data, level=None, numthreads=None, out=None):
     dst = out
     dstsize = dst.size
 
-    memset(&strm, 0, sizeof(lzma_stream))
-    ret = lzma_easy_encoder(&strm, preset, LZMA_CHECK_CRC64)
-    if ret != LZMA_OK:
-        raise LzmaError('lzma_easy_encoder', ret)
-
     try:
         with nogil:
+            memset(&strm, 0, sizeof(lzma_stream))
+            ret = lzma_easy_encoder(&strm, preset, check_)
+            if ret != LZMA_OK:
+                raise LzmaError('lzma_easy_encoder', ret)
             strm.next_in = &src[0]
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> &dst[0]
@@ -160,13 +167,12 @@ def lzma_decode(data, numthreads=None, out=None):
     dst = out
     dstsize = dst.size
 
-    memset(&strm, 0, sizeof(lzma_stream))
-    ret = lzma_stream_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED)
-    if ret != LZMA_OK:
-        raise LzmaError('lzma_stream_decoder', ret)
-
     try:
         with nogil:
+            memset(&strm, 0, sizeof(lzma_stream))
+            ret = lzma_stream_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED)
+            if ret != LZMA_OK:
+                raise LzmaError('lzma_stream_decoder', ret)
             strm.next_in = &src[0]
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> &dst[0]
