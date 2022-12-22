@@ -37,7 +37,7 @@
 
 """Zopfli codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -60,7 +60,7 @@ class ZopfliError(RuntimeError):
 def zopfli_version():
     """Return Zopfli library version string."""
     # TODO: use version from header when available
-    return 'zopfli 1.0.3'
+    return 'zopfli 1.0.x'
 
 
 # zopfli_check = zlib_check
