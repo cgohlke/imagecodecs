@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2022.9.26'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -49,6 +49,9 @@ from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 
 cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
+
+# private definition in tiffiop.h
+DEF TIFF_MAX_DIR_COUNT = 1048576
 
 
 class _TIFF:
@@ -102,15 +105,16 @@ class _TIFF:
 class TiffError(RuntimeError):
     """TIFF Exceptions."""
 
-    def __init__(self, arg=None):
+    def __init__(self, arg=None, msg=''):
         """Initialize Exception from string or memtif capsule."""
         cdef:
             memtif_t* memtif
+
         if arg is None or isinstance(arg, str):
-            msg = arg
+            msg += arg
         else:
             memtif = <memtif_t*> PyCapsule_GetPointer(arg, NULL)
-            msg = memtif.errmsg.decode()
+            msg += memtif.errmsg.decode()
         super().__init__(msg)
 
 
@@ -196,6 +200,7 @@ def tiff_decode(
         numpy.npy_intp* strides
         memtif_t* memtif = NULL
         TIFF* tif = NULL
+        TIFFOpenOptions* openoptions = NULL
         dirlist_t* dirlist = NULL
         int dirraise = 0
         tdir_t dirnum, dirstart, dirstop, dirstep
@@ -208,7 +213,6 @@ def tiff_decode(
         char[2] dtype2
         bint rgb = asrgb
         int isrgb, isrgb2, istiled, istiled2
-        int verbosity = verbose
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -218,7 +222,7 @@ def tiff_decode(
     dirnum = dirstart = dirstop = dirstep = 0
     if index is None:
         dirstart = 0
-        dirstop = UINT16_MAX
+        dirstop = TIFF_MAX_DIR_COUNT
         dirstep = 1
         dirlist = dirlist_new(64)
         dirlist_append(dirlist, dirstart)
@@ -227,7 +231,7 @@ def tiff_decode(
         dirlist = dirlist_new(1)
         dirlist_append(dirlist, dirnum)
     elif isinstance(index, (list, tuple, numpy.ndarray)):
-        if not 0 < len(index) < UINT16_MAX:
+        if not 0 < len(index) < TIFF_MAX_DIR_COUNT:
             raise ValueError('invalid index')
         try:
             dirnum = index[0]
@@ -240,7 +244,7 @@ def tiff_decode(
         if index.step is not None and index.step < 1:
             raise NotImplementedError('negative steps not implemented')  # TODO
         dirstart = 0 if index.start is None else index.start
-        dirstop = UINT16_MAX if index.stop is None else index.stop
+        dirstop = TIFF_MAX_DIR_COUNT if index.stop is None else index.stop
         dirstep = 1 if index.step is None else index.step
         dirraise = 1  # raise error when incompatible IFD
         dirlist = dirlist_new(64)
@@ -253,14 +257,24 @@ def tiff_decode(
     memtif = memtif_open(<unsigned char*> &src[0], srcsize, srcsize)
     if memtif == NULL:
         raise MemoryError('memtif_open failed')
+    memtif.warn = 1 if verbose else 0
     memtifobj = PyCapsule_New(<void*> memtif, NULL, NULL)
 
     try:
         with nogil:
-            if verbosity > 0:
-                TIFFSetWarningHandler(tif_warning_handler)
+            openoptions = TIFFOpenOptionsAlloc()
+            if openoptions == NULL:
+                raise TiffError(memtifobj)
 
-            tif = TIFFClientOpen(
+            TIFFOpenOptionsSetErrorHandlerExtR(
+                openoptions, tif_error_handler, <void*> memtif
+            )
+
+            TIFFOpenOptionsSetWarningHandlerExtR(
+                openoptions, tif_warning_handler, <void*> memtif
+            )
+
+            tif = TIFFClientOpenExt(
                 'memtif',
                 'r',
                 <thandle_t> memtif,
@@ -270,10 +284,14 @@ def tiff_decode(
                 memtif_TIFFCloseProc,
                 memtif_TIFFSizeProc,
                 memtif_TIFFMapFileProc,
-                memtif_TIFFUnmapFileProc
+                memtif_TIFFUnmapFileProc,
+                openoptions
             )
             if tif == NULL:
                 raise TiffError(memtifobj)
+
+            TIFFOpenOptionsFree(openoptions)
+            openoptions = NULL
 
             dirnum = dirlist.data[0]
             ret = tiff_set_directory(tif, dirnum)
@@ -296,14 +314,16 @@ def tiff_decode(
             if dirlist.size > 1 and dirlist.index == 1:
                 # index is None or slice
                 while 1:
-                    if <int> dirnum + <int> dirstep >= <int> dirstop:
+                    if (
+                        <ssize_t> dirnum + <ssize_t> dirstep
+                        >= <ssize_t> dirstop
+                    ):
                         break
                     dirnum += dirstep
 
                     ret = tiff_set_directory(tif, dirnum)
                     if ret == 0:
                         break
-
                     isrgb2 = rgb
                     ret = tiff_read_ifd(
                         tif, &sizes2[0], &dtype2[0], &isrgb2, &istiled2
@@ -311,7 +331,7 @@ def tiff_decode(
                     if ret == 0:
                         if dirraise:
                             raise TiffError(memtifobj)
-                        if verbosity > 0:
+                        if memtif.warn > 0:
                             with gil:
                                 _log_warning(memtif.errmsg.decode())
                         continue
@@ -433,9 +453,9 @@ def tiff_decode(
         dirlist_del(dirlist)
         if tif != NULL:
             TIFFClose(tif)
+        if openoptions != NULL:
+            TIFFOpenOptionsFree(openoptions)
         memtif_del(memtif)
-        if verbosity > 0:
-            TIFFSetWarningHandler(tif_warning_handler)
 
     if not rgb and isrgb and sizes[7] > 0:
         # discard Alpha channel if JPEG compression, YCBCR...
@@ -483,7 +503,7 @@ cdef int tiff_read_ifd(
 
     ret = TIFFGetFieldDefaulted(tif, TIFFTAG_PHOTOMETRIC, &photometric)
     if ret == 0:
-        return 0
+        photometric = PHOTOMETRIC_MINISWHITE
 
     ret = TIFFGetFieldDefaulted(tif, TIFFTAG_IMAGEWIDTH, &imagewidth)
     if ret == 0:
@@ -701,9 +721,8 @@ cdef int tiff_decode_tiled(
 cdef inline int tiff_set_directory(TIFF* tif, tdir_t dirnum) nogil:
     """Set current directory, avoiding TIFFSetDirectory if possible."""
     cdef:
-        int diff = <int> dirnum - <int> TIFFCurrentDirectory(tif)
+        ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
         int ret
-
     if diff == 1:
         return TIFFReadDirectory(tif)
     if diff == 0:
@@ -756,12 +775,12 @@ cdef int dirlist_append(dirlist_t* dirlist, tdir_t ifd) nogil:
 
     if dirlist == NULL:
         return -1
-    if dirlist.index == UINT16_MAX:
+    if dirlist.index == TIFF_MAX_DIR_COUNT:
         return -1  # list full
     if dirlist.index == dirlist.size:
         newsize = max(16, <ssize_t> dirlist.size * 2)
-        if newsize > UINT16_MAX:
-            newsize = UINT16_MAX
+        if newsize > TIFF_MAX_DIR_COUNT:
+            newsize = TIFF_MAX_DIR_COUNT
         tmp = <tdir_t*> realloc(dirlist.data, newsize * sizeof(tdir_t))
         if tmp == NULL:
             return -2  # memory error
@@ -793,6 +812,7 @@ ctypedef struct memtif_t:
     toff_t flen
     toff_t fpos
     int owner
+    int warn
     char errmsg[80]
 
 
@@ -817,6 +837,7 @@ cdef memtif_t* memtif_open(
     memtif.flen = flen
     memtif.fpos = 0
     memtif.owner = 0
+    memtif.warn = 1
     memtif.errmsg[0] = b'\0'
     return memtif
 
@@ -838,6 +859,7 @@ cdef memtif_t* memtif_new(toff_t size, toff_t inc) nogil:
     memtif.flen = 0
     memtif.fpos = 0
     memtif.owner = 1
+    memtif.warn = 1
     memtif.errmsg[0] = b'\0'
     return memtif
 
@@ -986,8 +1008,9 @@ cdef void memtif_TIFFUnmapFileProc(
     return
 
 
-cdef void tif_error_handler(
-    thandle_t handle,
+cdef int tif_error_handler(
+    TIFF *tif,
+    void* user_data,
     const char* module,
     const char* fmt,
     va_list args
@@ -997,16 +1020,19 @@ cdef void tif_error_handler(
         memtif_t* memtif
         int i
 
-    if handle == NULL:
-        return
-    memtif = <memtif_t*> handle
+    if user_data == NULL or tif == NULL:
+        return 0  # call global error handler
+    memtif = <memtif_t*> user_data
     if memtif.check != 1234567890:
-        return
+        return 0  # call global error handler
     i = vsnprintf(&memtif.errmsg[0], 80, fmt, args)
     memtif.errmsg[0 if i < 0 else 79] = 0
+    return 1
 
 
-cdef void tif_warning_handler(
+cdef int tif_warning_handler(
+    TIFF *tif,
+    void* user_data,
     const char* module,
     const char* fmt,
     va_list args
@@ -1014,19 +1040,20 @@ cdef void tif_warning_handler(
     """Callback function to output libtiff warning message to logging."""
     cdef:
         char msg[80]
+        memtif_t* memtif
         int i
 
+    if user_data == NULL or tif == NULL:
+        return 0  # call global warning handler
+    memtif = <memtif_t*> user_data
+    if memtif.check != 1234567890:
+        return 0  # call global warning handler
+    if memtif.warn == 0:
+        return 1  # done
     i = vsnprintf(&msg[0], 80, fmt, args)
     if i > 0:
         msg[79] = 0
         _log_warning(msg.decode().strip())
-
-
-# register global error and warning handler
-# TODO: check side effects on other extensions using the libtiff library
-TIFFSetWarningHandler(NULL)
-TIFFSetErrorHandler(NULL)
-TIFFSetErrorHandlerExt(tif_error_handler)
-
+    return 1
 # work around TIFF name conflict
 globals().update({'TIFF': _TIFF})
