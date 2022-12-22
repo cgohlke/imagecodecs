@@ -37,7 +37,7 @@
 
 """Snappy codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.22'
 
 include '_shared.pxi'
 
@@ -65,7 +65,7 @@ def snappy_version():
     """Return Snappy library version string."""
     # TODO: use version from header when available
     # TODO: SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header
-    return 'snappy 1.1.7'
+    return 'snappy 1.1.x'
 
 
 def snappy_check(arg):
