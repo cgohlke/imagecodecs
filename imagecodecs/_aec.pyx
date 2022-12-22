@@ -73,7 +73,7 @@ class AecError(RuntimeError):
 def aec_version():
     """Return libaec library version string."""
     # TODO: use version from header when available
-    return 'libaec 1.0.6'
+    return 'libaec 1.0.x'
 
 
 def aec_check(data):
