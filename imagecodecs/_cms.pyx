@@ -373,22 +373,47 @@ def cms_profile(
         elif transferfunction is not None:
             tf = numpy.ascontiguousarray(transferfunction)
             if tf.ndim == 1:
-                if tf.dtype.char == 'H':
-                    pTransferFunction = cmsBuildTabulatedToneCurve16(
-                        <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsUInt16Number*> &tf.data[0]
-                    )
-                elif tf.dtype.char == 'f':
-                    pTransferFunction = cmsBuildTabulatedToneCurveFloat(
-                        <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsFloat32Number*> &tf.data[0]
-                    )
-                else:
-                    raise ValueError('invalid transferfunction dtype')
-                if pTransferFunction == NULL:
-                    raise CmsError('cmsBuildTabulatedToneCurve returned NULL')
+                if profile == 'gray':
+                    if tf.dtype.char == 'H':
+                        pTransferFunction = cmsBuildTabulatedToneCurve16(
+                            <cmsContext> NULL,
+                            <cmsUInt32Number> tf.shape[0],
+                            <const cmsUInt16Number*> &tf.data[0]
+                        )
+                    elif tf.dtype.char == 'f':
+                        pTransferFunction = cmsBuildTabulatedToneCurveFloat(
+                            <cmsContext> NULL,
+                            <cmsUInt32Number> tf.shape[0],
+                            <const cmsFloat32Number*> &tf.data[0]
+                        )
+                    else:
+                        raise ValueError('invalid transferfunction dtype')
+                    if pTransferFunction == NULL:
+                        raise CmsError('cmsBuildTabulatedToneCurve returned NULL')
+                elif profile == 'rgb':
+                    if tf.dtype.char == 'H':
+                        for i in range(3):
+                            ppTransferFunction[i] = cmsBuildTabulatedToneCurve16(
+                                <cmsContext> NULL,
+                                <cmsUInt32Number> tf.shape[0],
+                                <const cmsUInt16Number*> &tf.data[0]
+                            )
+                    elif tf.dtype.char == 'f':
+                        for i in range(3):
+                            ppTransferFunction[i] = (
+                                cmsBuildTabulatedToneCurveFloat(
+                                    <cmsContext> NULL,
+                                    <cmsUInt32Number> tf.shape[0],
+                                    <const cmsFloat32Number*> &tf.data[0]
+                                )
+                            )
+                    else:
+                        raise ValueError('invalid transferfunction dtype')
+                    for i in range(3):
+                        if ppTransferFunction[i] == NULL:
+                            raise CmsError(
+                                'cmsBuildTabulatedToneCurve returned NULL'
+                            )
             elif tf.ndim == 2:
                 if tf.shape[0] != 3:
                     raise ValueError('invalid transferfunction shape')
