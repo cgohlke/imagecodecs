@@ -422,7 +422,7 @@ def cms_profile(
                         ppTransferFunction[i] = cmsBuildTabulatedToneCurve16(
                             <cmsContext> NULL,
                             <cmsUInt32Number> tf.shape[1],
-                            <const cmsUInt16Number*> &tf.data[i]
+                            <const cmsUInt16Number*> &tf.data[2*i*tf.shape[1]]
                         )
                 elif tf.dtype.char == 'f':
                     for i in range(3):
@@ -430,7 +430,7 @@ def cms_profile(
                             cmsBuildTabulatedToneCurveFloat(
                                 <cmsContext> NULL,
                                 <cmsUInt32Number> tf.shape[1],
-                                <const cmsFloat32Number*> &tf.data[i]
+                                <const cmsFloat32Number*> &tf.data[4*i*tf.shape[1]]
                             )
                         )
                 else:
