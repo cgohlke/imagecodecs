@@ -521,6 +521,10 @@ cdef extern from 'png.h':
         size_t jmp_buf_size
     ) nogil
 
+    jmp_buf png_jmpbuf(
+        png_structrp png_ptr
+    ) nogil
+
     void png_longjmp(
         png_const_structrp png_ptr,
         int val
