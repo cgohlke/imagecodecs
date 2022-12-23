@@ -1,9 +1,25 @@
 Revisions
 ---------
 
+2022.12.22
+
+- Pass 6510 tests.
+- Require libtiff 4.5 (breaking).
+- Require libavif 0.11 (breaking).
+- Change jpegxl_encode level parameter to resemble libjpeg quality (breaking).
+- Add LZFSE codec via lzfse library.
+- Add LZHAM codec via lzham library.
+- Fix AttributeError in cms_profile (#52).
+- Support gamma argument in cms_profile (#53).
+- Raise limit of TIFF pages to 1048576.
+- Use libtiff thread-safe error/warning handlers.
+- Add option to specify filters and strategy in png_encode.
+- Add option to specify integrity check type in lzma_encode.
+- Fix DeprecationWarning with NumPy 1.24.
+- Support Python 3.11 and win-arm64.
+
 2022.9.26
 
-- Pass 6357 tests.
 - Support JPEG XL multi-channel (planar grayscale only) and multi-frame.
 - Require libjxl 0.7 (breaking).
 - Switch to Blosc2 API and require c-blosc 2.4 (breaking).
