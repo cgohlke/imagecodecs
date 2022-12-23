@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.9.26
+:Version: 2022.12.22
 
 """
 
@@ -61,6 +61,7 @@ try:
         czifile,
         lz4,
         lzf,
+        lzfse,
         lzma,
         snappy,
         tifffile,
@@ -89,6 +90,7 @@ IS_32BIT = sys.maxsize < 2**32
 IS_WIN = sys.platform == 'win32'
 IS_MAC = sys.platform == 'darwin'
 IS_AARCH64 = platform.machine() == 'aarch64'
+IS_ARM64 = platform.machine() == 'ARM64'
 IS_PYPY = 'PyPy' in sys.version
 # running on Windows development computer?
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
@@ -120,10 +122,13 @@ def test_module_exist(name):
     if IS_CG:
         if IS_32BIT and name in ('heif', 'jetraw'):
             pytest.xfail(f'imagecodecs._{name} may be missing')
+        elif IS_ARM64 and name == 'jetraw':
+            pytest.xfail(f'imagecodecs._{name} may be missing')
     elif IS_CIBW:
         if (
             (name == 'jpeg12' and os.environ.get('IMCD_SKIP_JPEG12', 0))
             or (name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64))
+            or (name == 'lzham' and IS_MAC)
             or name == 'mozjpeg'
             or name == 'heif'
             or name == 'jetraw'
@@ -146,6 +151,8 @@ def test_module_exist(name):
         'czifile',
         'lz4',
         'lzf',
+        'liblzfse',
+        # 'lzham',
         'lzma',
         'numcodecs',
         'snappy',
@@ -160,7 +167,7 @@ def test_dependency_exist(name):
     mayfail = not IS_CG and not IS_CIBW
     if SKIP_NUMCODECS and IS_PYPY:
         mayfail = True
-    elif name in ('blosc2', 'snappy'):
+    elif name in ('blosc', 'blosc2', 'snappy'):
         if IS_PYPY or sys.version_info[1] >= 10:
             mayfail = True
     try:
@@ -917,6 +924,8 @@ def test_lzw_decode_image_noeoi():
         'lz4h',
         'lz4f',
         'lzf',
+        'lzfse',
+        'lzham',
         'lzma',
         'lzw',
         'snappy',
@@ -1024,6 +1033,23 @@ def test_compressors(codec, func, output, length):
         encoded = lzf.compress(data, ((len(data) * 33) >> 5) + 1)
         if encoded is None:
             pytest.xfail("lzf can't compress empty input")
+    elif codec == 'lzfse':
+        if not imagecodecs.LZFSE or lzfse is None:
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.lzfse_encode
+        decode = imagecodecs.lzfse_decode
+        check = imagecodecs.lzfse_check
+        level = 1
+        encoded = lzfse.compress(data)
+    elif codec == 'lzham':
+        # TODO: test against pylzham?
+        if not imagecodecs.LZHAM:  # or lzham is None
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.lzham_encode
+        decode = imagecodecs.lzham_decode
+        check = imagecodecs.lzham_check
+        level = 5
+        encoded = encode(data, level)
     elif codec == 'lz4':
         if not imagecodecs.LZ4 or lz4 is None:
             pytest.skip(f'{codec} missing')
@@ -1185,7 +1211,7 @@ def test_compressors(codec, func, output, length):
         elif output == 'trunc':
             size = max(0, size - 1)
             out = bytearray(size)
-            if length == 0 or codec in ('bz2', 'lzma', 'lz4f', 'lzw'):
+            if length == 0 or codec in ('bz2', 'lzma', 'lz4f', 'lzfse', 'lzw'):
                 decode(encoded, out=out)
                 assert data[:size] == out
             else:
@@ -1668,21 +1694,48 @@ def test_cms_profile():
     profile = cms_profile('lab4')
     profile = cms_profile('adobergb')
     assert isinstance(profile, bytes)
+
+    primaries = [
+        2748779008 / 4294967295,
+        1417339264 / 4294967295,
+        1.0,
+        1288490240 / 4294967295,
+        2576980480 / 4294967295,
+        1.0,
+        644245120 / 4294967295,
+        257698032 / 4294967295,
+        1.0,
+    ]
+    whitepoint = [1343036288 / 4294967295, 1413044224 / 4294967295, 1.0]
+    transferfunction = numpy.arange(1024, dtype=numpy.uint16)
+
+    profile = cms_profile(
+        'gray', whitepoint=whitepoint, transferfunction=transferfunction
+    )
+
+    transferfunction = transferfunction.astype(numpy.float32)
+    transferfunction /= 1024
+    profile = cms_profile(
+        'rgb',
+        whitepoint=whitepoint,
+        primaries=primaries,
+        transferfunction=transferfunction,
+    )
+
+    transferfunction = [transferfunction, transferfunction, transferfunction]
+    profile = cms_profile(
+        'rgb',
+        whitepoint=whitepoint,
+        primaries=primaries,
+        transferfunction=transferfunction,
+    )
+
     # xyY
     profile1 = cms_profile(
         'rgb',
-        whitepoint=[1343036288 / 4294967295, 1413044224 / 4294967295, 1.0],
-        primaries=[
-            2748779008 / 4294967295,
-            1417339264 / 4294967295,
-            1.0,
-            1288490240 / 4294967295,
-            2576980480 / 4294967295,
-            1.0,
-            644245120 / 4294967295,
-            257698032 / 4294967295,
-            1.0,
-        ],
+        whitepoint=whitepoint,
+        primaries=primaries,
+        gamma=2.19921875,
     )
     # xy
     profile2 = cms_profile(
@@ -1696,6 +1749,7 @@ def test_cms_profile():
             644245120 / 4294967295,
             257698032 / 4294967295,
         ],
+        gamma=2.19921875,
     )
     # xy rationals
     profile3 = cms_profile(
@@ -1715,6 +1769,7 @@ def test_cms_profile():
             257698032,
             4294967295,
         ],
+        gamma=2.19921875,
     )
     assert profile1 == profile2
     assert profile1 == profile3
@@ -2693,6 +2748,34 @@ def test_jpegxr(itype, enout, deout, level):
     assert_allclose(data, decoded, atol=atol, rtol=0)
 
 
+@pytest.mark.skipif(not imagecodecs.PNG, reason='png missing')
+def test_png_encode_fast():
+    """Test PNG encoder with fast settings."""
+    data = image_data('rgb', numpy.uint8).squeeze()
+    encoded = imagecodecs.png_encode(
+        data,
+        level=imagecodecs.PNG.COMPRESSION.SPEED,
+        strategy=imagecodecs.PNG.STRATEGY.RLE,
+        filter=imagecodecs.PNG.FILTER.SUB,
+    )
+    decoded = imagecodecs.png_decode(encoded)
+    assert_array_equal(data, decoded, verbose=True)
+
+
+@pytest.mark.skipif(not imagecodecs.APNG, reason='apng missing')
+def test_apng_encode_fast():
+    """Test APNG encoder with fast settings."""
+    data = image_data('rgb', numpy.uint8).squeeze()
+    encoded = imagecodecs.apng_encode(
+        data,
+        level=imagecodecs.APNG.COMPRESSION.SPEED,
+        strategy=imagecodecs.APNG.STRATEGY.RLE,
+        filter=imagecodecs.APNG.FILTER.SUB,
+    )
+    decoded = imagecodecs.apng_decode(encoded)
+    assert_array_equal(data, decoded, verbose=True)
+
+
 @pytest.mark.skipif(not imagecodecs.APNG, reason='apng missing')
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
 @pytest.mark.parametrize('samples', [1, 2, 3, 4])
@@ -2716,6 +2799,7 @@ def test_apng(samples, dtype):
         )
 
 
+@pytest.mark.skipif(not imagecodecs.SPNG, reason='spng missing')
 @pytest.mark.parametrize('itype', ['rgb', 'rgba', 'gray', 'graya'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
 @pytest.mark.parametrize('level', [None, 5, -1])
@@ -2885,9 +2969,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.skip(f'{codec} missing')
         if itype == 'view' or deout == 'view':
             pytest.xfail('jpegxl does not support this case')
-        if level not in (None, -1):
-            level = 0
-            pytest.xfail('jpegxl fails lossy tests')
+        if level:
+            level += 95
         decode = imagecodecs.jpegxl_decode
         encode = imagecodecs.jpegxl_encode
         check = imagecodecs.jpegxl_check
@@ -2999,8 +3082,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         assert_allclose(data, decoded, atol=6)
     elif codec == 'jpeg2k' and level == 95:
         assert_allclose(data, decoded, atol=6)
-    elif codec == 'jpegxl' and level == 0:
-        atol = 64 if dtype.itemsize > 1 else 8
+    elif codec == 'jpegxl' and level is not None:
+        atol = 256 if dtype.itemsize > 1 else 8
+        if level < 100:
+            atol *= 4
         assert_allclose(data, decoded, atol=atol)
     elif codec == 'avif' and level == 5:
         if dtype.itemsize > 1:
@@ -3116,11 +3201,7 @@ def test_tiff_files(name, asrgb):
         pytest.xfail('not supported yet')
     data = tifffile.imread(filename)
     decoded = decode(encoded, index=None, verbose=1)
-    if 'movie' in name:
-        # libtiff only reads 2**16 images
-        assert data.shape[0] == 65568
-        data = data[:65535]
-    elif 'jpeg' in name:
+    if 'jpeg' in name:
         # tiff_decode returns RGBA for jpeg, tifffile returns RGB
         decoded = decoded[..., :3]
     assert_array_equal(data, decoded)
@@ -3128,13 +3209,13 @@ def test_tiff_files(name, asrgb):
 
 @pytest.mark.skipif(not imagecodecs.TIFF, reason='tiff missing')
 @pytest.mark.skipif(tifffile is None, reason='tifffile missing')
-@pytest.mark.parametrize('index', [0, 3, 10, 65536, None, list, slice])
+@pytest.mark.parametrize('index', [0, 3, 10, 1048576, None, list, slice])
 def test_tiff_index(index):
     """Test TIFF decoder index arguments."""
     filename = osp.join(TIFF_TEST_DIR, 'gray.series.u1.tif')
     with open(filename, 'rb') as fh:
         encoded = fh.read()
-    if index == 10 or index == 65536:
+    if index == 10 or index == 1048576:
         with pytest.raises((IndexError, OverflowError)):
             decoded = imagecodecs.tiff_decode(encoded, index=index)
     elif index == list:
@@ -3345,6 +3426,8 @@ def test_numcodecs_register(caplog):
         'lz4',
         'lz4f',
         'lzf',
+        'lzfse',
+        'lzham',
         'lzma',
         'lzw',
         'packbits',
@@ -3516,7 +3599,7 @@ def test_numcodecs(codec, photometric):
     elif codec == 'jpegxl':
         if not imagecodecs.JPEGXL:
             pytest.skip(f'{codec} not found')
-        compressor = numcodecs.JpegXl(level=-1)  # lossless
+        compressor = numcodecs.JpegXl(level=101)  # lossless
     elif codec == 'jpegxr':
         if not imagecodecs.JPEGXR:
             pytest.skip(f'{codec} not found')
@@ -3551,10 +3634,20 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.LZF:
             pytest.skip(f'{codec} not found')
         compressor = numcodecs.Lzf(header=True)
+    elif codec == 'lzfse':
+        if not imagecodecs.LZFSE:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Lzfse()
+    elif codec == 'lzham':
+        if not imagecodecs.LZHAM:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Lzham(level=6)
     elif codec == 'lzma':
         if not imagecodecs.LZMA:
             pytest.skip(f'{codec} not found')
-        compressor = numcodecs.Lzma(level=6)
+        compressor = numcodecs.Lzma(
+            level=6, check=imagecodecs.LZMA.CHECK.CRC32
+        )
     elif codec == 'lzw':
         if not imagecodecs.LZW:
             pytest.skip(f'{codec} not found')
