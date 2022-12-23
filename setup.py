@@ -43,7 +43,7 @@ version += ('.' + buildnumber) if buildnumber else ''
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
 
 readme = search(
-    r'(?:\r\n|\r|\n){2}r"""(.*)"""(?:\r\n|\r|\n){2}[__version__|from]',
+    r'(?:\r\n|\r|\n){2}r"""(.*)"""(?:\r\n|\r|\n){2}from __future__',
     code,
     re.MULTILINE | re.DOTALL,
 )
@@ -93,6 +93,7 @@ def ext(**kwargs):
         define_macros=[],
         extra_compile_args=[],
         extra_link_args=[],
+        depends=[],
         cython_compile_time_env={},
         cythonize=False,
     )
@@ -113,6 +114,7 @@ OPTIONS = {
     else [],
     'extra_compile_args': [],
     'extra_link_args': [],
+    'depends': ['imagecodecs/_shared.pxd'],
     'cython_compile_time_env': {},
     'cythonize': False,  # sys.version_info >= (3, 11)
 }
@@ -177,6 +179,8 @@ EXTENSIONS = {
         sources=['3rdparty/liblzf/lzf_c.c', '3rdparty/liblzf/lzf_d.c'],
         include_dirs=['3rdparty/liblzf'],
     ),
+    'lzfse': ext(libraries=['lzfse'], sources=['imagecodecs/imcd.c']),
+    'lzham': ext(libraries=['lzham']),
     'lzma': ext(libraries=['lzma']),
     'mozjpeg': ext(libraries=['mozjpeg']),
     # 'nvjpeg': ext(libraries=['nvjpeg', 'cuda']),
@@ -191,7 +195,7 @@ EXTENSIONS = {
         define_macros=[('QOI_IMPLEMENTATION', 1)],
     ),
     'rgbe': ext(
-        sources=['3rdparty/rgbe/rgbe.c'],
+        sources=['3rdparty/rgbe/rgbe.c', 'imagecodecs/imcd.c'],
         include_dirs=['3rdparty/rgbe'],
     ),
     'rcomp': ext(libraries=['cfitsio', 'z']),
@@ -220,10 +224,13 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['apng']  # apng patch not commonly available
     del EXTENSIONS['avif']  # libavif library not commonly available
     del EXTENSIONS['blosc2']  # c-blosc2 library not commonly available
+    # del EXTENSIONS['heif']  # LGPL/GPL
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
+    del EXTENSIONS['lzfse']  # lzfse not commonly available
+    del EXTENSIONS['lzham']  # lzham not commonly available
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']  # zlib-ng library not commonly available
 
@@ -251,13 +258,15 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     """Customize build for Windows development environment with static libs."""
     INCLIB = os.environ['INCLIB']
 
-    OPTIONS['include_dirs'].append(INCLIB)
-    OPTIONS['library_dirs'].append(INCLIB)
+    OPTIONS['include_dirs'].append(os.path.join(INCLIB, 'lib'))
+    OPTIONS['library_dirs'].append(os.path.join(INCLIB, 'include'))
 
     dlls = []  # 'heif.dll'
     if '64 bit' in sys.version:
         for dll in dlls:
-            shutil.copyfile(os.path.join(INCLIB, dll), 'imagecodecs/' + dll)
+            shutil.copyfile(
+                os.path.join(INCLIB, 'bin', dll), 'imagecodecs/' + dll
+            )
     else:
         # del EXTENSIONS['nvjpeg2k']
         del EXTENSIONS['jetraw']
@@ -267,12 +276,18 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
                 os.remove('imagecodecs/' + dll)
             except FileNotFoundError:
                 pass
+    if 'ARM64' in sys.version:
+        del EXTENSIONS['jetraw']
 
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
     # EXTENSIONS['szip']['libraries'] = ['szip_static']
 
-    EXTENSIONS['mozjpeg']['library_dirs'] = [os.path.join(INCLIB, 'mozjpeg')]
+    EXTENSIONS['mozjpeg']['include_dirs'] = [
+        os.path.join(INCLIB, 'include', 'mozjpeg')
+    ]
+    EXTENSIONS['mozjpeg']['libraries'] = ['mozjpeg-static']
+
     EXTENSIONS['avif']['libraries'] = [
         'avif',
         'aom',
@@ -287,16 +302,28 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
-    EXTENSIONS['png']['libraries'] = ['png', 'zlib']
-    EXTENSIONS['apng']['libraries'] = ['png', 'zlib']
-    EXTENSIONS['deflate']['libraries'] = ['libdeflatestatic']
+
+    # link with static zlib-ng compatibility mode library
+    EXTENSIONS['png']['libraries'] = ['png', 'zlibstatic-ng-compat']
+    EXTENSIONS['apng']['libraries'] = ['png', 'zlibstatic-ng-compat']
+
+    EXTENSIONS['lzham']['libraries'] = ['lzhamlib', 'lzhamcomp', 'lzhamdecomp']
+
+    EXTENSIONS['deflate']['libraries'] = ['deflatestatic']
     EXTENSIONS['zlibng']['libraries'] = ['zlibstatic-ng']
     EXTENSIONS['zstd']['libraries'] = ['zstd_static']
     EXTENSIONS['lerc']['define_macros'].append(('LERC_STATIC', 1))
     EXTENSIONS['jpegls']['define_macros'].append(('CHARLS_STATIC', 1))
     EXTENSIONS['jpeg2k']['define_macros'].append(('OPJ_STATIC', 1))
-    EXTENSIONS['jpegxr']['include_dirs'].append(os.path.join(INCLIB, 'jxrlib'))
-    EXTENSIONS['zopfli']['include_dirs'].append(os.path.join(INCLIB, 'zopfli'))
+    EXTENSIONS['jpeg2k']['include_dirs'].append(
+        os.path.join(INCLIB, 'include', 'openjpeg-2.5')
+    )
+    EXTENSIONS['jpegxr']['include_dirs'].append(
+        os.path.join(INCLIB, 'include', 'jxrlib')
+    )
+    EXTENSIONS['zopfli']['include_dirs'].append(
+        os.path.join(INCLIB, 'include', 'zopfli')
+    )
     EXTENSIONS['zfp']['extra_compile_args'] = ['/openmp']
     EXTENSIONS['blosc']['libraries'] = [
         'libblosc',
@@ -307,7 +334,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     ]
     EXTENSIONS['blosc2']['libraries'] = [
         'libblosc2',
-        'zlib',
+        'zlibstatic-ng',
         'lz4',
         'zstd_static',
     ]
@@ -316,20 +343,20 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'brotlidec-static',
         'brotlicommon-static',
     ]
-    EXTENSIONS['lzma']['libraries'] = ['lzma-static']
+    EXTENSIONS['lzma']['libraries'] = ['liblzma']
     EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
     EXTENSIONS['tiff']['define_macros'].extend(
         (('LZMA_API_STATIC', 1), ('LERC_STATIC', 1))
     )
     EXTENSIONS['tiff']['libraries'] = [
         'tiff',
-        'zlib',
         'jpeg',
         'png',
+        'zlibstatic-ng-compat',
         'webp',
         'zstd_static',
-        'lzma-static',
-        'libdeflatestatic',
+        'liblzma',
+        'deflatestatic',
         'lerc',
     ]
     EXTENSIONS['jpegxl']['define_macros'].extend(
@@ -338,15 +365,12 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     EXTENSIONS['jpegxl']['libraries'] = [
         'jxl-static',
         'jxl_dec-static',
-        'jxl_extras-static',
         'jxl_threads-static',
-        'jxl_brotlienc-static',
-        'jxl_brotlidec-static',
-        'jxl_brotlicommon-static',
-        'jxl_hwy',
-        'jxl_lodepng',
-        'jxl_lskcms',
-        'jxl_sjpeg',
+        'brotlienc-static',
+        'brotlidec-static',
+        'brotlicommon-static',
+        'hwy',
+        # 'jxl_extras-static',
     ]
     EXTENSIONS['brunsli']['libraries'] = [
         'brunslidec-c',
@@ -388,6 +412,10 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
         ).split(':')
         if x
     ]
+
+    EXTENSIONS['lzham']['libraries'] = ['lzhamdll']
+    if sys.platform == 'darwin':
+        del EXTENSIONS['lzham']
 
     EXTENSIONS['zopfli']['include_dirs'].append(
         os.path.join(include_base_path, 'zopfli')
@@ -463,6 +491,8 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
+    del EXTENSIONS['lzfse']
+    del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']
 
@@ -523,6 +553,8 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpegxr']
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
+    del EXTENSIONS['lzfse']
+    del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
@@ -547,6 +579,8 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
+    del EXTENSIONS['lzfse']
+    del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
@@ -668,6 +702,7 @@ def extension(name):
                 'define_macros',
                 'extra_compile_args',
                 'extra_link_args',
+                'depends',
             )
         },
     )
@@ -694,19 +729,18 @@ setup(
         # 'Documentation': 'https://',
     },
     python_requires='>=3.8',
-    install_requires=['numpy>=1.19.2'],
-    setup_requires=['setuptools>=18.0', 'numpy>=1.19.2'],  # cython>=0.29.30
-    extras_require={
-        'all': ['matplotlib>=3.3', 'tifffile>=2021.11.2', 'numcodecs']
-    },
+    install_requires=['numpy'],
+    setup_requires=['setuptools>=18.0', 'numpy'],  # cython>=0.29.30
+    extras_require={'all': ['matplotlib', 'tifffile', 'numcodecs']},
     tests_require=[
         'pytest',
         'tifffile',
         'czifile',
-        'blosc',
+        'blosc; platform_python_implementation!="PyPy"',
         'blosc2; platform_python_implementation!="PyPy"',
         'zstd',
         'lz4',
+        'pyliblzfse',
         'python-lzf',
         'python-snappy',
         'bitshuffle',  # git+https://github.com/cgohlke/bitshuffle@patch-1
