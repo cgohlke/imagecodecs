@@ -392,8 +392,8 @@ def cms_profile(
                 if tf.dtype.char == 'H':
                     ppTransferFunction[i] = cmsBuildTabulatedToneCurve16(
                         <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsUInt16Number*> &tf.data[j]
+                        <cmsUInt32Number> tf.shape[tf.ndim-1],
+                        <const cmsUInt16Number*> &tf.data[j*2*tf.shape[tf.ndim-1]]
                     )
                     if ppTransferFunction[i] == NULL:
                         raise CmsError(
@@ -403,8 +403,8 @@ def cms_profile(
                     # tf.dtype.char == 'f'
                     ppTransferFunction[i] = cmsBuildTabulatedToneCurveFloat(
                         <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsFloat32Number*> &tf.data[j]
+                        <cmsUInt32Number> tf.shape[tf.ndim-1],
+                        <const cmsFloat32Number*> &tf.data[j*4*tf.shape[tf.ndim-1]]
                     )
                     if ppTransferFunction[i] == NULL:
                         raise CmsError(
