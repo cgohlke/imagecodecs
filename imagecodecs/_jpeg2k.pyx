@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -776,6 +776,7 @@ cdef opj_stream_t* opj_memstream_create(
 
 
 cdef void j2k_error_callback(char* msg, void* client_data) with gil:
+    # TODO: this does not raise an exception, only prints the error message
     raise Jpeg2kError(msg.decode().strip())
 
 
@@ -787,8 +788,8 @@ cdef void j2k_info_callback(char* msg, void* client_data) with gil:
     _log_warning('JPEG2K info: %s', msg.decode().strip())
 
 
-cdef OPJ_COLOR_SPACE opj_colorspace(colorspace):
-    """Return OPJ colorspace value from user input."""
+cdef  opj_colorspace(colorspace):
+    """Return OPJ_COLOR_SPACE value from user input."""
     return {
         'GRAY': OPJ_CLRSPC_GRAY,
         'GRAYSCALE': OPJ_CLRSPC_GRAY,
