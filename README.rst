@@ -17,7 +17,7 @@ Bitshuffle, CMS (color space transformations), and Float24
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2022.12.22
+:Version: 2022.12.24
 :DOI: 10.5281/zenodo.6915978
 
 Quickstart
@@ -118,9 +118,15 @@ Test requirements:
 Revisions
 ---------
 
+2022.12.24
+
+- Pass 6512 tests.
+- Fix PNG codec error handling.
+- Fix truncated transferfunctions in cms_profile (#57).
+- Fix exceptions not raised in cdef functions not returning Python object.
+
 2022.12.22
 
-- Pass 6510 tests.
 - Require libtiff 4.5 (breaking).
 - Require libavif 0.11 (breaking).
 - Change jpegxl_encode level parameter to resemble libjpeg quality (breaking).
@@ -253,7 +259,7 @@ This software includes `qoi.h <https://github.com/phoboslab/qoi/>`_.
 
 Wheels for macOS may not be available for the latest releases.
 
-Build instructions and wheels for manylinux and macOS courtesy of
+Build instructions for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
 
 Update pip and setuptools to the latest version before installing imagecodecs::
