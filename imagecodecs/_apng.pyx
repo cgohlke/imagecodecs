@@ -37,9 +37,11 @@
 
 """APNG codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
+
+from libc.setjmp cimport setjmp
 
 from zlib cimport *
 from libpng cimport *
@@ -198,6 +200,7 @@ def apng_encode(
             mempng.data = <png_bytep> &dst[0]
             mempng.size = <png_size_t> dstsize
             mempng.offset = 0
+            mempng.error = NULL
 
             if samples == 1:
                 color_type = PNG_COLOR_TYPE_GRAY
@@ -217,16 +220,21 @@ def apng_encode(
             if png_ptr == NULL:
                 raise ApngError('png_create_write_struct returned NULL')
 
+            info_ptr = png_create_info_struct(png_ptr)
+            if info_ptr == NULL:
+                raise ApngError('png_create_info_struct returned NULL')
+
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise ApngError(mempng.error.decode().strip())
+                raise ApngError('unknown error')
+
             png_set_write_fn(
                 png_ptr,
                 <png_voidp> &mempng,
                 png_write_data_fn,
                 png_output_flush_fn
             )
-
-            info_ptr = png_create_info_struct(png_ptr)
-            if info_ptr == NULL:
-                raise ApngError('png_create_info_struct returned NULL')
 
             png_set_IHDR(
                 png_ptr,
@@ -346,6 +354,7 @@ def apng_decode(data, index=None, numthreads=None, out=None):
             mempng.size = srcsize
             mempng.offset = 8
             mempng.owner = 0
+            mempng.error = NULL
 
             png_ptr = png_create_read_struct(
                 PNG_LIBPNG_VER_STRING, NULL,
@@ -358,6 +367,11 @@ def apng_decode(data, index=None, numthreads=None, out=None):
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
                 raise ApngError('png_create_info_struct returned NULL')
+
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise ApngError(mempng.error.decode().strip())
+                raise ApngError('unknown error')
 
             png_set_read_fn(png_ptr, <png_voidp> &mempng, png_read_data_fn)
             png_set_sig_bytes(png_ptr, 8)
@@ -399,7 +413,9 @@ def apng_decode(data, index=None, numthreads=None, out=None):
                 # samples = 4
                 pass
             else:
-                raise ValueError(f'PNG color type not supported {color_type}')
+                raise ValueError(
+                    f'PNG color type {color_type!r} not supported'
+                )
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL):
                 numframes = png_get_num_frames(png_ptr, info_ptr)
@@ -601,9 +617,7 @@ def apng_decode(data, index=None, numthreads=None, out=None):
                     )
 
                 else:
-                    raise ValueError(
-                        f'invalid dispose_op {frame_dispose_op}'
-                    )
+                    raise ValueError(f'invalid dispose_op {frame_dispose_op}')
 
     finally:
         if framebuffer != NULL:
@@ -698,7 +712,7 @@ cdef void png_composite_uint16(
                 j += 1
 
 
-cdef int png_colortype(photometric):
+cdef png_colortype(photometric):
     """Return color_type value from photometric argument."""
     if photometric is None:
         return -1
@@ -710,7 +724,7 @@ cdef int png_colortype(photometric):
             PNG_COLOR_TYPE_RGB,
             PNG_COLOR_TYPE_RGB_ALPHA,
         ):
-            raise ValueError('photometric interpretation not supported')
+            raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric == 'RGB':
@@ -723,16 +737,20 @@ cdef int png_colortype(photometric):
         'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
     ):
         return PNG_COLOR_TYPE_GRAY
-    raise ValueError(
-        'photometric interpretation {photometric!r} not supported'
-    )
+    raise ValueError(f'photometric {photometric!r} not supported')
 
 
 cdef void png_error_callback(
     png_structp png_ptr,
     png_const_charp msg
-) with gil:
-    raise ApngError(msg.decode().strip())
+) nogil:
+    cdef:
+        mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
+
+    if mempng == NULL:
+        return
+    mempng.error = msg
+    png_longjmp(png_ptr, 1)
 
 
 cdef void png_warn_callback(
@@ -744,6 +762,7 @@ cdef void png_warn_callback(
 
 ctypedef struct mempng_t:
     png_bytep data
+    png_const_charp error
     png_size_t size
     png_size_t offset
     int owner
@@ -764,11 +783,13 @@ cdef void png_read_data_fn(
         return
     if size > mempng.size - mempng.offset:
         # size = mempng.size - mempng.offset
-        raise ApngError(f'PNG input stream too small {mempng.size}')
+        png_error(png_ptr, b'png_read_data_fn input stream too small')
+        return
     memcpy(
         <void*> dst,
         <const void*> &(mempng.data[mempng.offset]),
-        size)
+        size
+    )
     mempng.offset += size
 
 
@@ -789,7 +810,8 @@ cdef void png_write_data_fn(
         return
     if size > mempng.size - mempng.offset:
         if not mempng.owner:
-            raise ApngError(f'PNG output stream too small {mempng.size}')
+            png_error(png_ptr, b'png_write_data_fn output stream too small')
+            return
         newsize = mempng.offset + size
         if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
@@ -797,13 +819,15 @@ cdef void png_write_data_fn(
             newsize = (((newsize - 1) // 4096) + 1) * 4096
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
-            raise MemoryError('png_write_data_fn realloc failed')
+            png_error(png_ptr, b'png_write_data_fn realloc failed')
+            return
         mempng.data = tmp
         mempng.size = newsize
     memcpy(
         <void*> &(mempng.data[mempng.offset]),
         <const void*> src,
-        size)
+        size
+    )
     mempng.offset += size
 
 
