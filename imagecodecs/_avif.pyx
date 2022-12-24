@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -586,7 +586,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
     return out
 
 
-cdef avifPixelFormat avif_pixelformat(pixelformat):
+cdef avif_pixelformat(pixelformat):
     """Return AVIF colorspace value from user input."""
     return {
         AVIF_PIXEL_FORMAT_NONE: AVIF_PIXEL_FORMAT_NONE,
