@@ -1055,5 +1055,7 @@ cdef int tif_warning_handler(
         msg[79] = 0
         _log_warning(msg.decode().strip())
     return 1
+
+
 # work around TIFF name conflict
 globals().update({'TIFF': _TIFF})
