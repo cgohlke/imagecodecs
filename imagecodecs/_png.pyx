@@ -37,9 +37,11 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
+
+from libc.setjmp cimport setjmp
 
 from zlib cimport *
 from libpng cimport *
@@ -161,6 +163,7 @@ def png_encode(
             mempng.data = <png_bytep> &dst[0]
             mempng.size = <png_size_t> dstsize
             mempng.offset = 0
+            mempng.error = NULL
 
             if samples == 1:
                 color_type = PNG_COLOR_TYPE_GRAY
@@ -180,16 +183,21 @@ def png_encode(
             if png_ptr == NULL:
                 raise PngError('png_create_write_struct returned NULL')
 
+            info_ptr = png_create_info_struct(png_ptr)
+            if info_ptr == NULL:
+                raise PngError('png_create_info_struct returned NULL')
+
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise PngError(mempng.error.decode().strip())
+                raise PngError('unknown error')
+
             png_set_write_fn(
                 png_ptr,
                 <png_voidp> &mempng,
                 png_write_data_fn,
                 png_output_flush_fn
             )
-
-            info_ptr = png_create_info_struct(png_ptr)
-            if info_ptr == NULL:
-                raise PngError('png_create_info_struct returned NULL')
 
             png_set_IHDR(
                 png_ptr,
@@ -268,6 +276,7 @@ def png_decode(data, index=None, numthreads=None, out=None):
             mempng.size = srcsize
             mempng.offset = 8
             mempng.owner = 0
+            mempng.error = NULL
 
             png_ptr = png_create_read_struct(
                 PNG_LIBPNG_VER_STRING, NULL,
@@ -280,6 +289,11 @@ def png_decode(data, index=None, numthreads=None, out=None):
             info_ptr = png_create_info_struct(png_ptr)
             if info_ptr == NULL:
                 raise PngError('png_create_info_struct returned NULL')
+
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise PngError(mempng.error.decode().strip())
+                raise PngError('unknown error')
 
             png_set_read_fn(png_ptr, <png_voidp> &mempng, png_read_data_fn)
             png_set_sig_bytes(png_ptr, 8)
@@ -368,8 +382,14 @@ def png_decode(data, index=None, numthreads=None, out=None):
 cdef void png_error_callback(
     png_structp png_ptr,
     png_const_charp msg
-) with gil:
-    raise PngError(msg.decode().strip())
+) nogil:
+    cdef:
+        mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
+
+    if mempng == NULL:
+        return
+    mempng.error = msg
+    png_longjmp(png_ptr, 1)
 
 
 cdef void png_warn_callback(
@@ -381,6 +401,7 @@ cdef void png_warn_callback(
 
 ctypedef struct mempng_t:
     png_bytep data
+    png_const_charp error
     png_size_t size
     png_size_t offset
     int owner
@@ -401,11 +422,13 @@ cdef void png_read_data_fn(
         return
     if size > mempng.size - mempng.offset:
         # size = mempng.size - mempng.offset
-        raise PngError(f'PNG input stream too small {mempng.size}')
+        png_error(png_ptr, b'png_read_data_fn input stream too small')
+        return
     memcpy(
         <void*> dst,
         <const void*> &(mempng.data[mempng.offset]),
-        size)
+        size
+    )
     mempng.offset += size
 
 
@@ -426,7 +449,8 @@ cdef void png_write_data_fn(
         return
     if size > mempng.size - mempng.offset:
         if not mempng.owner:
-            raise PngError(f'PNG output stream too small {mempng.size}')
+            png_error(png_ptr, b'png_write_data_fn output stream too small')
+            return
         newsize = mempng.offset + size
         if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
@@ -434,13 +458,15 @@ cdef void png_write_data_fn(
             newsize = (((newsize - 1) // 4096) + 1) * 4096
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
-            raise MemoryError('png_write_data_fn realloc failed')
+            png_error(png_ptr, b'png_write_data_fn realloc failed')
+            return
         mempng.data = tmp
         mempng.size = newsize
     memcpy(
         <void*> &(mempng.data[mempng.offset]),
         <const void*> src,
-        size)
+        size
+    )
     mempng.offset += size
 
 
