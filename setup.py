@@ -11,16 +11,6 @@ import warnings
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
 
-try:
-    import pip
-    from packaging.version import parse
-    import platform
-
-    if parse(pip.__version__) < parse('19.3') and platform.system() == 'Linux':
-        print('Installing imagecodecs wheels requires pip >= 19.3')
-except ImportError:
-    pass
-
 buildnumber = ''  # e.g 'pre1' or 'post1'
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -486,7 +476,6 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     """Customize build for conda-forge."""
 
     del EXTENSIONS['apng']
-    del EXTENSIONS['blosc2']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['jpeg12']
