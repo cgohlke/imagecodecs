@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.12.22
+:Version: 2022.12.24
 
 """
 
@@ -1682,18 +1682,29 @@ def test_rgbe_roundtrip():
 @pytest.mark.skipif(not imagecodecs.CMS, reason='cms missing')
 def test_cms_profile():
     """Test cms_profile function."""
-    from imagecodecs import cms_profile
+    from imagecodecs import cms_profile, cms_profile_validate, CmsError
+
+    with pytest.raises(CmsError):
+        cms_profile_validate(b'12345')
 
     profile = cms_profile(None)
+    cms_profile_validate(profile)
     profile = cms_profile('null')
+    cms_profile_validate(profile)
     profile = cms_profile('gray')
+    cms_profile_validate(profile)
     profile = cms_profile('rgb')
+    cms_profile_validate(profile)
     profile = cms_profile('srgb')
+    cms_profile_validate(profile)
     profile = cms_profile('xyz')
+    cms_profile_validate(profile)
     profile = cms_profile('lab2')
+    cms_profile_validate(profile)
     profile = cms_profile('lab4')
+    cms_profile_validate(profile)
     profile = cms_profile('adobergb')
-    assert isinstance(profile, bytes)
+    cms_profile_validate(profile)
 
     primaries = [
         2748779008 / 4294967295,
@@ -1712,6 +1723,7 @@ def test_cms_profile():
     profile = cms_profile(
         'gray', whitepoint=whitepoint, transferfunction=transferfunction
     )
+    cms_profile_validate(profile)
 
     transferfunction = transferfunction.astype(numpy.float32)
     transferfunction /= 1024
@@ -1721,6 +1733,7 @@ def test_cms_profile():
         primaries=primaries,
         transferfunction=transferfunction,
     )
+    cms_profile_validate(profile)
 
     transferfunction = [transferfunction, transferfunction, transferfunction]
     profile = cms_profile(
@@ -1729,6 +1742,7 @@ def test_cms_profile():
         primaries=primaries,
         transferfunction=transferfunction,
     )
+    cms_profile_validate(profile)
 
     # xyY
     profile1 = cms_profile(
@@ -1737,6 +1751,8 @@ def test_cms_profile():
         primaries=primaries,
         gamma=2.19921875,
     )
+    cms_profile_validate(profile1)
+
     # xy
     profile2 = cms_profile(
         'rgb',
@@ -1751,6 +1767,8 @@ def test_cms_profile():
         ],
         gamma=2.19921875,
     )
+    cms_profile_validate(profile2)
+
     # xy rationals
     profile3 = cms_profile(
         'rgb',
@@ -1771,6 +1789,8 @@ def test_cms_profile():
         ],
         gamma=2.19921875,
     )
+    cms_profile_validate(profile3)
+
     assert profile1 == profile2
     assert profile1 == profile3
 
@@ -2774,6 +2794,32 @@ def test_apng_encode_fast():
     )
     decoded = imagecodecs.apng_decode(encoded)
     assert_array_equal(data, decoded, verbose=True)
+
+
+@pytest.mark.skipif(not imagecodecs.PNG, reason='png missing')
+def test_png_error():
+    """Test PNG exceptions."""
+    data = image_data('rgb', numpy.uint8).squeeze()
+    encoded = imagecodecs.png_encode(data)
+
+    with pytest.raises(imagecodecs.PngError):
+        imagecodecs.png_encode(data, out=bytearray(len(encoded) // 2))
+
+    with pytest.raises(imagecodecs.PngError):
+        imagecodecs.png_decode(encoded[: len(encoded) // 2])
+
+
+@pytest.mark.skipif(not imagecodecs.APNG, reason='apng missing')
+def test_apng_error():
+    """Test APNG exceptions."""
+    data = image_data('rgb', numpy.uint8).squeeze()
+    encoded = imagecodecs.apng_encode(data)
+
+    with pytest.raises(imagecodecs.ApngError):
+        imagecodecs.apng_encode(data, out=bytearray(len(encoded) // 2))
+
+    with pytest.raises(imagecodecs.ApngError):
+        imagecodecs.apng_decode(encoded[: len(encoded) // 2])
 
 
 @pytest.mark.skipif(not imagecodecs.APNG, reason='apng missing')
