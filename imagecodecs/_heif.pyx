@@ -42,7 +42,7 @@ This implementation reads and writes sequences of top level images only.
 
 """
 
-__version__ = '2022.7.27'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -713,7 +713,7 @@ def heif_decode(data, index=0, photometric=None, numthreads=None, out=None):
     return out
 
 
-cdef heif_colorspace heif_photometric(photometric):
+cdef heif_photometric(photometric):
     """Return heif_colorspace value from photometric argument."""
     if photometric is None:
         return heif_colorspace_undefined
@@ -734,12 +734,10 @@ cdef heif_colorspace heif_photometric(photometric):
             'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
         ):
             return heif_colorspace_monochrome
-    raise ValueError(
-        'photometric interpretation {photometric!r} not supported'
-    )
+    raise ValueError(f'photometric {photometric!r} not supported')
 
 
-cdef heif_compression_format heif_compression(compression):
+cdef heif_compression(compression):
     """Return heif_compression_format value from compression argument."""
     if compression is None:
         return heif_compression_HEVC
@@ -763,7 +761,7 @@ cdef heif_compression_format heif_compression(compression):
             return heif_compression_JPEG
         if compression == 'UNDEFINED':
             return heif_compression_undefined
-    raise ValueError('compression {compression!r} not supported')
+    raise ValueError(f'compression {compression!r} not supported')
 
 
 cdef heif_error heif_write_callback(
