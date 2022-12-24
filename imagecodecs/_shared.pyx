@@ -245,11 +245,7 @@ cdef const uint8_t[::1] _inplace_input(data):
         uint8_t[::1] writable
 
     if isinstance(data, bytes):
-        # disallow writing to bytes
-        if isinstance(data, bytes):
-            raise TypeError("'bytes' object does not support item assignment")
-        # src = data
-        # return src
+        raise TypeError("'bytes' object does not support item assignment")
 
     try:
         writable = data
