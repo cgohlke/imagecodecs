@@ -41,7 +41,7 @@ The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -858,13 +858,13 @@ cdef PKPixelFormatGUID jxr_encode_guid(
     return GUID_PKPixelFormatDontCare
 
 
-cdef int jxr_encode_photometric(photometric):
+cdef jxr_encode_photometric(photometric):
     """Return PK_PI value from photometric argument."""
     if photometric is None:
         return -1
     if isinstance(photometric, int):
         if photometric not in (-1, PK_PI_W0, PK_PI_B0, PK_PI_RGB, PK_PI_CMYK):
-            raise ValueError('photometric interpretation not supported')
+            raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
@@ -884,7 +884,7 @@ cdef int jxr_encode_photometric(photometric):
     #     return PK_PI_TransparencyMask
     # if photometric == 'RGBPALETTE' or photometric == 'PALETTE':
     #     return PK_PI_RGBPalette
-    raise ValueError('photometric interpretation not supported')
+    raise ValueError(f'photometric {photometric!r} not supported')
 
 
 # Y, U, V, YHP, UHP, VHP
