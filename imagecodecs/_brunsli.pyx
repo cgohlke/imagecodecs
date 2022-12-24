@@ -43,7 +43,7 @@ Brunsli 0.1 is not compatible with the final JPEG XL specification.
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -128,6 +128,9 @@ def brunsli_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     sink = brunsli_sink_new(srcsize // 2)
+    if sink == NULL:
+        raise MemoryError('brunsli_sink_new failed')
+
     try:
         with nogil:
             ret = EncodeBrunsli(srcsize, &src[0], sink, brunsli_sink_write)
@@ -165,8 +168,12 @@ def brunsli_decode(
     cdef:
         const uint8_t[::1] src = data
         size_t srcsize = <size_t> src.size
-        brunsli_sink_t* sink = brunsli_sink_new(srcsize * 2)
+        brunsli_sink_t* sink = NULL
         int ret
+
+    sink = brunsli_sink_new(srcsize * 2)
+    if sink == NULL:
+        raise MemoryError('brunsli_sink_new failed')
 
     try:
         with nogil:
@@ -195,17 +202,18 @@ ctypedef struct brunsli_sink_t:
 cdef brunsli_sink_t* brunsli_sink_new(size_t size):
     """Return new Brunsli sink."""
     cdef:
-        brunsli_sink_t* sink = <brunsli_sink_t*> malloc(sizeof(brunsli_sink_t))
+        brunsli_sink_t* sink = NULL
 
+    sink = <brunsli_sink_t*> malloc(sizeof(brunsli_sink_t))
     if sink == NULL:
-        raise MemoryError('failed to allocate brunsli_sink')
+        return NULL
     sink.byteswritten = 0
     sink.size = size
     sink.offset = 0
     sink.data = <uint8_t*> malloc(size)
     if sink.data == NULL:
         free(sink)
-        raise MemoryError('failed to allocate brunsli_sink.data')
+        return NULL
     return sink
 
 
