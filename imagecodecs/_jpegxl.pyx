@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -646,7 +646,7 @@ def jpegxl_decode(
             if frames == 0:
                 frames = jpegxl_framecount(decoder)
                 if frames < 1:
-                    raise RuntimeError('no frames found')
+                    raise RuntimeError('could not determine frame count')
                 status = JxlDecoderSetInput(decoder, &src[0], srcsize)
                 if status != JXL_DEC_SUCCESS:
                     raise JpegxlError('JxlDecoderSetInput', status)
@@ -783,7 +783,7 @@ def jpegxl_decode(
 
                     if frameindex >= frames:
                         raise RuntimeError(
-                            'frameindex {frameindex} > frames {frames}'
+                            f'frameindex {frameindex} > frames {frames}'
                         )
 
                     status = JxlDecoderImageOutBufferSize(
@@ -889,27 +889,24 @@ cdef size_t jpegxl_framecount(JxlDecoder* decoder) nogil:
 
     status = JxlDecoderSubscribeEvents(decoder, JXL_DEC_FRAME)
     if status != JXL_DEC_SUCCESS:
-        raise JpegxlError('JxlDecoderSubscribeEvents', status)
+        return -1
 
     while True:
         status = JxlDecoderProcessInput(decoder)
         if (status == JXL_DEC_ERROR or status == JXL_DEC_NEED_MORE_INPUT):
-            # raise JpegxlError('JxlDecoderProcessInput', status)
             break
         if status == JXL_DEC_SUCCESS:
             break
         if status == JXL_DEC_FRAME:
             framecount += 1
         else:
-            raise RuntimeError(
-                f'JxlDecoderProcessInput unknown status {status}'
-            )
+            return -1
 
     JxlDecoderRewind(decoder)
     return framecount
 
 
-cdef int jpegxl_encode_photometric(photometric):
+cdef jpegxl_encode_photometric(photometric):
     """Return JxlColorSpace value from photometric argument."""
     if photometric is None:
         return -1
@@ -921,7 +918,7 @@ cdef int jpegxl_encode_photometric(photometric):
             JXL_COLOR_SPACE_XYB,
             JXL_COLOR_SPACE_UNKNOWN
         ):
-            raise ValueError('photometric interpretation not supported')
+            raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
@@ -934,12 +931,10 @@ cdef int jpegxl_encode_photometric(photometric):
         return JXL_COLOR_SPACE_XYB
     if photometric == 'UNKNOWN':
         return JXL_COLOR_SPACE_UNKNOWN
-    raise ValueError(
-        'photometric interpretation {photometric!r} not supported'
-    )
+    raise ValueError(f'photometric {photometric!r} not supported')
 
 
-cdef JxlExtraChannelType jpegxl_encode_extrasamples(extrasample):
+cdef jpegxl_encode_extrasamples(extrasample):
     """Return JxlExtraChannelType from extrasample argument."""
     if extrasample is None:
         return JXL_CHANNEL_OPTIONAL
@@ -977,9 +972,7 @@ cdef JxlExtraChannelType jpegxl_encode_extrasamples(extrasample):
         return JXL_CHANNEL_CFA
     if extrasample == 'THERMAL':
         return JXL_CHANNEL_THERMAL
-    raise ValueError(
-        'ExtraChannelType {extrasample!r} not supported'
-    )
+    raise ValueError(f'ExtraChannelType {extrasample!r} not supported')
 
 
 ctypedef struct output_t:
