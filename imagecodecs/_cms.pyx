@@ -37,7 +37,7 @@
 
 """CMS codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2022.12.24'
 
 include '_shared.pxi'
 
@@ -221,11 +221,15 @@ def cms_transform(
             hInProfile = cmsCreateNULLProfile()
         else:
             hInProfile = open_profile(profile)
+            if hInProfile == NULL:
+                raise CmsError('cmsOpenProfileFromMem returned NULL')
 
         if outprofile is None:
             hOutProfile = cmsCreateNULLProfile()
         else:
             hOutProfile = open_profile(outprofile)
+            if hOutProfile == NULL:
+                raise CmsError('cmsOpenProfileFromMem returned NULL')
 
         # cmsColorSpaceSignature ColorSpaceSignature
         # ColorSpaceSignature = cmsGetColorSpace(hProfile)
@@ -295,7 +299,8 @@ def cms_profile(
         cmsToneCurve* ppTransferFunction[3]
         cmsUInt32Number BytesNeeded
         cmsBool ret
-        ssize_t tfs = 0
+        ssize_t tfcount = 0
+        ssize_t tfentries = 0
         ssize_t i, j
         numpy.ndarray tf
         object out
@@ -364,15 +369,15 @@ def cms_profile(
     if profile is not None:
         profile = profile.lower()
         if profile == 'gray':
-            tfs = 1
+            tfcount = 1
         elif profile == 'rgb':
-            tfs = 3
+            tfcount = 3
 
     try:
         if profile is None:
             pass
         elif gamma is not None:
-            for i in range(tfs):
+            for i in range(tfcount):
                 ppTransferFunction[i] = cmsBuildGamma(
                     <cmsContext> NULL, <cmsFloat64Number> gamma
                 )
@@ -383,17 +388,18 @@ def cms_profile(
             if (
                 tf.dtype.char not in 'Hf'
                 or tf.ndim not in (1, 2)
-                or (tf.ndim == 2 and tf.shape[0] != tfs)
+                or (tf.ndim == 2 and tf.shape[0] != tfcount)
             ):
                 raise ValueError('invalid transferfunction shape or dtype')
+            tfentries = tf.shape[tf.ndim - 1]
 
-            for i in range(tfs):
+            for i in range(tfcount):
                 j = 0 if tf.ndim == 1 else i
                 if tf.dtype.char == 'H':
                     ppTransferFunction[i] = cmsBuildTabulatedToneCurve16(
                         <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsUInt16Number*> &tf.data[j]
+                        <cmsUInt32Number> tfentries,
+                        <const cmsUInt16Number*> &tf.data[j * 2 * tfentries]
                     )
                     if ppTransferFunction[i] == NULL:
                         raise CmsError(
@@ -403,8 +409,8 @@ def cms_profile(
                     # tf.dtype.char == 'f'
                     ppTransferFunction[i] = cmsBuildTabulatedToneCurveFloat(
                         <cmsContext> NULL,
-                        <cmsUInt32Number> tf.shape[0],
-                        <const cmsFloat32Number*> &tf.data[j]
+                        <cmsUInt32Number> tfentries,
+                        <const cmsFloat32Number*> &tf.data[j * 4 * tfentries]
                     )
                     if ppTransferFunction[i] == NULL:
                         raise CmsError(
@@ -476,11 +482,26 @@ def cms_profile(
     finally:
         if hProfile != NULL:
             cmsCloseProfile(hProfile)
-        for i in range(tfs):
+        for i in range(tfcount):
             if ppTransferFunction[i] != NULL:
                 cmsFreeToneCurve(ppTransferFunction[i])
 
     return out
+
+
+def cms_profile_validate(profile, verbose=False):
+    """Raise CmsError if CMS profile cannot be opened."""
+    cdef:
+        cmsHPROFILE hProfile = NULL
+
+    if verbose:
+        cmsSetLogErrorHandler(_cms_log_error_handler)
+    hProfile = open_profile(profile)
+    if verbose:
+        cmsSetLogErrorHandler(NULL)
+    if hProfile == NULL:
+        raise CmsError('cmsOpenProfileFromMem returned NULL')
+    cmsCloseProfile(hProfile)
 
 
 @cython.wraparound(True)
@@ -563,7 +584,6 @@ def _cms_format_decode(cmsUInt32Number cmsformat):
             'optimized',
         ]
     )
-
 
     # can't use lcms T_FLOAT macro; it is redefined in Python structmember.h
     # isfloat = bool(T_FLOAT(cmsformat))
@@ -840,13 +860,11 @@ cdef cmsHPROFILE open_profile(object profile):
         cmsHPROFILE hProfile = NULL
 
     if not PyBytes_Check(profile):
-        raise TypeError('profile must be bytes')
+        return NULL
     hProfile = cmsOpenProfileFromMem(
         <const void*> PyBytes_AsString(profile),
         <cmsUInt32Number> PyBytes_Size(profile)
     )
-    if hProfile == NULL:
-        raise CmsError('cmsOpenProfileFromMem returned NULL')
     return hProfile
 
 
@@ -886,7 +904,7 @@ cdef cmsHPROFILE adobe_rgb_compatible() nogil:
     mlu = cmsMLUalloc(<cmsContext> NULL, 1)
     if mlu == NULL:
         cmsCloseProfile(hProfile)
-        raise MemoryError('cmsMLUalloc failed')
+        return NULL
     cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Public Domain')
     ret = cmsWriteTag(hProfile, cmsSigCopyrightTag, mlu)
     cmsMLUfree(mlu)
@@ -894,7 +912,7 @@ cdef cmsHPROFILE adobe_rgb_compatible() nogil:
     mlu = cmsMLUalloc(<cmsContext> NULL, 1)
     if mlu == NULL:
         cmsCloseProfile(hProfile)
-        raise MemoryError('cmsMLUalloc failed')
+        return NULL
     cmsMLUsetASCII(mlu, b'en', b'US\0', 'Adobe RGB (compatible)')
     ret = cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
     cmsMLUfree(mlu)
@@ -902,7 +920,7 @@ cdef cmsHPROFILE adobe_rgb_compatible() nogil:
     mlu = cmsMLUalloc(<cmsContext> NULL, 1)
     if mlu == NULL:
         cmsCloseProfile(hProfile)
-        raise MemoryError('cmsMLUalloc failed')
+        return NULL
     cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Imagecodecs')
     ret = cmsWriteTag(hProfile, cmsSigDeviceMfgDescTag, mlu)
     cmsMLUfree(mlu)
@@ -910,7 +928,7 @@ cdef cmsHPROFILE adobe_rgb_compatible() nogil:
     mlu = cmsMLUalloc(<cmsContext> NULL, 1)
     if mlu == NULL:
         cmsCloseProfile(hProfile)
-        raise MemoryError('cmsMLUalloc failed')
+        return NULL
     cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Adobe RGB (compatible)')
     ret = cmsWriteTag(hProfile, cmsSigDeviceModelDescTag, mlu)
     cmsMLUfree(mlu)
