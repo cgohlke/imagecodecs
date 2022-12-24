@@ -1,9 +1,15 @@
 Revisions
 ---------
 
+2022.12.24
+
+- Pass 6512 tests.
+- Fix PNG codec error handling.
+- Fix truncated transferfunctions in cms_profile (#57).
+- Fix exceptions not raised in cdef functions not returning Python object.
+
 2022.12.22
 
-- Pass 6510 tests.
 - Require libtiff 4.5 (breaking).
 - Require libavif 0.11 (breaking).
 - Change jpegxl_encode level parameter to resemble libjpeg quality (breaking).
