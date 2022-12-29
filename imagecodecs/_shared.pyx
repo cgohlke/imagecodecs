@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2022, Christoph Gohlke
+# Copyright (c) 2018-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -284,7 +284,7 @@ cdef size_t _default_threads(numthreads):
 
 
 def _log_warning(msg, *args, **kwargs):
-    """Logs a message with level WARNING."""
+    """Log message with level WARNING."""
     import logging
 
     logging.getLogger('imagecodecs').warning(msg, *args, **kwargs)
