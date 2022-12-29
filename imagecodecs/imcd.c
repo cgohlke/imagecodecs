@@ -1,7 +1,7 @@
 /* imcd.c */
 
 /*
-Copyright (c) 2008-2022, Christoph Gohlke.
+Copyright (c) 2008-2023, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
