@@ -1,7 +1,7 @@
 # imagecodecs/charls.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `CharLS 2.3.3` library.
+# Cython declarations for the `CharLS 2.4.1` library.
 # https://github.com/team-charls/charls
 
 from libc.stdint cimport int32_t, uint32_t
@@ -29,7 +29,7 @@ cdef extern from 'charls/charls.h':
         CHARLS_JPEGLS_ERRC_NOT_ENOUGH_MEMORY
         CHARLS_JPEGLS_ERRC_UNEXPECTED_FAILURE
         CHARLS_JPEGLS_ERRC_START_OF_IMAGE_MARKER_NOT_FOUND
-        CHARLS_JPEGLS_ERRC_START_OF_FRAME_MARKER_NOT_FOUND
+        CHARLS_JPEGLS_ERRC_UNEXPECTED_MARKER_FOUND
         CHARLS_JPEGLS_ERRC_INVALID_MARKER_SEGMENT_SIZE
         CHARLS_JPEGLS_ERRC_DUPLICATE_START_OF_IMAGE_MARKER
         CHARLS_JPEGLS_ERRC_DUPLICATE_START_OF_FRAME_MARKER
@@ -38,20 +38,29 @@ cdef extern from 'charls/charls.h':
         CHARLS_JPEGLS_ERRC_INVALID_JPEGLS_PRESET_PARAMETER_TYPE
         CHARLS_JPEGLS_ERRC_JPEGLS_PRESET_EXTENDED_PARAMETER_TYPE_NOT_SUPPORTED
         CHARLS_JPEGLS_ERRC_MISSING_END_OF_SPIFF_DIRECTORY
+        CHARLS_JPEGLS_ERRC_UNEXPECTED_RESTART_MARKER
+        CHARLS_JPEGLS_ERRC_RESTART_MARKER_NOT_FOUND
+        CHARLS_JPEGLS_ERRC_CALLBACK_FAILED
+        CHARLS_JPEGLS_ERRC_END_OF_IMAGE_MARKER_NOT_FOUND
+        CHARLS_JPEGLS_ERRC_INVALID_SPIFF_HEADER
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_WIDTH
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_HEIGHT
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_COMPONENT_COUNT
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_BITS_PER_SAMPLE
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_INTERLEAVE_MODE
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_NEAR_LOSSLESS
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_PC_PARAMETERS
-        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_SPIFF_ENTRY_SIZE
+        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_JPEGLS_PC_PARAMETERS
+        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_SIZE
         CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_COLOR_TRANSFORMATION
+        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_STRIDE
+        CHARLS_JPEGLS_ERRC_INVALID_ARGUMENT_ENCODING_OPTIONS
         CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_WIDTH
         CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_HEIGHT
         CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_COMPONENT_COUNT
         CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_BITS_PER_SAMPLE
         CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_INTERLEAVE_MODE
+        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_NEAR_LOSSLESS
+        CHARLS_JPEGLS_ERRC_INVALID_PARAMETER_JPEGLS_PRESET_PARAMETERS
 
     ctypedef enum charls_interleave_mode:
         CHARLS_INTERLEAVE_MODE_NONE
@@ -123,7 +132,14 @@ cdef extern from 'charls/charls.h':
         CHARLS_SPIFF_ENTRY_TAG_SCAN_INDEX
         CHARLS_SPIFF_ENTRY_TAG_SET_REFERENCE
 
-    ctypedef void (*charls_at_comment_handler)(
+    ctypedef int32_t (*charls_at_comment_handler)(
+        const void* data,
+        size_t size,
+        void* user_context
+    ) nogil
+
+    ctypedef int32_t (*charls_at_application_data_handler)(
+        int32_t application_data_id,
         const void* data,
         size_t size,
         void* user_context
@@ -228,6 +244,12 @@ cdef extern from 'charls/charls.h':
         void* user_context
     ) nogil
 
+    charls_jpegls_errc charls_jpegls_decoder_at_application_data(
+        charls_jpegls_decoder* decoder,
+        charls_at_application_data_handler handler,
+        void* user_context
+    ) nogil
+
     charls_jpegls_encoder* charls_jpegls_encoder_create() nogil
 
     void charls_jpegls_encoder_destroy(
@@ -295,10 +317,22 @@ cdef extern from 'charls/charls.h':
         size_t entry_data_size
     ) nogil
 
+    charls_jpegls_errc \
+    charls_jpegls_encoder_write_spiff_end_of_directory_entry(
+        charls_jpegls_encoder* encoder
+    ) nogil
+
     charls_jpegls_errc charls_jpegls_encoder_write_comment(
         charls_jpegls_encoder* encoder,
         const void* comment,
         size_t comment_size_bytes
+    ) nogil
+
+    charls_jpegls_errc charls_jpegls_encoder_write_application_data(
+        charls_jpegls_encoder* encoder,
+        int32_t application_data_id,
+        const void* application_data,
+        size_t application_data_size_bytes
     ) nogil
 
     charls_jpegls_errc charls_jpegls_encoder_encode_from_buffer(
