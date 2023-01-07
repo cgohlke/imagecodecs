@@ -3,6 +3,9 @@
 
 # Cython declarations for the `jxrlib 1.1` library.
 # https://packages.debian.org/sid/libjxr-dev
+# https://salsa.debian.org/debian-phototools-team/jxrlib
+# https://github.com/4creators/jxrlib
+# https://github.com/glencoesoftware/jxrlib
 
 from libc.stdio cimport FILE
 
