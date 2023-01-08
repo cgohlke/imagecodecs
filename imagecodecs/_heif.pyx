@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2022, Christoph Gohlke
+# Copyright (c) 2022-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -365,7 +365,7 @@ def heif_encode(
                             srcptr += rowsize
 
                 # elif planar:
-                #    TODO: handle planar imput
+                #    TODO: handle planar input
 
                 else:
                     # interleaved RGB(A)
