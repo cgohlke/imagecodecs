@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2016-2022, Christoph Gohlke
+# Copyright (c) 2016-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -183,7 +183,7 @@ def jpegxr_encode(
             dstsize = 4096
         outbuffer = <U8*> malloc(dstsize)
         if outbuffer == NULL:
-            raise MemoryError('failed to allocate ouput buffer')
+            raise MemoryError('failed to allocate output buffer')
     else:
         dst = out
         dstsize = dst.nbytes
@@ -379,7 +379,7 @@ def jpegxr_decode(data, index=None, fp2int=False, numthreads=None, out=None):
 
 
 cdef ERR WriteWS_Memory(WMPStream* pWS, const void* pv, size_t cb) nogil:
-    """Relpacement for WriteWS_Memory to keep track of bytes written."""
+    """Replacement for WriteWS_Memory to keep track of bytes written."""
     if pWS.state.buf.cbCur + cb < pWS.state.buf.cbCur:
         return WMP_errBufferOverflow
     if pWS.state.buf.cbBuf < pWS.state.buf.cbCur + cb:
@@ -396,7 +396,7 @@ cdef ERR WriteWS_Memory(WMPStream* pWS, const void* pv, size_t cb) nogil:
 
 
 cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
-    """Relpacement for WriteWS_Memory to realloc buffers on overflow.
+    """Replacement for WriteWS_Memory to realloc buffers on overflow.
 
     Only use with buffers allocated by malloc.
 
@@ -432,7 +432,7 @@ cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
 
 
 cdef Bool EOSWS_Realloc(WMPStream* pWS) nogil:
-    """Relpacement for EOSWS_Memory."""
+    """Replacement for EOSWS_Memory."""
     # return pWS.state.buf.cbBuf <= pWS.state.buf.cbCur
     return 1
 
