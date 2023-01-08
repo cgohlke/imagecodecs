@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2022, Christoph Gohlke
+# Copyright (c) 2022-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -108,7 +108,7 @@ def jetraw_encode(
 ):
     """Compress Jetraw.
 
-    The Jetraw codec is only vaiable for encoding whole frames from a few
+    The Jetraw codec is only viable for encoding whole frames from a few
     supported scientific cameras.
 
     """
