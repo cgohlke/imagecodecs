@@ -1,7 +1,7 @@
 # imagecodecs/libheif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libheif 1.14.0` library.
+# Cython declarations for the `libheif 1.14.2` library.
 # https://github.com/strukturag/libheif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int64_t
