@@ -1,6 +1,6 @@
 # imagecodecs/__main__.py
 
-# Copyright (c) 2019-2022, Christoph Gohlke
+# Copyright (c) 2019-2023, Christoph Gohlke
 # This source code is distributed under the BSD 3-Clause license.
 
 """Imagecodecs package command line script."""
@@ -50,7 +50,7 @@ def main(argv=None, verbose=True, codec=None):
     if verbose:
         print(f'{codec.__name__.upper()}: {image.shape} {image.dtype}')
 
-    imshow(image, title=filename, interpolation='nearest')
+    imshow(image, title=filename, interpolation='none')
     show()
     return 0
 
