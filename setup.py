@@ -503,7 +503,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
                 os.environ['LIBRARY_INC'], 'openjpeg-' + os.environ['openjpeg']
             )
         ]
-        EXTENSIONS['deflate']['libraries'] = ['libdeflate']
+        EXTENSIONS['deflate']['libraries'] = ['deflate']
         EXTENSIONS['jpegls']['libraries'] = ['charls-2-x64']
         EXTENSIONS['lz4']['libraries'] = ['liblz4']
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
