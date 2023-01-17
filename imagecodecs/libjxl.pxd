@@ -1,7 +1,7 @@
 # imagecodecs/libjxl.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jpeg-xl 0.7.0` library.
+# Cython declarations for the `jpeg-xl 0.8.0` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t, int32_t, int64_t
@@ -31,6 +31,16 @@ cdef extern from 'jxl/types.h':
         JxlDataType data_type
         JxlEndianness endianness
         size_t align
+
+    ctypedef enum JxlBitDepthType:
+        JXL_BIT_DEPTH_FROM_PIXEL_FORMAT
+        JXL_BIT_DEPTH_FROM_CODESTREAM
+        JXL_BIT_DEPTH_CUSTOM
+
+    ctypedef struct JxlBitDepth:
+        JxlBitDepthType dtype 'type'
+        uint32_t bits_per_sample
+        uint32_t exponent_bits_per_sample
 
     ctypedef char JxlBoxType[4]
 
@@ -76,10 +86,6 @@ cdef extern from 'jxl/codestream_header.h':
         JXL_CHANNEL_OPTIONAL
 
     ctypedef struct JxlPreviewHeader:
-        uint32_t xsize
-        uint32_t ysize
-
-    ctypedef struct JxlIntrinsicSizeHeader:
         uint32_t xsize
         uint32_t ysize
 
@@ -363,7 +369,6 @@ cdef extern from 'jxl/decode.h':
         JXL_DEC_ERROR
         JXL_DEC_NEED_MORE_INPUT
         JXL_DEC_NEED_PREVIEW_OUT_BUFFER
-        JXL_DEC_NEED_DC_OUT_BUFFER
         JXL_DEC_NEED_IMAGE_OUT_BUFFER
         JXL_DEC_JPEG_NEED_MORE_OUTPUT
         JXL_DEC_BASIC_INFO
@@ -371,7 +376,6 @@ cdef extern from 'jxl/decode.h':
         JXL_DEC_COLOR_ENCODING
         JXL_DEC_PREVIEW_IMAGE
         JXL_DEC_FRAME
-        JXL_DEC_DC_IMAGE
         JXL_DEC_FULL_IMAGE
         JXL_DEC_JPEG_RECONSTRUCTION
         JXL_DEC_BOX
@@ -503,6 +507,18 @@ cdef extern from 'jxl/decode.h':
         float desired_intensity_target
     ) nogil
 
+    JxlDecoderStatus JxlDecoderSetOutputColorProfile(
+        JxlDecoder* dec,
+        const JxlColorEncoding* color_encoding,
+        const uint8_t* icc_data,
+        size_t icc_size
+    ) nogil
+
+    void JxlDecoderSetCms(
+        JxlDecoder* dec,
+        JxlCmsInterface cms
+    ) nogil
+
     JxlDecoderStatus JxlDecoderPreviewOutBufferSize(
         const JxlDecoder* dec,
         const JxlPixelFormat* format,
@@ -532,21 +548,6 @@ cdef extern from 'jxl/decode.h':
         size_t index,
         JxlBlendInfo* blend_info
     ) nogil
-
-    # deprecated
-    # JxlDecoderStatus JxlDecoderDCOutBufferSize(
-    #     const JxlDecoder* dec,
-    #     const JxlPixelFormat* format,
-    #     size_t* size
-    # ) nogil
-
-    # deprecated
-    # JxlDecoderStatus JxlDecoderSetDCOutBuffer(
-    #     JxlDecoder* dec,
-    #     const JxlPixelFormat* format,
-    #     void* buffer,
-    #     size_t size
-    # ) nogil
 
     JxlDecoderStatus JxlDecoderImageOutBufferSize(
         const JxlDecoder* dec,
@@ -664,6 +665,11 @@ cdef extern from 'jxl/decode.h':
         JxlDecoder* dec
     ) nogil
 
+    JxlDecoderStatus JxlDecoderSetImageOutBitDepth(
+        JxlDecoder* dec,
+        const JxlBitDepth* bit_depth
+    ) nogil
+
 
 cdef extern from 'jxl/encode.h':
 
@@ -728,6 +734,7 @@ cdef extern from 'jxl/encode.h':
         JXL_ENC_FRAME_SETTING_JPEG_RECON_CFL
         JXL_ENC_FRAME_INDEX_BOX
         JXL_ENC_FRAME_SETTING_BROTLI_EFFORT
+        JXL_ENC_FRAME_SETTING_JPEG_COMPRESS_BOXES
         JXL_ENC_FRAME_SETTING_FILL_ENUM
 
     JxlEncoder* JxlEncoderCreate(
@@ -777,6 +784,11 @@ cdef extern from 'jxl/encode.h':
     JxlEncoderStatus JxlEncoderSetFrameName(
         JxlEncoderFrameSettings* frame_settings,
         const char* frame_name
+    ) nogil
+
+    JxlEncoderStatus JxlEncoderSetFrameBitDepth(
+        JxlEncoderFrameSettings* frame_settings,
+        const JxlBitDepth* bit_depth
     ) nogil
 
     JxlEncoderStatus JxlEncoderAddJPEGFrame(
@@ -959,4 +971,8 @@ cdef extern from 'jxl/encode.h':
     void JxlColorEncodingSetToLinearSRGB(
         JxlColorEncoding* color_encoding,
         JXL_BOOL is_gray
+    ) nogil
+
+    void JxlEncoderAllowExpertOptions(
+        JxlEncoder* enc
     ) nogil
