@@ -102,8 +102,8 @@ OPTIONS = {
     + [('WIN32', 1)]  # type: ignore
     if sys.platform == 'win32'
     else [],
-    'extra_compile_args': [],
-    'extra_link_args': [],
+    'extra_compile_args': [],  # ['/Zi', '/Od']
+    'extra_link_args': [],  # ['-debug:full']
     'depends': ['imagecodecs/_shared.pxd'],
     'cython_compile_time_env': {},
     'cythonize': False,  # sys.version_info >= (3, 11)
@@ -153,7 +153,10 @@ EXTENSIONS = {
         define_macros=[('BITS_IN_JSAMPLE', 12)],
     ),
     'jpegls': ext(libraries=['charls']),
-    'jpegsof3': ext(sources=['imagecodecs/jpegsof3.cpp']),
+    'jpegsof3': ext(
+        sources=['3rdparty/jpegsof3/jpegsof3.cpp'],
+        include_dirs=['3rdparty/jpegsof3'],
+    ),
     'jpegxl': ext(libraries=['jxl', 'jxl_dec', 'jxl_threads']),
     'jpegxr': ext(
         libraries=['jpegxr', 'jxrglue'],
@@ -283,6 +286,8 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'aom',
         'libdav1d',
         'rav1e',
+        'SvtAv1Enc',
+        'SvtAv1Dec',
         'Ws2_32',
         'Advapi32',
         'Userenv',
@@ -292,6 +297,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
+    EXTENSIONS['webp']['libraries'] = ['libwebp', 'libsharpyuv']
 
     # link with static zlib-ng compatibility mode library
     EXTENSIONS['png']['libraries'] = ['png', 'zlibstatic-ng-compat']
@@ -343,7 +349,8 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'jpeg',
         'png',
         'zlibstatic-ng-compat',
-        'webp',
+        'libwebp',
+        'libsharpyuv',
         'zstd_static',
         'liblzma',
         'deflatestatic',
@@ -503,7 +510,6 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
                 os.environ['LIBRARY_INC'], 'openjpeg-' + os.environ['openjpeg']
             )
         ]
-        EXTENSIONS['deflate']['libraries'] = ['libdeflate']
         EXTENSIONS['jpegls']['libraries'] = ['charls-2-x64']
         EXTENSIONS['lz4']['libraries'] = ['liblz4']
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
