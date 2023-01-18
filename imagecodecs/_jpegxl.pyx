@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2022, Christoph Gohlke
+# Copyright (c) 2021-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -79,7 +79,6 @@ class JpegxlError(RuntimeError):
                 JXL_DEC_NEED_MORE_INPUT: 'JXL_DEC_NEED_MORE_INPUT',
                 JXL_DEC_NEED_PREVIEW_OUT_BUFFER:
                     'JXL_DEC_NEED_PREVIEW_OUT_BUFFER',
-                JXL_DEC_NEED_DC_OUT_BUFFER: 'JXL_DEC_NEED_DC_OUT_BUFFER',
                 JXL_DEC_NEED_IMAGE_OUT_BUFFER: 'JXL_DEC_NEED_IMAGE_OUT_BUFFER',
                 JXL_DEC_JPEG_NEED_MORE_OUTPUT: 'JXL_DEC_JPEG_NEED_MORE_OUTPUT',
                 JXL_DEC_BASIC_INFO: 'JXL_DEC_BASIC_INFO',
@@ -87,7 +86,6 @@ class JpegxlError(RuntimeError):
                 JXL_DEC_COLOR_ENCODING: 'JXL_DEC_COLOR_ENCODING',
                 JXL_DEC_PREVIEW_IMAGE: 'JXL_DEC_PREVIEW_IMAGE',
                 JXL_DEC_FRAME: 'JXL_DEC_FRAME',
-                JXL_DEC_DC_IMAGE: 'JXL_DEC_DC_IMAGE',
                 JXL_DEC_FULL_IMAGE: 'JXL_DEC_FULL_IMAGE',
                 JXL_DEC_JPEG_RECONSTRUCTION: 'JXL_DEC_JPEG_RECONSTRUCTION',
                 JXL_DEC_BOX: 'JXL_DEC_BOX',
@@ -131,7 +129,7 @@ def jpegxl_encode(
     lossless=None,
     decodingspeed=None,
     photometric=None,
-    # bitspersample=None,
+    bitspersample=None,
     # extrasamples=None,
     planar=None,
     usecontainer=None,
@@ -172,13 +170,14 @@ def jpegxl_encode(
         JxlColorEncoding color_encoding
         JxlExtraChannelType extra_channel_type = JXL_CHANNEL_OPTIONAL
         JxlExtraChannelInfo extra_channel_info
+        JxlBitDepth bit_depth
         # JxlBlendInfo blend_info
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
         int quality = 0
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
         int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
-        float option_distance = _default_value(distance, 1.0, 0.0, 15.0)
+        float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
         size_t num_threads = <size_t> _default_threads(numthreads)
         size_t channel_index
         bint is_planar = bool(planar)
@@ -197,10 +196,15 @@ def jpegxl_encode(
         elif distance is None:
             # formula from JpegXlSaveOpts::UpdateDistance
             quality = level if level < 100 else 100
-            option_distance = (
+            option_distance = <float> (
                 (0.1 + (100 - quality) * 0.09)
                 if quality >= 30 else
-                min(6.24 + pow(2.5, (30 - quality) / 5.0) / 6.25, 15)
+                min(
+                    53.0 / 3000.0 * quality * quality
+                    - 23.0 / 20.0 * quality + 25.0,
+                    25.0
+                )
+                # min(6.24 + pow(2.5, (30 - quality) / 5.0) / 6.25, 15)
             )
             if lossless is None:
                 option_lossless = JXL_FALSE
@@ -214,6 +218,15 @@ def jpegxl_encode(
 
     if not (src.dtype.kind in 'uf' and src.ndim in (2, 3, 4)):
         raise ValueError('invalid data shape or dtype')
+
+    if bitspersample is None or src.dtype.kind == 'f':
+        bit_depth.dtype = JXL_BIT_DEPTH_FROM_PIXEL_FORMAT
+        bits_per_sample = 0
+        exponent_bits_per_sample = 0
+    else:
+        bit_depth.dtype = JXL_BIT_DEPTH_FROM_CODESTREAM
+        bits_per_sample = bitspersample
+        exponent_bits_per_sample = 0
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -407,6 +420,11 @@ def jpegxl_encode(
             frame_settings = JxlEncoderFrameSettingsCreate(encoder, NULL)
             if frame_settings == NULL:
                 raise JpegxlError('JxlEncoderFrameSettingsCreate', None)
+
+            if bit_depth.dtype != JXL_BIT_DEPTH_FROM_PIXEL_FORMAT:
+                status = JxlEncoderSetFrameBitDepth(frame_settings, &bit_depth)
+                if status != JXL_ENC_SUCCESS:
+                    raise JpegxlError('JxlEncoderSetFrameBitDepth', status)
 
             if option_lossless != 0:
                 status = JxlEncoderSetFrameLossless(
