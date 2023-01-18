@@ -1,7 +1,8 @@
 # imagecodecs/jpegsof3.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jpegsof3 2020.12.22` library.
+# Cython declarations for the `jpegsof3 2023.1.23` library.
+# https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/jpegsof3/
 
 cdef extern from 'jpegsof3.h':
 
