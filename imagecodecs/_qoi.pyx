@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2022, Christoph Gohlke
+# Copyright (c) 2022-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -58,7 +58,7 @@ class QoiError(RuntimeError):
 
 def qoi_version():
     """Return QOI library version string."""
-    return 'qoi 75e7f30'
+    return 'qoi c3dcfe7'
 
 
 def qoi_check(const uint8_t[::1] data):
