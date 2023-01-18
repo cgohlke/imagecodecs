@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2022, Christoph Gohlke
+# Copyright (c) 2020-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -69,6 +69,14 @@ class AVIF:
         BEST_QUALITY = AVIF_CHROMA_UPSAMPLING_BEST_QUALITY
         NEAREST = AVIF_CHROMA_UPSAMPLING_NEAREST
         BILINEAR = AVIF_CHROMA_UPSAMPLING_BILINEAR
+
+    class CODEC_CHOICE(enum.IntEnum):
+        AUTO = AVIF_CODEC_CHOICE_AUTO
+        AOM = AVIF_CODEC_CHOICE_AOM
+        DAV1D = AVIF_CODEC_CHOICE_DAV1D
+        LIBGAV1 = AVIF_CODEC_CHOICE_LIBGAV1
+        RAV1E = AVIF_CODEC_CHOICE_RAV1E
+        SVT = AVIF_CODEC_CHOICE_SVT
 
 
 class AvifError(RuntimeError):
@@ -117,6 +125,7 @@ def avif_encode(
     tilelog2=None,
     bitspersample=None,
     pixelformat=None,
+    codec=None,
     numthreads=None,
     out=None
 ):
@@ -150,6 +159,7 @@ def avif_encode(
         avifRWData raw  # = AVIF_DATA_EMPTY
         avifPixelFormat yuvformat = AVIF_PIXEL_FORMAT_YUV444
         avifAddImageFlags flags = AVIF_ADD_IMAGE_FLAG_NONE
+        avifCodecChoice codecchoice = AVIF_CODEC_CHOICE_AUTO
         avifResult res
 
     if not (
@@ -218,6 +228,9 @@ def avif_encode(
         speed, AVIF_SPEED_DEFAULT, AVIF_SPEED_SLOWEST, AVIF_SPEED_FASTEST
     )
 
+    if codec is not None:
+        codecchoice = avif_codecchoice(codec)
+
     if monochrome:
         yuvformat = AVIF_PIXEL_FORMAT_YUV400
         quantizer = AVIF_QUANTIZER_LOSSLESS
@@ -250,14 +263,14 @@ def avif_encode(
             if image == NULL:
                 raise AvifError('avifImageCreate', 'NULL')
 
-            if monochrome:
-                encoder.codecChoice = AVIF_CODEC_CHOICE_AOM
-                image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_IDENTITY
-            elif quantizer == AVIF_QUANTIZER_LOSSLESS:
-                encoder.codecChoice = AVIF_CODEC_CHOICE_AOM
+            if monochrome or quantizer == AVIF_QUANTIZER_LOSSLESS:
+                if codecchoice == AVIF_CODEC_CHOICE_AUTO:
+                    encoder.codecChoice = AVIF_CODEC_CHOICE_AOM
+                else:
+                    encoder.codecChoice = codecchoice
                 image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_IDENTITY
             else:
-                encoder.codecChoice = AVIF_CODEC_CHOICE_AUTO
+                encoder.codecChoice = codecchoice
                 image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601
 
             image.yuvRange = AVIF_RANGE_FULL
@@ -594,13 +607,31 @@ cdef avif_pixelformat(pixelformat):
         AVIF_PIXEL_FORMAT_YUV422: AVIF_PIXEL_FORMAT_YUV422,
         AVIF_PIXEL_FORMAT_YUV420: AVIF_PIXEL_FORMAT_YUV420,
         AVIF_PIXEL_FORMAT_YUV400: AVIF_PIXEL_FORMAT_YUV400,
-        'AVIF_PIXEL_FORMAT_NONE': AVIF_PIXEL_FORMAT_NONE,
-        'AVIF_PIXEL_FORMAT_YUV444': AVIF_PIXEL_FORMAT_YUV444,
-        'AVIF_PIXEL_FORMAT_YUV422': AVIF_PIXEL_FORMAT_YUV422,
-        'AVIF_PIXEL_FORMAT_YUV420': AVIF_PIXEL_FORMAT_YUV420,
-        'AVIF_PIXEL_FORMAT_YUV400': AVIF_PIXEL_FORMAT_YUV400,
+        'none': AVIF_PIXEL_FORMAT_NONE,
+        'yuv444': AVIF_PIXEL_FORMAT_YUV444,
+        'yuv422': AVIF_PIXEL_FORMAT_YUV422,
+        'yuv420': AVIF_PIXEL_FORMAT_YUV420,
+        'yuv400': AVIF_PIXEL_FORMAT_YUV400,
         '444': AVIF_PIXEL_FORMAT_YUV444,
         '422': AVIF_PIXEL_FORMAT_YUV422,
         '420': AVIF_PIXEL_FORMAT_YUV420,
         '400': AVIF_PIXEL_FORMAT_YUV400,
     }[pixelformat]  # .get(pixelformat, AVIF_PIXEL_FORMAT_YUV444)
+
+
+cdef avif_codecchoice(codec):
+    """Return AVIF codecchoice value from user input."""
+    return {
+        AVIF_CODEC_CHOICE_AUTO: AVIF_CODEC_CHOICE_AUTO,
+        AVIF_CODEC_CHOICE_AOM: AVIF_CODEC_CHOICE_AOM,
+        AVIF_CODEC_CHOICE_DAV1D: AVIF_CODEC_CHOICE_DAV1D,
+        AVIF_CODEC_CHOICE_LIBGAV1: AVIF_CODEC_CHOICE_LIBGAV1,
+        AVIF_CODEC_CHOICE_RAV1E: AVIF_CODEC_CHOICE_RAV1E,
+        AVIF_CODEC_CHOICE_SVT: AVIF_CODEC_CHOICE_SVT,
+        'auto': AVIF_CODEC_CHOICE_AUTO,
+        'aom': AVIF_CODEC_CHOICE_AOM,
+        'dav1d': AVIF_CODEC_CHOICE_DAV1D,
+        'libgav1': AVIF_CODEC_CHOICE_LIBGAV1,
+        'rav1e': AVIF_CODEC_CHOICE_RAV1E,
+        'svt': AVIF_CODEC_CHOICE_SVT,
+    }[codec]
