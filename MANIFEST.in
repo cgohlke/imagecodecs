@@ -37,12 +37,16 @@ include tests/*.avif
 include tests/*.webp
 include tests/*.br
 include tests/tiff/*.*
-include tests/lerc/testData/*.*
+include tests/ljpeg/*.*
+include tests/lerc/*.*
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
 
-exclude tests/tiff/gray.movie.u1.tif
 exclude tests/libaec/121B2TestData/ExtendedParameters/*.*
+exclude tests/tiff/gray.movie.*.tif
+exclude tests/ljpeg/dcm*.ljp
+exclude tests/ljpeg/2ch.ljp
+exclude tests/ljpeg/pvrg.ljp
 exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
 exclude tests/jetraw.bin
