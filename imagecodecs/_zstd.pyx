@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2022, Christoph Gohlke
+# Copyright (c) 2018-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Zstd (ZStandard) codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -72,6 +72,10 @@ def zstd_version():
 
 def zstd_check(data):
     """Return True if data likely contains Zstd data."""
+    cdef:
+        bytes sig = bytes(data[:4])
+
+    return sig == b'\x28\xB5\x2F\xFD'
 
 
 def zstd_encode(data, level=None, numthreads=None, out=None):
