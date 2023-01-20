@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2022, Christoph Gohlke
+# Copyright (c) 2020-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2022.12.22'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -87,6 +87,8 @@ def lerc_encode(
     masks=None,
     version=None,
     planar=None,
+    compression=None,
+    compressionargs=None,
     numthreads=None,
     out=None
 ):
@@ -214,7 +216,19 @@ def lerc_encode(
         raise LercError('lerc_encodeForVersion', ret)
 
     del dst
-    return _return_output(out, dstsize, <ssize_t> nBytesWritten, outgiven)
+    out = _return_output(out, dstsize, <ssize_t> nBytesWritten, outgiven)
+    if compression is None:
+        return out
+    if compressionargs is None:
+        compressionargs = {}
+    if compression == 'zstd':
+        from . import zstd_encode
+        out = zstd_encode(out, **compressionargs)
+        return out
+    if compression == 'deflate':
+        from . import zlib_encode
+        return zlib_encode(out, **compressionargs)
+    raise ValueError(f'compression {compression!r} not supported')
 
 
 def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
@@ -226,7 +240,7 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
         numpy.ndarray valid
         const uint8_t[::1] src = data
         const uint8_t[::1] header
-        ssize_t srcsize = src.size
+        ssize_t srcsize
         unsigned int[9] infoArray
         double[3] dataRangeArray
         unsigned char* pValidBytes = NULL
@@ -244,9 +258,26 @@ def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if bytes(src[:9]) == b'CntZImage' and hasattr(data, 'write_byte'):
+    sig = bytes(src[:9])
+
+    if sig[:5] == b'Lerc2':
+        pass
+    elif sig[:9] == b'CntZImage' and hasattr(data, 'write_byte'):
         # Lerc1 decoder segfaults if data is not writable
         src = memoryview(data).tobytes()
+    elif sig[:4] == b'\x28\xB5\x2F\xFD':
+        from . import zstd_decode
+        src = zstd_decode(data)
+    elif (
+        sig[:2] == b'\x78\x9C'
+        or sig[:2] == b'\x78\x5E'
+        or sig[:2] == b'\x78\x01'
+        or sig[:2] == b'\x78\xDA'
+    ):
+        from . import zlib_decode
+        src = zlib_decode(data)
+
+    srcsize = src.size
 
     ret = lerc_getBlobInfo(
         <const unsigned char*> &src[0],
