@@ -1,7 +1,7 @@
 # imagecodecs/liblzma.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `liblzma 5.4.0` library.
+# Cython declarations for the `liblzma 5.4.1` library.
 # https://git.tukaani.org/?p=xz.git
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
