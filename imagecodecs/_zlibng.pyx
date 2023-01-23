@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2022, Christoph Gohlke
+# Copyright (c) 2021-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Zlib-ng codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -89,6 +89,18 @@ def zlibng_version():
 
 def zlibng_check(data):
     """Return True if data likely contains Zlib data."""
+    cdef:
+        bytes sig = bytes(data[:2])
+
+    # most common ZLIB headers
+    if (
+        sig == b'\x78\x9C'
+        or sig == b'\x78\x5E'
+        or sig == b'\x78\x01'
+        or sig == b'\x78\xDA'
+    ):
+        return True
+    return None  # maybe
 
 
 def zlibng_encode(data, level=None, numthreads=None, out=None):
