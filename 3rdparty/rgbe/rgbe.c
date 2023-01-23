@@ -14,7 +14,7 @@
  developed by Greg Ward.  It handles the conversions between rgbe and
  pixels consisting of floats.  The data is assumed to be an array of floats.
  By default there are three floats per pixel in the order red, green, blue.
- (RGBE_DATA_??? values control this.)  Only the mimimal header reading and
+ (RGBE_DATA_??? values control this.)  Only the minimal header reading and
  writing is implemented.  Each routine does error checking and will return
  a status value as defined below.  This code is intended as a skeleton so
  feel free to modify it to suit your needs.
@@ -30,7 +30,10 @@ Magic token check uncommented.
 Header parsing errors fixed.
 
 Modifications by Christoph Gohlke:
-Replace FILE handling with stream and simplify error handling.
+
+- Lint code.
+- Replace FILE handling with stream.
+- Simplify error handling.
 
 http://www.graphics.cornell.edu/online/formats/rgbe/
 
@@ -55,7 +58,8 @@ http://www.graphics.cornell.edu/online/formats/rgbe/
 /* standard conversion from float pixels to rgbe pixels */
 /* note: you can remove the "inline"s if your compiler complains about it */
 static INLINE void
-float2rgbe(unsigned char rgbe[4], float red, float green, float blue) {
+float2rgbe(unsigned char rgbe[4], float red, float green, float blue)
+{
     float v;
     int e;
 
@@ -79,7 +83,8 @@ float2rgbe(unsigned char rgbe[4], float red, float green, float blue) {
 /* note: Ward uses ldexp(col+0.5,exp-(128+8)).  However we wanted pixels */
 /*       in the range [0,1] to map back into the range [0,1].            */
 static INLINE void
-rgbe2float(float *red, float *green, float *blue, unsigned char rgbe[4]) {
+rgbe2float(float *red, float *green, float *blue, unsigned char rgbe[4])
+{
     float f;
 
     if (rgbe[3]) { /*nonzero pixel*/
@@ -94,7 +99,8 @@ rgbe2float(float *red, float *green, float *blue, unsigned char rgbe[4]) {
 /* default minimal header. modify if you want more information in header */
 int
 RGBE_WriteHeader(
-    rgbe_stream_t *fp, int width, int height, rgbe_header_info *info) {
+    rgbe_stream_t *fp, int width, int height, rgbe_header_info *info)
+{
     char *programtype = "RADIANCE";
 
     if (info && (info->valid & RGBE_VALID_PROGRAMTYPE))
@@ -120,7 +126,8 @@ RGBE_WriteHeader(
 /* minimal header reading.  modify if you want to parse more information */
 int
 RGBE_ReadHeader(
-    rgbe_stream_t *fp, int *width, int *height, rgbe_header_info *info) {
+    rgbe_stream_t *fp, int *width, int *height, rgbe_header_info *info)
+{
     char buf[RGBE_HEADER_LINE_LENGTH];
     int found_format;
     float tempf;
@@ -183,7 +190,8 @@ RGBE_ReadHeader(
 /* These routines can be made faster by allocating a larger buffer and
    fread-ing and fwrite-ing the data in larger chunks */
 int
-RGBE_WritePixels(rgbe_stream_t *fp, float *data, int numpixels) {
+RGBE_WritePixels(rgbe_stream_t *fp, float *data, int numpixels)
+{
     unsigned char rgbe[4];
 
     while (numpixels-- > 0) {
@@ -201,7 +209,8 @@ RGBE_WritePixels(rgbe_stream_t *fp, float *data, int numpixels) {
 
 /* simple read routine.  will not correctly handle run-length encoding */
 int
-RGBE_ReadPixels(rgbe_stream_t *fp, float *data, int numpixels) {
+RGBE_ReadPixels(rgbe_stream_t *fp, float *data, int numpixels)
+{
     unsigned char rgbe[4];
 
     while (numpixels-- > 0) {
@@ -223,7 +232,8 @@ RGBE_ReadPixels(rgbe_stream_t *fp, float *data, int numpixels) {
 /* encoded separately for better compression. */
 
 static int
-RGBE_WriteBytes_RLE(rgbe_stream_t *fp, unsigned char *data, int numbytes) {
+RGBE_WriteBytes_RLE(rgbe_stream_t *fp, unsigned char *data, int numbytes)
+{
 #define MINRUNLENGTH 4
     int cur, beg_run, run_count, old_run_count, nonrun_count;
     unsigned char buf[2];
@@ -277,7 +287,8 @@ RGBE_WriteBytes_RLE(rgbe_stream_t *fp, unsigned char *data, int numbytes) {
 
 int
 RGBE_WritePixels_RLE(
-    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines) {
+    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines)
+{
     unsigned char rgbe[4];
     unsigned char *buffer;
     int i, err;
@@ -328,7 +339,8 @@ RGBE_WritePixels_RLE(
 
 int
 RGBE_ReadPixels_RLE(
-    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines) {
+    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines)
+{
     unsigned char rgbe[4], *scanline_buffer, *ptr, *ptr_end;
     int i, count;
     unsigned char buf[2];
@@ -421,7 +433,8 @@ RGBE_ReadPixels_RLE(
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 rgbe_stream_t *
-rgbe_stream_new(size_t size, char *data) {
+rgbe_stream_new(size_t size, char *data)
+{
     rgbe_stream_t *stream = (rgbe_stream_t *)malloc(sizeof(rgbe_stream_t));
     if (stream == NULL) {
         return NULL;
@@ -443,7 +456,8 @@ rgbe_stream_new(size_t size, char *data) {
 }
 
 void
-rgbe_stream_del(rgbe_stream_t *stream) {
+rgbe_stream_del(rgbe_stream_t *stream)
+{
     if (stream != NULL) {
         if ((stream->owner != 0) && (stream->data != NULL)) {
             free(stream->data);
@@ -453,7 +467,8 @@ rgbe_stream_del(rgbe_stream_t *stream) {
 }
 
 size_t
-rgbe_stream_read(void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream) {
+rgbe_stream_read(void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream)
+{
     /*
     if ((stream == NULL) || (ptr == NULL)) {
         return 0;
@@ -470,7 +485,8 @@ rgbe_stream_read(void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream) {
 
 size_t
 rgbe_stream_write(
-    const void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream) {
+    const void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream)
+{
     /*
     if ((stream == NULL) || (ptr == NULL)) {
         return 0;
@@ -486,7 +502,8 @@ rgbe_stream_write(
 }
 
 int
-rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...) {
+rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...)
+{
     va_list args;
     int size;
 
@@ -499,7 +516,7 @@ rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...) {
     size = vsnprintf(
         stream->data + stream->pos, stream->size - stream->pos, format, args);
     va_end(args);
-    if ((size < 0) || ((size_t) (size + 1) > stream->size - stream->pos)) {
+    if ((size < 0) || (((size_t)size + 1) > stream->size - stream->pos)) {
         return -1;
     }
     stream->pos += size;
@@ -507,7 +524,8 @@ rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...) {
 }
 
 char *
-rgbe_stream_gets(char *str, size_t n, rgbe_stream_t *stream) {
+rgbe_stream_gets(char *str, size_t n, rgbe_stream_t *stream)
+{
     size_t size;
     char *pch = NULL;
     char *data = NULL;
