@@ -29,7 +29,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2022.12.24
+:Version: 2023.1.23
 
 """
 
@@ -500,8 +500,8 @@ def test_packbits_encode_axis():
 @pytest.mark.parametrize('func', ['delta', 'xor'])
 def test_delta(output, byteorder, kind, codec, func):
     """Test Delta codec."""
-    if byteorder == '>' and numpy.dtype(kind).itemsize == 1:
-        pytest.skip('duplicate test')
+    # if byteorder == '>' and numpy.dtype(kind).itemsize == 1:
+    #     pytest.skip('duplicate test')
 
     if func == 'delta':
         if not imagecodecs.DELTA:
@@ -2034,7 +2034,7 @@ def test_jpeg_encode(codec, itype, subsampling, smoothing, optimize):
 
     dtype = numpy.dtype(dtype)
     data = image_data(itype, dtype)
-    data = data[:32, :16].copy()  # make divisable by subsamples
+    data = data[:32, :16].copy()  # make divisible by subsamples
 
     encoded = encode(
         data,
@@ -2134,8 +2134,74 @@ def test_mozjpeg():
     assert_allclose(data, decoded, atol=16, rtol=0)
 
 
+@pytest.mark.parametrize('codec', ['ljpeg', 'jpegsof3'])
+@pytest.mark.parametrize(
+    'fname, result',
+    [
+        ('1px.ljp', ((1, 1), 'uint16', (0, 0), 0)),
+        ('2ch.ljp', ((3528, 2640, 2), 'uint16', (1500, 1024, 1), 3195)),
+        ('2dht.ljp', ((288, 384, 3), 'uint8', (22, 56), (150, 67, 166))),
+        ('3dht.ljp', ((240, 320, 3), 'uint8', (140, 93), (184, 161, 110))),
+        ('gray16.ljp', ((535, 800), 'uint16', (418, 478), 54227)),
+        ('gray8.ljp', ((535, 800), 'uint8', (418, 478), 211)),
+        ('rgb24.ljp', ((535, 800, 3), 'uint8', (418, 478), (226, 209, 190))),
+        ('dng0.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng1.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng2.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng3.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng4.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng5.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng6.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dng7.ljp', ((256, 256), 'uint16', (111, 75), 51200)),
+        ('dcm1-8bit.ljp', ((512, 512), 'uint8', (256, 256), 51)),
+        ('dcm1.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm2.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm3.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm4.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm5.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm6.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        ('dcm7.ljp', ((256, 256), 'uint16', (169, 97), 1192)),
+        # tile from Apple DNG
+        ('linearraw.ljp', ((378, 504, 3), 'uint16', (20, 30), (114, 212, 88))),
+        # https://github.com/cgohlke/imagecodecs/issues/61
+        ('pvrg.ljp', ((4608, 2928), 'uint16', (823, 2166), 3050)),
+    ],
+)
+def test_ljpeg(fname, result, codec):
+    """Test Lossless JPEG decoders."""
+    if codec == 'ljpeg':
+        if not imagecodecs.LJPEG:
+            pytest.skip('ljpeg missing')
+        decode = imagecodecs.ljpeg_decode
+        check = imagecodecs.ljpeg_check
+    else:
+        if not imagecodecs.JPEGSOF3:
+            pytest.skip('jpegsof3 missing')
+        if fname in ('dcm6.ljp', 'dcm7.ljp'):
+            return  # jpegsof3 segfault
+        if fname in ('dng0.ljp',):
+            pytest.xfail('jpegsof3 known failure or crash')
+        decode = imagecodecs.jpegsof3_decode
+        check = imagecodecs.jpegsof3_check
+    if fname == 'pvrg.ljp':
+        pytest.xfail('corrupted LJPEG produced by PVRG')
+
+    try:
+        data = readfile(os.path.join('ljpeg', fname))
+    except FileNotFoundError:
+        pytest.skip(f'{fname} not found')
+
+    assert check(data) in (None, True)
+    decoded = decode(data)
+
+    shape, dtype, index, value = result
+    assert decoded.shape == shape
+    assert decoded.dtype == dtype
+    assert_array_equal(decoded[index], value)
+
+
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
-@pytest.mark.parametrize('fname', ['gray8.sof3.jpg', 'gray16.sof3.jpg'])
+@pytest.mark.parametrize('fname', ['gray8.ljp', 'gray16.ljp'])
 @pytest.mark.parametrize('codec', ['jpegsof3', 'ljpeg'])
 def test_jpegsof3(fname, output, codec):
     """Test JPEG SOF3 decoder with 8 and 16-bit images."""
@@ -2143,24 +2209,26 @@ def test_jpegsof3(fname, output, codec):
         if not imagecodecs.LJPEG:
             pytest.skip('ljpeg missing')
         decode = imagecodecs.ljpeg_decode
+        check = imagecodecs.ljpeg_check
     else:
         if not imagecodecs.JPEGSOF3:
             pytest.skip('jpegsof3 missing')
         decode = imagecodecs.jpegsof3_decode
+        check = imagecodecs.jpegsof3_check
 
     shape = 535, 800
-    if fname == 'gray8.sof3.jpg':
+    if fname == 'gray8.ljp':
         dtype = 'uint8'
         value = 75
         memmap = True  # test read-only, jpegsof3_decode requires writable
-    elif fname == 'gray16.sof3.jpg':
+    elif fname == 'gray16.ljp':
         dtype = 'uint16'
         value = 19275
         memmap = False
 
-    data = readfile(fname, memmap=memmap)
+    data = readfile(os.path.join('ljpeg', fname), memmap=memmap)
 
-    assert imagecodecs.jpegsof3_check(data) in (None, True)
+    assert check(data) in (None, True)
 
     if output == 'new':
         decoded = decode(data)
@@ -2183,6 +2251,16 @@ def test_jpegxl_planar(dtype):
     image = image_data('channels', dtype, planar=True, frames=True)
     assert image.shape == (11, 8, 32, 31)
     encoded = imagecodecs.jpegxl_encode(image, photometric='gray', planar=True)
+    decoded = imagecodecs.jpegxl_decode(encoded)
+    assert_array_equal(image, decoded)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXL, reason='jpegxl missing')
+def test_jpegxl_bitspersample():
+    """Test JPEG XL with 12 bitspersample."""
+    image = image_data('rgb', 'uint16')
+    image >>= 4
+    encoded = imagecodecs.jpegxl_encode(image, bitspersample=12)
     decoded = imagecodecs.jpegxl_decode(encoded)
     assert_array_equal(image, decoded)
 
@@ -2236,6 +2314,23 @@ def test_avif_strict_disabled():
     assert decoded.dtype == 'uint8'
     assert decoded.shape == (32, 31, 4)
     assert tuple(decoded[16, 16]) == (44, 123, 57, 88)
+
+
+@pytest.mark.skipif(not IS_CG, reason='avif missing')
+@pytest.mark.parametrize('codec', ['auto', 'aom', 'rav1e', 'svt'])  # 'libgav1'
+def test_avif_encoder(codec):
+    """Test various AVIF encoder codecs."""
+    data = numpy.load(datafiles('rgb.u1.npy'))
+    if codec == 'svt':
+        data = data[:200, :300]
+        pixelformat = '420'
+    else:
+        pixelformat = None
+    encoded = imagecodecs.avif_encode(
+        data, level=6, codec=codec, pixelformat=pixelformat
+    )
+    decoded = imagecodecs.avif_decode(encoded)
+    assert_allclose(decoded, data, atol=5, rtol=0)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGLS, reason='jpegls missing')
@@ -2365,7 +2460,7 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
     kwargs = {}
     if execution == 'omp':
         if os.environ.get('SKIP_OMP', False):
-            pytest.skip('omp test skip because of enviroment variable')
+            pytest.skip('omp test skip because of environment variable')
         kwargs['numthreads'] = 2
         kwargs['chunksize'] = None
     decode = imagecodecs.zfp_decode
@@ -2474,20 +2569,23 @@ def test_lerc(dtype, itype, enout, deout, planar, level, version=None):
         'world.lerc1',
         'california_400_400_1_float.lerc2',
         'bluemarble_256_256_3_byte.lerc2',
+        'zstd.lerc2',
     ],
 )
 def test_lerc_files(file):
     """Test LERC decoder with lerc testData files."""
-    with open(datafiles(f'lerc/testData/{file}'), 'rb') as fh:
+    with open(datafiles(f'lerc/{file}'), 'rb') as fh:
         encoded = fh.read()
 
     decoded = imagecodecs.lerc_decode(encoded, masks=False)
     decoded1, masks = imagecodecs.lerc_decode(encoded, masks=True)
-    out = numpy.zeros_like(masks)
-    decoded1, _ = imagecodecs.lerc_decode(encoded, masks=out)
 
     assert_array_equal(decoded, decoded1)
-    assert_array_equal(masks, out)
+
+    if file[:4] != 'zstd':
+        out = numpy.zeros_like(masks)
+        decoded1, _ = imagecodecs.lerc_decode(encoded, masks=out)
+        assert_array_equal(masks, out)
 
     if file[:5] == 'world':
         assert decoded.dtype == numpy.float32
@@ -2506,10 +2604,32 @@ def test_lerc_files(file):
     elif file[:4] == 'blue':
         assert decoded.dtype == numpy.uint8
         assert decoded.shape == (3, 256, 256)
-        assert list(decoded[:, 128, 128]) == [2, 5, 20]
+        assert tuple(decoded[:, 128, 128]) == (2, 5, 20)
         assert masks.dtype == bool
         assert masks.shape == (256, 256)
         assert masks[128, 128] == bool(1)
+    elif file[:4] == 'zstd':
+        assert decoded.dtype == numpy.uint8
+        assert decoded.shape == (512, 512, 3)
+        assert tuple(decoded[128, 128]) == (85, 89, 38)
+        assert masks is None
+
+
+@pytest.mark.skipif(not imagecodecs.LERC, reason='lerc missing')
+@pytest.mark.parametrize('compression', [None, 'zstd', 'deflate'])
+def test_lerc_compression(compression):
+    """Test LERC with compression."""
+    data = image_data('rgb', 'uint16')
+    compressionargs = {
+        None: None,
+        'zstd': {'level': 10},
+        'deflate': {'level': 7},
+    }[compression]
+    compressed = imagecodecs.lerc_encode(
+        data, compression=compression, compressionargs=compressionargs
+    )
+    decompressed = imagecodecs.lerc_decode(compressed)
+    assert_array_equal(data, decompressed)
 
 
 @pytest.mark.skipif(not imagecodecs.LERC or IS_PYPY, reason='lerc missing')
@@ -3311,10 +3431,22 @@ def test_tiff_asrgb():
 @pytest.mark.parametrize('predictor', [False, True])
 @pytest.mark.parametrize(
     'codec',
-    ['deflate', 'lzw', 'lzma', 'zstd', 'packbits', 'lerc', 'webp', 'jpeg'],
+    [
+        'deflate',
+        'lzw',
+        'lzma',
+        'zstd',
+        'packbits',
+        'webp',
+        'jpeg',
+        'lerc',
+        'lerc_zstd',
+        'lerc_deflate',
+    ],
 )
 def test_tifffile(byteorder, dtype, codec, predictor):
     """Test tifffile compression."""
+    compressionargs = None
     if codec == 'deflate' and not imagecodecs.ZLIB:
         # TODO: this should pass in tifffile >= 2020
         pytest.xfail('zlib missing')
@@ -3334,13 +3466,22 @@ def test_tifffile(byteorder, dtype, codec, predictor):
             pytest.xfail('jpegxl missing')
         if predictor:
             pytest.xfail('jpegxl does not support predictor')
-    elif codec == 'lerc':
+    elif codec[:4] == 'lerc':
         if not imagecodecs.LERC:
             pytest.xfail('lerc missing')
         elif dtype == 'f2' or byteorder == '>':
             pytest.xfail('dtype not supported by lerc')
         elif dtype == 'f4' and predictor:
             pytest.xfail('lerc does not work with float predictor')
+        if codec == 'lerc_zstd':
+            if not imagecodecs.ZSTD:
+                pytest.xfail('zstd codec missing')
+            compressionargs = {'compression': 'zstd'}
+        elif codec == 'lerc_deflate':
+            if not imagecodecs.ZLIB:
+                pytest.xfail('zlib codec missing')
+            compressionargs = {'compression': 'deflate'}
+        codec = 'lerc'
     elif codec == 'webp':
         if not imagecodecs.WEBP:
             pytest.xfail('webp missing')
@@ -3359,6 +3500,7 @@ def test_tifffile(byteorder, dtype, codec, predictor):
             data,
             photometric='rgb',
             compression=codec,
+            compressionargs=compressionargs,
             predictor=predictor,
             byteorder=byteorder,
         )
@@ -3497,14 +3639,15 @@ def test_numcodecs_register(caplog):
 def test_numcodecs(codec, photometric):
     """Test numcodecs though roundtrips."""
     data = numpy.load(datafiles('rgb.u1.npy'))
+    data = numpy.stack([data, data])
     if photometric == 'rgb':
         shape = data.shape
-        chunks = (128, 128, 3)
+        chunks = (1, 128, 128, 3)
         axis = -2
     else:
         data = data[:, :, 1].copy()
         shape = data.shape
-        chunks = (128, 128)
+        chunks = (1, 128, 128)
         axis = -1
 
     lossless = True
@@ -3655,7 +3798,15 @@ def test_numcodecs(codec, photometric):
     elif codec == 'lerc':
         if not imagecodecs.LERC:
             pytest.skip(f'{codec} not found')
-        compressor = numcodecs.Lerc(level=0.0)
+        if imagecodecs.ZSTD:
+            compression = 'zstd'
+            compressionargs = {'level': 10}
+        else:
+            compression = None
+            compressionargs = None
+        compressor = numcodecs.Lerc(
+            level=0.0, compression=compression, compressionargs=compressionargs
+        )
     elif codec == 'ljpeg':
         if not imagecodecs.LJPEG:
             pytest.skip(f'{codec} not found')
@@ -3726,7 +3877,7 @@ def test_numcodecs(codec, photometric):
             pytest.xfail('RGBE does not support grayscale')
         data = data.astype('float32')
         # lossless = False
-        compressor = numcodecs.Rgbe(shape=chunks, header=False, rle=True)
+        compressor = numcodecs.Rgbe(shape=chunks[-3:], header=False, rle=True)
     elif codec == 'rcomp':
         if not imagecodecs.RCOMP:
             pytest.skip(f'{codec} not found')
@@ -3803,7 +3954,7 @@ def test_numcodecs(codec, photometric):
     elif lossless:
         assert_array_equal(z[:], data)
     else:
-        assert_allclose(z[:150, :150], data[:150, :150], atol=atol)
+        assert_allclose(z[:, :150, :150], data[:, :150, :150], atol=atol)
 
     try:
         store.close()
