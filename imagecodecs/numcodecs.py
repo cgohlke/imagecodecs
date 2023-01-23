@@ -1,6 +1,6 @@
 # imagecodecs/numcodecs.py
 
-# Copyright (c) 2021-2022, Christoph Gohlke
+# Copyright (c) 2021-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Additional numcodecs implemented using imagecodecs."""
-
-__version__ = '2022.12.22'
 
 __all__ = ['register_codecs']
 
@@ -87,15 +85,17 @@ class Apng(Codec):
         filter=None,
         photometric=None,
         delay=None,
+        squeeze=None,
     ):
         self.level = level
         self.strategy = strategy
         self.filter = filter
         self.photometric = photometric
         self.delay = delay
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.apng_encode(
             buf,
             level=self.level,
@@ -121,19 +121,23 @@ class Avif(Codec):
         tilelog2=None,
         bitspersample=None,
         pixelformat=None,
+        codec=None,
         numthreads=None,
         index=None,
+        squeeze=None,
     ):
         self.level = level
         self.speed = speed
         self.tilelog2 = tilelog2
         self.bitspersample = bitspersample
         self.pixelformat = pixelformat
+        self.codec = codec
         self.numthreads = numthreads
         self.index = index
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.avif_encode(
             buf,
             level=self.level,
@@ -141,6 +145,7 @@ class Avif(Codec):
             tilelog2=self.tilelog2,
             bitspersample=self.bitspersample,
             pixelformat=self.pixelformat,
+            codec=self.codec,
             numthreads=self.numthreads,
         )
 
@@ -451,8 +456,11 @@ class Gif(Codec):
 
     codec_id = 'imagecodecs_gif'
 
+    def __init__(self, squeeze=None):
+        self.squeeze = squeeze
+
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.gif_encode(buf)
 
     def decode(self, buf, out=None):
@@ -472,6 +480,7 @@ class Heif(Codec):
         compression=None,
         numthreads=None,
         index=None,
+        squeeze=None,
     ):
         self.level = level
         self.bitspersample = bitspersample
@@ -479,9 +488,10 @@ class Heif(Codec):
         self.compression = compression
         self.numthreads = numthreads
         self.index = index
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.heif_encode(
             buf,
             level=self.level,
@@ -513,13 +523,16 @@ class Jetraw(Codec):
         parameters=None,
         verbosity=None,
         errorbound=None,
+        squeeze=None,
     ):
         self.shape = shape
         self.identifier = identifier
         self.errorbound = errorbound
+        self.squeeze = squeeze
         imagecodecs.jetraw_init(parameters, verbosity)
 
     def encode(self, buf):
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jetraw_encode(
             buf, identifier=self.identifier, errorbound=self.errorbound
         )
@@ -546,6 +559,7 @@ class Jpeg(Codec):
         subsampling=None,
         optimize=None,
         smoothing=None,
+        squeeze=None,
     ):
         self.tables = tables
         self.header = header
@@ -556,9 +570,10 @@ class Jpeg(Codec):
         self.subsampling = subsampling
         self.optimize = optimize
         self.smoothing = smoothing
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jpeg_encode(
             buf,
             level=self.level,
@@ -620,6 +635,7 @@ class Jpeg2k(Codec):
         bitspersample=None,
         resolutions=None,
         numthreads=None,
+        squeeze=None,
         verbose=0,
     ):
         self.level = level
@@ -631,9 +647,10 @@ class Jpeg2k(Codec):
         self.resolutions = resolutions
         self.numthreads = numthreads
         self.verbose = verbose
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jpeg2k_encode(
             buf,
             level=self.level,
@@ -658,11 +675,12 @@ class JpegLs(Codec):
 
     codec_id = 'imagecodecs_jpegls'
 
-    def __init__(self, level=None):
+    def __init__(self, level=None, squeeze=None):
         self.level = level
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jpegls_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
@@ -682,9 +700,11 @@ class JpegXl(Codec):
         distance=None,
         lossless=None,
         decodingspeed=None,
+        bitspersample=None,
         photometric=None,
         planar=None,
         usecontainer=None,
+        squeeze=None,
         # decode
         index=None,
         keeporientation=None,
@@ -696,15 +716,17 @@ class JpegXl(Codec):
         self.distance = distance
         self.lossless = lossless is None or bool(lossless)
         self.decodingspeed = decodingspeed
+        self.bitspersample = bitspersample
         self.photometric = photometric
         self.planar = planar
         self.usecontainer = usecontainer
         self.index = index
         self.keeporientation = keeporientation
         self.numthreads = numthreads
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jpegxl_encode(
             buf,
             level=self.level,
@@ -712,6 +734,7 @@ class JpegXl(Codec):
             distance=self.distance,
             lossless=self.lossless,
             decodingspeed=self.decodingspeed,
+            bitspersample=self.bitspersample,
             photometric=self.photometric,
             planar=self.planar,
             usecontainer=self.usecontainer,
@@ -740,15 +763,17 @@ class JpegXr(Codec):
         hasalpha=None,
         resolution=None,
         fp2int=None,
+        squeeze=None,
     ):
         self.level = level
         self.photometric = photometric
         self.hasalpha = hasalpha
         self.resolution = resolution
         self.fp2int = fp2int
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.jpegxr_encode(
             buf,
             level=self.level,
@@ -766,20 +791,33 @@ class Lerc(Codec):
 
     codec_id = 'imagecodecs_lerc'
 
-    def __init__(self, level=None, version=None, planar=None):
+    def __init__(
+        self,
+        level=None,
+        version=None,
+        planar=None,
+        compression=None,
+        compressionargs=None,
+        squeeze=None,
+    ):
         self.level = level
         self.version = version
         self.planar = bool(planar)
+        self.squeeze = squeeze
+        self.compression = compression
+        self.compressionargs = compressionargs
         # TODO: support mask?
         # self.mask = None
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.lerc_encode(
             buf,
             level=self.level,
             version=self.version,
             planar=self.planar,
+            compression=self.compression,
+            compressionargs=self.compressionargs,
         )
 
     def decode(self, buf, out=None):
@@ -791,11 +829,12 @@ class Ljpeg(Codec):
 
     codec_id = 'imagecodecs_ljpeg'
 
-    def __init__(self, bitspersample=None):
+    def __init__(self, bitspersample=None, squeeze=None):
         self.bitspersample = bitspersample
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.ljpeg_encode(buf, bitspersample=self.bitspersample)
 
     def decode(self, buf, out=None):
@@ -964,13 +1003,14 @@ class Png(Codec):
 
     codec_id = 'imagecodecs_png'
 
-    def __init__(self, level=None, strategy=None, filter=None):
+    def __init__(self, level=None, strategy=None, filter=None, squeeze=None):
         self.level = level
         self.strategy = strategy
         self.filter = filter
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.png_encode(
             buf,
             level=self.level,
@@ -987,11 +1027,11 @@ class Qoi(Codec):
 
     codec_id = 'imagecodecs_qoi'
 
-    def __init__(self):
-        pass
+    def __init__(self, squeeze=None):
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.qoi_encode(buf)
 
     def decode(self, buf, out=None):
@@ -1003,7 +1043,7 @@ class Rgbe(Codec):
 
     codec_id = 'imagecodecs_rgbe'
 
-    def __init__(self, header=False, shape=None, rle=None):
+    def __init__(self, header=False, shape=None, rle=None, squeeze=None):
         if not header and shape is None:
             raise ValueError('must specify data shape if no header')
         if shape and shape[-1] != 3:
@@ -1011,9 +1051,10 @@ class Rgbe(Codec):
         self.shape = shape
         self.header = bool(header)
         self.rle = None if rle is None else bool(rle)
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.rgbe_encode(buf, header=self.header, rle=self.rle)
 
     def decode(self, buf, out=None):
@@ -1064,11 +1105,12 @@ class Spng(Codec):
 
     codec_id = 'imagecodecs_spng'
 
-    def __init__(self, level=None):
+    def __init__(self, level=None, squeeze=None):
         self.level = level
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.spng_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
@@ -1087,7 +1129,7 @@ class Tiff(Codec):
 
     def encode(self, buf):
         # TODO: not implemented
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.tiff_encode(buf)
 
     def decode(self, buf, out=None):
@@ -1105,14 +1147,22 @@ class Webp(Codec):
 
     codec_id = 'imagecodecs_webp'
 
-    def __init__(self, level=None, lossless=None, method=None, hasalpha=None):
+    def __init__(
+        self,
+        level=None,
+        lossless=None,
+        method=None,
+        hasalpha=None,
+        squeeze=None,
+    ):
         self.level = level
         self.hasalpha = bool(hasalpha)
         self.method = method
         self.lossless = lossless
+        self.squeeze = squeeze
 
     def encode(self, buf):
-        buf = numpy.asarray(buf)
+        buf = _image(buf, self.squeeze)
         return imagecodecs.webp_encode(
             buf, level=self.level, lossless=self.lossless, method=self.method
         )
@@ -1271,6 +1321,17 @@ def _flat(out):
     if view.readonly or not view.contiguous:
         return None
     return view.cast('B')
+
+
+def _image(buf, squeeze=None):
+    """Return buffer as squeezed numpy array with at least 2 dimensions."""
+    if squeeze is None:
+        return numpy.atleast_2d(numpy.squeeze(buf))
+    arr = numpy.asarray(buf)
+    if not squeeze:
+        return arr
+    shape = tuple(i for i, j in zip(buf.shape, squeeze) if not j)
+    return arr.reshape(shape)
 
 
 def register_codecs(codecs=None, force=False, verbose=True):
