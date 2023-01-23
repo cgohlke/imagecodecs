@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2022, Christoph Gohlke
+# Copyright (c) 2021-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -56,7 +56,9 @@ class LjpegError(RuntimeError):
             LJ92_ERROR_NONE: 'LJ92_ERROR_NONE',
             LJ92_ERROR_CORRUPT: 'LJ92_ERROR_CORRUPT',
             LJ92_ERROR_NO_MEMORY: 'LJ92_ERROR_NO_MEMORY',
+            LJ92_ERROR_BAD_HANDLE: 'LJ92_ERROR_BAD_HANDLE',
             LJ92_ERROR_TOO_WIDE: 'LJ92_ERROR_TOO_WIDE',
+            LJ92_ERROR_ENCODER: 'LJ92_ERROR_ENCODER',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -64,7 +66,7 @@ class LjpegError(RuntimeError):
 
 def ljpeg_version():
     """Return liblj92 library version string."""
-    return 'liblj92 2014'
+    return 'liblj92 ' + LJ92_VERSION.decode()
 
 
 def ljpeg_check(data):
@@ -72,16 +74,24 @@ def ljpeg_check(data):
 
 
 def ljpeg_encode(
-    data, level=None, bitspersample=None, numthreads=None, out=None
+    data,
+    level=None,
+    bitspersample=None,
+    delinearize=None,
+    numthreads=None,
+    out=None
 ):
     """Return Lossless JPEG image from numpy array."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray table
         const uint8_t[::1] dst  # must be const to write to bytes
+        const uint16_t* delinearize_table = NULL
         ssize_t dstsize
         uint16_t* srcptr = NULL
         uint8_t* encoded = NULL
-        int encodedlength = 0
+        int encoded_length = 0
+        int delinearize_length = 0
         int width = 0
         int height = 0
         int bitdepth = 0
@@ -111,6 +121,13 @@ def ljpeg_encode(
     else:
         raise ValueError('invalid bitspersample')
 
+    if delinearize is not None:
+        table = numpy.ascontiguousarray(delinearize)
+        if table.ndim != 1 or table.dtype != numpy.uint16:
+            raise ValueError('invalid delinearize shape or dtype')
+        delinearize_table = <uint16_t*> table.data
+        delinearize_length = table.size
+
     with nogil:
         ret = lj92_encode(
             srcptr,
@@ -120,10 +137,10 @@ def ljpeg_encode(
             samples,
             height * width * samples,
             0,
-            NULL,
-            0,
+            delinearize_table,
+            delinearize_length,
             &encoded,
-            &encodedlength
+            &encoded_length
         )
     if ret != LJ92_ERROR_NONE:
         if encoded != NULL:
@@ -134,21 +151,29 @@ def ljpeg_encode(
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
             if dstsize < 0:
-                dstsize = <ssize_t> encodedlength
+                dstsize = <ssize_t> encoded_length
             out = _create_output(outtype, dstsize)
 
         dst = out
         dstsize = dst.nbytes
 
-        memcpy(<void *> &dst[0], <void *> encoded, min(dstsize, encodedlength))
+        memcpy(
+            <void *> &dst[0], <void *> encoded, min(dstsize, encoded_length)
+        )
     finally:
         free(encoded)
 
     del dst
-    return _return_output(out, dstsize, <ssize_t> encodedlength, outgiven)
+    return _return_output(out, dstsize, <ssize_t> encoded_length, outgiven)
 
 
-def ljpeg_decode(data, index=None, numthreads=None, out=None):
+def ljpeg_decode(
+    data,
+    linearize=None,
+    index=None,
+    numthreads=None,
+    out=None
+):
     """Decode Lossless JPEG image to numpy array.
 
     Beware, the underlying lj92 library is known to crash on some valid input.
@@ -157,10 +182,13 @@ def ljpeg_decode(data, index=None, numthreads=None, out=None):
     """
     cdef:
         numpy.ndarray dst
+        numpy.ndarray table
         numpy.dtype dtype
         const uint8_t[::1] src = _writable_input(data)
-        uint16_t* target
+        uint16_t* target = NULL
+        uint16_t* linearize_table = NULL
         ssize_t srcsize = src.size
+        int linearize_length = 0
         int width = 0
         int height = 0
         int bitdepth = 0
@@ -173,6 +201,13 @@ def ljpeg_decode(data, index=None, numthreads=None, out=None):
 
     if srcsize >= 2147483648:
         raise ValueError('data too large')
+
+    if linearize is not None:
+        table = numpy.ascontiguousarray(linearize)
+        if table.ndim != 1 or table.dtype != numpy.uint16:
+            raise ValueError('invalid linearize shape or dtype')
+        linearize_table = <uint16_t*> table.data
+        linearize_length = table.size
 
     with nogil:
         ret = lj92_open(
@@ -207,8 +242,8 @@ def ljpeg_decode(data, index=None, numthreads=None, out=None):
                 target,
                 width * height * components,
                 0,
-                NULL,
-                0
+                linearize_table,
+                linearize_length,
             )
         if ret != LJ92_ERROR_NONE:
             raise LjpegError('lj92_decode', ret)
