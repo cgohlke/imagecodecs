@@ -1,6 +1,19 @@
 Revisions
 ---------
 
+2023.1.23
+
+- Pass 6626 tests.
+- Require libjxl 0.8.
+- Change mapping of level to distance parameter in jpegxl_encode.
+- Add option to specify bitspersample in jpegxl_encode.
+- Add option to pass de/linearize tables to LJPEG codec.
+- Fix lj92 decoder for SSSS=16 (#59).
+- Prefer ljpeg over jpegsof3 codec.
+- Add option to specify AVIF encoder codec.
+- Support LERC with Zstd or Deflate compression.
+- Squeeze chunk arrays by default in numcodecs image compression codecs.
+
 2022.12.24
 
 - Pass 6512 tests.
@@ -10,8 +23,8 @@ Revisions
 
 2022.12.22
 
-- Require libtiff 4.5 (breaking).
-- Require libavif 0.11 (breaking).
+- Require libtiff 4.5.
+- Require libavif 0.11.
 - Change jpegxl_encode level parameter to resemble libjpeg quality (breaking).
 - Add LZFSE codec via lzfse library.
 - Add LZHAM codec via lzham library.
@@ -27,7 +40,7 @@ Revisions
 2022.9.26
 
 - Support JPEG XL multi-channel (planar grayscale only) and multi-frame.
-- Require libjxl 0.7 (breaking).
+- Require libjxl 0.7.
 - Switch to Blosc2 API and require c-blosc 2.4 (breaking).
 - Return LogLuv encoded TIFF as float32.
 - Add RGBE codec via rgbe.c.
