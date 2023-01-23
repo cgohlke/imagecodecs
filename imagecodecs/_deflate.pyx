@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2022, Christoph Gohlke
+# Copyright (c) 2020-2023, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 
 """Deflate and GZIP codecs for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.1.23'
 
 include '_shared.pxi'
 
@@ -69,6 +69,18 @@ def deflate_version():
 
 def deflate_check(data):
     """Return True if data likely contains Deflate/Zlib data."""
+    cdef:
+        bytes sig = bytes(data[:2])
+
+    # most common ZLIB headers
+    if (
+        sig == b'\x78\x9C'
+        or sig == b'\x78\x5E'
+        or sig == b'\x78\x01'
+        or sig == b'\x78\xDA'
+    ):
+        return True
+    return None  # maybe
 
 
 def deflate_encode(
@@ -175,7 +187,7 @@ def deflate_decode(data, bint raw=False, numthreads=None, out=None):
             if raw:
                 raise NotImplementedError  # TODO
 
-            # use Python's zlib module if output size is unknwon
+            # use Python's zlib module if output size is unknown
             import zlib
 
             return zlib.decompress(data)
