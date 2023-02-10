@@ -1,7 +1,7 @@
 # imagecodecs/zstd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zstd 1.5.2` library (aka Zstandard).
+# Cython declarations for the `zstd 1.5.4` library (aka Zstandard).
 # https://github.com/facebook/zstd
 
 cdef extern from 'zstd.h':
@@ -56,6 +56,8 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize
         ) nogil
+
+    int ZSTD_MAX_INPUT_SIZE
 
     int ZSTD_COMPRESSBOUND(srcSize) nogil
 
@@ -156,6 +158,10 @@ cdef extern from 'zstd.h':
         ZSTD_c_experimentalParam13
         ZSTD_c_experimentalParam14
         ZSTD_c_experimentalParam15
+        ZSTD_c_experimentalParam16
+        ZSTD_c_experimentalParam17
+        ZSTD_c_experimentalParam18
+        ZSTD_c_experimentalParam19
 
     ctypedef struct ZSTD_bounds:
         size_t error
@@ -200,6 +206,8 @@ cdef extern from 'zstd.h':
         ZSTD_d_experimentalParam1
         ZSTD_d_experimentalParam2
         ZSTD_d_experimentalParam3
+        ZSTD_d_experimentalParam4
+        ZSTD_d_experimentalParam5
 
     ZSTD_bounds ZSTD_dParam_getBounds(
         ZSTD_dParameter dParam
@@ -456,6 +464,7 @@ cdef extern from 'zstd.h':
     int ZSTD_TARGETLENGTH_MIN
     int ZSTD_STRATEGY_MIN
     int ZSTD_STRATEGY_MAX
+    int ZSTD_BLOCKSIZE_MAX_MIN
     int ZSTD_OVERLAPLOG_MIN
     int ZSTD_OVERLAPLOG_MAX
     int ZSTD_WINDOWLOG_LIMIT_DEFAULT
@@ -547,10 +556,23 @@ cdef extern from 'zstd.h':
         size_t srcSize
     ) nogil
 
+    size_t ZSTD_decompressionMargin(
+        const void* src,
+        size_t srcSize
+    ) nogil
+
+    int ZSTD_DECOMPRESSION_MARGIN(
+        int originalSize,
+        int blockSize
+    ) nogil
+
     ctypedef enum ZSTD_sequenceFormat_e:
         ZSTD_sf_noBlockDelimiters
         ZSTD_sf_explicitBlockDelimiters
 
+    size_t ZSTD_sequenceBound(
+        size_t srcSize
+    ) nogil
 
     size_t ZSTD_generateSequences(
         ZSTD_CCtx* zc,
@@ -792,6 +814,11 @@ cdef extern from 'zstd.h':
         size_t dictSize
     ) nogil
 
+    size_t ZSTD_CCtx_setCParams(
+        ZSTD_CCtx* cctx,
+        ZSTD_compressionParameters cparams
+    ) nogil
+
     size_t ZSTD_compress_advanced(
         ZSTD_CCtx* cctx,
         void* dst,
@@ -849,6 +876,10 @@ cdef extern from 'zstd.h':
     int ZSTD_c_useBlockSplitter
     int ZSTD_c_useRowMatchFinder
     int ZSTD_c_deterministicRefPrefix
+    int ZSTD_c_prefetchCDictTables
+    int ZSTD_c_enableSeqProducerFallback
+    int ZSTD_c_maxBlockSize
+    int ZSTD_c_searchForExternalRepcodes
 
     size_t ZSTD_CCtx_getParameter(
         ZSTD_CCtx* cctx,
@@ -949,6 +980,8 @@ cdef extern from 'zstd.h':
     int ZSTD_d_format
     int ZSTD_d_stableOutBuffer
     int ZSTD_d_forceIgnoreChecksum
+    int ZSTD_d_refMultipleDDicts
+    int ZSTD_d_disableHuffmanAssembly
 
     size_t ZSTD_DCtx_setFormat(
         ZSTD_DCtx* dctx,
@@ -1184,4 +1217,24 @@ cdef extern from 'zstd.h':
         ZSTD_DCtx* dctx,
         const void* blockStart,
         size_t blockSize
+    ) nogil
+
+    int ZSTD_SEQUENCE_PRODUCER_ERROR
+
+    ctypedef size_t ZSTD_sequenceProducer_F(
+        void* sequenceProducerState,
+        ZSTD_Sequence* outSeqs,
+        size_t outSeqsCapacity,
+        const void* src,
+        size_t srcSize,
+        const void* dict,
+        size_t dictSize,
+        int compressionLevel,
+        size_t windowSize
+    ) nogil
+
+    void ZSTD_registerSequenceProducer(
+        ZSTD_CCtx* cctx,
+        void* sequenceProducerState,
+        ZSTD_sequenceProducer_F* sequenceProducer
     ) nogil
