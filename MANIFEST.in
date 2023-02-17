@@ -4,9 +4,10 @@ include CHANGES.rst
 # include azure-pipelines.yaml
 # include pyproject.toml
 
-include imagecodecs/*.c
 include imagecodecs/*.h
+include imagecodecs/*.c
 include imagecodecs/*.cpp
+include imagecodecs/*.pyi
 include imagecodecs/*.pyx
 include imagecodecs/*.pxd
 include imagecodecs/*.pxi
