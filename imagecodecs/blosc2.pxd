@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.6.1` library.
+# Cython declarations for the `c-blosc2 2.7.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -182,6 +182,13 @@ cdef extern from 'blosc2.h':
     int BLOSC2_ERROR_SCHUNK_SPECIAL
     int BLOSC2_ERROR_PLUGIN_IO
     int BLOSC2_ERROR_FILE_REMOVE
+    int BLOSC2_ERROR_NULL_POINTER
+    int BLOSC2_ERROR_INVALID_INDEX
+    int BLOSC2_ERROR_METALAYER_NOT_FOUND
+
+    char* print_error(
+        int rc
+    ) nogil
 
     void blosc2_init() nogil
 
@@ -615,7 +622,7 @@ cdef extern from 'blosc2.h':
         int16_t nvlmetalayers
         blosc2_btune* udbtune
         int8_t ndim
-        int64_t *blockshape
+        int64_t* blockshape
 
     blosc2_schunk* blosc2_schunk_new(
         blosc2_storage* storage
@@ -633,7 +640,7 @@ cdef extern from 'blosc2.h':
     ) nogil
 
     void blosc2_schunk_avoid_cframe_free(
-        blosc2_schunk *schunk,
+        blosc2_schunk* schunk,
         bool avoid_cframe_free
     ) nogil
 
@@ -724,17 +731,17 @@ cdef extern from 'blosc2.h':
     ) nogil
 
     int blosc2_schunk_get_slice_buffer(
-        blosc2_schunk *schunk,
+        blosc2_schunk* schunk,
         int64_t start,
         int64_t stop,
-        void *buffer
+        void* buffer
     ) nogil
 
     int blosc2_schunk_set_slice_buffer(
-        blosc2_schunk *schunk,
+        blosc2_schunk* schunk,
         int64_t start,
         int64_t stop,
-        void *buffer
+        void* buffer
     ) nogil
 
     int blosc2_schunk_get_cparams(
@@ -818,13 +825,13 @@ cdef extern from 'blosc2.h':
     ) nogil
 
     int blosc2_vlmeta_delete(
-        blosc2_schunk *schunk,
-        const char *name
+        blosc2_schunk* schunk,
+        const char* name
     ) nogil
 
     int blosc2_vlmeta_get_names(
-        blosc2_schunk *schunk,
-        char **names
+        blosc2_schunk* schunk,
+        char** names
     ) nogil
 
     ctypedef struct blosc_timestamp_t:
@@ -860,7 +867,7 @@ cdef extern from 'blosc2.h':
     # ) nogil
 
     int64_t* blosc2_frame_get_offsets(
-        blosc2_schunk *schunk
+        blosc2_schunk* schunk
     ) nogil
 
     ctypedef int (*blosc2_codec_encoder_cb)(
@@ -935,15 +942,255 @@ cdef extern from 'blosc2.h':
 
     void blosc2_unidim_to_multidim(
         uint8_t ndim,
-        int64_t *shape,
+        int64_t* shape,
         int64_t i,
-        int64_t *index
+        int64_t* index
     ) nogil
 
     void blosc2_multidim_to_unidim(
-        const int64_t *index,
+        const int64_t* index,
         int8_t ndim,
-        const int64_t
-        *strides,
-        int64_t *i
+        const int64_t* strides,
+        int64_t* i
+    ) nogil
+
+
+cdef extern from 'b2nd.h':
+
+    int B2ND_METALAYER_VERSION
+    int B2ND_MAX_DIM
+    int B2ND_MAX_METALAYERS
+    int DTYPE_NUMPY_FORMAT
+    int B2ND_DEFAULT_DTYPE
+    int B2ND_DEFAULT_DTYPE_FORMAT
+
+    struct chunk_cache_s:
+        uint8_t* data
+        int64_t nchunk
+
+    ctypedef struct b2nd_context_t:
+        pass
+
+    ctypedef struct b2nd_array_t:
+        blosc2_schunk* sc
+        int64_t shape[8]
+        int32_t chunkshape[8]
+        int64_t extshape[8]
+        int32_t blockshape[8]
+        int64_t extchunkshape[8]
+        int64_t nitems
+        int32_t chunknitems
+        int64_t extnitems
+        int32_t blocknitems
+        int64_t extchunknitems
+        int8_t ndim
+        chunk_cache_s chunk_cache
+        int64_t item_array_strides[8]
+        int64_t item_chunk_strides[8]
+        int64_t item_extchunk_strides[8]
+        int64_t item_block_strides[8]
+        int64_t block_chunk_strides[8]
+        int64_t chunk_array_strides[8]
+        char* dtype
+        int8_t dtype_format
+
+    b2nd_context_t* b2nd_create_ctx(
+        blosc2_storage* b2_storage,
+        int8_t ndim,
+        int64_t* shape,
+        int32_t* chunkshape,
+        int32_t* blockshape,
+        char* dtype,
+        int8_t dtype_format,
+        blosc2_metalayer* metalayers,
+        int32_t nmetalayers
+    ) nogil
+
+    int b2nd_free_ctx(
+        b2nd_context_t* ctx
+    ) nogil
+
+    int b2nd_uninit(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_empty(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_zeros(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_full(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array,
+        void* fill_value
+    ) nogil
+
+    int b2nd_free(
+        b2nd_array_t* array
+    ) nogil
+
+    int b2nd_from_schunk(
+        blosc2_schunk* schunk,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_to_cframe(
+        b2nd_array_t* array,
+        uint8_t** cframe,
+        int64_t* cframe_len,
+        bool* needs_free
+    ) nogil
+
+    int b2nd_from_cframe(
+        uint8_t* cframe,
+        int64_t cframe_len,
+        bool copy,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_open(
+        const char* urlpath,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_open_offset(
+        const char* urlpath,
+        b2nd_array_t** array,
+        int64_t offset
+    ) nogil
+
+    int b2nd_save(
+        b2nd_array_t* array,
+        char* urlpath
+    ) nogil
+
+    int b2nd_from_cbuffer(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array,
+        void* buffer,
+        int64_t buffersize
+    ) nogil
+
+    int b2nd_to_cbuffer(
+        b2nd_array_t* array,
+        void* buffer,
+         int64_t buffersize
+    ) nogil
+
+    int b2nd_get_slice(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array,
+        b2nd_array_t* src,
+        const int64_t* start,
+        const int64_t* stop
+    ) nogil
+
+    int b2nd_squeeze_index(
+        b2nd_array_t* array,
+        const bool* index
+    ) nogil
+
+    int b2nd_squeeze(
+        b2nd_array_t* array
+    ) nogil
+
+    int b2nd_get_slice_cbuffer(
+        b2nd_array_t* array,
+        int64_t* start,
+        int64_t* stop,
+        void* buffer,
+        int64_t* buffershape,
+        int64_t buffersize
+    ) nogil
+
+    int b2nd_set_slice_cbuffer(
+        void* buffer,
+        int64_t* buffershape,
+        int64_t buffersize,
+        int64_t* start,
+        int64_t* stop,
+        b2nd_array_t* array
+    ) nogil
+
+    int b2nd_copy(
+        b2nd_context_t* ctx,
+        b2nd_array_t* src,
+        b2nd_array_t** array
+    ) nogil
+
+    int b2nd_print_meta(
+        b2nd_array_t* array
+    ) nogil
+
+    int b2nd_resize(
+        b2nd_array_t* array,
+        const int64_t* new_shape,
+        const int64_t* start
+    ) nogil
+
+    int b2nd_insert(
+        b2nd_array_t* array,
+        void* buffer,
+        int64_t buffersize,
+        const int8_t axis,
+        int64_t insert_start
+    ) nogil
+
+    int b2nd_append(
+        b2nd_array_t* array,
+        void* buffer,
+        int64_t buffersize,
+        const int8_t axis
+    ) nogil
+
+    int b2nd_delete(
+        b2nd_array_t* array,
+        const int8_t axis,
+        int64_t delete_start,
+        int64_t delete_len
+    ) nogil
+
+    int b2nd_get_orthogonal_selection(
+        b2nd_array_t* array,
+        int64_t** selection,
+        int64_t* selection_size,
+        void* buffer,
+        int64_t* buffershape,
+        int64_t buffersize
+    ) nogil
+
+    int b2nd_set_orthogonal_selection(
+        b2nd_array_t* array,
+        int64_t** selection,
+        int64_t* selection_size,
+        void* buffer,
+        int64_t* buffershape,
+        int64_t buffersize
+    ) nogil
+
+    int b2nd_serialize_meta(
+        int8_t ndim,
+        int64_t* shape,
+        int32_t* chunkshape,
+        int32_t* blockshape,
+        const char* dtype,
+        const int8_t dtype_format,
+        uint8_t** smeta
+    ) nogil
+
+    int b2nd_deserialize_meta(
+        uint8_t* smeta,
+        int32_t smeta_len,
+        int8_t* ndim,
+        int64_t* shape,
+        int32_t* chunkshape,
+        int32_t* blockshape,
+        char** dtype,
+        int8_t* dtype_format
     ) nogil
