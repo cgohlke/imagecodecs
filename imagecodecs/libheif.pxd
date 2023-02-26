@@ -1,7 +1,7 @@
 # imagecodecs/libheif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libheif 1.14.2` library.
+# Cython declarations for the `libheif 1.15.1` library.
 # https://github.com/strukturag/libheif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int64_t
@@ -169,6 +169,10 @@ cdef extern from 'libheif/heif.h':
         heif_msf1
         heif_avif
         heif_avis
+        heif_vvic
+        heif_vvis
+        heif_evbi
+        heif_evbs
 
     heif_brand heif_main_brand(
         const uint8_t* data,
@@ -629,6 +633,9 @@ cdef extern from 'libheif/heif.h':
         heif_compression_AVC
         heif_compression_JPEG
         heif_compression_AV1
+        heif_compression_VVC
+        heif_compression_EVC
+        heif_compression_JPEG2000
 
     enum heif_chroma:
         heif_chroma_undefined
@@ -686,8 +693,8 @@ cdef extern from 'libheif/heif.h':
 
         void* progress_user_data
         uint8_t convert_hdr_to_8bit
-
         uint8_t strict_decoding
+        const char* decoder_id
 
     heif_decoding_options* heif_decoding_options_alloc(
     ) nogil
@@ -802,6 +809,71 @@ cdef extern from 'libheif/heif.h':
 
     void heif_image_release(
         const heif_image*
+    ) nogil
+
+    struct heif_content_light_level:
+        uint16_t max_content_light_level
+        uint16_t max_pic_average_light_level
+
+    int heif_image_has_content_light_level(
+        const heif_image*
+    ) nogil
+
+    void heif_image_get_content_light_level(
+        const heif_image*,
+        heif_content_light_level* out
+    ) nogil
+
+    void heif_image_set_content_light_level(
+        const heif_image*,
+        const heif_content_light_level* inp
+    ) nogil
+
+    struct heif_mastering_display_colour_volume:
+        uint16_t display_primaries_x[3]
+        uint16_t display_primaries_y[3]
+        uint16_t white_point_x
+        uint16_t white_point_y
+        uint32_t max_display_mastering_luminance
+        uint32_t min_display_mastering_luminance
+
+    struct heif_decoded_mastering_display_colour_volume:
+        float display_primaries_x[3]
+        float display_primaries_y[3]
+        float white_point_x
+        float white_point_y
+        double max_display_mastering_luminance
+        double min_display_mastering_luminance
+
+    int heif_image_has_mastering_display_colour_volume(
+        const heif_image*
+    ) nogil
+
+    void heif_image_get_mastering_display_colour_volume(
+        const heif_image*,
+        heif_mastering_display_colour_volume* out
+    ) nogil
+
+    void heif_image_set_mastering_display_colour_volume(
+        const heif_image*,
+        const heif_mastering_display_colour_volume* inp
+    ) nogil
+
+    heif_error heif_mastering_display_colour_volume_decode(
+        const heif_mastering_display_colour_volume* inp,
+        heif_decoded_mastering_display_colour_volume* out
+    ) nogil
+
+    void heif_image_get_pixel_aspect_ratio(
+        const heif_image*,
+        uint32_t* aspect_h,
+        uint32_t* aspect_v
+    ) nogil
+
+    void heif_image_set_pixel_aspect_ratio(
+        heif_image*,
+        uint32_t aspect_h,
+        uint32_t aspect_v
     ) nogil
 
     heif_error heif_context_write_to_file(
