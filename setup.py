@@ -6,7 +6,6 @@ import sys
 import os
 import re
 import shutil
-import warnings
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
@@ -491,13 +490,6 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']
-
-    # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
-    warnings.warn('support for libjpeg is being removed', DeprecationWarning)
-    EXTENSIONS['jpeg8']['cythonize'] = True
-    EXTENSIONS['jpeg8']['cython_compile_time_env'][
-        'HAVE_LIBJPEG_TURBO'
-    ] = False
 
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
