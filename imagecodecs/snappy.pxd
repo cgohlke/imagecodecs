@@ -1,7 +1,7 @@
 # imagecodecs/snappy.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Snappy 1.1.9` library.
+# Cython declarations for the `Snappy 1.1.10` library.
 # https://github.com/google/snappy
 
 from libc.stdint cimport uint8_t, uint32_t
