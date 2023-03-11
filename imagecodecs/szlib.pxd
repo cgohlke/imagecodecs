@@ -23,8 +23,9 @@ cdef extern from 'szlib.h':
 
     int SZ_MAX_PIXELS_PER_BLOCK
     int SZ_MAX_BLOCKS_PER_SCANLINE
+    int SZ_MAX_PIXELS_PER_SCANLINE
 
-    struct SZ_com_t:
+    struct SZ_com_t_s:
         int options_mask
         int bits_per_pixel
         int pixels_per_block
@@ -35,7 +36,7 @@ cdef extern from 'szlib.h':
         size_t* destLen,
         const void* source,
         size_t sourceLen,
-        SZ_com_t* param
+        SZ_com_t_s* param
     ) nogil
 
     int SZ_BufftoBuffDecompress(
@@ -43,7 +44,7 @@ cdef extern from 'szlib.h':
         size_t* destLen,
         const void* source,
         size_t sourceLen,
-        SZ_com_t* param
+        SZ_com_t_s* param
     ) nogil
 
     int SZ_encoder_enabled() nogil
