@@ -85,7 +85,7 @@ cdef _parse_output(out, ssize_t outsize=-1, outgiven=False, outtype=bytes):
     return out, outsize, bool(outgiven), outtype
 
 
-cdef object _create_output(object out, ssize_t size, const char* string=NULL):
+cdef _create_output(out, ssize_t size, const char* string=NULL):
     """Return new bytes or bytesarray of length size.
 
     Copy content of 'string', if provided, to new object.
@@ -110,7 +110,7 @@ cdef object _create_output(object out, ssize_t size, const char* string=NULL):
     return obj
 
 
-cdef object _return_output(object out, ssize_t size, ssize_t used, outgiven):
+cdef _return_output(out, ssize_t size, ssize_t used, outgiven):
     """Return a memoryview, slice, or copy of 'out' of length 'used'.
 
     If 'used >= size', return 'out' unchanged.
@@ -272,7 +272,7 @@ cdef _default_value(value, default, smallest, largest):
     return value
 
 
-cdef size_t _default_threads(numthreads):
+cdef _default_threads(numthreads):
     """Return default number of threads or value in range."""
     if numthreads is None:
         return 1
