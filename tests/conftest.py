@@ -10,8 +10,7 @@ if os.environ.get('VSCODE_CWD'):
     )
 
 
-def pytest_report_header(config):
-
+def pytest_report_header(config, start_path, startdir):
     try:
         pyversion = f'Python {sys.version.splitlines()[0]}'
         import imagecodecs
