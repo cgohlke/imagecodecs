@@ -13,12 +13,12 @@ cdef const uint8_t[::1] _inplace_input(object data)
 
 cdef _parse_output(out, ssize_t outsize=*, outgiven=*, outtype=*)
 
-cdef object _create_output(object out, ssize_t size, const char* string=*)
+cdef _create_output(out, ssize_t size, const char* string=*)
 
-cdef object _return_output(object out, ssize_t size, ssize_t used, outgiven)
+cdef _return_output(out, ssize_t size, ssize_t used, outgiven)
 
 cdef _create_array(out, shape, dtype, strides=*, zero=*)
 
 cdef _default_value(value, default, smallest, largest)
 
-cdef size_t _default_threads(numthreads)
+cdef _default_threads(numthreads)
