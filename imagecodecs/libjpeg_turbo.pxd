@@ -1,7 +1,7 @@
 # imagecodecs/libjpeg_turbo.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 2.1.1` library.
+# Cython declarations for the `libjpeg-turbo 2.1.91` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 from libc.stdio cimport FILE
@@ -16,11 +16,20 @@ cdef extern from 'jpeglib.h':
 
     # jmorecfg.h
     int MAX_COMPONENTS
-    int MAXJSAMPLE
-    int CENTERJSAMPLE
     int JPEG_MAX_DIMENSION
 
     ctypedef unsigned char JSAMPLE
+    int MAXJSAMPLE
+    int CENTERJSAMPLE
+
+    ctypedef short J12SAMPLE
+    int MAXJ12SAMPLE
+    int CENTERJ12SAMPLE
+
+    ctypedef unsigned short J16SAMPLE
+    int MAXJ16SAMPLE
+    int CENTERJ16SAMPLE
+
     ctypedef short JCOEF
     ctypedef unsigned char JOCTET
     ctypedef unsigned char UINT8
@@ -96,6 +105,14 @@ cdef extern from 'jpeglib.h':
     ctypedef JSAMPLE* JSAMPROW
     ctypedef JSAMPROW* JSAMPARRAY
     ctypedef JSAMPARRAY* JSAMPIMAGE
+
+    ctypedef J12SAMPLE *J12SAMPROW
+    ctypedef J12SAMPROW *J12SAMPARRAY
+    ctypedef J12SAMPARRAY *J12SAMPIMAGE
+
+    ctypedef J16SAMPLE *J16SAMPROW
+    ctypedef J16SAMPROW *J16SAMPARRAY
+    ctypedef J16SAMPARRAY *J16SAMPIMAGE
 
     ctypedef JCOEF JBLOCK[64]  # DCTSIZE2
     ctypedef JBLOCK* JBLOCKROW
@@ -661,6 +678,12 @@ cdef extern from 'jpeglib.h':
         int quality
     ) nogil
 
+    void jpeg_enable_lossless(
+        j_compress_ptr cinfo,
+        int predictor_selection_value,
+        int point_transform
+    ) nogil
+
     void jpeg_simple_progression(
         j_compress_ptr cinfo
     ) nogil
@@ -689,6 +712,18 @@ cdef extern from 'jpeglib.h':
         JDIMENSION num_lines
     ) nogil
 
+    JDIMENSION jpeg12_write_scanlines(
+        j_compress_ptr cinfo,
+        J12SAMPARRAY scanlines,
+        JDIMENSION num_lines
+    ) nogil
+
+    JDIMENSION jpeg16_write_scanlines(
+        j_compress_ptr cinfo,
+        J16SAMPARRAY scanlines,
+        JDIMENSION num_lines
+    ) nogil
+
     void jpeg_finish_compress(
         j_compress_ptr cinfo
     ) nogil
@@ -700,6 +735,12 @@ cdef extern from 'jpeglib.h':
     JDIMENSION jpeg_write_raw_data(
         j_compress_ptr cinfo,
         JSAMPIMAGE data,
+        JDIMENSION num_lines
+    ) nogil
+
+    JDIMENSION jpeg12_write_raw_data(
+        j_compress_ptr cinfo,
+        J12SAMPIMAGE data,
         JDIMENSION num_lines
     ) nogil
 
@@ -750,7 +791,24 @@ cdef extern from 'jpeglib.h':
         JDIMENSION max_lines
     ) nogil
 
+    JDIMENSION jpeg12_read_scanlines(
+        j_decompress_ptr cinfo,
+        J12SAMPARRAY scanlines,
+        JDIMENSION max_lines
+    ) nogil
+
+    JDIMENSION jpeg16_read_scanlines(
+        j_decompress_ptr cinfo,
+        J16SAMPARRAY scanlines,
+        JDIMENSION max_lines
+    ) nogil
+
     JDIMENSION jpeg_skip_scanlines(
+        j_decompress_ptr cinfo,
+        JDIMENSION num_lines
+    ) nogil
+
+    JDIMENSION jpeg12_skip_scanlines(
         j_decompress_ptr cinfo,
         JDIMENSION num_lines
     ) nogil
@@ -761,6 +819,12 @@ cdef extern from 'jpeglib.h':
         JDIMENSION* width
     ) nogil
 
+    void jpeg12_crop_scanline(
+        j_decompress_ptr cinfo,
+        JDIMENSION *xoffset,
+        JDIMENSION *width
+    ) nogil
+
     boolean jpeg_finish_decompress(
         j_decompress_ptr cinfo
     ) nogil
@@ -768,6 +832,12 @@ cdef extern from 'jpeglib.h':
     JDIMENSION jpeg_read_raw_data(
         j_decompress_ptr cinfo,
         JSAMPIMAGE data,
+        JDIMENSION max_lines
+    ) nogil
+
+    JDIMENSION jpeg12_read_raw_data(
+        j_decompress_ptr cinfo,
+        J12SAMPIMAGE data,
         JDIMENSION max_lines
     ) nogil
 
