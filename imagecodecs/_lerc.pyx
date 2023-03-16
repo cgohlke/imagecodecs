@@ -39,7 +39,7 @@
 
 """
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -47,11 +47,13 @@ from lerc cimport *
 
 
 class LERC:
-    """LERC Constants."""
+    """LERC codec constants."""
+
+    available = True
 
 
 class LercError(RuntimeError):
-    """LERC Exceptions."""
+    """LERC codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -74,7 +76,7 @@ def lerc_version():
 
 
 def lerc_check(const uint8_t[::1] data):
-    """Return True if data likely contains LERC data."""
+    """Return whether data is LERC encoded."""
     cdef:
         bytes sig = bytes(data[:9])
 
@@ -89,12 +91,9 @@ def lerc_encode(
     planar=None,
     compression=None,
     compressionargs=None,
-    numthreads=None,
     out=None
 ):
-    """Compress LERC.
-
-    """
+    """Return LERC encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.ndarray msk
@@ -231,10 +230,8 @@ def lerc_encode(
     raise ValueError(f'compression {compression!r} not supported')
 
 
-def lerc_decode(data, index=None, masks=None, numthreads=None, out=None):
-    """Decompress LERC.
-
-    """
+def lerc_decode(data, masks=None, out=None):
+    """Return decoded LERC image."""
     cdef:
         numpy.ndarray dst
         numpy.ndarray valid
