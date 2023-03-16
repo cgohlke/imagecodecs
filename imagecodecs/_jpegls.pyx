@@ -37,7 +37,7 @@
 
 """JPEG LS codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from charls cimport *
 
 
 class JPEGLS:
-    """JPEG LS Constants."""
+    """JPEGLS codec constants."""
+
+    available = True
 
 
 class JpeglsError(RuntimeError):
-    """JPEG LS Exceptions."""
+    """JPEGLS codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -74,13 +76,11 @@ def jpegls_version():
 
 
 def jpegls_check(data):
-    """Return True if data likely contains a JPEG LS image."""
+    """Return whether data is JPEGLS encoded image."""
 
 
-def jpegls_encode(data, level=None, numthreads=None, out=None):
-    """Return JPEG LS image from numpy array.
-
-    """
+def jpegls_encode(data, level=None, out=None):
+    """Return JPEGLS encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -248,10 +248,8 @@ def jpegls_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegls_decode(data, index=None, numthreads=None, out=None):
-    """Return numpy array from JPEG LS image.
-
-    """
+def jpegls_decode(data, out=None):
+    """Return decoded JPEGLS image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
