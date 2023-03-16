@@ -37,7 +37,7 @@
 
 """Deflate and GZIP codecs for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from libdeflate cimport *
 
 
 class DEFLATE:
-    """Libdeflate Constants."""
+    """DEFLATE codec constants."""
+
+    available = True
 
 
 class DeflateError(RuntimeError):
-    """Libdeflate Exceptions."""
+    """DEFLATE codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -68,7 +70,7 @@ def deflate_version():
 
 
 def deflate_check(data):
-    """Return True if data likely contains Deflate/Zlib data."""
+    """Return whether data is DEFLATE encoded."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -84,11 +86,9 @@ def deflate_check(data):
 
 
 def deflate_encode(
-    data, level=None, bint raw=False, numthreads=None, out=None
+    data, level=None, bint raw=False, out=None
 ):
-    """Compress Deflate/Zlib.
-
-    """
+    """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -163,10 +163,8 @@ def deflate_encode(
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def deflate_decode(data, bint raw=False, numthreads=None, out=None):
-    """Decompress Deflate/Zlib.
-
-    """
+def deflate_decode(data, bint raw=False, out=None):
+    """Return decoded DEFLATE data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -251,17 +249,15 @@ gzip_version = deflate_version
 
 
 def gzip_check(data):
-    """Return True if data likely contains GZIP data."""
+    """Return whether data is GZIP encoded."""
     cdef:
         bytes sig = bytes(data[:2])
 
     return sig == b'\x1f\x8b'
 
 
-def gzip_encode(data, level=None, numthreads=None, out=None):
-    """Compress GZIP.
-
-    """
+def gzip_encode(data, level=None, out=None):
+    """Return GZIP encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -315,8 +311,8 @@ def gzip_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def gzip_decode(data, numthreads=None, out=None):
-    """Decompress GZIP.
+def gzip_decode(data, out=None):
+    """Return decoded GZIP data.
 
     Supports only single-member streams < 2^32.
 
@@ -384,7 +380,7 @@ def gzip_decode(data, numthreads=None, out=None):
 # CRC #########################################################################
 
 def deflate_crc32(data):
-    """Return cyclic redundancy checksum CRC-32 of data."""
+    """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
