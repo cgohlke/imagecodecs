@@ -37,7 +37,7 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2022.8.8'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,14 +45,18 @@ from zfp cimport *
 
 
 class ZFP:
-    """ZFP Constants."""
+    """ZFP codec constants."""
+
+    available = True
 
     class EXEC(enum.IntEnum):
+        """ZFP codec execution policies."""
         SERIAL = zfp_exec_serial
         OMP = zfp_exec_omp
         CUDA = zfp_exec_cuda
 
     class MODE(enum.IntEnum):
+        """ZFP codec compression modes."""
         NONE = zfp_mode_null
         EXPERT = zfp_mode_expert
         FIXED_RATE = zfp_mode_fixed_rate
@@ -61,6 +65,7 @@ class ZFP:
         REVERSIBLE = zfp_mode_reversible
 
     class HEADER(enum.IntEnum):
+        """ZFP codec header types."""
         MAGIC = ZFP_HEADER_MAGIC
         META = ZFP_HEADER_META
         MODE = ZFP_HEADER_MODE
@@ -68,7 +73,7 @@ class ZFP:
 
 
 class ZfpError(RuntimeError):
-    """ZFP Exceptions."""
+    """ZFP codec exceptions."""
 
 
 def zfp_version():
@@ -77,7 +82,7 @@ def zfp_version():
 
 
 def zfp_check(const uint8_t[::1] data):
-    """Return True if data likely contains a ZFP array."""
+    """Return whether data is ZFP encoded."""
     cdef:
         bytes sig = bytes(data[:3])
 
@@ -94,9 +99,7 @@ def zfp_encode(
     numthreads=None,
     out=None
 ):
-    """Return ZFP stream from numpy array.
-
-    """
+    """Return ZFP encoded data."""
     cdef:
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -289,16 +292,13 @@ def zfp_encode(
 
 def zfp_decode(
     data,
-    index=None,
     shape=None,
     dtype=None,
     strides=None,
     numthreads=None,
     out=None
 ):
-    """Decompress ZFP stream to numpy array.
-
-    """
+    """Return decoded ZFP data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
