@@ -42,7 +42,7 @@ This implementation reads and writes sequences of top level images only.
 
 """
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -50,16 +50,23 @@ from libheif cimport *
 
 
 class HEIF:
-    """HEIF Constants."""
+    """HEIF codec constants."""
+
+    available = True
 
     class COMPRESSION(enum.IntEnum):
+        """HEIF codec compression levels."""
         UNDEFINED = heif_compression_undefined
         HEVC = heif_compression_HEVC
         AVC = heif_compression_AVC
         JPEG = heif_compression_JPEG
         AV1 = heif_compression_AV1
+        # VVC = heif_compression_VVC
+        # EVC = heif_compression_EVC
+        # JPEG2000 = heif_compression_JPEG2000
 
     class COLORSPACE(enum.IntEnum):
+        """HEIF codec color spaces."""
         UNDEFINED = heif_colorspace_undefined
         YCBCR = heif_colorspace_YCbCr
         RGB = heif_colorspace_RGB
@@ -67,7 +74,7 @@ class HEIF:
 
 
 class HeifError(RuntimeError):
-    """HEIF Exceptions."""
+    """HEIF codec exceptions."""
 
     def __init__(self, func, const char* message):
         msg = f'{func} returned {message.decode()!r}'
@@ -80,7 +87,7 @@ def heif_version():
 
 
 def heif_check(const uint8_t[::1] data):
-    """Return True if data likely contains a HEIF image."""
+    """Return whether data is HEIF encoded image."""
     cdef:
         heif_filetype_result result
 
@@ -104,12 +111,9 @@ def heif_encode(
     bitspersample=None,
     photometric=None,
     compression=None,
-    numthreads=None,
     out=None
 ):
-    """Return HEIF image from numpy array.
-
-    """
+    """Return HEIF encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -151,8 +155,8 @@ def heif_encode(
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
-    compression_format = heif_compression(compression)
-    colorspace = heif_photometric(photometric)
+    compression_format = _heif_compression(compression)
+    colorspace = _heif_photometric(photometric)
 
     # TODO: encode extrasamples as aux images
     if src.ndim == 2:
@@ -444,10 +448,10 @@ def heif_encode(
     return out
 
 
-def heif_decode(data, index=0, photometric=None, numthreads=None, out=None):
-    """Decode HEIF image to numpy array.
+def heif_decode(data, index=0, photometric=None, out=None):
+    """Return decoded HEIF image.
 
-    By default the first top level image is returned. If index is None, all
+    By default, the first top level image is returned. If index is None, all
     top level images are returned as one array if possible or a ValueError
     is raised.
 
@@ -485,7 +489,7 @@ def heif_decode(data, index=0, photometric=None, numthreads=None, out=None):
 
     if photometric is not None:
         monochrome = (
-            heif_photometric(photometric) == heif_colorspace_monochrome
+            _heif_photometric(photometric) == heif_colorspace_monochrome
         )
 
     try:
@@ -713,7 +717,7 @@ def heif_decode(data, index=0, photometric=None, numthreads=None, out=None):
     return out
 
 
-cdef heif_photometric(photometric):
+cdef _heif_photometric(photometric):
     """Return heif_colorspace value from photometric argument."""
     if photometric is None:
         return heif_colorspace_undefined
@@ -737,7 +741,7 @@ cdef heif_photometric(photometric):
     raise ValueError(f'photometric {photometric!r} not supported')
 
 
-cdef heif_compression(compression):
+cdef _heif_compression(compression):
     """Return heif_compression_format value from compression argument."""
     if compression is None:
         return heif_compression_HEVC
@@ -747,6 +751,9 @@ cdef heif_compression(compression):
         heif_compression_AVC,
         heif_compression_JPEG,
         heif_compression_AV1,
+        # heif_compression_VVC,
+        # heif_compression_EVC,
+        # heif_compression_JPEG2000,
     ):
         return compression
     if isinstance(compression, str):
@@ -759,6 +766,12 @@ cdef heif_compression(compression):
             return heif_compression_AV1
         if compression == 'JPEG':
             return heif_compression_JPEG
+        # if compression == 'VVC':
+        #     return heif_compression_VVC
+        # if compression == 'EVC':
+        #     return heif_compression_EVC
+        # if compression == 'JPEG2000':
+        #     return heif_compression_JPEG2000
         if compression == 'UNDEFINED':
             return heif_compression_undefined
     raise ValueError(f'compression {compression!r} not supported')
