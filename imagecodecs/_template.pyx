@@ -37,7 +37,7 @@
 
 """Template codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from templatelib cimport *
 
 
 class TEMPLATE:
-    """Template Constants."""
+    """TEMPLATE codec constants."""
+
+    available = True
 
 
 class TemplateError(RuntimeError):
-    """Templatelib Exceptions."""
+    """TEMPLATE codec exceptions."""
 
 
 def template_version():
@@ -58,20 +60,16 @@ def template_version():
 
 
 def template_check(const uint8_t[::1] data):
-    """Return True if data likely contains Template data."""
+    """Return whether data is TEMPLATE encoded."""
     # return None if don't know.
     return False
 
 
 def template_encode(data, level=None, numthreads=None, out=None):
-    """Compress Template.
-
-    """
+    """Return TEMPLATE encoded data (not implemented)."""
     raise NotImplementedError('template_encode')
 
 
 def template_decode(data, index=None, numthreads=None, out=None):
-    """Decompress Template.
-
-    """
+    """Return decoded TEMPLATE data (not implemented)."""
     raise NotImplementedError('template_decode')
