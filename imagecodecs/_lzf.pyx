@@ -37,7 +37,7 @@
 
 """Lzf codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from liblzf cimport *
 
 
 class LZF:
-    """LZF Constants."""
+    """LZF codec constants."""
+
+    available = True
 
 
 class LzfError(RuntimeError):
-    """LZF Exceptions."""
+    """LZF codec exceptions."""
 
 
 def lzf_version():
@@ -58,13 +60,11 @@ def lzf_version():
 
 
 def lzf_check(data):
-    """Return True if data likely contains LZF data."""
+    """Return whether data is LZF encoded."""
 
 
-def lzf_encode(data, level=None, header=False, numthreads=None, out=None):
-    """Compress LZF.
-
-    """
+def lzf_encode(data, header=False, out=None):
+    """Return LZF encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -119,10 +119,8 @@ def lzf_encode(data, level=None, header=False, numthreads=None, out=None):
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def lzf_decode(data, header=False, numthreads=None, out=None):
-    """Decompress LZF.
-
-    """
+def lzf_decode(data, header=False, out=None):
+    """Return decoded LZF data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
