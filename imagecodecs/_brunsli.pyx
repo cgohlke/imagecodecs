@@ -43,7 +43,7 @@ Brunsli 0.1 is not compatible with the final JPEG XL specification.
 
 """
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -53,11 +53,13 @@ from . import jpeg8_decode, jpeg8_encode
 
 
 class BRUNSLI:
-    """Brunsli Constants."""
+    """BRUNSLI codec constants."""
+
+    available = True
 
 
 class BrunsliError(RuntimeError):
-    """Brunsli Exceptions."""
+    """BRUNSLI codec exceptions."""
 
     def __init__(self, func, err):
         # msg = {
@@ -81,7 +83,7 @@ def brunsli_version():
 
 
 def brunsli_check(data):
-    """Return True if data likely contains a Brunsli image."""
+    """Return whether data is BRUNSLI/JPEG encoded."""
 
 
 def brunsli_encode(
@@ -92,12 +94,10 @@ def brunsli_encode(
     subsampling=None,
     optimize=None,
     smoothing=None,
-    numthreads=None,
+    predictor=None,
     out=None
 ):
-    """Return Brunsli encoded image from numpy array.
-
-    """
+    """Return BRUNSLI/JPEG encoded image."""
     cdef:
         const uint8_t[::1] dst  # must be const to write to bytes
         const uint8_t[::1] src
@@ -118,7 +118,8 @@ def brunsli_encode(
             outcolorspace=outcolorspace,
             subsampling=subsampling,
             optimize=optimize,
-            smoothing=smoothing
+            smoothing=smoothing,
+            predictor=predictor,
         )
     else:
         # existing JPEG stream
@@ -156,15 +157,12 @@ def brunsli_encode(
 
 def brunsli_decode(
     data,
-    index=None,
     colorspace=None,
     outcolorspace=None,
     asjpeg=False,
-    numthreads=None,
     out=None
 ):
-    """Return numpy array from Brunsli encoded image.
-    """
+    """Return decoded BRUNSLI/JPEG image."""
     cdef:
         const uint8_t[::1] src = data
         size_t srcsize = <size_t> src.size
@@ -182,7 +180,6 @@ def brunsli_decode(
             raise BrunsliError('DecodeBrunsli', ret)
         out = jpeg8_decode(
             <uint8_t[:sink.byteswritten]> sink.data,
-            index=index,
             colorspace=colorspace,
             outcolorspace=outcolorspace,
             out=out
@@ -199,7 +196,7 @@ ctypedef struct brunsli_sink_t:
     size_t byteswritten
 
 
-cdef brunsli_sink_t* brunsli_sink_new(size_t size):
+cdef brunsli_sink_t* brunsli_sink_new(size_t size) noexcept nogil:
     """Return new Brunsli sink."""
     cdef:
         brunsli_sink_t* sink = NULL
@@ -217,7 +214,7 @@ cdef brunsli_sink_t* brunsli_sink_new(size_t size):
     return sink
 
 
-cdef brunsli_sink_del(brunsli_sink_t* sink):
+cdef void brunsli_sink_del(brunsli_sink_t* sink) noexcept nogil:
     """Free Brunsli sink."""
     if sink != NULL:
         free(sink.data)
@@ -228,7 +225,7 @@ cdef size_t brunsli_sink_write(
     void* brunsli_sink_ptr,
     const uint8_t* src,
     size_t size
-) nogil:
+) noexcept nogil:
     """Brunsli callback function for writing to sink."""
     cdef:
         uint8_t* tmp
