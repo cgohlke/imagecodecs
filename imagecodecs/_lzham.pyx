@@ -37,7 +37,7 @@
 
 """LZHAM codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,9 +45,12 @@ from lzham cimport *
 
 
 class LZHAM:
-    """LZHAM Constants."""
+    """LZHAM codec constants."""
+
+    available = True
 
     class COMPRESSION(enum.IntEnum):
+        """LZHAM codec compression levels."""
         DEFAULT = LZHAM_Z_DEFAULT_COMPRESSION
         NO = LZHAM_Z_NO_COMPRESSION
         BEST = LZHAM_Z_BEST_COMPRESSION
@@ -55,6 +58,7 @@ class LZHAM:
         UBER = LZHAM_Z_UBER_COMPRESSION
 
     class STRATEGY(enum.IntEnum):
+        """LZHAM codec compression strategies."""
         DEFAULT = LZHAM_Z_DEFAULT_STRATEGY
         FILTERED = LZHAM_Z_FILTERED
         HUFFMAN_ONLY = LZHAM_Z_HUFFMAN_ONLY
@@ -63,7 +67,7 @@ class LZHAM:
 
 
 class LzhamError(RuntimeError):
-    """LZHAM Exceptions."""
+    """LZHAM codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -75,18 +79,16 @@ class LzhamError(RuntimeError):
 
 
 def lzham_version():
-    """Return lzham library version string."""
+    """Return LZHAM library version string."""
     return 'lzham ' + lzham_z_version().decode()
 
 
 def lzham_check(data):
-    """Return True if data likely contains LZHAM data."""
+    """Return whether data is LZHAM encoded."""
 
 
-def lzham_encode(data, level=None, numthreads=None, out=None):
-    """Compress LZHAM.
-
-    """
+def lzham_encode(data, level=None, out=None):
+    """Return LZHAM encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -129,10 +131,8 @@ def lzham_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def lzham_decode(data, numthreads=None, out=None):
-    """Decompress LZHAM.
-
-    """
+def lzham_decode(data, out=None):
+    """Return decoded LZHAM data."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
