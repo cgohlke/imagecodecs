@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,10 +45,14 @@ from openjpeg cimport *
 
 from libc.math cimport log
 
+
 class JPEG2K:
-    """OpenJPEG Constants."""
+    """JPEG2K codec constants."""
+
+    available = True
 
     class CODEC(enum.IntEnum):
+        """JPEG2K codec file formats."""
         JP2 = OPJ_CODEC_JP2
         J2K = OPJ_CODEC_J2K
         # JPT = OPJ_CODEC_JPT
@@ -56,6 +60,7 @@ class JPEG2K:
         # JPX = OPJ_CODEC_JPX
 
     class CLRSPC(enum.IntEnum):
+        """JPEG2K codec color spaces."""
         UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
         SRGB = OPJ_CLRSPC_SRGB
         GRAY = OPJ_CLRSPC_GRAY
@@ -65,7 +70,7 @@ class JPEG2K:
 
 
 class Jpeg2kError(RuntimeError):
-    """OpenJPEG Exceptions."""
+    """JPEG2K codec exceptions."""
 
 
 def jpeg2k_version():
@@ -74,7 +79,7 @@ def jpeg2k_version():
 
 
 def jpeg2k_check(const uint8_t[::1] data):
-    """Return True if data likely contains a JPEG 2000 image."""
+    """Return whether data is JPEG 2000 encoded image."""
     cdef:
         bytes sig = bytes(data[:12])
 
@@ -93,14 +98,14 @@ def jpeg2k_encode(
     planar=None,
     tile=None,  # not implemented
     bitspersample=None,
-    reversible=None,
     resolutions=None,
+    reversible=None,
     mct=True,  # multiple component transform: rgb->ycc
     verbose=0,
     numthreads=None,
     out=None
 ):
-    """Return JPEG 2000 image from numpy array.
+    """Return JPEG 2000 encoded image.
 
     WIP: currently only single-tile, single-quality-layer formats are supported
 
@@ -203,7 +208,7 @@ def jpeg2k_encode(
         else:
             color_space = OPJ_CLRSPC_UNSPECIFIED
     else:
-        color_space = opj_colorspace(colorspace)
+        color_space = _opj_colorspace(colorspace)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -407,15 +412,12 @@ def jpeg2k_encode(
 
 def jpeg2k_decode(
     data,
-    index=None,
     planar=None,
     verbose=0,
     numthreads=None,
     out=None
 ):
-    """Decode JPEG 2000 J2K or JP2 image to numpy array.
-
-    """
+    """Return decoded JPEG 2000 image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -788,7 +790,7 @@ cdef void j2k_info_callback(char* msg, void* client_data) with gil:
     _log_warning('JPEG2K info: %s', msg.decode().strip())
 
 
-cdef  opj_colorspace(colorspace):
+cdef _opj_colorspace(colorspace):
     """Return OPJ_COLOR_SPACE value from user input."""
     return {
         'GRAY': OPJ_CLRSPC_GRAY,
