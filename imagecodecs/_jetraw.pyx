@@ -37,7 +37,7 @@
 
 """Jetraw codec for the imagecodecs package."""
 
-__version__ = '2022.7.27'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -51,11 +51,13 @@ cdef extern from 'Python.h':
 
 
 class JETRAW:
-    """Jetraw Constants."""
+    """JETRAW codec constants."""
+
+    available = True
 
 
 class JetrawError(RuntimeError):
-    """Jetraw Exceptions."""
+    """JETRAW codec exceptions."""
 
     def __init__(self, func, int status):
         cdef:
@@ -67,17 +69,21 @@ class JetrawError(RuntimeError):
 
 
 def jetraw_version():
-    """Return jetraw library version string."""
+    """Return Jetraw library version string."""
     return 'jetraw ' + jetraw.jetraw_version().decode()
 
 
 def jetraw_check(const uint8_t[::1] data):
-    """Return True if data likely contains Jetraw data."""
+    """Return whether data is JETRAW encoded image."""
     return None
 
 
 def jetraw_init(parameters=None, verbose=None):
-    """Load preparation parameters and set verbosity level."""
+    """Initialize JETRAW codec.
+
+    Load preparation parameters and set verbosity level.
+
+    """
     cdef:
         char* charp = NULL
         jetraw.CHARTYPE* wcharp = NULL
@@ -104,9 +110,9 @@ def jetraw_init(parameters=None, verbose=None):
 
 
 def jetraw_encode(
-    data, identifier, errorbound=None, level=None, numthreads=None, out=None
+    data, identifier, errorbound=None, out=None
 ):
-    """Compress Jetraw.
+    """Return JETRAW encoded image.
 
     The Jetraw codec is only viable for encoding whole frames from a few
     supported scientific cameras.
@@ -176,10 +182,8 @@ def jetraw_encode(
     return _return_output(out, dstsize, pdstlen, outgiven)
 
 
-def jetraw_decode(data, index=None, numthreads=None, out=None):
-    """Decompress Jetraw.
-
-    """
+def jetraw_decode(data, out=None):
+    """Return decoded JETRAW image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
