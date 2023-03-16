@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,15 +45,19 @@ from zlib cimport *
 
 
 class ZLIB:
-    """Zlib Constants."""
+    """ZLIB codec constants."""
+
+    available = True
 
     class COMPRESSION(enum.IntEnum):
+        """ZLIB codec compression levels."""
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
         SPEED = Z_BEST_SPEED
 
     class STRATEGY(enum.IntEnum):
+        """ZLIB codec compression strategies."""
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -62,7 +66,7 @@ class ZLIB:
 
 
 class ZlibError(RuntimeError):
-    """Zlib Exceptions."""
+    """ZLIB codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -86,7 +90,7 @@ def zlib_version():
 
 
 def zlib_check(data):
-    """Return True if data likely contains Zlib data."""
+    """Return whether data is DEFLATE encoded."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -101,10 +105,8 @@ def zlib_check(data):
     return None  # maybe
 
 
-def zlib_encode(data, level=None, numthreads=None, out=None):
-    """Compress Zlib.
-
-    """
+def zlib_encode(data, level=None, out=None):
+    """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -147,10 +149,8 @@ def zlib_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def zlib_decode(data, numthreads=None, out=None):
-    """Decompress Zlib.
-
-    """
+def zlib_decode(data, out=None):
+    """Return decoded DEFLATE data."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -274,7 +274,7 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
 # CRC #########################################################################
 
 def zlib_crc32(data):
-    """Return cyclic redundancy checksum CRC-32 of data."""
+    """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         uInt srcsize = <uInt> src.size
