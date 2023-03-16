@@ -37,7 +37,7 @@
 
 """Zstd (ZStandard) codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from zstd cimport *
 
 
 class ZSTD:
-    """Zstd Constants."""
+    """ZSTD codec constants."""
+
+    available = True
 
 
 class ZstdError(RuntimeError):
-    """Zstd Exceptions."""
+    """ZSTD codec exceptions."""
 
     def __init__(self, func, msg='', err=0):
         cdef:
@@ -64,24 +66,22 @@ class ZstdError(RuntimeError):
 
 
 def zstd_version():
-    """Return Zstd library version string."""
+    """Return Zstandard library version string."""
     return 'zstd {}.{}.{}'.format(
         ZSTD_VERSION_MAJOR, ZSTD_VERSION_MINOR, ZSTD_VERSION_RELEASE
     )
 
 
 def zstd_check(data):
-    """Return True if data likely contains Zstd data."""
+    """Return whether data is ZSTD encoded."""
     cdef:
         bytes sig = bytes(data[:4])
 
     return sig == b'\x28\xB5\x2F\xFD'
 
 
-def zstd_encode(data, level=None, numthreads=None, out=None):
-    """Compress Zstd.
-
-    """
+def zstd_encode(data, level=None, out=None):
+    """Return ZSTD encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -98,7 +98,7 @@ def zstd_encode(data, level=None, numthreads=None, out=None):
     if out is None:
         if dstsize < 0:
             dstsize = <ssize_t> ZSTD_compressBound(srcsize)
-            if dstsize < 0:
+            if dstsize <= 0:
                 raise ZstdError('ZSTD_compressBound', f'{dstsize}')
         if dstsize < 64:
             dstsize = 64
@@ -122,10 +122,8 @@ def zstd_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def zstd_decode(data, numthreads=None, out=None):
-    """Decompress Zstd.
-
-    """
+def zstd_decode(data, out=None):
+    """Return decoded ZSTD data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -142,24 +140,12 @@ def zstd_decode(data, numthreads=None, out=None):
     if out is None:
         if dstsize < 0:
             cntsize = ZSTD_getFrameContentSize(<void*> &src[0], srcsize)
-            if (
-                cntsize == ZSTD_CONTENTSIZE_UNKNOWN
-                or cntsize == ZSTD_CONTENTSIZE_ERROR
-            ):
-                # 1 MB; arbitrary
-                cntsize = max(<uint64_t> 1048576, <uint64_t> (srcsize * 2))
-            # TODO: use stream interface
-            # if cntsize == ZSTD_CONTENTSIZE_UNKNOWN:
-            #     raise ZstdError(
-            #         'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_UNKNOWN'
-            #     )
-            # if cntsize == ZSTD_CONTENTSIZE_ERROR:
-            #     raise ZstdError(
-            #         'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_ERROR'
-            # )
+            if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > 2**31:
+                # use streaming API for unknown or suspiciously large sizes
+                return _zstd_decode(data, outtype)
+            if cntsize == ZSTD_CONTENTSIZE_ERROR:
+                raise ZstdError('ZSTD_getFrameContentSize', f'{cntsize}')
             dstsize = cntsize
-            if dstsize < 0:
-                raise ZstdError('ZSTD_getFrameContentSize', f'{dstsize}')
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -177,3 +163,129 @@ def zstd_decode(data, numthreads=None, out=None):
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
+
+cdef _zstd_decode(const uint8_t[::1] src, outtype):
+    """Decompress using streaming API."""
+    cdef:
+        output_t* output = NULL
+        ZSTD_DCtx* dctx = NULL
+        ZSTD_inBuffer zinput
+        ZSTD_outBuffer zoutput
+        size_t ret
+        size_t srcsize = <size_t> src.size
+        size_t outsize = ZSTD_DStreamOutSize()
+        # increase output size by ~1/2 input size, min 128 KB
+        size_t incsize = max((srcsize // outsize) * outsize // 2, outsize)
+
+    try:
+        with nogil:
+
+            dctx = ZSTD_createDCtx()
+            if dctx == NULL:
+                raise ZstdError('ZSTD_createDCtx', 'NULL')
+
+            # allocate ~3/2 input size, min 384 KB, for output
+            output = output_new(NULL, incsize * 3)
+            if output == NULL:
+                raise MemoryError('output_new failed')
+
+            zoutput.dst = <void*> output.data
+            zoutput.size = <size_t> output.size
+            zoutput.pos = output.pos
+
+            zinput.src = <void*> &src[0]
+            zinput.size = srcsize
+            zinput.pos = 0
+
+            while zinput.pos < zinput.size:
+                if output.size - output.used < outsize:
+                    ret = output_resize(output, output.used + incsize)
+                    if ret == 0:
+                        raise MemoryError('output_resize failed')
+                    zoutput.dst = <void*> output.data
+                    zoutput.size = <size_t> output.size
+                    zoutput.pos = output.pos
+
+                ret = ZSTD_decompressStream(dctx, &zoutput , &zinput)
+                if ZSTD_isError(ret):
+                    raise ZstdError('ZSTD_decompressStream', err=ret)
+
+                output.pos = zoutput.pos
+                output.used = zoutput.pos
+
+        out = _create_output(outtype, output.pos, <const char*> output.data)
+
+    finally:
+        output_del(output)
+        ZSTD_freeDCtx(dctx)
+
+    return out
+
+
+# Output Stream ###############################################################
+
+ctypedef struct output_t:
+    uint8_t* data
+    size_t size
+    size_t pos
+    size_t used
+    int owner
+
+
+cdef output_t* output_new(uint8_t* data, size_t size) nogil:
+    """Return new output."""
+    cdef:
+        output_t* output = <output_t*> malloc(sizeof(output_t))
+
+    if output == NULL:
+        return NULL
+    output.size = size
+    output.used = 0
+    output.pos = 0
+    if data == NULL:
+        output.owner = 1
+        output.data = <uint8_t*> malloc(size)
+    else:
+        output.owner = 0
+        output.data = data
+    if output.data == NULL:
+        free(output)
+        return NULL
+    return output
+
+
+cdef void output_del(output_t* output) nogil:
+    """Free output."""
+    if output != NULL:
+        if output.owner != 0:
+            free(output.data)
+        free(output)
+
+
+cdef int output_seek(output_t* output, size_t pos) nogil:
+    """Seek output to position."""
+    if output == NULL or pos > output.size:
+        return 0
+    output.pos = pos
+    if pos > output.used:
+        output.used = pos
+    return 1
+
+
+cdef int output_resize(output_t* output, size_t newsize) nogil:
+    """Resize output."""
+    cdef:
+        uint8_t* tmp
+
+    if output == NULL or newsize == 0 or output.used > output.size:
+        return 0
+    if newsize == output.size or output.owner == 0:
+        return 1
+
+    tmp = <uint8_t*> realloc(<void*> output.data, newsize)
+    if tmp == NULL:
+        return 0
+    output.data = tmp
+    output.size = newsize
+    return 1
