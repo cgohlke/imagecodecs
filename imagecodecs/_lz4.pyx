@@ -37,7 +37,7 @@
 
 """LZ4 codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,9 +45,12 @@ from lz4 cimport *
 
 
 class LZ4:
-    """LZ4 Constants."""
+    """LZ4 codec constants."""
+
+    available = True
 
     class CLEVEL(enum.IntEnum):
+        """LZ4 codec compression levels."""
         DEFAULT = LZ4HC_CLEVEL_DEFAULT
         MIN = LZ4HC_CLEVEL_MIN
         MAX = LZ4HC_CLEVEL_MAX
@@ -55,7 +58,7 @@ class LZ4:
 
 
 class Lz4Error(RuntimeError):
-    """LZ4 Exceptions."""
+    """LZ4 codec exceptions."""
 
 
 def lz4_version():
@@ -66,15 +69,13 @@ def lz4_version():
 
 
 def lz4_check(data):
-    """Return True if data likely contains LZ4 data."""
+    """Return whether data is LZ4 encoded."""
 
 
 def lz4_encode(
-    data, level=None, hc=False, header=False, numthreads=None, out=None
+    data, level=None, hc=False, header=False, out=None
 ):
-    """Compress LZ4.
-
-    """
+    """Return LZ4 encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -147,10 +148,8 @@ def lz4_encode(
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def lz4_decode(data, header=False, numthreads=None, out=None):
-    """Decompress LZ4.
-
-    """
+def lz4_decode(data, header=False, out=None):
+    """Return decoded LZ4 data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
