@@ -37,7 +37,7 @@
 
 """Blosc2 codec for the imagecodecs package."""
 
-__version__ = '2022.9.26'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,65 +45,34 @@ from blosc2 cimport *
 
 
 class BLOSC2:
-    """Blosc2 Constants."""
+    """BLOSC2 codec constants."""
 
-    NOFILTER = BLOSC_NOFILTER
-    NOSHUFFLE = BLOSC_NOSHUFFLE
-    SHUFFLE = BLOSC_SHUFFLE
-    BITSHUFFLE = BLOSC_BITSHUFFLE
-    DELTA = BLOSC_DELTA
-    TRUNC_PREC = BLOSC_TRUNC_PREC
+    available = True
 
-    BLOSCLZ = BLOSC_BLOSCLZ
-    LZ4 = BLOSC_LZ4
-    LZ4HC = BLOSC_LZ4HC
-    ZLIB = BLOSC_ZLIB
-    ZSTD = BLOSC_ZSTD
+    class FILTER(enum.IntEnum):
+        """BLOSC2 codec filters."""
+        NOFILTER = BLOSC_NOFILTER
+        NOSHUFFLE = BLOSC_NOSHUFFLE
+        SHUFFLE = BLOSC_SHUFFLE
+        BITSHUFFLE = BLOSC_BITSHUFFLE
+        DELTA = BLOSC_DELTA
+        TRUNC_PREC = BLOSC_TRUNC_PREC
+
+    class COMPRESSOR(enum.IntEnum):
+        """BLOSC2 codec compressors."""
+        BLOSCLZ = BLOSC_BLOSCLZ
+        LZ4 = BLOSC_LZ4
+        LZ4HC = BLOSC_LZ4HC
+        ZLIB = BLOSC_ZLIB
+        ZSTD = BLOSC_ZSTD
 
 
 class Blosc2Error(RuntimeError):
-    """Blosc2 Exceptions."""
+    """BLOSC2 codec exceptions."""
 
     def __init__(self, func, err=None, ret=None):
         if err is not None:
-            msg = {
-                BLOSC2_ERROR_SUCCESS: 'Success',
-                BLOSC2_ERROR_FAILURE: 'Generic failure',
-                BLOSC2_ERROR_STREAM: 'Bad stream',
-                BLOSC2_ERROR_DATA: 'Invalid data',
-                BLOSC2_ERROR_MEMORY_ALLOC: 'Memory alloc/realloc failure',
-                BLOSC2_ERROR_READ_BUFFER: 'Not enough space to read',
-                BLOSC2_ERROR_WRITE_BUFFER: 'Not enough space to write',
-                BLOSC2_ERROR_CODEC_SUPPORT: 'Codec not supported',
-                BLOSC2_ERROR_CODEC_PARAM:
-                    'Invalid parameter supplied to codec',
-                BLOSC2_ERROR_CODEC_DICT: 'Codec dictionary error',
-                BLOSC2_ERROR_VERSION_SUPPORT: 'Version not supported',
-                BLOSC2_ERROR_INVALID_HEADER: 'Invalid value in header',
-                BLOSC2_ERROR_INVALID_PARAM:
-                    'Invalid parameter supplied to function',
-                BLOSC2_ERROR_FILE_READ: 'File read failure',
-                BLOSC2_ERROR_FILE_WRITE: 'File write failure',
-                BLOSC2_ERROR_FILE_OPEN: 'File open failure',
-                BLOSC2_ERROR_NOT_FOUND: 'Not found',
-                BLOSC2_ERROR_RUN_LENGTH: 'Bad run length encoding',
-                BLOSC2_ERROR_FILTER_PIPELINE: 'Filter pipeline error',
-                BLOSC2_ERROR_CHUNK_INSERT: 'Chunk insert failure',
-                BLOSC2_ERROR_CHUNK_APPEND: 'Chunk append failure',
-                BLOSC2_ERROR_CHUNK_UPDATE: 'Chunk update failure',
-                BLOSC2_ERROR_2GB_LIMIT: 'Sizes larger than 2gb not supported',
-                BLOSC2_ERROR_SCHUNK_COPY: 'Super-chunk copy failure',
-                BLOSC2_ERROR_FRAME_TYPE: 'Wrong type for frame',
-                BLOSC2_ERROR_FILE_TRUNCATE: 'File truncate failure',
-                BLOSC2_ERROR_THREAD_CREATE:
-                    'Thread or thread context creation failure',
-                BLOSC2_ERROR_POSTFILTER: 'Postfilter failure',
-                BLOSC2_ERROR_FRAME_SPECIAL: 'Special frame failure',
-                BLOSC2_ERROR_SCHUNK_SPECIAL: 'Special super-chunk failure',
-                BLOSC2_ERROR_PLUGIN_IO: 'IO plugin error',
-                BLOSC2_ERROR_FILE_REMOVE: 'Remove file failure',
-            }.get(err, f'unknown error {err!r}')
-            msg = f'{func} returned {msg}'
+            msg = f'{func} returned {print_error(err).decode()!r}'
         elif ret is not None:
             msg = f'{func} returned {ret!r}'
         else:
@@ -112,27 +81,24 @@ class Blosc2Error(RuntimeError):
 
 
 def blosc2_version():
-    """Return Blosc library version string."""
+    """Return C-Blosc2 library version string."""
     return 'c-blosc2 ' + BLOSC2_VERSION_STRING.decode()
 
 
 def blosc2_check(data):
-    """Return True if data likely contains Blosc2 data."""
-
+    """Return whether data is BLOSC2 encoded."""
 
 def blosc2_encode(
     data,
     level=None,
     compressor=None,
+    shuffle=None,  # TODO: enable filters
     typesize=None,
     blocksize=None,
-    shuffle=None,  # TODO: enable filters
     numthreads=None,
     out=None
 ):
-    """Encode Blosc2.
-
-    """
+    """Return BLOSC2 encoded data."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -160,7 +126,7 @@ def blosc2_encode(
             src = view.cast('B')  # view as bytes
         else:
             src = view.tobytes()  # copy non-contiguous
-        ctypesize = view.itemsize
+        ctypesize = <int32_t> view.itemsize
 
     srcsize = src.size
 
@@ -256,9 +222,7 @@ def blosc2_encode(
 
 
 def blosc2_decode(data, numthreads=None, out=None):
-    """Decode Blosc2.
-
-    """
+    """Return decoded BLOSC2 data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
