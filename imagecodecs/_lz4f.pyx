@@ -37,7 +37,7 @@
 
 """LZ4 Frame codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,13 +45,15 @@ from lz4 cimport *
 
 
 class LZ4F:
-    """LZ4F Constants."""
+    """LZ4F codec constants."""
+
+    available = True
 
     VERSION = LZ4F_VERSION
 
 
 class Lz4fError(RuntimeError):
-    """LZ4F Exceptions."""
+    """LZ4F codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -78,7 +80,7 @@ def lz4f_version():
 
 
 def lz4f_check(data):
-    """Return True if data likely contains LZ4 Frame data."""
+    """Return whether data is LZ4F encoded."""
     cdef:
         bytes sig = bytes(data[:4])
 
@@ -91,12 +93,9 @@ def lz4f_encode(
     blocksizeid=None,
     contentchecksum=None,
     blockchecksum=None,
-    numthreads=None,
     out=None
 ):
-    """Compress LZ4 Frame.
-
-    """
+    """Return LZ4F encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -146,10 +145,8 @@ def lz4f_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def lz4f_decode(data, numthreads=None, out=None):
-    """Decompress LZ4 Frame.
-
-    """
+def lz4f_decode(data, out=None):
+    """Return decoded LZ4F data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
