@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,25 +45,32 @@ from libavif cimport *
 
 
 class AVIF:
-    """AVIF Constants."""
+    """AVIF codec constants."""
+
+    available = True
 
     class PIXEL_FORMAT(enum.IntEnum):
+        """AVIF codec pixel formats."""
+        NONE = AVIF_PIXEL_FORMAT_NONE
         YUV444 = AVIF_PIXEL_FORMAT_YUV444
         YUV422 = AVIF_PIXEL_FORMAT_YUV422
         YUV420 = AVIF_PIXEL_FORMAT_YUV420
         YUV400 = AVIF_PIXEL_FORMAT_YUV400
 
     class QUANTIZER(enum.IntEnum):
+        """AVIF codec quantizers."""
         LOSSLESS = AVIF_QUANTIZER_LOSSLESS
         BEST_QUALITY = AVIF_QUANTIZER_BEST_QUALITY
         WORST_QUALITY = AVIF_QUANTIZER_WORST_QUALITY
 
     class SPEED(enum.IntEnum):
+        """AVIF codec speeds."""
         DEFAULT = AVIF_SPEED_DEFAULT
         SLOWEST = AVIF_SPEED_SLOWEST
         FASTEST = AVIF_SPEED_FASTEST
 
     class CHROMA_UPSAMPLING(enum.IntEnum):
+        """AVIF codec chroma upsampling types."""
         AUTOMATIC = AVIF_CHROMA_UPSAMPLING_AUTOMATIC
         FASTEST = AVIF_CHROMA_UPSAMPLING_FASTEST
         BEST_QUALITY = AVIF_CHROMA_UPSAMPLING_BEST_QUALITY
@@ -71,6 +78,7 @@ class AVIF:
         BILINEAR = AVIF_CHROMA_UPSAMPLING_BILINEAR
 
     class CODEC_CHOICE(enum.IntEnum):
+        """AVIF codec choices."""
         AUTO = AVIF_CODEC_CHOICE_AUTO
         AOM = AVIF_CODEC_CHOICE_AOM
         DAV1D = AVIF_CODEC_CHOICE_DAV1D
@@ -80,7 +88,7 @@ class AVIF:
 
 
 class AvifError(RuntimeError):
-    """AVIF Exceptions."""
+    """AVIF codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -107,7 +115,7 @@ def avif_version():
 
 
 def avif_check(const uint8_t[::1] data):
-    """Return True if data likely contains a AVIF image."""
+    """Return whether data is AVIF encoded image."""
     cdef:
         bytes sig = bytes(data[4:12])
 
@@ -129,9 +137,7 @@ def avif_encode(
     numthreads=None,
     out=None
 ):
-    """Return AVIF image from numpy array.
-
-    """
+    """Return AVIF encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -229,7 +235,7 @@ def avif_encode(
     )
 
     if codec is not None:
-        codecchoice = avif_codecchoice(codec)
+        codecchoice = _avif_codecchoice(codec)
 
     if monochrome:
         yuvformat = AVIF_PIXEL_FORMAT_YUV400
@@ -237,7 +243,7 @@ def avif_encode(
     elif quantizer == AVIF_QUANTIZER_LOSSLESS:
         yuvformat = AVIF_PIXEL_FORMAT_YUV444
     elif pixelformat is not None:
-        yuvformat = avif_pixelformat(pixelformat)
+        yuvformat = _avif_pixelformat(pixelformat)
 
     try:
         with nogil:
@@ -413,10 +419,8 @@ def avif_encode(
     return _return_output(out, dstsize, rawsize, outgiven)
 
 
-def avif_decode(data, index=None, numthreads=None, out=None):
-    """Decode AVIF image to numpy array.
-
-    """
+def avif_decode(data, index=None, out=None):
+    """Return decoded AVIF image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -599,7 +603,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
     return out
 
 
-cdef avif_pixelformat(pixelformat):
+cdef _avif_pixelformat(pixelformat):
     """Return AVIF colorspace value from user input."""
     return {
         AVIF_PIXEL_FORMAT_NONE: AVIF_PIXEL_FORMAT_NONE,
@@ -619,7 +623,7 @@ cdef avif_pixelformat(pixelformat):
     }[pixelformat]  # .get(pixelformat, AVIF_PIXEL_FORMAT_YUV444)
 
 
-cdef avif_codecchoice(codec):
+cdef _avif_codecchoice(codec):
     """Return AVIF codecchoice value from user input."""
     return {
         AVIF_CODEC_CHOICE_AUTO: AVIF_CODEC_CHOICE_AUTO,
