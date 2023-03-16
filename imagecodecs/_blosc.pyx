@@ -37,7 +37,7 @@
 
 """Blosc codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,46 +45,50 @@ from blosc cimport *
 
 
 class BLOSC:
-    """Blosc Constants."""
+    """BLOSC codec constants."""
 
-    NOSHUFFLE = BLOSC_NOSHUFFLE
-    SHUFFLE = BLOSC_SHUFFLE
-    BITSHUFFLE = BLOSC_BITSHUFFLE
+    available = True
 
-    BLOSCLZ = BLOSC_BLOSCLZ
-    LZ4 = BLOSC_LZ4
-    LZ4HC = BLOSC_LZ4HC
-    SNAPPY = BLOSC_SNAPPY
-    ZLIB = BLOSC_ZLIB
-    ZSTD = BLOSC_ZSTD
+    class SHUFFLE(enum.IntEnum):
+        """BLOSC codec shuffle types."""
+        NOSHUFFLE = BLOSC_NOSHUFFLE
+        SHUFFLE = BLOSC_SHUFFLE
+        BITSHUFFLE = BLOSC_BITSHUFFLE
+
+    class COMPRESSOR(enum.IntEnum):
+        """BLOSC codec compressors."""
+        BLOSCLZ = BLOSC_BLOSCLZ
+        LZ4 = BLOSC_LZ4
+        LZ4HC = BLOSC_LZ4HC
+        SNAPPY = BLOSC_SNAPPY
+        ZLIB = BLOSC_ZLIB
+        ZSTD = BLOSC_ZSTD
 
 
 class BloscError(RuntimeError):
-    """Blosc Exceptions."""
+    """BLOSC codec exceptions."""
 
 
 def blosc_version():
-    """Return Blosc library version string."""
+    """Return C-Blosc library version string."""
     return 'c-blosc ' + BLOSC_VERSION_STRING.decode()
 
 
 def blosc_check(data):
-    """Return True if data likely contains Blosc data."""
+    """Return whether data is BLOSC encoded."""
 
 
 def blosc_encode(
     data,
     level=None,
     compressor=None,
+    shuffle=None,
     typesize=None,
     blocksize=None,
-    shuffle=None,
     numthreads=None,
     out=None
 ):
-    """Encode Blosc.
-
-    """
+    """Return BLOSC encoded data."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -187,9 +191,7 @@ def blosc_encode(
 
 
 def blosc_decode(data, numthreads=None, out=None):
-    """Decode Blosc.
-
-    """
+    """Return decoded BLOSC data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
