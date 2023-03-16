@@ -1,9 +1,37 @@
 # imagecodecs/__init__.py
+# flake8: noqa
 
-__all__ = []
+from __future__ import annotations
 
-from .imagecodecs import __doc__, __version__, __getattr__, __dir__
-from .imagecodecs import _extensions
-from .imagecodecs import *
+__all__: list[str] = []
 
-del imagecodecs
+from .imagecodecs import (
+    __doc__,
+    __version__,
+    __getattr__,
+    __dir__,
+    _extensions,
+    version,
+    imread,
+    imwrite,
+    imagefileext,
+    DelayedImportError,
+    none_encode,
+    none_decode,
+    none_check,
+    none_version,
+    NoneError,
+    NONE,
+    numpy_encode,
+    numpy_decode,
+    numpy_check,
+    numpy_version,
+    NumpyError,
+    NUMPY,
+    jpeg_encode,
+    jpeg_decode,
+    # jpeg_check,
+    # jpeg_version,
+    # JpegError,
+    # JPEG,
+)
