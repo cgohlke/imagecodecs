@@ -37,7 +37,7 @@
 
 """CMS codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -49,15 +49,19 @@ from cpython.bytes cimport (
 
 
 class CMS:
-    """Lcms Constants."""
+    """CMS codec constants."""
+
+    available = True
 
     class INTENT(enum.IntEnum):
+        """CMS codec intent types."""
         PERCEPTUAL = INTENT_PERCEPTUAL
         RELATIVE_COLORIMETRIC = INTENT_RELATIVE_COLORIMETRIC
         SATURATION = INTENT_SATURATION
         ABSOLUTE_COLORIMETRIC = INTENT_ABSOLUTE_COLORIMETRIC
 
     class FLAGS(enum.IntEnum):
+        """CMS codec flags."""
         NOCACHE = cmsFLAGS_NOCACHE
         NOOPTIMIZE = cmsFLAGS_NOOPTIMIZE
         NULLTRANSFORM = cmsFLAGS_NULLTRANSFORM
@@ -78,6 +82,7 @@ class CMS:
         NODEFAULTRESOURCEDEF = cmsFLAGS_NODEFAULTRESOURCEDEF
 
     class PT(enum.IntEnum):
+        """CMS codec pixel types."""
         GRAY = PT_GRAY
         RGB = PT_RGB
         CMY = PT_CMY
@@ -108,11 +113,11 @@ class CMS:
 
 
 class CmsError(RuntimeError):
-    """Lcms Exceptions."""
+    """CMS codec exceptions."""
 
 
 def cms_version():
-    """Return lcms2 library version string."""
+    """Return Little-CMS library version string."""
     return 'lcms2 {}.{}.{}'.format(
         LCMS_VERSION // 1000,
         LCMS_VERSION % 1000 // 10,
@@ -121,13 +126,18 @@ def cms_version():
 
 
 def cms_check(const uint8_t[::1] data):
-    """Return True if data likely contains CMS data."""
+    """Return whether data is ICC profile."""
+    cdef:
+        bytes sig = bytes(data[36:40])
+
+    return sig == b'acsp'
 
 
 def cms_transform(
     data,
     profile,
     outprofile,
+    *,
     colorspace=None,  # pixeltype
     planar=None,
     outcolorspace=None,
@@ -136,12 +146,9 @@ def cms_transform(
     intent=None,
     flags=None,
     verbose=None,
-    numthreads=None,
     out=None
 ):
-    """Color transform (experimental).
-
-    """
+    """Return color-transformed array (experimental)."""
     cdef:
         numpy.ndarray src, dst
         cmsUInt32Number Intent = INTENT_PERCEPTUAL if not intent else intent
@@ -288,7 +295,7 @@ def cms_profile(
     transferfunction=None,  # gray and rgb
     gamma=None
 ):
-    """Return new CMS profile as bytes."""
+    """Return ICC profile."""
     cdef:
         cmsHPROFILE hProfile = NULL
         cmsCIExyY WhitePoint
@@ -490,7 +497,7 @@ def cms_profile(
 
 
 def cms_profile_validate(profile, verbose=False):
-    """Raise CmsError if CMS profile cannot be opened."""
+    """Raise CmsError if ICC profile is invalid."""
     cdef:
         cmsHPROFILE hProfile = NULL
 
@@ -617,7 +624,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
     """Return lcms format number.
 
     It's best to explicitly specify colorspace and planar to avoid ambiguities.
-    By default colorspace is gray unless dtype is u1 and shape is (i, j, 3|4).
+    By default, colorspace is gray unless dtype is u1 and shape is (i, j, 3|4).
     If planar is specified, colorpace is gray(a) for 1 or 2 samples or rgb(a)
     for 3 or 4 samples. Else raise a ValueError.
     If colorspace is specified, its number of components must match number of
@@ -956,5 +963,5 @@ cdef void _cms_log_error_handler(
     cmsContext ContextID,
     cmsUInt32Number ErrorCode,
     const char *Text
-) with gil:
+) noexcept with gil:
     _log_warning('CMS error: %s', Text.decode().strip())
