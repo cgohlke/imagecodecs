@@ -37,7 +37,7 @@
 
 """PGLZ (PostgreSQL LZ) codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from pg_lzcompress cimport *
 
 
 class PGLZ:
-    """PGLZ Constants."""
+    """PGLZ codec constants."""
+
+    available = True
 
 
 class PglzError(RuntimeError):
-    """PGLZ Exceptions."""
+    """PGLZ codec exceptions."""
 
 
 def pglz_version():
@@ -58,13 +60,13 @@ def pglz_version():
 
 
 def pglz_check(data):
-    """Return True if data likely contains LZF data."""
+    """Return whether data is PGLZ encoded."""
 
 
 def pglz_encode(
-    data, level=None, header=False, strategy=None, numthreads=None, out=None
+    data, header=False, strategy=None, out=None
 ):
-    """Compress PGLZ.
+    """Return PGLZ encoded data.
 
     Raise PglzError if pglz_compress is unable to significantly compress
     the data and no header is used.
@@ -147,11 +149,9 @@ def pglz_encode(
 
 
 def pglz_decode(
-    data, header=False, checkcomplete=None, numthreads=None, out=None
+    data, header=False, checkcomplete=None, out=None
 ):
-    """Decompress PGLZ.
-
-    """
+    """Return decoded PGLZ data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
