@@ -37,7 +37,7 @@
 
 """LZFSE codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -48,30 +48,30 @@ from libc.stdint cimport uint32_t
 
 
 class LZFSE:
-    """LZFSE Constants."""
+    """LZFSE codec constants."""
+
+    available = True
 
 
 class LzfseError(RuntimeError):
-    """LZFSE Exceptions."""
+    """LZFSE codec exceptions."""
 
 
 def lzfse_version():
-    """Return lzfse library version string."""
+    """Return LZFSE library version string."""
     return 'lzfse 1.0'
 
 
 def lzfse_check(const uint8_t[::1] data):
-    """Return True if data likely contains LZFSE data."""
+    """Return whether data is LZFSE encoded."""
     cdef:
         bytes sig = bytes(data[:3])
 
     return sig == b'bvx'
 
 
-def lzfse_encode(data, level=None, numthreads=None, out=None):
-    """Compress LZFSE.
-
-    """
+def lzfse_encode(data, out=None):
+    """Return LZFSE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -112,10 +112,8 @@ def lzfse_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dst_size, outgiven)
 
 
-def lzfse_decode(data, index=None, numthreads=None, out=None):
-    """Decompress LZFSE.
-
-    """
+def lzfse_decode(data, out=None):
+    """Return decoded LZFSE data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
