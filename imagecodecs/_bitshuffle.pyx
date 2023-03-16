@@ -37,7 +37,7 @@
 
 """Bitshuffle codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from bitshuffle cimport *
 
 
 class BITSHUFFLE:
-    """Bitshuffle Constants."""
+    """BITSHUFFLE codec constants."""
+
+    available = True
 
 
 class BitshuffleError(RuntimeError):
-    """Bitshuffle Exceptions."""
+    """BITSHUFFLE codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -73,15 +75,13 @@ def bitshuffle_version():
 
 
 def bitshuffle_check(data):
-    """Return True if data likely contains Bitshuffle data."""
+    """Return whether data is BITSHUFFLE encoded."""
 
 
 def bitshuffle_encode(
-    data, level=None, itemsize=1, blocksize=0, numthreads=None, out=None
+    data, itemsize=1, blocksize=0, out=None
 ):
-    """Bitshuffle.
-
-    """
+    """Return BITSHUFFLE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -149,11 +149,9 @@ def bitshuffle_encode(
 
 
 def bitshuffle_decode(
-    data, itemsize=1, blocksize=0, numthreads=None, out=None
+    data, itemsize=1, blocksize=0, out=None
 ):
-    """Un-Bitshuffle.
-
-    """
+    """Return decoded BITSHUFFLE data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
