@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from giflib cimport *
 
 
 class GIF:
-    """Gif Constants."""
+    """GIF codec constants."""
+
+    available = True
 
 
 class GifError(RuntimeError):
-    """GIF Exceptions."""
+    """GIF codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -74,15 +76,15 @@ def gif_version():
 
 
 def gif_check(const uint8_t[::1] data):
-    """Return True if data likely contains a GIF image."""
+    """Return whether data is GIF encoded image."""
     cdef:
         bytes sig = bytes(data[:6])
 
     return sig == b'GIF87a' or sig == b'GIF89a'
 
 
-def gif_encode(data, level=None, colormap=None, numthreads=None, out=None):
-    """Return GIF image from numpy array."""
+def gif_encode(data, colormap=None, out=None):
+    """Return GIF encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -186,10 +188,10 @@ def gif_encode(data, level=None, colormap=None, numthreads=None, out=None):
     return _return_output(out, dstsize, memgif.offset, outgiven)
 
 
-def gif_decode(data, index=None, asrgb=True, numthreads=None, out=None):
-    """Decode GIF image to numpy array.
+def gif_decode(data, index=None, asrgb=True, out=None):
+    """Return decoded GIF image.
 
-    By default all images in the file are returned in one array.
+    By default, all images in the file are returned in one array.
     If an image index is specified, ignore the disposal mode and return the
     image data on black background.
 
@@ -489,7 +491,7 @@ cdef int gif_input_func(
     GifFileType* gif,
     GifByteType* dst,
     int size
-) nogil:
+) noexcept nogil:
     """GIF read callback function."""
     cdef:
         memgif_t* memgif = <memgif_t*> gif.UserData
@@ -514,7 +516,7 @@ cdef int gif_output_func(
     GifFileType* gif,
     const GifByteType* src,
     int size
-) nogil:
+) noexcept nogil:
     """GIF write callback function."""
     cdef:
         memgif_t* memgif = <memgif_t*> gif.UserData
