@@ -37,7 +37,7 @@
 
 """Snappy codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from snappy cimport *
 
 
 class SNAPPY:
-    """Snappy Constants."""
+    """SNAPPY codec constants."""
+
+    available = True
 
 
 class SnappyError(RuntimeError):
-    """Snappy Exceptions."""
+    """SNAPPY codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -69,13 +71,11 @@ def snappy_version():
 
 
 def snappy_check(arg):
-    """Return True if data likely contains Snappy data."""
+    """Return whether data is SNAPPY encoded."""
 
 
-def snappy_encode(data, level=None, numthreads=None, out=None):
-    """Encode Snappy.
-
-    """
+def snappy_encode(data, out=None):
+    """Return SNAPPY encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -135,10 +135,8 @@ def snappy_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, output_length, outgiven)
 
 
-def snappy_decode(data, numthreads=None, out=None):
-    """Decode Snappy.
-
-    """
+def snappy_decode(data, out=None):
+    """Return decoded SNAPPY data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
