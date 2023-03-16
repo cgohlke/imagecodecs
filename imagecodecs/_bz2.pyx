@@ -37,7 +37,7 @@
 
 """BZ2 codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from libbzip2 cimport *
 
 
 class BZ2:
-    """Bz2 Constants."""
+    """BZ2 codec constants."""
+
+    available = True
 
 
 class Bz2Error(RuntimeError):
-    """BZ2 Exceptions."""
+    """BZ2 codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -78,13 +80,11 @@ def bz2_version():
 
 
 def bz2_check(data):
-    """Return True if data likely contains BZ2 data."""
+    """Return whether data is BZ2 encoded."""
 
 
-def bz2_encode(data, level=None, numthreads=None, out=None):
-    """Compress BZ2.
-
-    """
+def bz2_encode(data, level=None, out=None):
+    """Return BZ2 encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -140,10 +140,8 @@ def bz2_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def bz2_decode(data, numthreads=None, out=None):
-    """Decompress BZ2.
-
-    """
+def bz2_decode(data, out=None):
+    """Return decoded BZ2 data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
