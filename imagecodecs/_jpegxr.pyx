@@ -41,7 +41,7 @@ The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -49,10 +49,12 @@ from jxrlib cimport *
 
 
 class JPEGXR:
-    """JPEG XR Constants."""
+    """JPEGXR codec constants."""
+
+    available = True
 
     class PI(enum.IntEnum):
-        # Photometric Interpretation
+        """JPEGXR codec photometric interpretations."""
         W0 = PK_PI_W0
         B0 = PK_PI_B0
         RGB = PK_PI_RGB
@@ -66,7 +68,7 @@ class JPEGXR:
 
 
 class JpegxrError(RuntimeError):
-    """JPEG XR Exceptions."""
+    """JPEGXR codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -105,7 +107,7 @@ def jpegxr_version():
 
 
 def jpegxr_check(data):
-    """Return True if data likely contains a JPEG XR image."""
+    """Return whether data is JPEGXR encoded image."""
 
 
 def jpegxr_encode(
@@ -114,12 +116,9 @@ def jpegxr_encode(
     photometric=None,
     hasalpha=None,
     resolution=None,
-    numthreads=None,
     out=None
 ):
-    """Return JPEG XR image from numpy array.
-
-    """
+    """Return JPEGXR encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.dtype dtype = src.dtype
@@ -129,7 +128,7 @@ def jpegxr_encode(
         ssize_t srcsize = src.nbytes
         size_t byteswritten = 0
         ssize_t samples
-        int pi = jxr_encode_photometric(photometric)
+        int pi = _jxr_encode_photometric(photometric)
         int alpha = 1 if hasalpha else 0
         float quality = 1.0 if level is None else level
         WMPStream* stream = NULL
@@ -276,8 +275,8 @@ def jpegxr_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegxr_decode(data, index=None, fp2int=False, numthreads=None, out=None):
-    """Decode JPEG XR image to numpy array.
+def jpegxr_decode(data, fp2int=False, out=None):
+    """Return decoded JPEGXR image.
 
     fp2int: bool
         If True, return fixed point images as int16 or int32, else float32.
@@ -378,7 +377,11 @@ def jpegxr_decode(data, index=None, fp2int=False, numthreads=None, out=None):
     return out
 
 
-cdef ERR WriteWS_Memory(WMPStream* pWS, const void* pv, size_t cb) nogil:
+cdef ERR WriteWS_Memory(
+    WMPStream* pWS,
+    const void* pv,
+    size_t cb
+) noexcept nogil:
     """Replacement for WriteWS_Memory to keep track of bytes written."""
     if pWS.state.buf.cbCur + cb < pWS.state.buf.cbCur:
         return WMP_errBufferOverflow
@@ -395,7 +398,11 @@ cdef ERR WriteWS_Memory(WMPStream* pWS, const void* pv, size_t cb) nogil:
     return WMP_errSuccess
 
 
-cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
+cdef ERR WriteWS_Realloc(
+    WMPStream* pWS,
+    const void* pv,
+    size_t cb
+) noexcept nogil:
     """Replacement for WriteWS_Memory to realloc buffers on overflow.
 
     Only use with buffers allocated by malloc.
@@ -431,7 +438,9 @@ cdef ERR WriteWS_Realloc(WMPStream* pWS, const void* pv, size_t cb) nogil:
     return WMP_errSuccess
 
 
-cdef Bool EOSWS_Realloc(WMPStream* pWS) nogil:
+cdef Bool EOSWS_Realloc(
+    WMPStream* pWS
+) noexcept nogil:
     """Replacement for EOSWS_Memory."""
     # return pWS.state.buf.cbBuf <= pWS.state.buf.cbCur
     return 1
@@ -858,7 +867,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
     return GUID_PKPixelFormatDontCare
 
 
-cdef jxr_encode_photometric(photometric):
+cdef _jxr_encode_photometric(photometric):
     """Return PK_PI value from photometric argument."""
     if photometric is None:
         return -1
@@ -1021,7 +1030,7 @@ cdef ERR jxr_set_encoder(
     return WMP_errSuccess
 
 
-cdef pixelformat_str(PKPixelFormatGUID* pf):
+cdef _pixelformat_str(PKPixelFormatGUID* pf):
     """Return PKPixelFormatGUID as string."""
     return (
         'PKPixelFormatGUID '
