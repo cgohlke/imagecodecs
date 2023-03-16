@@ -37,7 +37,7 @@
 
 """WebP codec for the imagecodecs package."""
 
-__version__ = '2022.7.31'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from libwebp cimport *
 
 
 class WEBP:
-    """WebP Constants."""
+    """WEBP codec constants."""
+
+    available = True
 
 
 class WebpError(RuntimeError):
-    """WebP Exceptions."""
+    """WEBP codec exceptions."""
 
     def __init__(self, func, err):
         if func == 'WebPEncode':
@@ -97,7 +99,7 @@ def webp_version():
 
 
 def webp_check(const uint8_t[::1] data):
-    """Return True if data likely contains a WebP image."""
+    """Return whether data is WebP encoded image."""
     cdef:
         bytes sig = bytes(data[:12])
 
@@ -107,7 +109,7 @@ def webp_check(const uint8_t[::1] data):
 def webp_encode(
     data, level=None, lossless=None, method=None, numthreads=None, out=None
 ):
-    """Return WebP image from numpy array.
+    """Return WebP encoded image.
 
     Libwebp drops entire alpha channel if all alpha values are 255 (opaque).
 
@@ -224,10 +226,8 @@ def webp_encode(
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def webp_decode(data, index=None, hasalpha=None, numthreads=None, out=None):
-    """Decode WebP image to numpy array.
-
-    """
+def webp_decode(data, hasalpha=None, out=None):
+    """Return decoded WebP image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
