@@ -37,7 +37,7 @@
 
 """Brotli codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,16 +45,19 @@ from brotli cimport *
 
 
 class BROTLI:
-    """Brotli Constants."""
+    """BROTLI codec constants."""
+
+    available = True
 
     class MODE(enum.IntEnum):
+        """BROTLI codec modes."""
         GENERIC = BROTLI_MODE_GENERIC
         TEXT = BROTLI_MODE_TEXT
         FONT = BROTLI_MODE_FONT
 
 
 class BrotliError(RuntimeError):
-    """Brotli Exceptions."""
+    """BROTLI codec exceptions."""
 
     def __init__(self, func, err):
         err = {
@@ -80,15 +83,13 @@ def brotli_version():
 
 
 def brotli_check(data):
-    """Return True if data likely contains Brotli data."""
+    """Return whether data is BROTLI encoded."""
 
 
 def brotli_encode(
-    data, level=None, mode=None, lgwin=None, numthreads=None, out=None
+    data, level=None, mode=None, lgwin=None, out=None
 ):
-    """Compress Brotli.
-
-    """
+    """Return BROTLI encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -133,10 +134,8 @@ def brotli_encode(
     return _return_output(out, dstsize, encoded_size, outgiven)
 
 
-def brotli_decode(data, numthreads=None, out=None):
-    """Decompress Brotli.
-
-    """
+def brotli_decode(data, out=None):
+    """Return decoded BROTLI data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
