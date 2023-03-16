@@ -45,7 +45,7 @@ Conf. AIAA-93-4541-CP, 1993. https://doi.org/10.2514/6.1993-4541
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -53,11 +53,13 @@ from cfitsio cimport *
 
 
 class RCOMP:
-    """Rcomp Constants."""
+    """RCOMP codec constants."""
+
+    available = True
 
 
 class RcompError(RuntimeError):
-    """Rcomp Exceptions."""
+    """RCOMP codec exceptions."""
 
     def __init__(self, func):
         cdef:
@@ -76,14 +78,12 @@ def rcomp_version():
 
 
 def rcomp_check(data):
-    """Return True if data likely contains Rcomp compressed data."""
+    """Return whether data is RCOMP encoded."""
     return False
 
 
-def rcomp_encode(data, level=None, nblock=None, numthreads=None, out=None):
-    """Compress Rcomp.
-
-    """
+def rcomp_encode(data, nblock=None, out=None):
+    """Return RCOMP encoded data."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.dtype dtype = data.dtype
@@ -158,11 +158,9 @@ def rcomp_encode(data, level=None, nblock=None, numthreads=None, out=None):
 
 
 def rcomp_decode(
-    data, shape=None, dtype=None, nblock=None, numthreads=None, out=None
+    data, shape=None, dtype=None, nblock=None, out=None
 ):
-    """Decompress Rcomp.
-
-    """
+    """Return decoded RCOMP data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
