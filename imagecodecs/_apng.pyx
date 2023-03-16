@@ -37,7 +37,7 @@
 
 """APNG codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -48,21 +48,26 @@ from libpng cimport *
 
 
 class APNG:
-    """APNG Constants."""
+    """APNG codec constants."""
+
+    available = True
 
     class COLOR_TYPE(enum.IntEnum):
+        """APNG codec color types."""
         GRAY = PNG_COLOR_TYPE_GRAY
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
 
     class COMPRESSION(enum.IntEnum):
+        """APNG codec compression levels."""
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
         SPEED = Z_BEST_SPEED
 
     class STRATEGY(enum.IntEnum):
+        """APNG codec strategies."""
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -70,6 +75,7 @@ class APNG:
         FIXED = Z_FIXED
 
     class FILTER(enum.IntEnum):  # IntFlag
+        """APNG codec filters."""
         NO = PNG_NO_FILTERS
         NONE = PNG_FILTER_NONE
         SUB = PNG_FILTER_SUB
@@ -79,8 +85,9 @@ class APNG:
         FAST = PNG_FAST_FILTERS
         ALL = PNG_ALL_FILTERS
 
+
 class ApngError(RuntimeError):
-    """APNG Exceptions."""
+    """APNG codec exceptions."""
 
 
 def apng_version():
@@ -89,7 +96,7 @@ def apng_version():
 
 
 def apng_check(const uint8_t[::1] data):
-    """Return True if data likely contains a APNG image."""
+    """Return whether data is APNG encoded image."""
     cdef:
         bytes sig = bytes(data[:8])
 
@@ -103,17 +110,15 @@ def apng_encode(
     filter=None,
     photometric=None,
     delay=None,
-    numthreads=None,
     out=None
 ):
-    """Return APNG image from numpy array.
+    """Return APNG encoded image.
 
     For fast encoding, matching OpenCV settings, set:
 
     - level=1 (APNG.LEVEL.SPEED)
     - strategy=3 (APNG.STRATEGY.RLE)
     - filter=16 (APNG.FILTER.SUB)
-
 
     """
     cdef:
@@ -141,7 +146,7 @@ def apng_encode(
         ssize_t row, frame
         bint isapng
 
-    color_type = png_colortype(photometric)
+    color_type = _png_colortype(photometric)
 
     if src.ndim == 2:
         frames = 1
@@ -299,8 +304,8 @@ def apng_encode(
     return _return_output(out, dstsize, mempng.offset, outgiven)
 
 
-def apng_decode(data, index=None, numthreads=None, out=None):
-    """Decode APNG image to numpy array.
+def apng_decode(data, index=None, out=None):
+    """Return decoded APNG image.
 
     By default, all images in the file are returned in one array, including
     hidden frames and those not part of the animation.
@@ -712,7 +717,7 @@ cdef void png_composite_uint16(
                 j += 1
 
 
-cdef png_colortype(photometric):
+cdef _png_colortype(photometric):
     """Return color_type value from photometric argument."""
     if photometric is None:
         return -1
@@ -743,7 +748,7 @@ cdef png_colortype(photometric):
 cdef void png_error_callback(
     png_structp png_ptr,
     png_const_charp msg
-) nogil:
+) noexcept nogil:
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
 
@@ -756,7 +761,7 @@ cdef void png_error_callback(
 cdef void png_warn_callback(
     png_structp png_ptr,
     png_const_charp msg
-) with gil:
+) noexcept with gil:
     _log_warning('PNG warning: %s', msg.decode().strip())
 
 
@@ -772,7 +777,7 @@ cdef void png_read_data_fn(
     png_structp png_ptr,
     png_bytep dst,
     png_size_t size
-) nogil:
+) noexcept nogil:
     """APNG read callback function."""
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -797,7 +802,7 @@ cdef void png_write_data_fn(
     png_structp png_ptr,
     png_bytep src,
     png_size_t size
-) nogil:
+) noexcept nogil:
     """APNG write callback function."""
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -831,12 +836,14 @@ cdef void png_write_data_fn(
     mempng.offset += size
 
 
-cdef void png_output_flush_fn(png_structp png_ptr) nogil:
+cdef void png_output_flush_fn(
+    png_structp png_ptr
+) noexcept nogil:
     """APNG flush callback function."""
     pass
 
 
-cdef ssize_t png_size_max(ssize_t size, ssize_t frames):
+cdef ssize_t png_size_max(ssize_t size, ssize_t frames) nogil:
     """Return upper bound size of APNG stream from uncompressed image size."""
     # TODO: review this
     size /= frames
