@@ -6,7 +6,6 @@ import sys
 import os
 import re
 import shutil
-import warnings
 
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
@@ -144,14 +143,7 @@ EXTENSIONS = {
         include_dirs=['3rdparty/openjpeg'],
         libraries=['openjp2', 'lcms2'],
     ),
-    'jpeg8': ext(
-        libraries=['jpeg'],
-        cython_compile_time_env={'HAVE_LIBJPEG_TURBO': True},
-    ),
-    'jpeg12': ext(
-        libraries=['jpeg12'],
-        define_macros=[('BITS_IN_JSAMPLE', 12)],
-    ),
+    'jpeg8': ext(libraries=['jpeg']),
     'jpegls': ext(libraries=['charls']),
     'jpegsof3': ext(
         sources=['3rdparty/jpegsof3/jpegsof3.cpp'],
@@ -199,7 +191,7 @@ EXTENSIONS = {
         define_macros=[('SPNG_STATIC', 1)],
         libraries=['z'],
     ),
-    # 'szip': ext(libraries=['szip']),
+    'szip': ext(libraries=['sz']),
     'tiff': ext(libraries=['tiff']),
     'webp': ext(libraries=['webp']),
     'zfp': ext(libraries=['zfp']),
@@ -219,7 +211,6 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['blosc2']  # c-blosc2 library not commonly available
     # del EXTENSIONS['heif']  # LGPL/GPL
     del EXTENSIONS['jetraw']  # commercial
-    del EXTENSIONS['jpeg12']  # jpeg12 requires custom build
     del EXTENSIONS['lerc']  # LERC library not commonly available
     del EXTENSIONS['lz4f']  # requires static linking
     del EXTENSIONS['lzfse']  # lzfse not commonly available
@@ -254,7 +245,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     OPTIONS['include_dirs'].append(os.path.join(INCLIB, 'lib'))
     OPTIONS['library_dirs'].append(os.path.join(INCLIB, 'include'))
 
-    dlls = []  # 'heif.dll'
+    dlls: list[str] = []  # 'heif.dll'
     if '64 bit' in sys.version:
         for dll in dlls:
             shutil.copyfile(
@@ -274,7 +265,6 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
 
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
-    # EXTENSIONS['szip']['libraries'] = ['szip_static']
 
     EXTENSIONS['mozjpeg']['include_dirs'] = [
         os.path.join(INCLIB, 'include', 'mozjpeg')
@@ -293,6 +283,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'Userenv',
         'Bcrypt',
     ]
+    EXTENSIONS['szip']['libraries'] = ['szip-static']
     EXTENSIONS['aec']['libraries'] = ['aec-static']
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
@@ -439,21 +430,6 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
     else:
         del EXTENSIONS['jpegxl']
 
-    libjpeg12_base_path = os.path.join(
-        base_path, 'build_utils', 'libs_build', 'libjpeg12'
-    )
-    if os.path.exists(libjpeg12_base_path):
-        EXTENSIONS['jpeg12']['libraries'] = ['jpeg12']
-        EXTENSIONS['jpeg12']['include_dirs'] = [
-            os.path.join(libjpeg12_base_path, 'include')
-        ]
-    else:
-        del EXTENSIONS['jpeg12']
-
-    if os.environ.get('IMCD_SKIP_JPEG12', False):
-        # all tests fail on macOS; likely conflict with jpeg 8-bit dll
-        del EXTENSIONS['jpeg12']
-
     for dir_path in OPTIONS['include_dirs']:
         if os.path.exists(os.path.join(dir_path, 'avif', 'avif.h')):
             break
@@ -485,19 +461,11 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['apng']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
-    del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']
-
-    # build the jpeg8 extension against libjpeg v9 instead of libjpeg-turbo
-    warnings.warn('support for libjpeg is being removed', DeprecationWarning)
-    EXTENSIONS['jpeg8']['cythonize'] = True
-    EXTENSIONS['jpeg8']['cython_compile_time_env'][
-        'HAVE_LIBJPEG_TURBO'
-    ] = False
 
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
@@ -542,7 +510,6 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['deflate']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
-    del EXTENSIONS['jpeg12']
     del EXTENSIONS['jpegls']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['jpegxr']
@@ -554,6 +521,8 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
+    EXTENSIONS['szip']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
+    EXTENSIONS['szip']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['aec']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['gif']['include_dirs'] = ['%PREFIX%/include/giflib5']
@@ -573,7 +542,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['brunsli']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
-    del EXTENSIONS['jpeg12']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
     del EXTENSIONS['mozjpeg']  # Win32 only
@@ -702,7 +670,7 @@ def extension(name):
         },
     )
     ext.cython_compile_time_env = {
-        **OPTIONS['cython_compile_time_env'],
+        **OPTIONS['cython_compile_time_env'],  # type: ignore
         **opt['cython_compile_time_env'],
     }
     # ext.force = OPTIONS['cythonize'] or opt['cythonize']
@@ -748,7 +716,7 @@ setup(
         # 'pytinyexr',
     ],
     packages=['imagecodecs'],
-    package_data={'imagecodecs': ['licenses/*']},
+    package_data={'imagecodecs': ['*.pyi', 'licenses/*']},
     entry_points={
         'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
     },
