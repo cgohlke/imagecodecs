@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -55,17 +55,22 @@ DEF TIFF_MAX_DIR_COUNT = 1048576
 
 
 class _TIFF:
-    """TIFF Constants."""
+    """TIFF codec constants."""
+
+    available = True
 
     class VERSION(enum.IntEnum):
+        """TIFF codec file types."""
         CLASSIC = TIFF_VERSION_CLASSIC
         BIG = TIFF_VERSION_BIG
 
     class ENDIAN(enum.IntEnum):
+        """TIFF codec endian values."""
         BIG = TIFF_BIGENDIAN
         LITTLE = TIFF_LITTLEENDIAN
 
     class COMPRESSION(enum.IntEnum):
+        """TIFF codec compression schemes."""
         NONE = COMPRESSION_NONE
         LZW = COMPRESSION_LZW
         JPEG = COMPRESSION_JPEG
@@ -79,6 +84,7 @@ class _TIFF:
         # JXL = COMPRESSION_JXL
 
     class PHOTOMETRIC(enum.IntEnum):
+        """TIFF codec photometric interpretations."""
         MINISWHITE = PHOTOMETRIC_MINISWHITE
         MINISBLACK = PHOTOMETRIC_MINISBLACK
         RGB = PHOTOMETRIC_RGB
@@ -88,22 +94,25 @@ class _TIFF:
         YCBCR = PHOTOMETRIC_YCBCR
 
     class PLANARCONFIG(enum.IntEnum):
+        """TIFF codec planar configurations."""
         CONTIG = PLANARCONFIG_CONTIG
         SEPARATE = PLANARCONFIG_SEPARATE
 
     class PREDICTOR(enum.IntEnum):
+        """TIFF codec predictor schemes."""
         NONE = PREDICTOR_NONE
         HORIZONTAL = PREDICTOR_HORIZONTAL
         FLOATINGPOINT = PREDICTOR_FLOATINGPOINT
 
     class EXTRASAMPLE(enum.IntEnum):
+        """TIFF codec extrasample types."""
         UNSPECIFIED = EXTRASAMPLE_UNSPECIFIED
         ASSOCALPHA = EXTRASAMPLE_ASSOCALPHA
         UNASSALPHA = EXTRASAMPLE_UNASSALPHA
 
 
 class TiffError(RuntimeError):
-    """TIFF Exceptions."""
+    """TIFF codec exceptions."""
 
     def __init__(self, arg=None, msg=''):
         """Initialize Exception from string or memtif capsule."""
@@ -128,7 +137,7 @@ def tiff_version():
 
 
 def tiff_check(const uint8_t[::1] data):
-    """Return True if data likely contains a TIFF image."""
+    """Return whether data is TIFF encoded image."""
     cdef:
         bytes sig = bytes(data[:4])
 
@@ -166,21 +175,18 @@ def tiff_encode(
     subfiletype=0,
     software=None,
     verbose=0,
-    numthreads=None,
     out=None
 ):
-    """Return TIFF image from numpy array.
-
-    """
+    """Return TIFF encoded image (not implemented)."""
     raise NotImplementedError('tiff_encode')  # TODO
 
 
 def tiff_decode(
-    data, index=0, asrgb=False, verbose=0, numthreads=None, out=None
+    data, index=0, asrgb=False, verbose=0, out=None
 ):
-    """Return numpy array from TIFF image.
+    """Return decoded TIFF image.
 
-    By default the image from the first directory/page is returned.
+    By default, the image from the first directory/page is returned.
     If index is None, all images in the file with matching shape and
     dtype are returned in one array.
 
@@ -720,6 +726,7 @@ cdef int tiff_decode_tiled(
 
 cdef inline int tiff_set_directory(TIFF* tif, tdir_t dirnum) nogil:
     """Set current directory, avoiding TIFFSetDirectory if possible."""
+    # TODO: this should be resolved in libtiff > 4.5.0
     cdef:
         ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
         int ret
@@ -727,12 +734,6 @@ cdef inline int tiff_set_directory(TIFF* tif, tdir_t dirnum) nogil:
         return TIFFReadDirectory(tif)
     if diff == 0:
         return 1
-    if diff > 1:
-        ret = 1
-        while diff and ret == 1:
-            ret = TIFFReadDirectory(tif)
-            diff -= 1
-        return ret
     return TIFFSetDirectory(tif, dirnum)
 
 
@@ -876,7 +877,7 @@ cdef tsize_t memtif_TIFFReadProc(
     thandle_t handle,
     void* buf,
     tmsize_t size
-) nogil:
+) noexcept nogil:
     """Callback function to read from memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
@@ -892,7 +893,7 @@ cdef tmsize_t memtif_TIFFWriteProc(
     thandle_t handle,
     void* buf,
     tmsize_t size
-) nogil:
+) noexcept nogil:
     """Callback function to write to memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
@@ -919,8 +920,8 @@ cdef toff_t memtif_TIFFSeekProc(
     thandle_t handle,
     toff_t off,
     int whence
-) nogil:
-    """Callback function to seek to memtif."""
+) noexcept nogil:
+    """Callback function to seek in memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
         unsigned char* tmp
@@ -968,7 +969,9 @@ cdef toff_t memtif_TIFFSeekProc(
     return memtif.fpos
 
 
-cdef int memtif_TIFFCloseProc(thandle_t handle) nogil:
+cdef int memtif_TIFFCloseProc(
+    thandle_t handle
+) noexcept nogil:
     """Callback function to close memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
@@ -977,7 +980,9 @@ cdef int memtif_TIFFCloseProc(thandle_t handle) nogil:
     return 0
 
 
-cdef toff_t memtif_TIFFSizeProc(thandle_t handle) nogil:
+cdef toff_t memtif_TIFFSizeProc(
+    thandle_t handle
+) noexcept nogil:
     """Callback function to return size of memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
@@ -989,7 +994,7 @@ cdef int memtif_TIFFMapFileProc(
     thandle_t handle,
     void** base,
     toff_t* size
-) nogil:
+) noexcept nogil:
     """Callback function to map memtif."""
     cdef:
         memtif_t* memtif = <memtif_t*> handle
@@ -1003,7 +1008,7 @@ cdef void memtif_TIFFUnmapFileProc(
     thandle_t handle,
     void* base,
     toff_t size
-) nogil:
+) noexcept nogil:
     """Callback function to unmap memtif."""
     return
 
@@ -1014,7 +1019,7 @@ cdef int tif_error_handler(
     const char* module,
     const char* fmt,
     va_list args
-) nogil:
+) noexcept nogil:
     """Callback function to write libtiff error message to memtif."""
     cdef:
         memtif_t* memtif
@@ -1036,7 +1041,7 @@ cdef int tif_warning_handler(
     const char* module,
     const char* fmt,
     va_list args
-) with gil:
+) noexcept with gil:
     """Callback function to output libtiff warning message to logging."""
     cdef:
         char msg[80]
