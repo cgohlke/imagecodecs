@@ -37,7 +37,7 @@
 
 """SPNG codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,9 +45,12 @@ from libspng cimport *
 
 
 class SPNG:
-    """SPNG Constants."""
+    """SPNG codec constants."""
+
+    available = True
 
     class FMT(enum.IntEnum):
+        """SPNG codec formats."""
         RGBA8 = SPNG_FMT_RGBA8
         RGBA16 = SPNG_FMT_RGBA16
         RGB8 = SPNG_FMT_RGB8
@@ -57,7 +60,7 @@ class SPNG:
 
 
 class SpngError(RuntimeError):
-    """SPNG Exceptions."""
+    """SPNG codec exceptions."""
 
     def __init__(self, func, err):
         cdef:
@@ -82,17 +85,15 @@ def spng_version():
 
 
 def spng_check(data):
-    """Return True if data likely contains a PNG image."""
+    """Return whether data is PNG encoded image."""
     cdef:
         bytes sig = bytes(data[:8])
 
     return sig == b'\x89PNG\r\n\x1a\n'
 
 
-def spng_encode(data, level=None, numthreads=None, out=None):
-    """Return PNG image from numpy array.
-
-    """
+def spng_encode(data, level=None, out=None):
+    """Return PNG encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -208,8 +209,8 @@ def spng_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def spng_decode(data, index=None, numthreads=None, out=None):
-    """Decode PNG image to numpy array.
+def spng_decode(data, out=None):
+    """Return decoded PNG image.
 
     Supported formats: G8, RGB8, RGBA8, RGBA16
     Not supported: GA8, GA16, G16, RGB16
