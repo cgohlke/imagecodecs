@@ -37,7 +37,7 @@
 
 """RGBE codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -46,11 +46,13 @@ from imcd cimport imcd_strsearch
 
 
 class RGBE:
-    """RGBE Constants."""
+    """RGBE codec constants."""
+
+    available = True
 
 
 class RgbeError(RuntimeError):
-    """RGBE Exceptions."""
+    """RGBE codec exceptions."""
 
     def __init__(self, func, err=None):
         msg = {
@@ -71,7 +73,7 @@ def rgbe_version():
 
 
 def rgbe_check(const uint8_t[::1] data):
-    """Return True if data likely contains RGBE data."""
+    """Return whether data is RGBE encoded image."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -79,11 +81,9 @@ def rgbe_check(const uint8_t[::1] data):
 
 
 def rgbe_encode(
-    data, level=None, header=None, rle=None, numthreads=None, out=None
+    data, header=None, rle=None, out=None
 ):
-    """Return RGBE image from numpy array.
-
-    """
+    """Return RGBE encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.ndarray arr
@@ -186,11 +186,9 @@ def rgbe_encode(
 
 
 def rgbe_decode(
-    data, header=None, rle=None, index=None, numthreads=None, out=None
+    data, header=None, rle=None, out=None
 ):
-    """Decode RGBE image to numpy array.
-
-    """
+    """Return decoded RGBE image."""
     cdef:
         numpy.ndarray dst, arr
         const uint8_t[::1] src
