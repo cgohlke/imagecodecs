@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2022.7.27'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -54,11 +54,13 @@ cdef extern from 'numpy/arrayobject.h':
 
 
 class IMCD:
-    """Imcd Constants."""
+    """IMCD codec constants."""
+
+    available = True
 
 
 class ImcdError(RuntimeError):
-    """Imcd Exceptions."""
+    """IMCD codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -92,12 +94,12 @@ def cython_version():
 
 
 def numpy_abi_version():
-    """Return numpy ABI version string."""
+    """Return Numpy ABI version string."""
     return f'numpy_abi 0x{NPY_VERSION:X}.{NPY_FEATURE_VERSION}'
 
 
 def imcd_check(arg):
-    """Return True if data likely contains IMCD data."""
+    """Return whether data is encoded."""
 
 
 # Delta #######################################################################
@@ -108,8 +110,8 @@ delta_version = imcd_version
 delta_check = imcd_check
 
 
-def delta_encode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Encode differencing.
+def delta_encode(data, axis=-1, dist=1, out=None):
+    """Return DELTA encoded data.
 
     Preserve byteorder.
 
@@ -117,8 +119,8 @@ def delta_encode(data, axis=-1, dist=1, numthreads=None, out=None):
     return _delta(data, axis=axis, dist=dist, out=out, decode=False)
 
 
-def delta_decode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Decode differencing.
+def delta_decode(data, axis=-1, dist=1, out=None):
+    """Return decoded DELTA data.
 
     Same as numpy.cumsum. Preserve byteorder.
 
@@ -127,7 +129,6 @@ def delta_decode(data, axis=-1, dist=1, numthreads=None, out=None):
 
 
 cdef _delta(data, int axis, ssize_t dist, out, int decode):
-    """Decode or encode Delta."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -246,22 +247,17 @@ xor_version = imcd_version
 xor_check = imcd_check
 
 
-def xor_encode(data, axis=-1, numthreads=None, out=None):
-    """Encode XOR.
-
-    """
+def xor_encode(data, axis=-1, out=None):
+    """Return XOR encoded data."""
     return _xor(data, axis=axis, out=out, decode=False)
 
 
-def xor_decode(data, axis=-1, numthreads=None, out=None):
-    """Decode XOR.
-
-    """
+def xor_decode(data, axis=-1, out=None):
+    """Return decoded XOR data."""
     return _xor(data, axis=axis, out=out, decode=True)
 
 
 cdef _xor(data, int axis, out, int decode):
-    """Decode or encode XOR."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -357,7 +353,7 @@ cdef _xor(data, int axis, out, int decode):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-# ByteShuffle Predictor #######################################################
+# ByteShuffle Filter ##########################################################
 
 # Separately pack bytes of values
 
@@ -373,10 +369,9 @@ def byteshuffle_encode(
     dist=1,
     delta=False,
     reorder=False,
-    numthreads=None,
     out=None
 ):
-    """Encode ByteShuffle Predictor.
+    """Return byte-shuffled data.
 
     The output array should not be treated as numbers but as an encoded byte
     sequence viewed as a numpy array with shape and dtype of the input data.
@@ -399,12 +394,11 @@ def byteshuffle_decode(
     dist=1,
     delta=False,
     reorder=False,
-    numthreads=None,
     out=None
 ):
-    """Decode ByteShuffle Predictor.
+    """Return un-byte-shuffled data.
 
-    The data array is not really an array of numbers but an encoded byte
+    The input array is not really an array of numbers but an encoded byte
     sequence viewed as a numpy array of requested output shape and dtype.
 
     """
@@ -422,7 +416,6 @@ def byteshuffle_decode(
 cdef _byteshuffle(
     data, int axis, ssize_t dist, bint delta, bint reorder, bint decode, out
 ):
-    """Encode or decode ByteShuffle Predictor."""
     cdef:
         void* srcptr = NULL
         void* dstptr = NULL
@@ -525,8 +518,8 @@ floatpred_version = imcd_version
 floatpred_check = imcd_check
 
 
-def floatpred_encode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Encode Floating Point Predictor.
+def floatpred_encode(data, axis=-1, dist=1, out=None):
+    """Return floating-point predicted array.
 
     The output array should not be treated as floating-point numbers but as an
     encoded byte sequence viewed as a numpy array with shape and dtype of the
@@ -544,10 +537,10 @@ def floatpred_encode(data, axis=-1, dist=1, numthreads=None, out=None):
     )
 
 
-def floatpred_decode(data, axis=-1, dist=1, numthreads=None, out=None):
-    """Decode Floating Point Predictor.
+def floatpred_decode(data, axis=-1, dist=1, out=None):
+    """Return un-predicted floating-point array.
 
-    The data array is not really an array of floating-point numbers but an
+    The input array is not really an array of floating-point numbers but an
     encoded byte sequence viewed as a numpy array of requested output shape
     and dtype.
 
@@ -571,10 +564,8 @@ bitorder_version = imcd_version
 bitorder_check = imcd_check
 
 
-def bitorder_encode(data, numthreads=None, out=None):
-    """"Reverse bits in each byte of bytes, bytearray or numpy array.
-
-    """
+def bitorder_encode(data, out=None):
+    """Return data with reversed bit-order in each byte."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -723,10 +714,9 @@ PackbitsError = ImcdError
 packbits_version = imcd_version
 packbits_check = imcd_check
 
-def packbits_encode(data, level=None, axis=None, numthreads=None, out=None):
-    """Compress PackBits.
 
-    """
+def packbits_encode(data, axis=None, out=None):
+    """Return PACKBITS encoded data."""
     cdef:
         numpy.flatiter srciter
         const uint8_t[::1] src
@@ -819,10 +809,8 @@ def packbits_encode(data, level=None, axis=None, numthreads=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def packbits_decode(data, numthreads=None, out=None):
-    """Decompress PackBits.
-
-    """
+def packbits_decode(data, out=None):
+    """Return decoded PACKBITS data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -867,17 +855,14 @@ CcittrleError = ImcdError
 ccittrle_version = imcd_version
 ccittrle_check = imcd_check
 
-def ccittrle_encode(data, level=None, axis=None, numthreads=None, out=None):
-    """Compress CCITTRLE.
 
-    """
+def ccittrle_encode(data, level=None, axis=None, out=None):
+    """Return CCITTRLE encoded data."""
     raise NotImplementedError('ccittrle_encode')
 
 
-def ccittrle_decode(data, numthreads=None, out=None):
-    """Decompress CCITTRLE.
-
-    """
+def ccittrle_decode(data, out=None):
+    """Return decoded CCITTRLE data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -924,17 +909,21 @@ packints_check = imcd_check
 
 
 def packints_encode(
-    data, int bitspersample, int axis=-1, numthreads=None, out=None
+    data, int bitspersample, int axis=-1, out=None
 ):
-    """Pack integers."""
+    """Return packed integers (not implemented)."""
 
     raise NotImplementedError('packints_encode')
 
 
 def packints_decode(
-    data, dtype, int bitspersample, ssize_t runlen=0, numthreads=None, out=None
+    data, dtype, int bitspersample, ssize_t runlen=0, out=None
 ):
-    """Unpack groups of bits in byte sequence into numpy array."""
+    """Return unpacked integers.
+
+    Unpack groups of bits in byte sequence into numpy array.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         uint8_t* srcptr = <uint8_t*> &src[0]
@@ -1036,9 +1025,12 @@ float24_check = imcd_check
 
 
 class FLOAT24:
-    """Float24 Constants."""
+    """FLOAT24 codec constants."""
+
+    available = True
 
     class ROUND(enum.IntEnum):
+        """FLOAT24 codec rounding types."""
         TONEAREST = FE_TONEAREST
         UPWARD = FE_UPWARD
         DOWNWARD = FE_DOWNWARD
@@ -1046,11 +1038,9 @@ class FLOAT24:
 
 
 def float24_encode(
-    data, byteorder=None, rounding=None, numthreads=None, out=None
+    data, byteorder=None, rounding=None, out=None
 ):
-    """Return byte sequence of float24 from numpy.float32 array.
-
-    """
+    """Return FLOAT24 encoded array."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -1063,7 +1053,8 @@ def float24_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if not (isinstance(data, numpy.ndarray) and data.dtype == numpy.float32):
+    data = numpy.asarray(data)
+    if not data.dtype == numpy.float32:
         raise ValueError('not a numpy.float32 array with native byte order')
 
     srcsize = data.size
@@ -1108,10 +1099,8 @@ def float24_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def float24_decode(data, byteorder=None, numthreads=None, out=None):
-    """Return numpy.float32 array from byte sequence of float24.
-
-    """
+def float24_decode(data, byteorder=None, out=None):
+    """Return decoded FLOAT24 array."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t* srcptr = &src[0]
@@ -1165,20 +1154,20 @@ def float24_decode(data, byteorder=None, numthreads=None, out=None):
 
 # LZW #########################################################################
 
+# TIFF Revision 6, Section 13, June 3, 1992
+
 LZW = IMCD
 LzwError = ImcdError
 lzw_version = imcd_version
 
 
 def lzw_check(const uint8_t[::1] data):
-    """Return True if data likely contains LZW data."""
+    """Return whether data is LZW encoded."""
     return bool(imcd_lzw_check(&data[0], data.size))
 
 
-def lzw_decode(data, buffersize=0, numthreads=None, out=None):
-    """Decompress LZW according to TIFF Revision 6, Section 13, June 3, 1992
-
-    """
+def lzw_decode(data, buffersize=0, out=None):
+    """Return decoded LZW data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -1225,10 +1214,8 @@ def lzw_decode(data, buffersize=0, numthreads=None, out=None):
 
 
 
-def lzw_encode(data, level=None, buffersize=0, numthreads=None, out=None):
-    """Compress LZW according to TIFF Revision 6, Section 13, June 3, 1992
-
-    """
+def lzw_encode(data, out=None):
+    """Return LZW encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
