@@ -37,7 +37,7 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2022.12.24'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -46,22 +46,28 @@ from libc.setjmp cimport setjmp
 from zlib cimport *
 from libpng cimport *
 
+
 class PNG:
-    """PNG Constants."""
+    """PNG codec constants."""
+
+    available = True
 
     class COLOR_TYPE(enum.IntEnum):
+        """PNG codec color types."""
         GRAY = PNG_COLOR_TYPE_GRAY
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
 
     class COMPRESSION(enum.IntEnum):
+        """PNG codec compression levels."""
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
         SPEED = Z_BEST_SPEED
 
     class STRATEGY(enum.IntEnum):
+        """PNG codec compression strategies."""
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -69,6 +75,7 @@ class PNG:
         FIXED = Z_FIXED
 
     class FILTER(enum.IntEnum):  # IntFlag
+        """PNG codec filters."""
         NO = PNG_NO_FILTERS
         NONE = PNG_FILTER_NONE
         SUB = PNG_FILTER_SUB
@@ -80,7 +87,7 @@ class PNG:
 
 
 class PngError(RuntimeError):
-    """PNG Exceptions."""
+    """PNG codec exceptions."""
 
 
 def png_version():
@@ -89,7 +96,7 @@ def png_version():
 
 
 def png_check(const uint8_t[::1] data):
-    """Return True if data likely contains a PNG image."""
+    """Return whether data is PNG encoded image."""
     cdef:
         bytes sig = bytes(data[:8])
 
@@ -97,9 +104,9 @@ def png_check(const uint8_t[::1] data):
 
 
 def png_encode(
-    data, level=None, strategy=None, filter=None, numthreads=None, out=None
+    data, level=None, strategy=None, filter=None, out=None
 ):
-    """Return PNG image from numpy array.
+    """Return PNG encoded image.
 
     For fast encoding, matching OpenCV settings, set:
 
@@ -241,10 +248,8 @@ def png_encode(
     return _return_output(out, dstsize, mempng.offset, outgiven)
 
 
-def png_decode(data, index=None, numthreads=None, out=None):
-    """Decode PNG image to numpy array.
-
-    """
+def png_decode(data, out=None):
+    """Return decoded PNG image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -382,7 +387,7 @@ def png_decode(data, index=None, numthreads=None, out=None):
 cdef void png_error_callback(
     png_structp png_ptr,
     png_const_charp msg
-) nogil:
+) noexcept nogil:
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
 
@@ -395,7 +400,7 @@ cdef void png_error_callback(
 cdef void png_warn_callback(
     png_structp png_ptr,
     png_const_charp msg
-) with gil:
+) noexcept with gil:
     _log_warning('PNG warning: %s', msg.decode().strip())
 
 
@@ -411,7 +416,7 @@ cdef void png_read_data_fn(
     png_structp png_ptr,
     png_bytep dst,
     png_size_t size
-) nogil:
+) noexcept nogil:
     """PNG read callback function."""
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -436,7 +441,7 @@ cdef void png_write_data_fn(
     png_structp png_ptr,
     png_bytep src,
     png_size_t size
-) nogil:
+) noexcept nogil:
     """PNG write callback function."""
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -470,12 +475,14 @@ cdef void png_write_data_fn(
     mempng.offset += size
 
 
-cdef void png_output_flush_fn(png_structp png_ptr) nogil:
+cdef void png_output_flush_fn(
+    png_structp png_ptr
+) noexcept nogil:
     """PNG flush callback function."""
     pass
 
 
-cdef ssize_t png_size_max(ssize_t size):
+cdef ssize_t png_size_max(ssize_t size) nogil:
     """Return upper bound size of PNG stream from uncompressed image size."""
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
