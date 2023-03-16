@@ -37,7 +37,7 @@
 
 """MOZJPEG codec for the imagecodecs package."""
 
-__version__ = '2022.8.8'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -49,9 +49,12 @@ from libc.setjmp cimport setjmp, longjmp, jmp_buf
 
 
 class MOZJPEG:
-    """MOZJPEG Constants."""
+    """MOZJPEG codec constants."""
+
+    available = True
 
     class CS(enum.IntEnum):
+        """MOZJPEG codec color spaces."""
         UNKNOWN = JCS_UNKNOWN
         GRAYSCALE = JCS_GRAYSCALE
         RGB = JCS_RGB
@@ -72,7 +75,7 @@ class MOZJPEG:
 
 
 class MozjpegError(RuntimeError):
-    """MOZJPEG Exceptions."""
+    """MOZJPEG codec exceptions."""
 
 
 def mozjpeg_version():
@@ -84,7 +87,7 @@ def mozjpeg_version():
 
 
 def mozjpeg_check(const uint8_t[::1] data):
-    """Return True if data likely contains a JPEG image."""
+    """Return whether data is JPEG encoded image."""
     sig = bytes(data[:10])
     return (
         sig[:4] == b'\xFF\xD8\xFF\xDB'
@@ -106,12 +109,9 @@ def mozjpeg_encode(
     notrellis=None,
     quanttable=None,
     progressive=None,
-    numthreads=None,
     out=None
 ):
-    """Return JPEG 8-bit image from numpy array.
-
-    """
+    """Return JPEG encoded image."""
     cdef:
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -277,17 +277,13 @@ def mozjpeg_encode(
 
 def mozjpeg_decode(
     data,
-    index=None,
     tables=None,
     colorspace=None,
     outcolorspace=None,
     shape=None,
-    numthreads=None,
     out=None
 ):
-    """Decode JPEG 8-bit image to numpy array.
-
-    """
+    """Return decoded JPEG image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -407,7 +403,7 @@ cdef void my_output_message(jpeg_common_struct* cinfo) nogil:
     pass
 
 
-def _jcs_colorspace(colorspace):
+cdef _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
@@ -444,7 +440,7 @@ def _jcs_colorspace(colorspace):
     }.get(colorspace, JCS_UNKNOWN)
 
 
-def _jcs_colorspace_samples(colorspace):
+cdef _jcs_colorspace_samples(colorspace):
     """Return expected number of samples in colorspace."""
     three = (3,)
     four = (4,)
