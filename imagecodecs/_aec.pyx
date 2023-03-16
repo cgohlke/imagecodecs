@@ -37,7 +37,7 @@
 
 """AEC codec for the imagecodecs package."""
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,18 +45,22 @@ from libaec cimport *
 
 
 class AEC:
-    """AEC Constants."""
+    """AEC codec constants."""
 
-    DATA_SIGNED = AEC_DATA_SIGNED
-    DATA_3BYTE = AEC_DATA_3BYTE
-    DATA_PREPROCESS = AEC_DATA_PREPROCESS
-    RESTRICTED = AEC_RESTRICTED
-    PAD_RSI = AEC_PAD_RSI
-    NOT_ENFORCE = AEC_NOT_ENFORCE
+    available = True
+
+    class FLAG(enum.IntEnum):  # IntFlag
+        """AEC codec flags."""
+        DATA_SIGNED = AEC_DATA_SIGNED
+        DATA_3BYTE = AEC_DATA_3BYTE
+        DATA_PREPROCESS = AEC_DATA_PREPROCESS
+        RESTRICTED = AEC_RESTRICTED
+        PAD_RSI = AEC_PAD_RSI
+        NOT_ENFORCE = AEC_NOT_ENFORCE
 
 
 class AecError(RuntimeError):
-    """AEC Exceptions."""
+    """AEC codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -77,20 +81,18 @@ def aec_version():
 
 
 def aec_check(data):
-    """Return True if data likely contains AEC data."""
+    """Return whether data is AEC encoded."""
 
 
 def aec_encode(
     data,
-    level=None,
     bitspersample=None,
     flags=None,
     blocksize=None,
     rsi=None,
-    numthreads=None,
     out=None
 ):
-    """Compress AEC.
+    """Return AEC encoded data.
 
     Does not work well with RGB contig samples.
 
@@ -127,7 +129,7 @@ def aec_encode(
             src = view.tobytes()  # copy
         if view.format in 'hilqnfde':
             flags_ |= AEC_DATA_SIGNED
-        bits_per_sample = view.itemsize * 8
+        bits_per_sample = <unsigned int> (view.itemsize * 8)
 
     srcsize = src.size
 
@@ -146,7 +148,7 @@ def aec_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize * 2  # ? TODO: use dynamic destination buffer
+            dstsize = srcsize + srcsize // 21 + 256 + 1
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -190,12 +192,9 @@ def aec_decode(
     flags=None,
     blocksize=None,
     rsi=None,
-    numthreads=None,
     out=None
 ):
-    """Decompress AEC.
-
-    """
+    """Return decoded AEC data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
