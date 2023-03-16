@@ -37,7 +37,7 @@
 
 """Zopfli codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,16 +45,19 @@ from zopfli cimport *
 
 
 class ZOPFLI:
-    """Zopfli Constants."""
+    """ZOPFLI codec constants."""
+
+    available = True
 
     class FORMAT(enum.IntEnum):
+        """ZOPFLI codec formats."""
         GZIP = ZOPFLI_FORMAT_GZIP
         ZLIB = ZOPFLI_FORMAT_ZLIB
         DEFLATE = ZOPFLI_FORMAT_DEFLATE
 
 
 class ZopfliError(RuntimeError):
-    """Zopfli Exceptions."""
+    """ZOPFLI codec exceptions."""
 
 
 def zopfli_version():
@@ -67,10 +70,8 @@ def zopfli_version():
 # zopfli_decode = zlib_decode
 
 
-def zopfli_encode(data, level=None, numthreads=None, out=None, **kwargs):
-    """Compress Zlib format using Zopfli.
-
-    """
+def zopfli_encode(data, level=None, out=None, **kwargs):
+    """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
