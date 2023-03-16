@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,11 +45,13 @@ from lj92 cimport *
 
 
 class LJPEG:
-    """LJPEG Constants."""
+    """LJPEG codec constants."""
+
+    available = True
 
 
 class LjpegError(RuntimeError):
-    """LJPEG Exceptions."""
+    """LJPEG codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -70,18 +72,16 @@ def ljpeg_version():
 
 
 def ljpeg_check(data):
-    """Return True if data likely contains a LJPEG image."""
+    """Return whether data is Lossless JPEG encoded image."""
 
 
 def ljpeg_encode(
     data,
-    level=None,
     bitspersample=None,
     delinearize=None,
-    numthreads=None,
     out=None
 ):
-    """Return Lossless JPEG image from numpy array."""
+    """Return Lossless JPEG encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
         numpy.ndarray table
@@ -126,7 +126,7 @@ def ljpeg_encode(
         if table.ndim != 1 or table.dtype != numpy.uint16:
             raise ValueError('invalid delinearize shape or dtype')
         delinearize_table = <uint16_t*> table.data
-        delinearize_length = table.size
+        delinearize_length = <int> table.size
 
     with nogil:
         ret = lj92_encode(
@@ -170,16 +170,9 @@ def ljpeg_encode(
 def ljpeg_decode(
     data,
     linearize=None,
-    index=None,
-    numthreads=None,
     out=None
 ):
-    """Decode Lossless JPEG image to numpy array.
-
-    Beware, the underlying lj92 library is known to crash on some valid input.
-    Alternatively use jpegsof3_decode.
-
-    """
+    """Return decoded Lossless JPEG image."""
     cdef:
         numpy.ndarray dst
         numpy.ndarray table
@@ -207,7 +200,7 @@ def ljpeg_decode(
         if table.ndim != 1 or table.dtype != numpy.uint16:
             raise ValueError('invalid linearize shape or dtype')
         linearize_table = <uint16_t*> table.data
-        linearize_length = table.size
+        linearize_length = <int> table.size
 
     with nogil:
         ret = lj92_open(
