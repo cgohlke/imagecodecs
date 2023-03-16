@@ -37,7 +37,7 @@
 
 """QOI codec for the imagecodecs package."""
 
-__version__ = '2022.7.27'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,15 +45,18 @@ cimport qoi
 
 
 class QOI:
-    """QOI Constants."""
+    """QOI codec constants."""
+
+    available = True
 
     class COLORSPACE(enum.IntEnum):
+        """QOI codec color spaces."""
         SRGB = qoi.QOI_SRGB
         LINEAR  = qoi.QOI_LINEAR
 
 
 class QoiError(RuntimeError):
-    """QOI Exceptions."""
+    """QOI codec exceptions."""
 
 
 def qoi_version():
@@ -62,17 +65,15 @@ def qoi_version():
 
 
 def qoi_check(const uint8_t[::1] data):
-    """Return True if data likely contains QOI data."""
+    """Return whether data is QOI encoded image."""
     cdef:
         bytes sig = bytes(data[:4])
 
     return sig == b'qoif'
 
 
-def qoi_encode(data, level=None, numthreads=None, out=None):
-    """Return QOI image from numpy array.
-
-    """
+def qoi_encode(data, out=None):
+    """Return QOI encoded image."""
     cdef:
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -125,10 +126,8 @@ def qoi_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, out_len, outgiven)
 
 
-def qoi_decode(data, index=None, numthreads=None, out=None):
-    """Decode QOI image to numpy array.
-
-    """
+def qoi_decode(data, out=None):
+    """Return decoded QOI image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
