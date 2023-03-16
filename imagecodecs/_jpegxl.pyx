@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -46,15 +46,19 @@ from libjxl cimport *
 
 
 class JPEGXL:
-    """JPEG XL Constants."""
+    """JPEGXL codec constants."""
+
+    available = True
 
     class COLOR_SPACE(enum.IntEnum):
+        """JPEGXL codec color spaces."""
         UNKNOWN = JXL_COLOR_SPACE_UNKNOWN
         RGB = JXL_COLOR_SPACE_RGB
         GRAY = JXL_COLOR_SPACE_GRAY
         XYB = JXL_COLOR_SPACE_XYB
 
     class CHANNEL(enum.IntEnum):
+        """JPEGXL codec channel types."""
         UNKNOWN = JXL_CHANNEL_UNKNOWN
         ALPHA = JXL_CHANNEL_ALPHA
         DEPTH = JXL_CHANNEL_DEPTH
@@ -67,7 +71,7 @@ class JPEGXL:
 
 
 class JpegxlError(RuntimeError):
-    """JPEG XL Exceptions."""
+    """JPEGXL codec exceptions."""
 
     def __init__(self, func, err):
         if err is None:
@@ -114,7 +118,7 @@ def jpegxl_version():
 
 
 def jpegxl_check(const uint8_t[::1] data):
-    """Return True if data likely contains a JPEG XL image."""
+    """Return whether data is JPEGXL encoded image."""
     cdef:
         JxlSignature sig = JxlSignatureCheck(&data[0], min(data.size, 16))
 
@@ -136,11 +140,11 @@ def jpegxl_encode(
     numthreads=None,
     out=None
 ):
-    """Return JPEG XL image from numpy array.
+    """Return JPEGXL encoded image.
 
     Float must be in nominal range 0..1.
 
-    Currently L, LA, RGB, RGBA images are supported in contig mode.
+    Currently, L, LA, RGB, and RGBA images are supported in contig mode.
     Extra channels are only supported for grayscale images in planar mode.
 
     """
@@ -187,7 +191,7 @@ def jpegxl_encode(
 
     if isinstance(data, (bytes, bytearray)):
         # input is a JPEG stream
-        return jpegxl_from_jpeg(data, use_container, num_threads, out)
+        return _jpegxl_from_jpeg(data, use_container, num_threads, out)
 
     if level is not None:
         if level > 100:
@@ -250,7 +254,7 @@ def jpegxl_encode(
     memset(<void*> &pixel_format, 0, sizeof(JxlPixelFormat))
     memset(<void*> &color_encoding, 0, sizeof(JxlColorEncoding))
 
-    colorspace = jpegxl_encode_photometric(photometric)
+    colorspace = _jpegxl_encode_photometric(photometric)
 
     # TODO: support multi-channel in non-planar mode
     if src.ndim == 2:
@@ -584,9 +588,7 @@ def jpegxl_decode(
     numthreads=None,
     out=None,
 ):
-    """Return numpy array from JPEG XL image.
-
-    """
+    """Return decoded JPEGXL image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -615,7 +617,7 @@ def jpegxl_decode(
 
     if tojpeg:
         # output JPEG stream
-        return jpegxl_to_jpeg(src, num_threads, out)
+        return _jpegxl_to_jpeg(src, num_threads, out)
 
     if index is None:
         frames = 0
@@ -880,7 +882,7 @@ def jpegxl_decode(
     return out
 
 
-cdef object jpegxl_from_jpeg(
+cdef _jpegxl_from_jpeg(
     const uint8_t[::1] src,
     JXL_BOOL use_container,
     size_t num_threads,
@@ -890,7 +892,7 @@ cdef object jpegxl_from_jpeg(
     raise NotImplementedError  # TODO: transcoding not yet supported by libjxl
 
 
-cdef object jpegxl_to_jpeg(
+cdef _jpegxl_to_jpeg(
     const uint8_t[::1] src,
     size_t num_threads,
     out
@@ -924,7 +926,7 @@ cdef size_t jpegxl_framecount(JxlDecoder* decoder) nogil:
     return framecount
 
 
-cdef jpegxl_encode_photometric(photometric):
+cdef _jpegxl_encode_photometric(photometric):
     """Return JxlColorSpace value from photometric argument."""
     if photometric is None:
         return -1
@@ -952,7 +954,7 @@ cdef jpegxl_encode_photometric(photometric):
     raise ValueError(f'photometric {photometric!r} not supported')
 
 
-cdef jpegxl_encode_extrasamples(extrasample):
+cdef _jpegxl_encode_extrasamples(extrasample):
     """Return JxlExtraChannelType from extrasample argument."""
     if extrasample is None:
         return JXL_CHANNEL_OPTIONAL
