@@ -43,7 +43,7 @@ The format is identified by a Start of Frame (SOF) code 0xC3.
 
 """
 
-__version__ = '2022.2.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -51,11 +51,13 @@ from jpegsof3 cimport *
 
 
 class JPEGSOF3:
-    """JPEG SOF3 Constants."""
+    """JPEGSOF3 codec constants."""
+
+    available = True
 
 
 class Jpegsof3Error(RuntimeError):
-    """JPEG SOF3 Exceptions."""
+    """JPEGSOF3 codec exceptions."""
 
     def __init__(self, err):
         msg = {
@@ -85,21 +87,21 @@ class Jpegsof3Error(RuntimeError):
 
 
 def jpegsof3_version():
-    """Return JPEG SOF3 library version string."""
+    """Return jpegsof3 library version string."""
     return 'jpegsof3 ' + JPEGSOF3_VERSION.decode()
 
 
 def jpegsof3_check(data):
-    """Return True if data likely contains a JPEG SOF3 image."""
+    """Return whether data is Lossless JPEG encoded image."""
 
 
 def jpegsof3_encode(*args, **kwargs):
-    """Return JPEG SOF3 image from numpy array."""
+    """Return Lossless JPEG encoded image (not implemented)."""
     raise NotImplementedError('jpegsof3_encode')
 
 
-def jpegsof3_decode(data, index=None, numthreads=None, out=None):
-    """Decode JPEG SOF3 image to numpy array.
+def jpegsof3_decode(data, out=None):
+    """Return decoded Lossless JPEG image.
 
     Beware, the input data must be writable and is modified in-place!
 
