@@ -37,7 +37,7 @@
 
 """LZMA codec for the imagecodecs package."""
 
-__version__ = '2022.12.22'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -45,9 +45,12 @@ from liblzma cimport *
 
 
 class LZMA:
-    """LZMA Constants."""
+    """LZMA codec constants."""
+
+    available = True
 
     class CHECK(enum.IntEnum):
+        """LZMA codec checksums."""
         NONE = LZMA_CHECK_NONE
         CRC32 = LZMA_CHECK_CRC32
         CRC64 = LZMA_CHECK_CRC64
@@ -55,7 +58,7 @@ class LZMA:
 
 
 class LzmaError(RuntimeError):
-    """LZMA Exceptions."""
+    """LZMA codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -85,13 +88,11 @@ def lzma_version():
 
 
 def lzma_check(const uint8_t[::1] data):
-    """Return True if data likely contains LZMA data."""
+    """Return whether data is LZMA encoded."""
 
 
-def lzma_encode(data, level=None, check=None, numthreads=None, out=None):
-    """Compress LZMA.
-
-    """
+def lzma_encode(data, level=None, check=None, out=None):
+    """Return LZMA encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -141,10 +142,8 @@ def lzma_encode(data, level=None, check=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def lzma_decode(data, numthreads=None, out=None):
-    """Decompress LZMA.
-
-    """
+def lzma_decode(data, out=None):
+    """Return decoded LZMA data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -188,7 +187,7 @@ def lzma_decode(data, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
+cdef _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
     """Return size of decompressed LZMA data."""
     cdef:
         lzma_ret ret
