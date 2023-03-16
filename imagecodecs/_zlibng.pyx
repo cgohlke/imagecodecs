@@ -37,7 +37,7 @@
 
 """Zlib-ng codec for the imagecodecs package."""
 
-__version__ = '2023.1.23'
+__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -47,15 +47,19 @@ from  libc.math cimport ceil
 
 
 class ZLIBNG:
-    """Zlib-ng Constants."""
+    """ZLIBNG codec constants."""
+
+    available = True
 
     class COMPRESSION(enum.IntEnum):
+        """ZLIBNG codec compression levels."""
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
         SPEED = Z_BEST_SPEED
 
     class STRATEGY(enum.IntEnum):
+        """ZLIBNG codec compression strategies."""
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -64,7 +68,7 @@ class ZLIBNG:
 
 
 class ZlibngError(RuntimeError):
-    """Zlib-ng Exceptions."""
+    """ZLIBNG codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -83,12 +87,12 @@ class ZlibngError(RuntimeError):
 
 
 def zlibng_version():
-    """Return zlib library version string."""
+    """Return zlibng library version string."""
     return f'zlib_ng {ZLIBNG_VERSION.decode()}'
 
 
 def zlibng_check(data):
-    """Return True if data likely contains Zlib data."""
+    """Return whether data is DEFLATE encoded."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -103,10 +107,8 @@ def zlibng_check(data):
     return None  # maybe
 
 
-def zlibng_encode(data, level=None, numthreads=None, out=None):
-    """Compress Zlib-ng.
-
-    """
+def zlibng_encode(data, level=None, out=None):
+    """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -149,10 +151,8 @@ def zlibng_encode(data, level=None, numthreads=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def zlibng_decode(data, numthreads=None, out=None):
-    """Decompress Zlib-ng.
-
-    """
+def zlibng_decode(data, out=None):
+    """Return decoded DEFLATE data."""
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -167,9 +167,6 @@ def zlibng_decode(data, numthreads=None, out=None):
 
     if out is None and dstsize < 0:
         return _zlibng_decode(data, outtype)
-        # use Python's zlib module
-        # import zlib
-        # return zlib.decompress(data)
 
     if out is None:
         if dstsize < 0:
@@ -276,7 +273,7 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
 # CRC #########################################################################
 
 def zlibng_crc32(data):
-    """Return cyclic redundancy checksum CRC-32 of data."""
+    """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
