@@ -1,9 +1,24 @@
 Revisions
 ---------
 
+2023.3.16
+
+- Pass 6884 tests.
+- Require libjpeg-turbo 2.1.91 (3.0 beta) and c-blosc2 2.7.1.
+- Add experimental type hints.
+- Add SZIP codec via libaec library.
+- Use Zstd streaming API to decode blocks with unknown decompressed size.
+- Remove unused level, index, and numthreads parameters (breaking).
+- Make AEC and BLOSC constants enums (breaking).
+- Capitalize numcodecs class names (breaking).
+- Remove JPEG12 codec (breaking; use JPEG8 instead).
+- Encode and decode lossless and 12-bit JPEG with JPEG8 codec by default.
+- Remove JPEGSOF3 fallback in JPEG codec.
+- Fix slow IFD seeking with libtiff 4.5.
+- Fixes for Cython 3.0.
+
 2023.1.23
 
-- Pass 6626 tests.
 - Require libjxl 0.8.
 - Change mapping of level to distance parameter in jpegxl_encode.
 - Add option to specify bitspersample in jpegxl_encode.
