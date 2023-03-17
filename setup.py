@@ -538,7 +538,6 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
 def customize_build_mingw(EXTENSIONS, OPTIONS):
     """Customize build for mingw-w64."""
 
-    del EXTENSIONS['apng']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
