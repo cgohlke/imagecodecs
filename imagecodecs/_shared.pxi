@@ -25,7 +25,7 @@ from ._shared cimport (
 )
 
 from libc.string cimport memset, memcpy, memmove
-from libc.stdlib cimport malloc, free, realloc
+from libc.stdlib cimport malloc, free, realloc, calloc
 
 from libc.stdint cimport (
     int8_t,
