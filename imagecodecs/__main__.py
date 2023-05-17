@@ -33,7 +33,7 @@ def main(argv=None, verbose=True, codec=None):
     timer = Timer()
     try:
         timer.start('Reading image')
-        image, codec = imread(filename, return_codec=True)
+        image, codec = imread(filename, return_codec=True, numthreads=0)
         print(timer)
     except ValueError as exception:
         print('failed')
