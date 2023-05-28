@@ -51,6 +51,7 @@ class BROTLI:
 
     class MODE(enum.IntEnum):
         """BROTLI codec modes."""
+
         GENERIC = BROTLI_MODE_GENERIC
         TEXT = BROTLI_MODE_TEXT
         FONT = BROTLI_MODE_FONT
