@@ -51,6 +51,7 @@ class AEC:
 
     class FLAG(enum.IntEnum):  # IntFlag
         """AEC codec flags."""
+
         DATA_SIGNED = AEC_DATA_SIGNED
         DATA_3BYTE = AEC_DATA_3BYTE
         DATA_PREPROCESS = AEC_DATA_PREPROCESS
