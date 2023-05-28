@@ -51,12 +51,14 @@ class BLOSC:
 
     class SHUFFLE(enum.IntEnum):
         """BLOSC codec shuffle types."""
+
         NOSHUFFLE = BLOSC_NOSHUFFLE
         SHUFFLE = BLOSC_SHUFFLE
         BITSHUFFLE = BLOSC_BITSHUFFLE
 
     class COMPRESSOR(enum.IntEnum):
         """BLOSC codec compressors."""
+
         BLOSCLZ = BLOSC_BLOSCLZ
         LZ4 = BLOSC_LZ4
         LZ4HC = BLOSC_LZ4HC
