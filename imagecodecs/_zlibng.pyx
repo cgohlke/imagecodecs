@@ -53,6 +53,7 @@ class ZLIBNG:
 
     class COMPRESSION(enum.IntEnum):
         """ZLIBNG codec compression levels."""
+
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
@@ -60,6 +61,7 @@ class ZLIBNG:
 
     class STRATEGY(enum.IntEnum):
         """ZLIBNG codec compression strategies."""
+
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
