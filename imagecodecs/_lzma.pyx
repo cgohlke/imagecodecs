@@ -51,6 +51,7 @@ class LZMA:
 
     class CHECK(enum.IntEnum):
         """LZMA codec checksums."""
+
         NONE = LZMA_CHECK_NONE
         CRC32 = LZMA_CHECK_CRC32
         CRC64 = LZMA_CHECK_CRC64
