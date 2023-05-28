@@ -51,6 +51,7 @@ class LZHAM:
 
     class COMPRESSION(enum.IntEnum):
         """LZHAM codec compression levels."""
+
         DEFAULT = LZHAM_Z_DEFAULT_COMPRESSION
         NO = LZHAM_Z_NO_COMPRESSION
         BEST = LZHAM_Z_BEST_COMPRESSION
@@ -59,6 +60,7 @@ class LZHAM:
 
     class STRATEGY(enum.IntEnum):
         """LZHAM codec compression strategies."""
+
         DEFAULT = LZHAM_Z_DEFAULT_STRATEGY
         FILTERED = LZHAM_Z_FILTERED
         HUFFMAN_ONLY = LZHAM_Z_HUFFMAN_ONLY
