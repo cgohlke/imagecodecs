@@ -190,4 +190,9 @@ cdef extern from 'jpeglib.h':
         JDIMENSION
     ) nogil
 
+    void jpeg_set_colorspace(
+        jpeg_compress_struct *cinfo,
+        J_COLOR_SPACE colorspace
+    ) nogil
+
 # TODO: add missing declarations
