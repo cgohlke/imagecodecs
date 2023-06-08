@@ -1,7 +1,7 @@
 # imagecodecs/lcms2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Little 2.14` library.
+# Cython declarations for the `Little 2.15` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stdint cimport uint8_t
