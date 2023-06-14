@@ -57,9 +57,7 @@ numpy.import_array()
 
 
 cdef _parse_output(out, ssize_t outsize=-1, outgiven=False, outtype=bytes):
-    """Return out, outsize, outgiven, outtype from output argument.
-
-    """
+    """Return out, outsize, outgiven, outtype from output argument."""
     if out is None:
         # create new bytes output
         return out, outsize, bool(outgiven), outtype
@@ -99,7 +97,7 @@ cdef _create_output(out, ssize_t size, const char* string=NULL):
         # PyPy can not modify the content of bytes
         pass
     ELSE:
-        if out == bytes or PyBytes_Check(out):
+        if out is None or out is bytes or PyBytes_Check(out):
             obj = PyBytes_FromStringAndSize(string, size)
             if obj is None:
                 raise MemoryError('PyBytes_FromStringAndSize failed')
