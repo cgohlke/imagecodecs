@@ -1,7 +1,7 @@
 # imagecodecs/libwebp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libwebp 1.3.0` library.
+# Cython declarations for the `libwebp 1.3.1` library.
 # https://github.com/webmproject/libwebp
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -764,4 +764,212 @@ cdef extern from 'webp/encode.h':
 
     void WebPFree(
         void* ptr
+    ) nogil
+
+
+cdef extern from 'webp/mux_types.h':
+
+    ctypedef struct WebPData:
+        const uint8_t* bytes
+        size_t size
+
+    ctypedef enum WebPFeatureFlags:
+        ANIMATION_FLAG
+        XMP_FLAG
+        EXIF_FLAG
+        ALPHA_FLAG
+        ICCP_FLAG
+        ALL_VALID_FLAGS
+
+    ctypedef enum WebPMuxAnimDispose:
+        WEBP_MUX_DISPOSE_NONE
+        WEBP_MUX_DISPOSE_BACKGROUND
+
+    ctypedef enum WebPMuxAnimBlend:
+        WEBP_MUX_BLEND
+        WEBP_MUX_NO_BLEND
+
+    void WebPDataInit(
+        WebPData* webp_data
+    ) nogil
+
+    void WebPDataClear(
+        WebPData* webp_data
+    ) nogil
+
+    int WebPDataCopy(
+        const WebPData* src,
+        WebPData* dst
+    ) nogil
+
+
+cdef extern from 'webp/demux.h':
+
+    int WEBP_DEMUX_ABI_VERSION
+
+    ctypedef struct WebPDemuxer:
+        pass
+
+    int WebPGetDemuxVersion() nogil
+
+    ctypedef enum WebPDemuxState:
+        WEBP_DEMUX_PARSE_ERROR
+        WEBP_DEMUX_PARSING_HEADER
+        WEBP_DEMUX_PARSED_HEADER
+        WEBP_DEMUX_DONE
+
+    WebPDemuxer* WebPDemuxInternal(
+        const WebPData*,
+        int,
+        WebPDemuxState*,
+        int
+    ) nogil
+
+    WebPDemuxer* WebPDemux(
+        const WebPData* data
+    ) nogil
+
+    WebPDemuxer* WebPDemuxPartial(
+        const WebPData* data,
+        WebPDemuxState* state
+    ) nogil
+
+    void WebPDemuxDelete(
+        WebPDemuxer* dmux
+    ) nogil
+
+    ctypedef enum WebPFormatFeature:
+        WEBP_FF_FORMAT_FLAGS
+        WEBP_FF_CANVAS_WIDTH
+        WEBP_FF_CANVAS_HEIGHT
+        WEBP_FF_LOOP_COUNT
+        WEBP_FF_BACKGROUND_COLOR
+        WEBP_FF_FRAME_COUNT
+
+    uint32_t WebPDemuxGetI(
+        const WebPDemuxer* dmux,
+        WebPFormatFeature feature
+    ) nogil
+
+    ctypedef struct WebPIterator:
+        int frame_num
+        int num_frames
+        int x_offset
+        int y_offset
+        int width
+        int height
+        int duration
+        WebPMuxAnimDispose dispose_method
+        int complete
+        WebPData fragment
+        int has_alpha
+        WebPMuxAnimBlend blend_method
+        uint32_t pad[2]
+        void* private_
+
+    int WebPDemuxGetFrame(
+        const WebPDemuxer* dmux,
+        int frame_number,
+        WebPIterator* iter
+    ) nogil
+
+    int WebPDemuxNextFrame(
+        WebPIterator* iter
+    ) nogil
+
+    int WebPDemuxPrevFrame(
+        WebPIterator* iter
+    ) nogil
+
+    void WebPDemuxReleaseIterator(
+        WebPIterator* iter
+    ) nogil
+
+    ctypedef struct WebPChunkIterator:
+        int chunk_num
+        int num_chunks
+        WebPData chunk
+        uint32_t pad[6]
+        void* private_
+
+    int WebPDemuxGetChunk(
+        const WebPDemuxer* dmux,
+        const char fourcc[4],
+        int chunk_number,
+        WebPChunkIterator* iter
+    ) nogil
+
+    int WebPDemuxNextChunk(
+        WebPChunkIterator* iter
+    ) nogil
+
+    int WebPDemuxPrevChunk(
+        WebPChunkIterator* iter
+    ) nogil
+
+    void WebPDemuxReleaseChunkIterator(
+        WebPChunkIterator* iter
+    ) nogil
+
+    ctypedef struct WebPAnimDecoder:
+        pass
+
+    ctypedef struct WebPAnimDecoderOptions:
+        WEBP_CSP_MODE color_mode
+        int use_threads
+        uint32_t padding[7]
+
+    int WebPAnimDecoderOptionsInitInternal(
+        WebPAnimDecoderOptions*,
+        int
+    ) nogil
+
+    int WebPAnimDecoderOptionsInit(
+        WebPAnimDecoderOptions* dec_options
+    ) nogil
+
+    WebPAnimDecoder* WebPAnimDecoderNewInternal(
+        const WebPData*,
+        const WebPAnimDecoderOptions*,
+        int
+    ) nogil
+
+    WebPAnimDecoder* WebPAnimDecoderNew(
+        const WebPData* webp_data,
+        const WebPAnimDecoderOptions* dec_options
+    ) nogil
+
+    ctypedef struct WebPAnimInfo:
+        uint32_t canvas_width
+        uint32_t canvas_height
+        uint32_t loop_count
+        uint32_t bgcolor
+        uint32_t frame_count
+        uint32_t pad[4]
+
+    int WebPAnimDecoderGetInfo(
+        const WebPAnimDecoder* dec,
+        WebPAnimInfo* info
+    ) nogil
+
+    int WebPAnimDecoderGetNext(
+        WebPAnimDecoder* dec,
+        uint8_t** buf,
+        int* timestamp
+    ) nogil
+
+    int WebPAnimDecoderHasMoreFrames(
+        const WebPAnimDecoder* dec
+    ) nogil
+
+    void WebPAnimDecoderReset(
+        WebPAnimDecoder* dec
+    ) nogil
+
+    const WebPDemuxer* WebPAnimDecoderGetDemuxer(
+        const WebPAnimDecoder* dec
+    ) nogil
+
+    void WebPAnimDecoderDelete(
+        WebPAnimDecoder* dec
     ) nogil
