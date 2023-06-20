@@ -1,10 +1,10 @@
 # imagecodecs/libheif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libheif 1.15.1` library.
+# Cython declarations for the `libheif 1.16.2` library.
 # https://github.com/strukturag/libheif
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, int64_t
+from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t, int64_t
 
 cdef extern from 'libheif/heif.h':
 
@@ -79,6 +79,7 @@ cdef extern from 'libheif/heif.h':
         heif_suberror_Unknown_NCLX_color_primaries
         heif_suberror_Unknown_NCLX_transfer_characteristics
         heif_suberror_Unknown_NCLX_matrix_coefficients
+        heif_suberror_Invalid_region_data
         heif_suberror_Security_limit_exceeded
         heif_suberror_Nonexisting_item_referenced
         heif_suberror_Null_pointer_argument
@@ -87,6 +88,8 @@ cdef extern from 'libheif/heif.h':
         heif_suberror_Unsupported_writer_version
         heif_suberror_Unsupported_parameter
         heif_suberror_Invalid_parameter_value
+        heif_suberror_Item_reference_cycle
+        heif_suberror_Invalid_property
         heif_suberror_Unsupported_codec
         heif_suberror_Unsupported_image_type
         heif_suberror_Unsupported_data_version
@@ -95,6 +98,10 @@ cdef extern from 'libheif/heif.h':
         heif_suberror_Unsupported_header_compression_method
         heif_suberror_Unsupported_bit_depth
         heif_suberror_Cannot_write_output_data
+        heif_suberror_Encoder_initialization
+        heif_suberror_Encoder_encoding
+        heif_suberror_Encoder_cleanup
+        heif_suberror_Too_many_regions
         heif_suberror_Plugin_loading_error
         heif_suberror_Plugin_is_not_loaded
         heif_suberror_Cannot_read_plugin_directory
@@ -105,6 +112,7 @@ cdef extern from 'libheif/heif.h':
         const char* message
 
     ctypedef uint32_t heif_item_id
+    ctypedef uint32_t heif_property_id
 
     struct heif_init_params:
         int version
@@ -180,6 +188,23 @@ cdef extern from 'libheif/heif.h':
     ) nogil
 
     ctypedef uint32_t heif_brand2
+
+    int heif_brand2_heic
+    int heif_brand2_heix
+    int heif_brand2_hevc
+    int heif_brand2_hevx
+    int heif_brand2_heim
+    int heif_brand2_heis
+    int heif_brand2_hevm
+    int heif_brand2_hevs
+    int heif_brand2_avif
+    int heif_brand2_avis
+    int heif_brand2_mif1
+    int heif_brand2_msf1
+    int heif_brand2_vvic
+    int heif_brand2_vvis
+    int heif_brand2_evbi
+    int heif_brand2_evbs
 
     heif_brand2 heif_read_main_brand(
         const uint8_t* data,
@@ -309,7 +334,7 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_context_get_image_handle(
         heif_context* ctx,
-        heif_item_id id,
+        heif_item_id id_,
         heif_image_handle**
     ) nogil
 
@@ -333,6 +358,10 @@ cdef extern from 'libheif/heif.h':
     ) nogil
 
     int heif_image_handle_is_primary_image(
+        const heif_image_handle* handle
+    ) nogil
+
+    heif_item_id heif_image_handle_get_item_id(
         const heif_image_handle* handle
     ) nogil
 
@@ -384,7 +413,7 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_image_handle_get_depth_image_handle(
         const heif_image_handle* handle,
-        heif_item_id depth_image_id,
+        heif_item_id depth_image_id_,
         heif_image_handle** out_depth_handle
     ) nogil
 
@@ -415,7 +444,7 @@ cdef extern from 'libheif/heif.h':
 
     int heif_image_handle_get_depth_image_representation_info(
         const heif_image_handle* handle,
-        heif_item_id depth_image_id,
+        heif_item_id depth_image_id_,
         const heif_depth_representation_info** out
     ) nogil
 
@@ -431,7 +460,7 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_image_handle_get_thumbnail(
         const heif_image_handle* main_image_handle,
-        heif_item_id thumbnail_id,
+        heif_item_id thumbnail_id_,
         heif_image_handle** out_thumbnail_handle
     ) nogil
 
@@ -455,6 +484,11 @@ cdef extern from 'libheif/heif.h':
         const char** out_type
     ) nogil
 
+    void heif_image_handle_release_auxiliary_type(
+        const heif_image_handle* handle,
+        const char** out_type
+    ) nogil
+
     void heif_image_handle_free_auxiliary_types(
         const heif_image_handle* handle,
         const char** out_type
@@ -462,7 +496,7 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_image_handle_get_auxiliary_image_handle(
         const heif_image_handle* main_image_handle,
-        heif_item_id auxiliary_id,
+        heif_item_id auxiliary_id_,
         heif_image_handle** out_auxiliary_handle
     ) nogil
 
@@ -495,7 +529,7 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_image_handle_get_metadata(
         const heif_image_handle* handle,
-        heif_item_id metadata_id,
+        heif_item_id metadata_id_,
         void* out_data
     ) nogil
 
@@ -627,6 +661,89 @@ cdef extern from 'libheif/heif.h':
         heif_color_profile_nclx** out_data
     ) nogil
 
+    enum heif_item_property_type:
+        # heif_item_property_unknown
+        heif_item_property_type_invalid
+        heif_item_property_type_user_description
+        heif_item_property_type_transform_mirror
+        heif_item_property_type_transform_rotation
+        heif_item_property_type_transform_crop
+        heif_item_property_type_image_size
+
+    int heif_item_get_properties_of_type(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_item_property_type type_,
+        heif_property_id* out_list,
+        int count
+    ) nogil
+
+    int heif_item_get_transformation_properties(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_property_id* out_list,
+        int count
+    ) nogil
+
+    heif_item_property_type heif_item_get_property_type(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_property_id property_id
+    ) nogil
+
+    struct heif_property_user_description:
+        int version
+        const char* lang
+        const char* name
+        const char* description
+        const char* tags
+
+    heif_error heif_item_get_property_user_description(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId,
+        heif_property_user_description** out
+    ) nogil
+
+    heif_error heif_item_add_property_user_description(
+        const heif_context* context,
+        heif_item_id itemId,
+        const heif_property_user_description* description,
+        heif_property_id* out_propertyId
+    ) nogil
+
+    void heif_property_user_description_release(
+        heif_property_user_description*
+    ) nogil
+
+    enum heif_transform_mirror_direction:
+        heif_transform_mirror_direction_vertical
+        heif_transform_mirror_direction_horizontal
+
+    heif_transform_mirror_direction heif_item_get_property_transform_mirror(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId
+    ) nogil
+
+    int heif_item_get_property_transform_rotation_ccw(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId
+    ) nogil
+
+    void heif_item_get_property_transform_crop_borders(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId,
+        int image_width,
+        int image_height,
+        int* left,
+        int* top,
+        int* right,
+        int* bottom
+    ) nogil
+
     enum heif_compression_format:
         heif_compression_undefined
         heif_compression_HEVC
@@ -636,6 +753,7 @@ cdef extern from 'libheif/heif.h':
         heif_compression_VVC
         heif_compression_EVC
         heif_compression_JPEG2000
+        heif_compression_uncompressed
 
     enum heif_chroma:
         heif_chroma_undefined
@@ -670,6 +788,22 @@ cdef extern from 'libheif/heif.h':
         heif_progress_step_total
         heif_progress_step_load_tile
 
+
+    enum heif_chroma_downsampling_algorithm:
+        heif_chroma_downsampling_nearest_neighbor
+        heif_chroma_downsampling_average
+        heif_chroma_downsampling_sharp_yuv
+
+    enum heif_chroma_upsampling_algorithm:
+        heif_chroma_upsampling_nearest_neighbor
+        heif_chroma_upsampling_bilinear
+
+    struct heif_color_conversion_options:
+        uint8_t version
+        heif_chroma_downsampling_algorithm preferred_chroma_downsampling_algorithm
+        heif_chroma_upsampling_algorithm preferred_chroma_upsampling_algorithm
+        uint8_t only_use_preferred_chroma_algorithm
+
     struct heif_decoding_options:
         uint8_t version
         uint8_t ignore_transformations
@@ -695,6 +829,8 @@ cdef extern from 'libheif/heif.h':
         uint8_t convert_hdr_to_8bit
         uint8_t strict_decoding
         const char* decoder_id
+
+        heif_color_conversion_options color_conversion_options
 
     heif_decoding_options* heif_decoding_options_alloc(
     ) nogil
@@ -1113,6 +1249,7 @@ cdef extern from 'libheif/heif.h':
         heif_color_profile_nclx* output_nclx_profile
         uint8_t macOS_compatibility_workaround_no_nclx_profile
         heif_orientation image_orientation
+        heif_color_conversion_options color_conversion_options
 
     heif_encoding_options* heif_encoding_options_alloc() nogil
 
@@ -1234,4 +1371,195 @@ cdef extern from 'libheif/heif.h':
 
     int heif_encoder_descriptor_supportes_lossless_compression(
         const heif_encoder_descriptor*
+    ) nogil
+
+    struct heif_region_item:
+        pass
+
+    enum heif_region_type:
+        heif_region_type_point
+        heif_region_type_rectangle
+        heif_region_type_ellipse
+        heif_region_type_polygon
+        heif_region_type_referenced_mask
+        heif_region_type_inline_mask
+        heif_region_type_polyline
+
+    struct heif_region:
+        pass
+
+    int heif_image_handle_get_number_of_region_items(
+        const heif_image_handle* image_handle
+    ) nogil
+
+    int heif_image_handle_get_list_of_region_item_ids(
+        const heif_image_handle* image_handle,
+        heif_item_id* region_item_ids_array,
+        int max_count
+    ) nogil
+
+    heif_error heif_context_get_region_item(
+        const heif_context* context,
+        heif_item_id region_item_id_,
+        heif_region_item** out
+    ) nogil
+
+    heif_item_id heif_region_item_get_id(
+        heif_region_item*
+    ) nogil
+
+    void heif_region_item_release(
+        heif_region_item*
+    ) nogil
+
+    void heif_region_item_get_reference_size(
+        heif_region_item*,
+        uint32_t* width,
+        uint32_t* height
+    ) nogil
+
+    int heif_region_item_get_number_of_regions(
+        const heif_region_item* region_item
+    ) nogil
+
+    int heif_region_item_get_list_of_regions(
+        const heif_region_item* region_item,
+        heif_region** out_regions_array,
+        int max_count
+    ) nogil
+
+    void heif_region_release(
+        const heif_region* region
+    ) nogil
+
+    void heif_region_release_many(
+        const heif_region* const* regions_array,
+        int num
+    ) nogil
+
+    heif_region_type heif_region_get_type(
+        const heif_region* region
+    ) nogil
+
+    heif_error heif_region_get_point(
+        const heif_region* region,
+        int32_t* x,
+        int32_t* y
+    ) nogil
+
+    heif_error heif_region_get_point_transformed(
+        const heif_region* region,
+        double* x,
+        double* y,
+        heif_item_id image_id
+    ) nogil
+
+    heif_error heif_region_get_rectangle(
+        const heif_region* region,
+        int32_t* x,
+        int32_t* y,
+        uint32_t* width,
+        uint32_t* height
+    ) nogil
+
+    heif_error heif_region_get_rectangle_transformed(
+        const heif_region* region,
+        double* x,
+        double* y,
+        double* width,
+        double* height,
+        heif_item_id image_id
+    ) nogil
+
+    heif_error heif_region_get_ellipse(
+        const heif_region* region,
+        int32_t* x,
+        int32_t* y,
+        uint32_t* radius_x,
+        uint32_t* radius_y
+    ) nogil
+
+    heif_error heif_region_get_ellipse_transformed(
+        const heif_region* region,
+        double* x,
+        double* y,
+        double* radius_x,
+        double* radius_y,
+        heif_item_id image_id
+    ) nogil
+
+    int heif_region_get_polygon_num_points(
+        const heif_region* region
+    ) nogil
+
+    heif_error heif_region_get_polygon_points(
+        const heif_region* region,
+        int32_t* out_pts_array
+    ) nogil
+
+    heif_error heif_region_get_polygon_points_transformed(
+        const heif_region* region,
+        double* out_pts_array,
+        heif_item_id image_id
+    ) nogil
+
+    int heif_region_get_polyline_num_points(
+        const heif_region* region
+    ) nogil
+
+    heif_error heif_region_get_polyline_points(
+        const heif_region* region,
+        int32_t* out_pts_array
+    ) nogil
+
+    heif_error heif_region_get_polyline_points_transformed(
+        const heif_region* region,
+        double* out_pts_array,
+        heif_item_id image_id
+    ) nogil
+
+    heif_error heif_image_handle_add_region_item(
+        heif_image_handle* image_handle,
+        uint32_t reference_width,
+        uint32_t reference_height,
+        heif_region_item** out_region_item
+    ) nogil
+
+    heif_error heif_region_item_add_region_point(
+        heif_region_item*,
+        int32_t x,
+        int32_t y,
+        heif_region** out_region
+    ) nogil
+
+    heif_error heif_region_item_add_region_rectangle(
+        heif_region_item*,
+        int32_t x,
+        int32_t y,
+        uint32_t width,
+        uint32_t height,
+        heif_region** out_region
+    ) nogil
+
+    heif_error heif_region_item_add_region_ellipse(
+        heif_region_item*,
+        int32_t x,
+        int32_t y,
+        uint32_t radius_x,
+        uint32_t radius_y,
+        heif_region** out_region
+    ) nogil
+
+    heif_error heif_region_item_add_region_polygon(
+        heif_region_item*,
+        const int32_t* pts_array,
+        int nPoints,
+        heif_region** out_region
+    ) nogil
+
+    heif_error heif_region_item_add_region_polyline(
+        heif_region_item*,
+        const int32_t* pts_array,
+        int nPoints,
+        heif_region** out_region
     ) nogil
