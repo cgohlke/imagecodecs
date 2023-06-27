@@ -882,7 +882,7 @@ typedef union {
 /* Unpack sequence of packed 1-32 bit integers.
 
 Input src array should be padded to the next 16, 32 or 64-bit boundary
-if itemsize not in (1, 2, 4, 8, 16, 24, 32, 64).
+if itemsize not in {1, 2, 4, 8, 16, 24, 32, 64}.
 
 */
 ssize_t imcd_packints_decode(
