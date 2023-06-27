@@ -37,7 +37,9 @@ The module is intended for testing and reference, not production code.
 
 """
 
-__version__ = '2022.12.22'
+from __future__ import annotations
+
+from . import __version__
 
 import bz2
 import functools
@@ -120,7 +122,7 @@ except ImportError:
 try:
     import zopfli
 except ImportError:
-    zopfli = None
+    zopfli = None  # type: ignore
 
 try:
     import zstd
@@ -150,7 +152,7 @@ def version(astype=None, _versions_=[]):
                 ('lzma', getattr(lzma, '__version__', 'stdlib')),
                 ('blosc', blosc.__version__ if blosc else 'n/a'),
                 ('blosc2', blosc2.__version__ if blosc2 else 'n/a'),
-                ('zstd', zstd.version()[1:-1] if zstd else 'n/a'),
+                ('zstd', zstd.version() if zstd else 'n/a'),
                 ('lz4', lz4.VERSION if lz4 else 'n/a'),
                 ('lzf', 'unknown' if lzf else 'n/a'),
                 ('lzham', 'unknown' if lzham else 'n/a'),
@@ -265,7 +267,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
         data = data.view(f'{dtype.byteorder}u{dtype.itemsize}')  #
 
     diff = numpy.diff(data, axis=axis)
-    key = [slice(None)] * data.ndim
+    key: list[int | slice] = [slice(None)] * data.ndim
     key[axis] = 0
     diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
     diff = diff if data.dtype.isnative else diff.byteswap(True).newbyteorder()
@@ -309,23 +311,19 @@ def xor_encode(data, axis=-1, out=None):
     if dtype.kind == 'f':
         data = data.view(f'u{dtype.itemsize}')
 
-    key = [slice(None)] * data.ndim
+    key: list[int | slice] = [slice(None)] * data.ndim
     key[axis] = 0
     key0 = [slice(None)] * data.ndim
     key0[axis] = slice(1, None, None)
     key1 = [slice(None)] * data.ndim
     key1[axis] = slice(0, -1, None)
 
-    key = tuple(key)
-    key0 = tuple(key0)
-    key1 = tuple(key1)
-
-    xor = numpy.bitwise_xor(data[key0], data[key1])
-    xor = numpy.insert(xor, 0, data[key], axis=axis)
+    xor = numpy.bitwise_xor(data[tuple(key0)], data[tuple(key1)])
+    xor = numpy.insert(xor, 0, data[tuple(key)], axis=axis)
 
     if dtype.kind == 'f':
         return xor.view(dtype)
-    elif not data.dtype.isnative:
+    if not data.dtype.isnative:
         xor = xor.byteswap(True).newbyteorder()
     return xor
 
@@ -443,8 +441,8 @@ def bitorder_decode(data, out=None, _bitorder=[]):
         return data
     except AttributeError:
         return data.translate(_bitorder[0])
-    except ValueError:
-        raise NotImplementedError('slices of arrays not supported')
+    except ValueError as exc:
+        raise NotImplementedError('slices of arrays not supported') from exc
     return None
 
 
@@ -501,7 +499,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
     bitcount_max = len_encoded * 8
     unpack = struct.unpack
     newtable = [bytes([i]) for i in range(256)]
-    newtable.extend((0, 0))
+    newtable.extend((b'\0', b'\0'))
 
     def next_code():
         # return integer of 'bitw' bits at 'bitcount' position in encoded
@@ -532,7 +530,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
 
     code = 0
     oldcode = 0
-    result = []
+    result: list[bytes] = []
     result_append = result.append
     while True:
         code = next_code()  # ~5% faster when inlining this function
@@ -605,9 +603,9 @@ def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
         return data.astype(dtype)
 
     dtype = numpy.dtype(dtype)
-    if bitspersample in (8, 16, 32, 64):
+    if bitspersample in {8, 16, 32, 64}:
         return numpy.frombuffer(data, dtype)
-    if bitspersample not in (1, 2, 4, 8, 16, 32):
+    if bitspersample not in {1, 2, 4, 8, 16, 32}:
         raise ValueError(f'itemsize not supported: {bitspersample}')
     if dtype.kind not in 'bu':
         raise ValueError('invalid dtype')
@@ -841,15 +839,15 @@ def zfp_encode(
 ):
     """Compress ZFP."""
     kwargs = {'write_header': header}
-    if mode in (None, zfp.mode_null, 'R', 'reversible'):  # zfp.mode_reversible
+    if mode in {None, zfp.mode_null, 'R', 'reversible'}:  # zfp.mode_reversible
         pass
-    elif mode in (zfp.mode_fixed_precision, 'p', 'precision'):
+    elif mode in {zfp.mode_fixed_precision, 'p', 'precision'}:
         kwargs['precision'] = -1 if level is None else level
-    elif mode in (zfp.mode_fixed_rate, 'r', 'rate'):
+    elif mode in {zfp.mode_fixed_rate, 'r', 'rate'}:
         kwargs['rate'] = -1 if level is None else level
-    elif mode in (zfp.mode_fixed_accuracy, 'a', 'accuracy'):
+    elif mode in {zfp.mode_fixed_accuracy, 'a', 'accuracy'}:
         kwargs['tolerance'] = -1 if level is None else level
-    elif mode in (zfp.mode_expert, 'c', 'expert'):
+    elif mode in {zfp.mode_expert, 'c', 'expert'}:
         minbits, maxbits, maxprec, minexp = level
         raise NotImplementedError
     return zfp.compress_numpy(data, **kwargs)
