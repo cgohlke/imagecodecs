@@ -55,6 +55,7 @@ class JPEGXR:
 
     class PI(enum.IntEnum):
         """JPEGXR codec photometric interpretations."""
+
         W0 = PK_PI_W0
         B0 = PK_PI_B0
         RGB = PK_PI_RGB
@@ -143,14 +144,14 @@ def jpegxr_encode(
         ERR err
 
     if (
-        dtype not in (
+        dtype not in {
             numpy.bool_,
             numpy.uint8,
             numpy.uint16,
             numpy.float16,
             numpy.float32,
-        )
-        and src.ndim in (2, 3)
+        }
+        and src.ndim in {2, 3}
         # and numpy.PyArray_ISCONTIGUOUS(src)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
@@ -872,15 +873,15 @@ cdef _jxr_encode_photometric(photometric):
     if photometric is None:
         return -1
     if isinstance(photometric, int):
-        if photometric not in (-1, PK_PI_W0, PK_PI_B0, PK_PI_RGB, PK_PI_CMYK):
+        if photometric not in {-1, PK_PI_W0, PK_PI_B0, PK_PI_RGB, PK_PI_CMYK}:
             raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
         return PK_PI_RGB
-    if photometric == 'WHITEISZERO' or photometric == 'MINISWHITE':
+    if photometric in {'WHITEISZERO', 'MINISWHITE'}:
         return PK_PI_W0
-    if photometric in ('BLACKISZERO', 'MINISBLACK', 'GRAY'):
+    if photometric in {'BLACKISZERO', 'MINISBLACK', 'GRAY'}:
         return PK_PI_B0
     if photometric == 'CMYK' or photometric == 'SEPARATED':
         return PK_PI_CMYK
