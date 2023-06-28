@@ -51,6 +51,7 @@ class LZ4:
 
     class CLEVEL(enum.IntEnum):
         """LZ4 codec compression levels."""
+
         DEFAULT = LZ4HC_CLEVEL_DEFAULT
         MIN = LZ4HC_CLEVEL_MIN
         MAX = LZ4HC_CLEVEL_MAX
@@ -106,7 +107,7 @@ def lz4_encode(
     dst = out
     dstsize = <int> dst.size - offset
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     if hc:
@@ -161,7 +162,7 @@ def lz4_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size >= 2 ** 31:
+    if src.size >= 2147483648:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -182,7 +183,7 @@ def lz4_decode(data, header=False, out=None):
     dst = out
     dstsize = <int> dst.size
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     with nogil:
