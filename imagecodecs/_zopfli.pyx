@@ -51,6 +51,7 @@ class ZOPFLI:
 
     class FORMAT(enum.IntEnum):
         """ZOPFLI codec formats."""
+
         GZIP = ZOPFLI_FORMAT_GZIP
         ZLIB = ZOPFLI_FORMAT_ZLIB
         DEFLATE = ZOPFLI_FORMAT_DEFLATE
@@ -105,7 +106,7 @@ def zopfli_encode(data, level=None, out=None, **kwargs):
             options.blocksplitting = bool(kwargs['blocksplitting'])
         if 'blocksplittingmax' in kwargs:
             options.blocksplittingmax = _default_value(
-                kwargs['blocksplittingmax'], 15, 0, 2 ** 15 - 1
+                kwargs['blocksplittingmax'], 15, 0, 32768 - 1
             )
 
     with nogil:
