@@ -77,7 +77,7 @@ def lzf_encode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if srcsize >= 2 ** 31:
+    if srcsize >= 2147483648:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -95,7 +95,7 @@ def lzf_encode(data, header=False, out=None):
     dst = out
     dstsize = dst.size - offset
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     with nogil:
@@ -132,7 +132,7 @@ def lzf_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 2 ** 31:
+    if srcsize >= 2147483648:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -150,7 +150,7 @@ def lzf_decode(data, header=False, out=None):
     dst = out
     dstsize = <int> dst.size
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     with nogil:
