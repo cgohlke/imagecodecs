@@ -51,6 +51,7 @@ class SPNG:
 
     class FMT(enum.IntEnum):
         """SPNG codec formats."""
+
         RGBA8 = SPNG_FMT_RGBA8
         RGBA16 = SPNG_FMT_RGBA16
         RGB8 = SPNG_FMT_RGB8
@@ -109,10 +110,10 @@ def spng_encode(data, level=None, out=None):
         spng_ihdr ihdr
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
-        and src.ndim in (2, 3)
-        and src.shape[0] < 2 ** 31
-        and src.shape[1] < 2 ** 31
+        src.dtype in {numpy.uint8, numpy.uint16}
+        and src.ndim in {2, 3}
+        and src.shape[0] < 2147483648
+        and src.shape[1] < 2147483648
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
