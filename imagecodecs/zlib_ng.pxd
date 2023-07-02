@@ -1,7 +1,7 @@
 # imagecodecs/zlib_ng.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zlib-ng 2.0.5` library.
+# Cython declarations for the `zlib-ng 2.1.3` library.
 # https://github.com/zlib-ng/zlib-ng
 
 from libc.stdint cimport int32_t, uint8_t, uint32_t
@@ -13,7 +13,8 @@ cdef extern from 'zlib-ng.h':
     int ZLIBNG_VER_MAJOR
     int ZLIBNG_VER_MINOR
     int ZLIBNG_VER_REVISION
-    int ZLIBNG_VER_SUBREVISION
+    int ZLIBNG_VER_STATUS
+    int ZLIBNG_VER_MODIFIED
 
     ctypedef int z_off_t
     ctypedef int z_off64_t
@@ -112,9 +113,9 @@ cdef extern from 'zlib-ng.h':
 
     # const char* zlibng_version() nogil
 
-    int zng_deflateInit(
+    int32_t zng_deflateInit(
         zng_stream* strm,
-        int level
+        int32_t level
     ) nogil
 
     int32_t zng_deflate(
@@ -126,7 +127,7 @@ cdef extern from 'zlib-ng.h':
         zng_stream* strm
     ) nogil
 
-    int zng_inflateInit(
+    int32_t zng_inflateInit(
         zng_stream* strm
     ) nogil
 
@@ -141,13 +142,13 @@ cdef extern from 'zlib-ng.h':
 
     # advanced function
 
-    int zng_deflateInit2(
+    int32_t zng_deflateInit2(
         zng_stream* strm,
-        int level,
-        int method,
-        int windowBits,
-        int memLevel,
-        int strategy
+        int32_t level,
+        int32_t method,
+        int32_t windowBits,
+        int32_t memLevel,
+        int32_t strategy
     ) nogil
 
     int32_t zng_deflateSetDictionary(
@@ -207,9 +208,9 @@ cdef extern from 'zlib-ng.h':
         zng_gz_headerp head
     ) nogil
 
-    int zng_inflateInit2(
+    int32_t zng_inflateInit2(
         zng_stream* strm,
-        int windowBits
+        int32_t windowBits
     ) nogil
 
     int32_t zng_inflateSetDictionary(
@@ -257,10 +258,10 @@ cdef extern from 'zlib-ng.h':
         zng_gz_headerp head
     ) nogil
 
-    int zng_inflateBackInit(
+    int32_t zng_inflateBackInit(
         zng_stream* strm,
-        int windowBits,
-        unsigned char* window
+        int32_t windowBits,
+        uint8_t* window
     ) nogil
 
     ctypedef uint32_t (*in_func) (
@@ -498,13 +499,12 @@ cdef extern from 'zlib-ng.h':
         z_off64_t len2
     ) nogil
 
-    void zng_crc32_combine_gen(
-        uint32_t op[32],
+    uint32_t zng_crc32_combine_gen(
         z_off64_t len2
     ) nogil
 
     uint32_t zng_crc32_combine_op(
         uint32_t crc1,
         uint32_t crc2,
-        const uint32_t* op
+        const uint32_t op
     ) nogil
