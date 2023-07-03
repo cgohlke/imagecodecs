@@ -37,7 +37,7 @@
 
 """PGLZ (PostgreSQL LZ) codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -101,7 +101,7 @@ def pglz_encode(
         custom_strategy.match_size_good = strategy[4]
         custom_strategy.match_size_drop = strategy[5]
 
-    if srcsize >= 2 ** 31:
+    if srcsize >= 2147483648:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -116,7 +116,7 @@ def pglz_encode(
     dst = out
     dstsize = dst.size - offset
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     if dstsize < PGLZ_MAX_OUTPUT(srcsize):
@@ -165,7 +165,7 @@ def pglz_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 2 ** 31:
+    if srcsize >= 2147483648:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -187,7 +187,7 @@ def pglz_decode(
     dst = out
     dstsize = dst.size
 
-    if dst.size >= 2 ** 31:
+    if dst.size >= 2147483648:
         raise ValueError('output too large')
 
     if header and srcsize == offset + rawsize:
