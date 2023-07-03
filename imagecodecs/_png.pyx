@@ -37,7 +37,7 @@
 
 """PNG codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -54,6 +54,7 @@ class PNG:
 
     class COLOR_TYPE(enum.IntEnum):
         """PNG codec color types."""
+
         GRAY = PNG_COLOR_TYPE_GRAY
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
@@ -61,6 +62,7 @@ class PNG:
 
     class COMPRESSION(enum.IntEnum):
         """PNG codec compression levels."""
+
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
@@ -68,6 +70,7 @@ class PNG:
 
     class STRATEGY(enum.IntEnum):
         """PNG codec compression strategies."""
+
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -76,6 +79,7 @@ class PNG:
 
     class FILTER(enum.IntEnum):  # IntFlag
         """PNG codec filters."""
+
         NO = PNG_NO_FILTERS
         NONE = PNG_FILTER_NONE
         SUB = PNG_FILTER_SUB
@@ -141,10 +145,10 @@ def png_encode(
         png_uint_32 row
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
-        and src.ndim in (2, 3)
-        and src.shape[0] < 2 ** 31
-        and src.shape[1] < 2 ** 31
+        src.dtype in {numpy.uint8, numpy.uint16}
+        and src.ndim in {2, 3}
+        and src.shape[0] < 2147483648
+        and src.shape[1] < 2147483648
         and samples <= 4
         and src.strides[src.ndim - 1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
