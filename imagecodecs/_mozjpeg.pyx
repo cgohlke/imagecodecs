@@ -37,7 +37,7 @@
 
 """MOZJPEG codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -55,6 +55,7 @@ class MOZJPEG:
 
     class CS(enum.IntEnum):
         """MOZJPEG codec color spaces."""
+
         UNKNOWN = JCS_UNKNOWN
         GRAYSCALE = JCS_GRAYSCALE
         RGB = JCS_RGB
@@ -138,9 +139,9 @@ def mozjpeg_encode(
 
     if not (
         src.dtype == numpy.uint8
-        and src.ndim in (2, 3)
-        # src.nbytes < 2 ** 31 and  # limit to 2 GB
-        and samples in (1, 3, 4)
+        and src.ndim in {2, 3}
+        # src.nbytes < 2147483648 and  # limit to 2 GB
+        and samples in {1, 3, 4}
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
@@ -172,19 +173,19 @@ def mozjpeg_encode(
         jpeg_color_space = JCS_UNKNOWN
 
     if jpeg_color_space == JCS_YCbCr and subsampling is not None:
-        if subsampling in ('444', (1, 1)):
+        if subsampling in {'444', (1, 1)}:
             h_samp_factor = 1
             v_samp_factor = 1
-        elif subsampling in ('422', (2, 1)):
+        elif subsampling in {'422', (2, 1)}:
             h_samp_factor = 2
             v_samp_factor = 1
-        elif subsampling in ('420', (2, 2)):
+        elif subsampling in {'420', (2, 2)}:
             h_samp_factor = 2
             v_samp_factor = 2
-        elif subsampling in ('411', (4, 1)):
+        elif subsampling in {'411', (4, 1)}:
             h_samp_factor = 4
             v_samp_factor = 1
-        elif subsampling in ('440', (1, 2)):
+        elif subsampling in {'440', (1, 2)}:
             h_samp_factor = 1
             v_samp_factor = 2
         else:
@@ -305,7 +306,7 @@ def mozjpeg_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 2 ** 32:
+    if srcsize >= 4294967296:
         # limit to 4 GB
         raise ValueError('data too large')
 
@@ -392,14 +393,14 @@ ctypedef struct my_error_mgr:
     jmp_buf setjmp_buffer
 
 
-cdef void my_error_exit(jpeg_common_struct* cinfo) nogil:
+cdef void my_error_exit(jpeg_common_struct* cinfo) noexcept nogil:
     cdef:
         my_error_mgr* error = <my_error_mgr*> deref(cinfo).err
 
     longjmp(deref(error).setjmp_buffer, 1)
 
 
-cdef void my_output_message(jpeg_common_struct* cinfo) nogil:
+cdef void my_output_message(jpeg_common_struct* cinfo) noexcept nogil:
     pass
 
 
