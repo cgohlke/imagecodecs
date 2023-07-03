@@ -37,7 +37,7 @@
 
 """Lossless JPEG codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -99,10 +99,10 @@ def ljpeg_encode(
         int ret = LJ92_ERROR_NONE
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
-        and src.ndim in (2, 3)
-        and samples == 1  # in (1, 3, 4)  RGB does not work correctly
-        and src.shape[0] * src.shape[1] < 2 ** 31
+        src.dtype in {numpy.uint8, numpy.uint16}
+        and src.ndim in {2, 3}
+        and samples == 1  # {1, 3, 4}  RGB does not work correctly
+        and src.shape[0] * src.shape[1] < 2147483648
         # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
         raise ValueError('invalid data shape or dtype')
