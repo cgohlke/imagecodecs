@@ -42,7 +42,7 @@ This implementation reads and writes sequences of top level images only.
 
 """
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -56,17 +56,20 @@ class HEIF:
 
     class COMPRESSION(enum.IntEnum):
         """HEIF codec compression levels."""
+
         UNDEFINED = heif_compression_undefined
         HEVC = heif_compression_HEVC
         AVC = heif_compression_AVC
         JPEG = heif_compression_JPEG
         AV1 = heif_compression_AV1
-        # VVC = heif_compression_VVC
-        # EVC = heif_compression_EVC
-        # JPEG2000 = heif_compression_JPEG2000
+        VVC = heif_compression_VVC
+        EVC = heif_compression_EVC
+        JPEG2000 = heif_compression_JPEG2000
+        UNCOMPRESSED = heif_compression_uncompressed
 
     class COLORSPACE(enum.IntEnum):
         """HEIF codec color spaces."""
+
         UNDEFINED = heif_colorspace_undefined
         YCBCR = heif_colorspace_YCbCr
         RGB = heif_colorspace_RGB
@@ -145,13 +148,13 @@ def heif_encode(
         uint16_t* a2ptr = NULL
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
+        src.dtype in {numpy.uint8, numpy.uint16}
         # and numpy.PyArray_ISCONTIGUOUS(src)
-        and src.ndim in (2, 3, 4)
-        and src.shape[0] < 2 ** 32
-        and src.shape[1] < 2 ** 32
-        and src.shape[src.ndim - 1] < 2 ** 32
-        and src.shape[src.ndim - 2] < 2 ** 32
+        and src.ndim in {2, 3, 4}
+        and src.shape[0] < 4294967296
+        and src.shape[1] < 4294967296
+        and src.shape[src.ndim - 1] < 4294967296
+        and src.shape[src.ndim - 2] < 4294967296
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
@@ -184,14 +187,14 @@ def heif_encode(
         raise ValueError(f'{src.ndim} dimensions not supported')
 
     monochrome = samples < 3
-    hasalpha = samples in (2, 4)
+    hasalpha = samples in {2, 4}
 
     if bitspersample is None:
         depth = 8 if itemsize == 1 else 10
     else:
         depth = bitspersample
         if (
-            depth not in (8, 10, 12)
+            depth not in {8, 10, 12}
             or (depth == 8 and itemsize == 2)
             or (depth > 8 and itemsize == 1)
         ):
@@ -721,12 +724,12 @@ cdef _heif_photometric(photometric):
     """Return heif_colorspace value from photometric argument."""
     if photometric is None:
         return heif_colorspace_undefined
-    if photometric in (
+    if photometric in {
         heif_colorspace_undefined,
         heif_colorspace_YCbCr,
         heif_colorspace_RGB,
         heif_colorspace_monochrome,
-    ):
+    }:
         return photometric
     if isinstance(photometric, str):
         photometric = photometric.upper()
@@ -734,9 +737,9 @@ cdef _heif_photometric(photometric):
             return heif_colorspace_RGB
         if photometric[:3] == 'YCBCR':
             return heif_colorspace_YCbCr
-        if photometric in (
+        if photometric in {
             'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
-        ):
+        }:
             return heif_colorspace_monochrome
     raise ValueError(f'photometric {photometric!r} not supported')
 
@@ -745,7 +748,7 @@ cdef _heif_compression(compression):
     """Return heif_compression_format value from compression argument."""
     if compression is None:
         return heif_compression_HEVC
-    if compression in (
+    if compression in {
         heif_compression_undefined,
         heif_compression_HEVC,
         heif_compression_AVC,
@@ -754,7 +757,7 @@ cdef _heif_compression(compression):
         # heif_compression_VVC,
         # heif_compression_EVC,
         # heif_compression_JPEG2000,
-    ):
+    }:
         return compression
     if isinstance(compression, str):
         compression = compression.upper()
@@ -782,7 +785,7 @@ cdef heif_error heif_write_callback(
     const void* data,
     size_t size,
     void* userdata
-) nogil:
+) noexcept nogil:
     """heif_writer callback function."""
     cdef:
         output_t* output = <output_t*> userdata
