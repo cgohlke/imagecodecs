@@ -37,7 +37,7 @@
 
 """TIFF codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -61,16 +61,19 @@ class _TIFF:
 
     class VERSION(enum.IntEnum):
         """TIFF codec file types."""
+
         CLASSIC = TIFF_VERSION_CLASSIC
         BIG = TIFF_VERSION_BIG
 
     class ENDIAN(enum.IntEnum):
         """TIFF codec endian values."""
+
         BIG = TIFF_BIGENDIAN
         LITTLE = TIFF_LITTLEENDIAN
 
     class COMPRESSION(enum.IntEnum):
         """TIFF codec compression schemes."""
+
         NONE = COMPRESSION_NONE
         LZW = COMPRESSION_LZW
         JPEG = COMPRESSION_JPEG
@@ -85,6 +88,7 @@ class _TIFF:
 
     class PHOTOMETRIC(enum.IntEnum):
         """TIFF codec photometric interpretations."""
+
         MINISWHITE = PHOTOMETRIC_MINISWHITE
         MINISBLACK = PHOTOMETRIC_MINISBLACK
         RGB = PHOTOMETRIC_RGB
@@ -95,17 +99,20 @@ class _TIFF:
 
     class PLANARCONFIG(enum.IntEnum):
         """TIFF codec planar configurations."""
+
         CONTIG = PLANARCONFIG_CONTIG
         SEPARATE = PLANARCONFIG_SEPARATE
 
     class PREDICTOR(enum.IntEnum):
         """TIFF codec predictor schemes."""
+
         NONE = PREDICTOR_NONE
         HORIZONTAL = PREDICTOR_HORIZONTAL
         FLOATINGPOINT = PREDICTOR_FLOATINGPOINT
 
     class EXTRASAMPLE(enum.IntEnum):
         """TIFF codec extrasample types."""
+
         UNSPECIFIED = EXTRASAMPLE_UNSPECIFIED
         ASSOCALPHA = EXTRASAMPLE_ASSOCALPHA
         UNASSALPHA = EXTRASAMPLE_UNASSALPHA
@@ -300,9 +307,10 @@ def tiff_decode(
             openoptions = NULL
 
             dirnum = dirlist.data[0]
-            ret = tiff_set_directory(tif, dirnum)
-            if ret == 0:
-                raise IndexError('directory out of range')
+            if dirnum != 0:
+                ret = tiff_set_directory(tif, dirnum)
+                if ret == 0:
+                    raise IndexError('directory out of range')
 
             isrgb = rgb
             ret = tiff_read_ifd(tif, &sizes[0], &dtype[0], &isrgb, &istiled)
@@ -382,7 +390,7 @@ def tiff_decode(
             int(sizes[5])
         )
         shapeout = tuple(
-            s for i, s in enumerate(shape) if s > 1 or i in (3, 4)
+            s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
         )
 
         out = _create_array(out, shapeout, f'{dtype.decode()}{int(sizes[6])}')
@@ -475,7 +483,7 @@ def tiff_decode(
             int(sizes[7])
         )
         out.shape = tuple(
-            s for i, s in enumerate(shape) if s > 1 or i in (3, 4)
+            s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
         )
         # ? out = numpy.ascontiguousarray(out)
     else:
@@ -726,10 +734,9 @@ cdef int tiff_decode_tiled(
 
 cdef inline int tiff_set_directory(TIFF* tif, tdir_t dirnum) nogil:
     """Set current directory, avoiding TIFFSetDirectory if possible."""
-    # TODO: this should be resolved in libtiff > 4.5.0
     cdef:
         ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
-        int ret
+
     if diff == 1:
         return TIFFReadDirectory(tif)
     if diff == 0:
