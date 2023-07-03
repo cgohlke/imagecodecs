@@ -45,7 +45,7 @@ from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 BytesLike = Union[bytes, bytearray, mmap.mmap]
 
-__version__: Literal['2023.3.16']
+__version__: Literal['2023.7.4']
 
 
 def __dir__() -> list[str]:
@@ -367,6 +367,57 @@ def avif_decode(
     """Return decoded AVIF image."""
 
 
+class BCN:
+    """BCn codec constants."""
+
+    available: bool
+    """BCn codec is available."""
+
+    class FORMAT(enum.IntEnum):
+        """BCn compression format."""
+
+        BC1 = 1  # DXT1
+        BC2 = 2  # DXT3
+        BC3 = 3  # DXT5
+        BC4 = 4  # BC4_UNORM
+        BC5 = 5  # BC5_UNORM
+        BC6HU = 6  # BC6H_UF16
+        BC6HS = -6  # BC6H_SF16
+        BC7 = 7  # BC7_UNORM
+
+
+class BcnError(RuntimeError):
+    """BCn codec exceptions."""
+
+
+def bcn_version() -> str:
+    """Return bcdec library version string."""
+
+
+def bcn_check(data: BytesLike, /) -> None:
+    """Return whether data is BCn encoded."""
+
+
+def bcn_encode(
+    data: BytesLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return BCn encoded data (not implemented)."""
+
+
+def bcn_decode(
+    data: BytesLike,
+    format: BCN.FORMAT | int,
+    /,
+    shape: tuple[int, ...] | None = None,
+    *,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray:
+    """Return decoded BCn data."""
+
+
 class BITORDER:
     """BITORDER codec constants."""
 
@@ -544,7 +595,7 @@ class BLOSC2:
 
         NOFILTER: int
         NOSHUFFLE: int
-        SHUFFLE: int
+        SHUFFLE: int  # default
         BITSHUFFLE: int
         DELTA: int
         TRUNC_PREC: int
@@ -556,7 +607,15 @@ class BLOSC2:
         LZ4: int
         LZ4HC: int
         ZLIB: int
-        ZSTD: int
+        ZSTD: int  # default
+
+    class SPLIT(enum.IntEnum):
+        """BLOSC2 split modes."""
+
+        ALWAYS: int  # default
+        NEVER: int
+        AUTO: int
+        FORWARD_COMPAT: int
 
 
 class Blosc2Error(RuntimeError):
@@ -578,6 +637,7 @@ def blosc2_encode(
     *,
     compressor: BLOSC2.COMPRESSOR | int | str | None = None,
     shuffle: BLOSC2.FILTER | int | str | None = None,
+    splitmode: BLOSC2.SPLIT | int | str | None = None,
     typesize: int | None = None,
     blocksize: int | None = None,
     numthreads: int | None = None,
@@ -893,6 +953,44 @@ def cms_profile_validate(
     """Raise CmsError if ICC profile is invalid."""
 
 
+class DDS:
+    """DDS codec constants."""
+
+    available: bool
+    """DDS codec is available."""
+
+
+class DdsError(RuntimeError):
+    """DDS codec exceptions."""
+
+
+def dds_version() -> str:
+    """Return bcdec library version string."""
+
+
+def dds_check(data: BytesLike, /) -> bool | None:
+    """Return whether data is DDS encoded."""
+
+
+def dds_encode(
+    data: BytesLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return DDS encoded data (not implemented)."""
+
+
+def dds_decode(
+    data: BytesLike,
+    /,
+    *,
+    mipmap: int = 0,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray:
+    """Return decoded DDS data."""
+
+
 class DEFLATE:
     """DEFLATE codec constants."""
 
@@ -1173,6 +1271,10 @@ class HEIF:
         AVC: int
         JPEG: int
         AV1: int
+        # VVC
+        # EVC
+        # JPEG2000
+        # UNCOMPRESSED
 
     class COLORSPACE(enum.IntEnum):
         """HEIF codec color spaces."""
@@ -1341,6 +1443,9 @@ class JPEG8:
 
     available: bool
     """JPEG8 codec is available."""
+
+    legacy: bool
+    """JPEG8 codec is not linked to libjpeg-turbo 3."""
 
     class CS(enum.IntEnum):
         """JPEG8 codec color spaces."""
@@ -1590,11 +1695,29 @@ def jpegxl_decode(
     index: int | None = None,
     *,
     keeporientation: bool | None = None,
-    tojpeg: bool | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded JPEGXL image."""
+
+
+def jpegxl_encode_jpeg(
+    data: BytesLike,
+    /,
+    usecontainer: bool | None = None,
+    numthreads: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return JPEGXL encoded image from JPEG stream."""
+
+
+def jpegxl_decode_jpeg(
+    data: BytesLike,
+    /,
+    numthreads: int,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return JPEG encoded image from JPEG XL stream."""
 
 
 class JPEGXR:
@@ -2794,6 +2917,7 @@ def webp_encode(
 def webp_decode(
     data: BytesLike,
     /,
+    index: int | None = 0,
     *,
     hasalpha: bool | None = None,
     out: NDArray[Any] | None = None,
