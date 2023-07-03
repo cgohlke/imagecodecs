@@ -37,7 +37,7 @@
 
 """CMS codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -55,6 +55,7 @@ class CMS:
 
     class INTENT(enum.IntEnum):
         """CMS codec intent types."""
+
         PERCEPTUAL = INTENT_PERCEPTUAL
         RELATIVE_COLORIMETRIC = INTENT_RELATIVE_COLORIMETRIC
         SATURATION = INTENT_SATURATION
@@ -62,6 +63,7 @@ class CMS:
 
     class FLAGS(enum.IntEnum):
         """CMS codec flags."""
+
         NOCACHE = cmsFLAGS_NOCACHE
         NOOPTIMIZE = cmsFLAGS_NOOPTIMIZE
         NULLTRANSFORM = cmsFLAGS_NULLTRANSFORM
@@ -83,6 +85,7 @@ class CMS:
 
     class PT(enum.IntEnum):
         """CMS codec pixel types."""
+
         GRAY = PT_GRAY
         RGB = PT_RGB
         CMY = PT_CMY
@@ -394,7 +397,7 @@ def cms_profile(
             tf = numpy.ascontiguousarray(transferfunction)
             if (
                 tf.dtype.char not in 'Hf'
-                or tf.ndim not in (1, 2)
+                or tf.ndim not in {1, 2}
                 or (tf.ndim == 2 and tf.shape[0] != tfcount)
             ):
                 raise ValueError('invalid transferfunction shape or dtype')
@@ -678,7 +681,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
         isplanar = 0
         if planar:
             raise ValueError('planar not supported with 2D')
-        if colorspace not in (None, 'gray', 'miniswhite', 'minisblack'):
+        if colorspace not in {None, 'gray', 'miniswhite', 'minisblack'}:
             raise ValueError('invalid colorspace for 2D')
 
     elif colorspace is None:
