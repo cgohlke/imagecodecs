@@ -37,7 +37,7 @@
 
 """APNG codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -54,6 +54,7 @@ class APNG:
 
     class COLOR_TYPE(enum.IntEnum):
         """APNG codec color types."""
+
         GRAY = PNG_COLOR_TYPE_GRAY
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
@@ -61,6 +62,7 @@ class APNG:
 
     class COMPRESSION(enum.IntEnum):
         """APNG codec compression levels."""
+
         DEFAULT = Z_DEFAULT_COMPRESSION
         NO = Z_NO_COMPRESSION
         BEST = Z_BEST_COMPRESSION
@@ -68,6 +70,7 @@ class APNG:
 
     class STRATEGY(enum.IntEnum):
         """APNG codec strategies."""
+
         DEFAULT = Z_DEFAULT_STRATEGY
         FILTERED = Z_FILTERED
         HUFFMAN_ONLY = Z_HUFFMAN_ONLY
@@ -76,6 +79,7 @@ class APNG:
 
     class FILTER(enum.IntEnum):  # IntFlag
         """APNG codec filters."""
+
         NO = PNG_NO_FILTERS
         NONE = PNG_FILTER_NONE
         SUB = PNG_FILTER_SUB
@@ -173,9 +177,9 @@ def apng_encode(
         raise ValueError(f'{src.ndim} dimensions not supported')
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
-        and height < 2 ** 31
-        and width < 2 ** 31
+        src.dtype in {numpy.uint8, numpy.uint16}
+        and height < 2147483648
+        and width < 2147483648
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
@@ -722,13 +726,13 @@ cdef _png_colortype(photometric):
     if photometric is None:
         return -1
     if isinstance(photometric, int):
-        if photometric not in (
+        if photometric not in {
             -1,
             PNG_COLOR_TYPE_GRAY,
             PNG_COLOR_TYPE_GRAY_ALPHA,
             PNG_COLOR_TYPE_RGB,
             PNG_COLOR_TYPE_RGB_ALPHA,
-        ):
+        }:
             raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
@@ -738,9 +742,9 @@ cdef _png_colortype(photometric):
         return PNG_COLOR_TYPE_RGB_ALPHA
     if photometric == 'GRAY_ALPHA':
         return PNG_COLOR_TYPE_GRAY_ALPHA
-    if photometric in (
+    if photometric in {
         'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
-    ):
+    }:
         return PNG_COLOR_TYPE_GRAY
     raise ValueError(f'photometric {photometric!r} not supported')
 
