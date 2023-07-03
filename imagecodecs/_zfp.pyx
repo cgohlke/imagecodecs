@@ -37,7 +37,7 @@
 
 """ZFP codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -51,12 +51,14 @@ class ZFP:
 
     class EXEC(enum.IntEnum):
         """ZFP codec execution policies."""
+
         SERIAL = zfp_exec_serial
         OMP = zfp_exec_omp
         CUDA = zfp_exec_cuda
 
     class MODE(enum.IntEnum):
         """ZFP codec compression modes."""
+
         NONE = zfp_mode_null
         EXPERT = zfp_mode_expert
         FIXED_RATE = zfp_mode_fixed_rate
@@ -66,6 +68,7 @@ class ZFP:
 
     class HEADER(enum.IntEnum):
         """ZFP codec header types."""
+
         MAGIC = ZFP_HEADER_MAGIC
         META = ZFP_HEADER_META
         MODE = ZFP_HEADER_MODE
@@ -164,30 +167,30 @@ def zfp_encode(
 
     if mode is None:
         zmode = zfp_mode_reversible
-    elif mode in (zfp_mode_null, zfp_mode_reversible, 'R', 'reversible'):
+    elif mode in {zfp_mode_null, zfp_mode_reversible, 'R', 'reversible'}:
         zmode = zfp_mode_reversible
-    elif mode in (zfp_mode_fixed_precision, 'p', 'precision'):
+    elif mode in {zfp_mode_fixed_precision, 'p', 'precision'}:
         zmode = zfp_mode_fixed_precision
         precision = _default_value(level, ZFP_MAX_PREC, 0, ZFP_MAX_PREC)
-    elif mode in (zfp_mode_fixed_rate, 'r', 'rate'):
+    elif mode in {zfp_mode_fixed_rate, 'r', 'rate'}:
         zmode = zfp_mode_fixed_rate
         rate = level
-    elif mode in (zfp_mode_fixed_accuracy, 'a', 'accuracy'):
+    elif mode in {zfp_mode_fixed_accuracy, 'a', 'accuracy'}:
         zmode = zfp_mode_fixed_accuracy
         tolerance = level
-    elif mode in (zfp_mode_expert, 'c', 'expert'):
+    elif mode in {zfp_mode_expert, 'c', 'expert'}:
         zmode = zfp_mode_expert
         minbits, maxbits, maxprec, minexp = level
     else:
-        raise ValueError('invalid ZFP mode')
+        raise ValueError(f'invalid ZFP mode {mode!r}')
 
     if execution is None:
         zexec = zfp_exec_omp if threads > 1 else zfp_exec_serial
-    elif execution == zfp_exec_serial or execution == 'serial':
+    elif execution in {zfp_exec_serial, 'serial'}:
         zexec = zfp_exec_serial
-    elif execution == zfp_exec_omp or execution == 'omp':
+    elif execution in {zfp_exec_omp, 'omp'}:
         zexec = zfp_exec_serial if threads == 1 else zfp_exec_omp
-    elif execution == zfp_exec_cuda or execution == 'cuda':
+    elif execution in {zfp_exec_cuda, 'cuda'}:
         zexec = zfp_exec_cuda
     else:
         raise ValueError('invalid ZFP execution policy')
