@@ -37,7 +37,7 @@
 
 """WebP codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -134,9 +134,9 @@ def webp_encode(
         src.ndim == 3
         and src.shape[0] < WEBP_MAX_DIMENSION
         and src.shape[1] < WEBP_MAX_DIMENSION
-        and src.shape[2] in (3, 4)
+        and src.shape[2] in {3, 4}
         and src.strides[2] == 1
-        and src.strides[1] in (3, 4)
+        and src.strides[1] in {3, 4}
         and src.strides[0] >= src.strides[1] * src.strides[2]
         and src.dtype == numpy.uint8
     ):
@@ -226,61 +226,94 @@ def webp_encode(
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def webp_decode(data, hasalpha=None, out=None):
+def webp_decode(data, index=0, hasalpha=None, out=None):
     """Return decoded WebP image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
-        ssize_t dstsize
-        int output_stride
-        size_t data_size
-        WebPBitstreamFeatures features
-        int ret = VP8_STATUS_OK
-        uint8_t* pout
+        ssize_t dstsize, dstoffset
+        uint32_t width, height, frames  # , bgcolor, flags
+        int frame, output_stride, ret
+        WebPData webp_data
+        WebPDemuxer* demux = NULL
+        WebPIterator iter
+        uint8_t* pout = NULL
         bint has_alpha
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    ret = <int> WebPGetFeatures(&src[0], <size_t> srcsize, &features)
-    if ret != VP8_STATUS_OK:
-        raise WebpError('WebPGetFeatures', ret)
+    webp_data.bytes = &src[0]
+    webp_data.size = <size_t> src.size
 
-    # TODO: support features.has_animation
+    demux = WebPDemux(&webp_data)
+    if demux == NULL:
+        raise WebpError('WebPDemux', 0)
 
-    if (features.has_alpha and hasalpha is None) or hasalpha:
-        has_alpha = True
-        shape = features.height, features.width, 4
-    else:
-        has_alpha = False
-        shape = features.height, features.width, 3
+    try:
+        width = WebPDemuxGetI(demux, WEBP_FF_CANVAS_WIDTH)
+        height = WebPDemuxGetI(demux, WEBP_FF_CANVAS_HEIGHT)
+        frames = WebPDemuxGetI(demux, WEBP_FF_FRAME_COUNT)
+        # bgcolor = WebPDemuxGetI(demux, WEBP_FF_BACKGROUND_COLOR)
+        # flags = WebPDemuxGetI(demux, WEBP_FF_FORMAT_FLAGS)
 
-    out = _create_array(out, shape, numpy.uint8, strides=(None, shape[2], 1))
-    dst = out
-    dstsize = dst.shape[0] * dst.strides[0]
-    output_stride = <int> dst.strides[0]
+        if index is None:
+            index = 0
+        frame = index + 1 if index >= 0 else frames + index + 1
+        if frame < 1 or frame > frames:
+            raise IndexError(f'index {index} out of range {frames}')
 
-    with nogil:
-        if has_alpha:
-            pout = WebPDecodeRGBAInto(
-                &src[0],
-                <size_t> srcsize,
-                <uint8_t*> dst.data,
-                <size_t> dstsize,
-                output_stride
-            )
-            if pout == NULL:
-                raise WebpError('WebPDecodeRGBAInto', 0)
+        ret = WebPDemuxGetFrame(demux, frame, &iter)
+        if ret == 0:
+            raise WebpError('WebPDemuxGetFrame', 0)
+
+        if (iter.has_alpha and hasalpha is None) or hasalpha:
+            has_alpha = True
+            shape = height, width, 4
         else:
-            pout = WebPDecodeRGBInto(
-                &src[0],
-                <size_t> srcsize,
-                <uint8_t*> dst.data,
-                <size_t> dstsize,
-                output_stride
-            )
-            if pout == NULL:
-                raise WebpError('WebPDecodeRGBInto', 0)
+            has_alpha = False
+            shape = height, width, 3
+
+        out = _create_array(
+            out,
+            shape,
+            numpy.uint8,
+            strides=(None, shape[2], 1),
+            zero=width != iter.width or height != iter.height
+        )
+        dst = out
+        dstsize = dst.shape[0] * dst.strides[0]
+        output_stride = <int> dst.strides[0]
+
+        # TODO: initialize output with bgcolor
+
+        with nogil:
+            if has_alpha:
+                dstoffset = iter.y_offset * output_stride + iter.x_offset * 4
+                pout = WebPDecodeRGBAInto(
+                    iter.fragment.bytes,
+                    iter.fragment.size,
+                    (<uint8_t*> dst.data) + dstoffset,
+                    <size_t> dstsize,
+                    output_stride
+                )
+                if pout == NULL:
+                    raise WebpError('WebPDecodeRGBAInto', 0)
+            else:
+                dstoffset = iter.y_offset * output_stride + iter.x_offset * 3
+                pout = WebPDecodeRGBInto(
+                    iter.fragment.bytes,
+                    iter.fragment.size,
+                    (<uint8_t*> dst.data) + dstoffset,
+                    <size_t> dstsize,
+                    output_stride
+                )
+                if pout == NULL:
+                    raise WebpError('WebPDecodeRGBInto', 0)
+
+    finally:
+        WebPDemuxReleaseIterator(&iter)
+        if demux != NULL:
+            WebPDemuxDelete(demux)
 
     return out
