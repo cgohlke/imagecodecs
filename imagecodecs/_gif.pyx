@@ -37,7 +37,7 @@
 
 """GIF codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -102,9 +102,9 @@ def gif_encode(data, colormap=None, out=None):
 
     if not (
         src.dtype == numpy.uint8
-        and src.ndim in (2, 3)
-        and src.shape[0] < 2 ** 16
-        and src.shape[1] < 2 ** 16
+        and src.ndim in {2, 3}
+        and src.shape[0] < 65536
+        and src.shape[1] < 65536
     ):
         raise ValueError('invalid data shape or dtype')
 
