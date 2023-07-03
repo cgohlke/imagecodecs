@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -201,7 +201,7 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
         if not isnative:
             try:
                 out = out.byteswap(True)
-            except ValueError:  # read-only out, e.g. out=data
+            except ValueError:  # read-only out, for example, out=data
                 out = out.byteswap()
 
         return out
@@ -1031,6 +1031,7 @@ class FLOAT24:
 
     class ROUND(enum.IntEnum):
         """FLOAT24 codec rounding types."""
+
         TONEAREST = FE_TONEAREST
         UPWARD = FE_UPWARD
         DOWNWARD = FE_DOWNWARD
@@ -1239,7 +1240,9 @@ def lzw_encode(data, out=None):
     dstsize = dst.size
 
     with nogil:
-        ret = imcd_lzw_encode(&src[0], srcsize, &dst[0], dstsize)
+        ret = imcd_lzw_encode(
+            <const uint8_t*> &src[0], srcsize, &dst[0], dstsize
+        )
     if ret < 0:
         raise LzwError('imcd_lzw_encode', ret)
 
