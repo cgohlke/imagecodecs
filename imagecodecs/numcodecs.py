@@ -282,6 +282,7 @@ class Blosc2(Codec):
         level: int | None = None,
         compressor: int | str | None = None,
         shuffle: int | str | None = None,
+        splitmode: int | str | None = None,
         typesize: int | None = None,
         blocksize: int | None = None,
         numthreads: int | None = None,
@@ -291,6 +292,7 @@ class Blosc2(Codec):
 
         self.level = level
         self.compressor = compressor
+        self.splitmode = splitmode
         self.typesize = typesize
         self.blocksize = blocksize
         self.shuffle = shuffle
@@ -302,9 +304,10 @@ class Blosc2(Codec):
             buf,
             level=self.level,
             compressor=self.compressor,
+            shuffle=self.shuffle,
+            splitmode=self.splitmode,
             typesize=self.typesize,
             blocksize=self.blocksize,
-            shuffle=self.shuffle,
             numthreads=self.numthreads,
         )
 
@@ -430,6 +433,24 @@ class Cms(Codec):
     def decode(self, buf, out=None):
         # return imagecodecs.cms_transform(buf)
         raise NotImplementedError
+
+
+class Dds(Codec):
+    """DDS codec for numcodecs."""
+
+    codec_id = 'imagecodecs_dds'
+
+    def __init__(self, *, mipmap: int = 0) -> None:
+        if not imagecodecs.DDS.available:
+            raise ValueError('imagecodecs.DDS not available')
+        self.mipmap = mipmap
+
+    def encode(self, buf, out=None):
+        # buf = _image(buf, self.squeeze)
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.dds_decode(buf, mipmap=self.mipmap, out=out)
 
 
 class Deflate(Codec):
@@ -728,11 +749,11 @@ class Jpeg(Codec):
 
     def get_config(self):
         """Return dictionary holding configuration parameters."""
-        config = dict(id=self.codec_id)
+        config = {'id': self.codec_id}
         for key in self.__dict__:
             if not key.startswith('_'):
                 value = getattr(self, key)
-                if value is not None and key in ('header', 'tables'):
+                if value is not None and key in {'header', 'tables'}:
                     import base64
 
                     value = base64.b64encode(value).decode()
@@ -1461,6 +1482,7 @@ class Tiff(Codec):
         index: int | None = None,
         asrgb: bool = False,
         verbose: int = 0,
+        squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
         if not imagecodecs.TIFF.available:
             raise ValueError('imagecodecs.TIFF not available')
@@ -1468,6 +1490,7 @@ class Tiff(Codec):
         self.index = index
         self.asrgb = bool(asrgb)
         self.verbose = int(verbose)
+        self.squeeze = squeeze
 
     def encode(self, buf):
         # TODO: not implemented
@@ -1495,6 +1518,7 @@ class Webp(Codec):
         level: int | None = None,
         lossless: bool | None = None,
         method: int | None = None,
+        index: int | None = 0,
         hasalpha: bool | None = None,
         numthreads: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1505,6 +1529,7 @@ class Webp(Codec):
         self.level = level
         self.hasalpha = bool(hasalpha)
         self.method = method
+        self.index = index
         self.lossless = lossless
         self.numthreads = numthreads
         self.squeeze = squeeze
@@ -1520,7 +1545,9 @@ class Webp(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.webp_decode(buf, hasalpha=self.hasalpha, out=out)
+        return imagecodecs.webp_decode(
+            buf, index=self.index, hasalpha=self.hasalpha, out=out
+        )
 
 
 class Xor(Codec):
