@@ -37,7 +37,7 @@
 
 """QOI codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -51,6 +51,7 @@ class QOI:
 
     class COLORSPACE(enum.IntEnum):
         """QOI codec color spaces."""
+
         SRGB = qoi.QOI_SRGB
         LINEAR  = qoi.QOI_LINEAR
 
@@ -61,7 +62,7 @@ class QoiError(RuntimeError):
 
 def qoi_version():
     """Return QOI library version string."""
-    return 'qoi c3dcfe7'
+    return 'qoi 36190eb'
 
 
 def qoi_check(const uint8_t[::1] data):
@@ -87,8 +88,8 @@ def qoi_encode(data, out=None):
     if not (
         src.dtype == numpy.uint8
         and src.ndim == 3
-        and src.shape[0] < 2 ** 31
-        and src.shape[1] < 2 ** 31
+        and src.shape[0] < 2147483648
+        and src.shape[1] < 2147483648
         and (samples == 3 or samples == 4)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
