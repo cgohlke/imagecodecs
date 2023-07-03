@@ -37,7 +37,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -53,6 +53,7 @@ class JPEG2K:
 
     class CODEC(enum.IntEnum):
         """JPEG2K codec file formats."""
+
         JP2 = OPJ_CODEC_JP2
         J2K = OPJ_CODEC_J2K
         # JPT = OPJ_CODEC_JPT
@@ -61,6 +62,7 @@ class JPEG2K:
 
     class CLRSPC(enum.IntEnum):
         """JPEG2K codec color spaces."""
+
         UNSPECIFIED = OPJ_CLRSPC_UNSPECIFIED
         SRGB = OPJ_CLRSPC_SRGB
         GRAY = OPJ_CLRSPC_GRAY
@@ -122,8 +124,8 @@ def jpeg2k_encode(
         opj_codec_t* codec = NULL
         opj_image_t* image = NULL
         opj_stream_t* stream = NULL
+        opj_image_cmptparm_t* cmptparms = NULL
         opj_cparameters_t parameters
-        opj_image_cmptparm_t cmptparms[4]
         OPJ_CODEC_FORMAT codec_format
         OPJ_BOOL ret = OPJ_TRUE
         OPJ_COLOR_SPACE color_space
@@ -138,10 +140,10 @@ def jpeg2k_encode(
         int irreversible = 0 if reversible else 1
         bint tcp_mct = bool(mct)
 
-    if not (src.dtype.char in 'bBhHiIlL' and src.ndim in (2, 3)):
+    if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
         raise ValueError('invalid data shape or dtype')
 
-    if srcsize >= 2 ** 32:
+    if srcsize >= 4294967296:
         raise ValueError('tile size must not exceed 4 GB')
 
     if quality < 1 or quality > 1000:
@@ -152,9 +154,9 @@ def jpeg2k_encode(
 
     if codecformat is None:
         codec_format = OPJ_CODEC_JP2  # use container format by default
-    elif codecformat in (OPJ_CODEC_JP2, 'JP2', 'jp2'):
+    elif codecformat in {OPJ_CODEC_JP2, 'JP2', 'jp2'}:
         codec_format = OPJ_CODEC_JP2
-    elif codecformat in (OPJ_CODEC_J2K, 'J2K', 'j2k'):
+    elif codecformat in {OPJ_CODEC_J2K, 'J2K', 'j2k'}:
         codec_format = OPJ_CODEC_J2K
     else:
         raise ValueError('invalid codecformat')
@@ -186,7 +188,7 @@ def jpeg2k_encode(
         elif prec == 32:
             if bitspersample > 16 and bitspersample < 32:
                 prec = bitspersample
-    if prec == 32:
+    if prec > 26:
         # TODO: OpenJPEG currently only supports up to 31, effectively 26-bit?
         prec = 26
 
@@ -199,6 +201,10 @@ def jpeg2k_encode(
         # TODO: use one tile for now. Other code path not implemented yet
         tile_height = height
         tile_width = width
+
+    if samples > 4095:
+        # TODO: check this limit
+        raise ValueError(f'invalid number of samples {samples}')
 
     if colorspace is None:
         if samples <= 2:
@@ -234,7 +240,11 @@ def jpeg2k_encode(
                 raise Jpeg2kError('opj_memstream_create failed')
 
             # create image
-            memset(&cmptparms, 0, sizeof(cmptparms))
+            cmptparms = <opj_image_cmptparm_t*> calloc(
+                samples, sizeof(opj_image_cmptparm_t)
+            )
+            if cmptparms == NULL:
+                raise MemoryError('failed to allocate cmptparms')
             for i in range(<ssize_t> samples):
                 cmptparms[i].dx = 1  # subsampling
                 cmptparms[i].dy = 1
@@ -293,7 +303,7 @@ def jpeg2k_encode(
 
             if quality == 0.0:
                 # lossless
-                parameters.irreversible = 0
+                parameters.irreversible = irreversible
                 parameters.cp_disto_alloc = 1
                 parameters.tcp_rates[0] = 0
             else:
@@ -405,6 +415,8 @@ def jpeg2k_encode(
             opj_destroy_codec(codec)
         if image != NULL:
             opj_image_destroy(image)
+        if cmptparms != NULL:
+            free(cmptparms)
 
     del dst
     return _return_output(out, dstsize, byteswritten, outgiven)
