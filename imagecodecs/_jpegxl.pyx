@@ -37,7 +37,7 @@
 
 """JPEG XL codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -52,6 +52,7 @@ class JPEGXL:
 
     class COLOR_SPACE(enum.IntEnum):
         """JPEGXL codec color spaces."""
+
         UNKNOWN = JXL_COLOR_SPACE_UNKNOWN
         RGB = JXL_COLOR_SPACE_RGB
         GRAY = JXL_COLOR_SPACE_GRAY
@@ -59,6 +60,7 @@ class JPEGXL:
 
     class CHANNEL(enum.IntEnum):
         """JPEGXL codec channel types."""
+
         UNKNOWN = JXL_CHANNEL_UNKNOWN
         ALPHA = JXL_CHANNEL_ALPHA
         DEPTH = JXL_CHANNEL_DEPTH
@@ -96,11 +98,16 @@ class JpegxlError(RuntimeError):
                 JXL_DEC_FRAME_PROGRESSION: 'JXL_DEC_FRAME_PROGRESSION',
             }.get(err, f'unknown error {err!r}')
         elif 'Encoder' in func:
-            # TODO: use JxlEncoderGetError for JXL_ENC_ERROR
             msg = {
                 JXL_ENC_SUCCESS: 'JXL_ENC_SUCCESS',
-                JXL_ENC_ERROR: 'JXL_ENC_ERROR',
-                JXL_ENC_NEED_MORE_OUTPUT: 'JXL_ENC_NEED_MORE_OUTPUT',
+                JXL_ENC_ERR_GENERIC: 'JXL_ENC_ERR_GENERIC',
+                JXL_ENC_ERR_OOM: 'JXL_ENC_ERR_OOM',
+                JXL_ENC_ERR_JBRD: 'JXL_ENC_ERR_JBRD',
+                JXL_ENC_ERR_BAD_INPUT: 'JXL_ENC_ERR_BAD_INPUT',
+                JXL_ENC_ERR_NOT_SUPPORTED: 'JXL_ENC_ERR_NOT_SUPPORTED',
+                JXL_ENC_ERR_API_USAGE: 'JXL_ENC_ERR_API_USAGE',
+                # JXL_ENC_ERROR: 'JXL_ENC_ERROR',
+                # JXL_ENC_NEED_MORE_OUTPUT: 'JXL_ENC_NEED_MORE_OUTPUT',
                 # JXL_ENC_NOT_SUPPORTED: 'JXL_ENC_NOT_SUPPORTED',
             }.get(err, f'unknown error {err!r}')
         else:
@@ -161,7 +168,7 @@ def jpegxl_encode(
         int colorspace = -1
         size_t avail_out = 0
         uint8_t* next_out = NULL
-        output_t* compressed = NULL
+        output_t* output = NULL
         size_t framesize = 0
         char* buffer = NULL
         void* runner = NULL
@@ -188,10 +195,6 @@ def jpegxl_encode(
 
     if data is out:
         raise ValueError('cannot encode in-place')
-
-    if isinstance(data, (bytes, bytearray)):
-        # input is a JPEG stream
-        return _jpegxl_from_jpeg(data, use_container, num_threads, out)
 
     if level is not None:
         if level > 100:
@@ -220,7 +223,7 @@ def jpegxl_encode(
     srcsize = src.nbytes
     buffer = src.data
 
-    if not (src.dtype.kind in 'uf' and src.ndim in (2, 3, 4)):
+    if not (src.dtype.kind in 'uf' and src.ndim in {2, 3, 4}):
         raise ValueError('invalid data shape or dtype')
 
     if bitspersample is None or src.dtype.kind == 'f':
@@ -237,17 +240,17 @@ def jpegxl_encode(
     if out is not None:
         dst = out
         dstsize = dst.nbytes
-        compressed = output_new(<uint8_t*> &dst[0], dstsize)
+        output = output_new(<uint8_t*> &dst[0], dstsize)
     elif dstsize > 0:
         out = _create_output(outtype, dstsize)
         dst = out
         dstsize = dst.nbytes
-        compressed = output_new(<uint8_t*> &dst[0], dstsize)
+        output = output_new(<uint8_t*> &dst[0], dstsize)
     else:
-        compressed = output_new(
+        output = output_new(
             NULL, max(32768, srcsize // (4 if option_lossless else 16))
         )
-    if compressed == NULL:
+    if output == NULL:
         raise MemoryError('output_new failed')
 
     JxlEncoderInitBasicInfo(&basic_info)
@@ -387,7 +390,6 @@ def jpegxl_encode(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-
             if num_threads > 1:
                 runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
                 if runner == NULL:
@@ -530,43 +532,47 @@ def jpegxl_encode(
 
                 while True:
 
-                    next_out = compressed.data + compressed.used
-                    avail_out = compressed.size - compressed.used
+                    next_out = output.data + output.used
+                    avail_out = output.size - output.used
 
                     status = JxlEncoderProcessOutput(
                         encoder, &next_out, &avail_out
                     )
 
                     if output_seek(
-                        compressed, compressed.size - avail_out
+                        output, output.size - avail_out
                     ) == 0:
                         raise RuntimeError('output_seek returned 0')
 
                     if (
                         status != JXL_ENC_NEED_MORE_OUTPUT
-                        or compressed.owner == 0
+                        or output.owner == 0
                     ):
                         break
 
                     if output_resize(
-                        compressed,
+                        output,
                         min(
-                            compressed.size + <size_t> 33554432,  # 32 MB
-                            compressed.size * 2
+                            output.size + <size_t> 33554432,  # 32 MB
+                            output.size * 2
                         )
                     ) == 0:
                         raise RuntimeError('output_resize returned 0')
 
-                if status != JXL_ENC_SUCCESS:
+                if status == JXL_ENC_ERROR:
+                    raise JpegxlError(
+                        'JxlEncoderProcessOutput', JxlEncoderGetError(encoder)
+                    )
+                elif status != JXL_ENC_SUCCESS:
                     raise JpegxlError('JxlEncoderProcessOutput', status)
 
-        if compressed.owner:
+        if output.owner:
             out = _create_output(
-                out, compressed.used, <const char *> compressed.data
+                out, output.used, <const char *> output.data
             )
         else:
             out = _return_output(
-                out, compressed.size, compressed.used, outgiven
+                out, output.size, output.used, outgiven
             )
 
     finally:
@@ -574,8 +580,8 @@ def jpegxl_encode(
             JxlEncoderDestroy(encoder)
         if runner != NULL:
             JxlThreadParallelRunnerDestroy(runner)
-        if compressed != NULL:
-            output_del(compressed)
+        if output != NULL:
+            output_del(output)
 
     return out
 
@@ -584,7 +590,6 @@ def jpegxl_decode(
     data,
     index=None,
     keeporientation=None,
-    tojpeg=None,
     numthreads=None,
     out=None,
 ):
@@ -615,10 +620,6 @@ def jpegxl_decode(
     if signature != JXL_SIG_CODESTREAM and signature != JXL_SIG_CONTAINER:
         raise ValueError('not a JPEG XL codestream')
 
-    if tojpeg:
-        # output JPEG stream
-        return _jpegxl_to_jpeg(src, num_threads, out)
-
     if index is None:
         frames = 0
         frameindex = 0
@@ -641,7 +642,6 @@ def jpegxl_decode(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-
             if num_threads > 1:
                 runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
                 if runner == NULL:
@@ -882,23 +882,281 @@ def jpegxl_decode(
     return out
 
 
-cdef _jpegxl_from_jpeg(
-    const uint8_t[::1] src,
-    JXL_BOOL use_container,
-    size_t num_threads,
-    out
+def jpegxl_encode_jpeg(
+    data,
+    usecontainer=None,
+    numthreads=None,
+    out=None,
 ):
-    """Return JPEG XL from JPEG stream."""
-    raise NotImplementedError  # TODO: transcoding not yet supported by libjxl
+    """Return JPEGXL encoded image from JPEG stream."""
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t dstsize
+        size_t srcsize = <size_t> src.size
+        size_t avail_out = 0
+        uint8_t* next_out = NULL
+        output_t* output = NULL
+        void* runner = NULL
+        JxlEncoder* encoder = NULL
+        JxlEncoderFrameSettings* frame_settings = NULL
+        JxlEncoderStatus status = JXL_ENC_SUCCESS
+        JXL_BOOL use_container = bool(usecontainer)
+        size_t num_threads = <size_t> _default_threads(numthreads)
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is not None:
+        dst = out
+        dstsize = dst.nbytes
+        output = output_new(<uint8_t*> &dst[0], dstsize)
+    elif dstsize > 0:
+        out = _create_output(outtype, dstsize)
+        dst = out
+        dstsize = dst.nbytes
+        output = output_new(<uint8_t*> &dst[0], dstsize)
+    else:
+        output = output_new(NULL, max(32768, srcsize))
+    if output == NULL:
+        raise MemoryError('output_new failed')
+
+    encoder = JxlEncoderCreate(NULL)
+    if encoder == NULL:
+        raise JpegxlError('JxlEncoderCreate', None)
+
+    try:
+        with nogil:
+
+            frame_settings = JxlEncoderFrameSettingsCreate(encoder, NULL)
+            if frame_settings == NULL:
+                raise JpegxlError('JxlEncoderFrameSettingsCreate', None)
+
+            status = JxlEncoderUseContainer(encoder, use_container)
+            if status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderUseContainer', status)
+
+            if num_threads == 0:
+                num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
+            if num_threads > 1:
+                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
+                if runner == NULL:
+                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+
+                status = JxlEncoderSetParallelRunner(
+                    encoder, JxlThreadParallelRunner, runner
+                )
+                if status != JXL_ENC_SUCCESS:
+                    raise JpegxlError('JxlEncoderSetParallelRunner', status)
+
+            # JxlEncoderSetBasicInfo
+            # JxlEncoderSetColorEncoding
+            # JxlEncoderSetICCProfile
+            # will implicitly be called with the parameters of the JPEG frame
+
+            status = JxlEncoderStoreJPEGMetadata(encoder, JXL_TRUE)
+            if status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderStoreJPEGMetadata', status)
+
+            status = JxlEncoderAddJPEGFrame(
+                frame_settings,
+                <const uint8_t*> &src[0],
+                srcsize
+            )
+            if status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderAddJPEGFrame', status)
+
+            JxlEncoderCloseInput(encoder)
+
+            while True:
+                next_out = output.data + output.used
+                avail_out = output.size - output.used
+
+                status = JxlEncoderProcessOutput(
+                    encoder, &next_out, &avail_out
+                )
+
+                if output_seek(
+                    output, output.size - avail_out
+                ) == 0:
+                    raise RuntimeError('output_seek returned 0')
+
+                if (
+                    status != JXL_ENC_NEED_MORE_OUTPUT
+                    or output.owner == 0
+                ):
+                    break
+
+                if output_resize(
+                    output,
+                    min(
+                        output.size + <size_t> 33554432,  # 32 MB
+                        output.size * 2
+                    )
+                ) == 0:
+                    raise RuntimeError('output_resize returned 0')
+
+            if status == JXL_ENC_ERROR:
+                raise JpegxlError(
+                    'JxlEncoderProcessOutput', JxlEncoderGetError(encoder)
+                )
+            elif status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderProcessOutput', status)
+
+        if output.owner:
+            out = _create_output(
+                out, output.used, <const char *> output.data
+            )
+        else:
+            out = _return_output(
+                out, output.size, output.used, outgiven
+            )
+
+    finally:
+        if encoder != NULL:
+            JxlEncoderDestroy(encoder)
+        if runner != NULL:
+            JxlThreadParallelRunnerDestroy(runner)
+        if output != NULL:
+            output_del(output)
+
+    return out
 
 
-cdef _jpegxl_to_jpeg(
-    const uint8_t[::1] src,
-    size_t num_threads,
-    out
+def jpegxl_decode_jpeg(
+    data,
+    numthreads=None,
+    out=None,
 ):
-    """Return JPEG from JPEG XL stream."""
-    raise NotImplementedError  # TODO: transcoding not yet supported by libjxl
+    """Return JPEG encoded image from JPEG XL."""
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t dstsize
+        size_t srcsize = <size_t> src.size
+        output_t* output = NULL
+        void* runner = NULL
+        JxlDecoder* decoder = NULL
+        JxlDecoderStatus status = JXL_DEC_SUCCESS
+        JxlSignature signature
+        size_t num_threads = _default_threads(numthreads)
+
+    signature = JxlSignatureCheck(&src[0], srcsize)
+    if signature != JXL_SIG_CODESTREAM and signature != JXL_SIG_CONTAINER:
+        raise ValueError('not a JPEG XL codestream')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is not None:
+        dst = out
+        dstsize = dst.nbytes
+        output = output_new(<uint8_t*> &dst[0], dstsize)
+    elif dstsize > 0:
+        out = _create_output(outtype, dstsize)
+        dst = out
+        dstsize = dst.nbytes
+        output = output_new(<uint8_t*> &dst[0], dstsize)
+    else:
+        output = output_new(NULL, (srcsize * 3) // 2 + 1024)
+    if output == NULL:
+        raise MemoryError('output_new failed')
+
+    try:
+        with nogil:
+
+            decoder = JxlDecoderCreate(NULL)
+            if decoder == NULL:
+                raise JpegxlError('JxlDecoderCreate', None)
+
+            if num_threads == 0:
+                num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
+            if num_threads > 1:
+                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
+                if runner == NULL:
+                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+
+                status = JxlDecoderSetParallelRunner(
+                    decoder, JxlThreadParallelRunner, runner
+                )
+                if status != JXL_DEC_SUCCESS:
+                    raise JpegxlError('JxlDecoderSetParallelRunner', status)
+
+            status = JxlDecoderSetInput(decoder, &src[0], srcsize)
+            if status != JXL_DEC_SUCCESS:
+                raise JpegxlError('JxlDecoderSetInput', status)
+            # JxlDecoderCloseInput(decoder)
+
+            status = JxlDecoderSubscribeEvents(
+                decoder, JXL_DEC_FULL_IMAGE | JXL_DEC_JPEG_RECONSTRUCTION
+            )
+            if status != JXL_DEC_SUCCESS:
+                raise JpegxlError('JxlDecoderSubscribeEvents', status)
+
+            while True:
+                status = JxlDecoderProcessInput(decoder)
+                if (
+                    status == JXL_DEC_ERROR
+                    or status == JXL_DEC_NEED_MORE_INPUT
+                ):
+                    raise JpegxlError('JxlDecoderProcessInput', status)
+
+                if status == JXL_DEC_SUCCESS:
+                    break
+
+                elif status == JXL_DEC_JPEG_RECONSTRUCTION:
+                    status = JxlDecoderSetJPEGBuffer(
+                        decoder, output.data, output.size
+                    )
+                    if status != JXL_DEC_SUCCESS:
+                        raise JpegxlError('JxlDecoderSetJPEGBuffer', status)
+
+                elif status == JXL_DEC_JPEG_NEED_MORE_OUTPUT:
+                    if output.owner == 0:
+                        raise ValueError('cannot resize output buffer')
+
+                    output.used = (
+                        output.size - JxlDecoderReleaseJPEGBuffer(decoder)
+                    )
+
+                    if output_resize(output, (output.size * 3) // 2) == 0:
+                        raise RuntimeError('output_resize returned 0')
+
+                    status = JxlDecoderSetJPEGBuffer(
+                        decoder,
+                        output.data + output.used,
+                        output.size - output.used
+                    )
+                    if status != JXL_DEC_SUCCESS:
+                        raise JpegxlError('JxlDecoderSetJPEGBuffer', status)
+
+                elif status == JXL_DEC_FULL_IMAGE:
+                    output.used = (
+                        output.size - JxlDecoderReleaseJPEGBuffer(decoder)
+                    )
+                    break
+
+                else:
+                    raise RuntimeError(
+                        f'JxlDecoderProcessInput unknown status {status}'
+                    )
+
+        if output.owner:
+            out = _create_output(
+                out, output.used, <const char *> output.data
+            )
+        else:
+            out = _return_output(
+                out, output.size, output.used, outgiven
+            )
+
+    finally:
+        if decoder != NULL:
+            JxlDecoderDestroy(decoder)
+        if runner != NULL:
+            JxlThreadParallelRunnerDestroy(runner)
+        if output != NULL:
+            output_del(output)
+
+    return out
 
 
 cdef size_t jpegxl_framecount(JxlDecoder* decoder) nogil:
@@ -931,21 +1189,21 @@ cdef _jpegxl_encode_photometric(photometric):
     if photometric is None:
         return -1
     if isinstance(photometric, int):
-        if photometric not in (
+        if photometric not in {
             -1,
             JXL_COLOR_SPACE_RGB,
             JXL_COLOR_SPACE_GRAY,
             JXL_COLOR_SPACE_XYB,
             JXL_COLOR_SPACE_UNKNOWN
-        ):
+        }:
             raise ValueError(f'photometric {photometric!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
         return JXL_COLOR_SPACE_RGB
-    if photometric in ('WHITEISZERO', 'MINISWHITE'):
+    if photometric in {'WHITEISZERO', 'MINISWHITE'}:
         return JXL_COLOR_SPACE_GRAY
-    if photometric in ('BLACKISZERO', 'MINISBLACK', 'GRAY'):
+    if photometric in {'BLACKISZERO', 'MINISBLACK', 'GRAY'}:
         return JXL_COLOR_SPACE_GRAY
     if photometric == 'XYB':
         return JXL_COLOR_SPACE_XYB
@@ -959,7 +1217,7 @@ cdef _jpegxl_encode_extrasamples(extrasample):
     if extrasample is None:
         return JXL_CHANNEL_OPTIONAL
     if isinstance(extrasample, int):
-        # if extrasample not in (
+        # if extrasample not in {
         #     -1,
         #     JXL_CHANNEL_ALPHA
         #     JXL_CHANNEL_DEPTH
@@ -970,7 +1228,7 @@ cdef _jpegxl_encode_extrasamples(extrasample):
         #     JXL_CHANNEL_THERMAL
         #     JXL_CHANNEL_UNKNOWN
         #     JXL_CHANNEL_OPTIONAL
-        # ):
+        # }:
         #     raise ValueError('ExtraChannelType not supported')
         return extrasample
     extrasample = extrasample.upper()
