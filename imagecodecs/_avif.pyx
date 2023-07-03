@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -51,6 +51,7 @@ class AVIF:
 
     class PIXEL_FORMAT(enum.IntEnum):
         """AVIF codec pixel formats."""
+
         NONE = AVIF_PIXEL_FORMAT_NONE
         YUV444 = AVIF_PIXEL_FORMAT_YUV444
         YUV422 = AVIF_PIXEL_FORMAT_YUV422
@@ -59,18 +60,21 @@ class AVIF:
 
     class QUANTIZER(enum.IntEnum):
         """AVIF codec quantizers."""
+
         LOSSLESS = AVIF_QUANTIZER_LOSSLESS
         BEST_QUALITY = AVIF_QUANTIZER_BEST_QUALITY
         WORST_QUALITY = AVIF_QUANTIZER_WORST_QUALITY
 
     class SPEED(enum.IntEnum):
         """AVIF codec speeds."""
+
         DEFAULT = AVIF_SPEED_DEFAULT
         SLOWEST = AVIF_SPEED_SLOWEST
         FASTEST = AVIF_SPEED_FASTEST
 
     class CHROMA_UPSAMPLING(enum.IntEnum):
         """AVIF codec chroma upsampling types."""
+
         AUTOMATIC = AVIF_CHROMA_UPSAMPLING_AUTOMATIC
         FASTEST = AVIF_CHROMA_UPSAMPLING_FASTEST
         BEST_QUALITY = AVIF_CHROMA_UPSAMPLING_BEST_QUALITY
@@ -79,6 +83,7 @@ class AVIF:
 
     class CODEC_CHOICE(enum.IntEnum):
         """AVIF codec choices."""
+
         AUTO = AVIF_CODEC_CHOICE_AUTO
         AOM = AVIF_CODEC_CHOICE_AOM
         DAV1D = AVIF_CODEC_CHOICE_DAV1D
@@ -169,13 +174,13 @@ def avif_encode(
         avifResult res
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
+        src.dtype in {numpy.uint8, numpy.uint16}
         # and numpy.PyArray_ISCONTIGUOUS(src)
-        and src.ndim in (2, 3, 4)
-        and src.shape[0] < 2 ** 31
-        and src.shape[1] < 2 ** 31
-        and src.shape[src.ndim - 1] < 2 ** 31
-        and src.shape[src.ndim - 2] < 2 ** 31
+        and src.ndim in {2, 3, 4}
+        and src.shape[0] < 2147483648
+        and src.shape[1] < 2147483648
+        and src.shape[src.ndim - 1] < 2147483648
+        and src.shape[src.ndim - 2] < 2147483648
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
@@ -203,7 +208,7 @@ def avif_encode(
         width = <uint32_t> src.shape[2]
 
     monochrome = samples < 3
-    hasalpha = samples in (2, 4)
+    hasalpha = samples == 2 or samples == 4
 
     if monochrome:
         raise NotImplementedError('cannot encode monochome images')
@@ -213,7 +218,7 @@ def avif_encode(
         depth = <uint32_t> itemsize * 8
     else:
         depth = bitspersample
-        if depth not in (8, 10, 12, 16) or (depth == 8 and itemsize == 2):
+        if depth not in {8, 10, 12, 16} or (depth == 8 and itemsize == 2):
             raise ValueError('invalid bitspersample')
 
     if tilelog2 is not None:
