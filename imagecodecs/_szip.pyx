@@ -37,7 +37,7 @@
 
 """SZIP codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -51,6 +51,7 @@ class SZIP:
 
     class OPTION_MASK(enum.IntEnum):  # IntFlag
         """SZIP codec flags."""
+
         ALLOW_K13 = SZ_ALLOW_K13_OPTION_MASK
         CHIP = SZ_CHIP_OPTION_MASK
         EC = SZ_EC_OPTION_MASK
@@ -257,7 +258,7 @@ def szip_params(data, int options_mask=4, int pixels_per_block=32):
 
     if ndim <= 1:
         pixels_in_line = data.size
-    elif data.shape[ndim - 1] * data.itemsize in (4, 8):
+    elif data.shape[ndim - 1] * data.itemsize in {4, 8}:
         # multiple samples per pixel will be shuffled
         pixels_in_line = data.shape[ndim - 2]
         pixels_in_chunk //= data.shape[ndim - 1]
