@@ -45,11 +45,11 @@ Conf. AIAA-93-4541-CP, 1993. https://doi.org/10.2514/6.1993-4541
 
 """
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
-from cfitsio cimport *
+from ricecomp cimport *
 
 
 class RCOMP:
@@ -61,20 +61,21 @@ class RCOMP:
 class RcompError(RuntimeError):
     """RCOMP codec exceptions."""
 
-    def __init__(self, func):
-        cdef:
-            char[80] err_message
-
-        msg = [f'{func} failed']
-        while ffgmsg(err_message) > 0:
-            pstr = <bytes> err_message
-            msg.append(pstr.strip())
-        super().__init__('\n  '.join(msg))
+    def __init__(self, func, err):
+        msg = {
+            RCOMP_OK: 'RCOMP_OK',
+            RCOMP_ERROR_MEMORY: 'insufficient memory',
+            RCOMP_ERROR_EOB: 'end of buffer',
+            RCOMP_ERROR_EOS: 'reached end of compressed byte stream',
+            RCOMP_WARN_UNUSED: 'unused bytes at end of compressed buffer',
+        }.get(err, f'unknown error {err!r}')
+        msg = f'{func} returned {msg!r}'
+        super().__init__(msg)
 
 
 def rcomp_version():
-    """Return cfitsio library version string."""
-    return f'cfitsio {CFITSIO_MAJOR}.{CFITSIO_MINOR}'
+    """Return ricecomp library version string."""
+    return f'ricecomp ' + RCOMP_VERSION.decode()
 
 
 def rcomp_check(data):
@@ -95,8 +96,8 @@ def rcomp_encode(data, nblock=None, out=None):
 
     if not (
         srcsize < 2147483648
-        and dtype.kind in (b'i', b'u')
-        and dtype.itemsize in (1, 2, 4)
+        and dtype.kind in {b'i', b'u'}
+        and dtype.itemsize in {1, 2, 4}
     ):
         raise ValueError(
             'data is not a numpy integers array of size < 2*31'
@@ -116,7 +117,7 @@ def rcomp_encode(data, nblock=None, out=None):
 
     if dtype.itemsize == 1:
         with nogil:
-            ret = fits_rcomp_byte(
+            ret = rcomp_byte(
                 <signed char*> src.data,
                 <int> srcsize,
                 <unsigned char*> &dst[0],
@@ -124,11 +125,11 @@ def rcomp_encode(data, nblock=None, out=None):
                 nblock_
             )
         if ret < 0:
-            raise RcompError('fits_rcomp_byte')
+            raise RcompError('rcomp_byte', ret)
 
     elif dtype.itemsize == 2:
         with nogil:
-            ret = fits_rcomp_short(
+            ret = rcomp_short(
                 <signed short*> src.data,
                 <int> srcsize,
                 <unsigned char*> &dst[0],
@@ -136,11 +137,11 @@ def rcomp_encode(data, nblock=None, out=None):
                 nblock_
             )
         if ret < 0:
-            raise RcompError('fits_rcomp_short')
+            raise RcompError('rcomp_short', ret)
 
     elif dtype.itemsize == 4:
         with nogil:
-            ret = fits_rcomp(
+            ret = rcomp_int(
                 <signed int*> src.data,
                 <int> srcsize,
                 <unsigned char*> &dst[0],
@@ -148,7 +149,7 @@ def rcomp_encode(data, nblock=None, out=None):
                 nblock_
             )
         if ret < 0:
-            raise RcompError('fits_rcomp')
+            raise RcompError('rcomp', ret)
 
     else:
         raise RuntimeError
@@ -180,6 +181,8 @@ def rcomp_decode(
             shape = out.shape
         if dtype is None:
             dtype = out.dtype
+        else:
+            dtype = numpy.dtype(dtype)
     elif dtype is None or shape is None:
         raise ValueError('missing shape or dtype')
     else:
@@ -189,7 +192,7 @@ def rcomp_decode(
         except TypeError:
             shape = (int(shape), )
 
-    if not (dtype.kind in 'iu' and dtype.itemsize in (1, 2, 4)):
+    if not (dtype.kind in 'iu' and dtype.itemsize in {1, 2, 4}):
         raise ValueError('invalid dtype')
 
     out = _create_array(out, shape, dtype)
@@ -200,39 +203,39 @@ def rcomp_decode(
 
     if dtype.itemsize == 1:
         with nogil:
-            ret = fits_rdecomp_byte(
+            ret = rdecomp_byte(
                 <unsigned char*> &src[0],
                 <int> srcsize,
                 <unsigned char*> dst.data,
                 <int> dstsize,
                 nblock_
             )
-        if ret != 0:
-            raise RcompError('fits_rdecomp_byte')
+        if ret != RCOMP_OK and ret != RCOMP_WARN_UNUSED:
+            raise RcompError('rdecomp_byte', ret)
 
     elif dtype.itemsize == 2:
         with nogil:
-            ret = fits_rdecomp_short(
+            ret = rdecomp_short(
                 <unsigned char*> &src[0],
                 <int> srcsize,
                 <unsigned short*> dst.data,
                 <int> dstsize,
                 nblock_
             )
-        if ret != 0:
-            raise RcompError('fits_rdecomp_short')
+        if ret != RCOMP_OK and ret != RCOMP_WARN_UNUSED:
+            raise RcompError('rdecomp_short', ret)
 
     elif dtype.itemsize == 4:
         with nogil:
-            ret = fits_rdecomp(
+            ret = rdecomp_int(
                 <unsigned char*> &src[0],
                 <int> srcsize,
                 <unsigned int*> dst.data,
                 <int> dstsize,
                 nblock_
             )
-        if ret != 0:
-            raise RcompError('fits_rdecomp')
+        if ret != RCOMP_OK and ret != RCOMP_WARN_UNUSED:
+            raise RcompError('rdecomp_int', ret)
 
     else:
         raise RuntimeError
