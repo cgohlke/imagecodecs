@@ -37,7 +37,7 @@
 
 """Blosc2 codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -51,20 +51,30 @@ class BLOSC2:
 
     class FILTER(enum.IntEnum):
         """BLOSC2 codec filters."""
+
         NOFILTER = BLOSC_NOFILTER
         NOSHUFFLE = BLOSC_NOSHUFFLE
-        SHUFFLE = BLOSC_SHUFFLE
+        SHUFFLE = BLOSC_SHUFFLE  # default
         BITSHUFFLE = BLOSC_BITSHUFFLE
         DELTA = BLOSC_DELTA
         TRUNC_PREC = BLOSC_TRUNC_PREC
 
     class COMPRESSOR(enum.IntEnum):
         """BLOSC2 codec compressors."""
+
         BLOSCLZ = BLOSC_BLOSCLZ
         LZ4 = BLOSC_LZ4
         LZ4HC = BLOSC_LZ4HC
         ZLIB = BLOSC_ZLIB
-        ZSTD = BLOSC_ZSTD
+        ZSTD = BLOSC_ZSTD  # default
+
+    class SPLIT(enum.IntEnum):
+        """BLOSC2 split modes."""
+
+        ALWAYS = BLOSC_ALWAYS_SPLIT  # default
+        NEVER = BLOSC_NEVER_SPLIT
+        AUTO = BLOSC_AUTO_SPLIT
+        FORWARD_COMPAT = BLOSC_FORWARD_COMPAT_SPLIT
 
 
 class Blosc2Error(RuntimeError):
@@ -93,6 +103,7 @@ def blosc2_encode(
     level=None,
     compressor=None,
     shuffle=None,  # TODO: enable filters
+    splitmode=None,
     typesize=None,
     blocksize=None,
     numthreads=None,
@@ -108,8 +119,9 @@ def blosc2_encode(
         int32_t ctypesize
         uint8_t compcode
         uint8_t cfilter
+        int32_t csplitmode
         int16_t nthreads = <int16_t> _default_threads(numthreads)
-        int clevel = _default_value(level, 5, 0, 9)
+        int clevel = _default_value(level, 1, 0, 9)
         blosc2_context* context = NULL
         blosc2_cparams cparams = BLOSC2_CPARAMS_DEFAULTS
         int ret
@@ -119,7 +131,7 @@ def blosc2_encode(
 
     try:
         src = data  # common case: contiguous bytes
-        ctypesize = 1
+        ctypesize = 8
     except Exception:
         view = memoryview(data)
         if view.contiguous:
@@ -139,7 +151,7 @@ def blosc2_encode(
         cblocksize = blocksize
 
     if compressor is None:
-        compcode = BLOSC_BLOSCLZ
+        compcode = BLOSC_ZSTD
     elif isinstance(compressor, str):
         compressor = compressor.lower().encode()
         if compressor == BLOSC_BLOSCLZ_COMPNAME:
@@ -178,6 +190,25 @@ def blosc2_encode(
     else:
         cfilter = shuffle
 
+    if splitmode is None:
+        csplitmode = BLOSC_ALWAYS_SPLIT
+    elif not splitmode:
+        csplitmode = BLOSC_NEVER_SPLIT
+    elif isinstance(splitmode, str):
+        splitmode = splitmode.lower()
+        if splitmode == 'always':
+            csplitmode = BLOSC_ALWAYS_SPLIT
+        elif splitmode == 'never':
+            csplitmode = BLOSC_NEVER_SPLIT
+        elif splitmode == 'auto':
+            csplitmode = BLOSC_AUTO_SPLIT
+        elif splitmode == 'forward':
+            csplitmode = BLOSC_FORWARD_COMPAT_SPLIT
+        else:
+            raise ValueError(f'unknown Blosc2 splitmode {splitmode!r}')
+    else:
+        csplitmode = splitmode
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
@@ -197,6 +228,7 @@ def blosc2_encode(
         cparams.blocksize = cblocksize
         cparams.compcode = compcode
         cparams.clevel = clevel
+        cparams.splitmode = csplitmode
         cparams.nthreads = nthreads
         cparams.filters[BLOSC2_MAX_FILTERS - 1] = cfilter
 
