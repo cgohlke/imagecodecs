@@ -1,11 +1,12 @@
 include LICENSE
 include README.rst
 include CHANGES.rst
-# include azure-pipelines.yaml
-# include pyproject.toml
+include pyproject.toml
+
+include imagecodecs/*.c
+exclude imagecodecs/_*.c
 
 include imagecodecs/*.h
-include imagecodecs/*.c
 include imagecodecs/*.cpp
 include imagecodecs/*.pyi
 include imagecodecs/*.pyx
@@ -37,17 +38,19 @@ include tests/*.apng
 include tests/*.avif
 include tests/*.webp
 include tests/*.br
-include tests/tiff/*.*
-include tests/ljpeg/*.*
+include tests/tiff/*.tif
+include tests/ljpeg/*.ljp
 include tests/lerc/*.*
 include tests/libaec/121B2TestData/*.txt
 include tests/libaec/121B2TestData/AllOptions/*.*
 
+# files too large or not licensed
 exclude tests/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/tiff/gray.movie.*.tif
 exclude tests/ljpeg/dcm*.ljp
 exclude tests/ljpeg/2ch.ljp
 exclude tests/ljpeg/pvrg.ljp
+exclude tests/bcn/*.dds
 exclude tests/33792x79872.jpg
 exclude tests/jpegxr.czi
 exclude tests/jetraw.bin
