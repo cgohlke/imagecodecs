@@ -37,7 +37,7 @@
 
 """JPEG LS codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -97,9 +97,9 @@ def jpegls_encode(data, level=None, out=None):
         size_t size_in_bytes
 
     if not (
-        src.dtype in (numpy.uint8, numpy.uint16)
-        and src.ndim in (2, 3)
-        and srcsize < 2 ** 32
+        src.dtype in {numpy.uint8, numpy.uint16}
+        and src.ndim in {2, 3}
+        and srcsize < 4294967296
     ):
         raise ValueError('invalid data shape or dtype')
 
