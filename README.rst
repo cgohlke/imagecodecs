@@ -8,8 +8,8 @@ Czifile, Zarr, kerchunk, and other scientific image input/output packages.
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZW,
 LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, SZIP, LERC,
-NPY, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit, Lossless JPEG
-(LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K), JPEG LS, JPEG XL,
+NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit,
+Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K), JPEG LS, JPEG XL,
 JPEG XR (WDP, HD Photo), MOZJPEG, AVIF, HEIF, RGBE (HDR), Jetraw, PackBits,
 Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
 Byteshuffle, Bitshuffle, CMS (color space transformations), and Float24
@@ -17,7 +17,7 @@ Byteshuffle, Bitshuffle, CMS (color space transformations), and Float24
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.3.16
+:Version: 2023.7.4
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -46,91 +46,103 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.8.10, 3.9.13, 3.10.10, 3.11.2, 64-bit
-- `Numpy <https://pypi.org/project/numpy>`_ 1.23.5
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.4, 3.12.0b3, 64-bit
+- `Numpy <https://pypi.org/project/numpy>`_ 1.25.0
+- `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.11.0
+  (optional, for Zarr compatible codecs)
 
 Build requirements:
 
-- `Cython <https://github.com/cython/cython>`_ 0.29.33
+- `Cython <https://github.com/cython/cython>`_ 0.29.36
 - `brotli <https://github.com/google/brotli>`_ 1.0.9
 - `brunsli <https://github.com/google/brunsli>`_ 0.1
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
-- `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.3
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.7.1
-- `cfitsio <https://heasarc.gsfc.nasa.gov/fitsio/>`_ 3.49
-- `charls <https://github.com/team-charls/charls>`_ 2.4.1
+- `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.4
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.0
+- `charls <https://github.com/team-charls/charls>`_ 2.4.2
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.1
 - `jetraw <https://github.com/Jetraw/Jetraw>`_ 22.02.16.1
-- `jxrlib <https://salsa.debian.org/debian-phototools-team/jxrlib>`_ 1.1
+- `jxrlib <https://github.com/cgohlke/jxrlib>`_ 1.2
 - `lcms <https://github.com/mm2/Little-CMS>`_ 2.15
 - `lerc <https://github.com/Esri/lerc>`_ 4.0.0
 - `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.0.6
 - `libavif <https://github.com/AOMediaCodec/libavif>`_ 0.11.1
-  (`aom <https://aomedia.googlesource.com/aom>`_ 3.6.0,
-  `dav1d <https://github.com/videolan/dav1d>`_ 1.1.0,
-  `rav1e <https://github.com/xiph/rav1e>`_ 0.6.3,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.4.1)
-- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.17
-- `libheif <https://github.com/strukturag/libheif>`_ 1.15.1
-  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.11,
+  (`aom <https://aomedia.googlesource.com/aom>`_ 3.6.1,
+  `dav1d <https://github.com/videolan/dav1d>`_ 1.2.1,
+  `rav1e <https://github.com/xiph/rav1e>`_ 0.6.6,
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.6.0)
+- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.18
+- `libheif <https://github.com/strukturag/libheif>`_ 1.16.2
+  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.12,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.5)
-- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 2.1.91
-- `libjxl <https://github.com/libjxl/libjxl>`_ 0.8.1
+- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.0
+- `libjxl <https://github.com/libjxl/libjxl>`_ 0.8.2
+- `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.3
 - `libpng <https://github.com/glennrp/libpng>`_ 1.6.39
 - `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.39
-- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.5.0
-- `libwebp <https://github.com/webmproject/libwebp>`_ 1.3.0
+- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.5.1
+- `libwebp <https://github.com/webmproject/libwebp>`_ 1.3.1
 - `lz4 <https://github.com/lz4/lz4>`_ 1.9.4
 - `lzfse <https://github.com/lzfse/lzfse/>`_ 1.0
 - `lzham_codec <https://github.com/richgel999/lzham_codec/>`_ 1.0
 - `mozjpeg <https://github.com/mozilla/mozjpeg>`_ 4.1.1
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.0
 - `snappy <https://github.com/google/snappy>`_ 1.1.10
-- `xz <https://git.tukaani.org/?p=xz.git>`_ 5.4.1
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.0
 - `zlib <https://github.com/madler/zlib>`_ 1.2.13
-- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.0.6
+- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.1.3
 - `zopfli <https://github.com/google/zopfli>`_ 1.0.3
-- `zstd <https://github.com/facebook/zstd>`_ 1.5.4
+- `zstd <https://github.com/facebook/zstd>`_ 1.5.5
 
 Vendored requirements:
 
+- `bcdec.h <https://github.com/iOrange/bcdec>`_ 026acf9
 - `bitshuffle <https://github.com/kiyo-masui/bitshuffle>`_ 0.5.1
+- `cfitsio ricecomp.c <https://heasarc.gsfc.nasa.gov/fitsio/>`_ modified
 - `jpg_0XC3.cpp
   <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
   modified
 - `liblj92
   <https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_ modified
 - `liblzf <http://oldhome.schmorp.de/marc/liblzf.html>`_ 3.6
-- `libspng <https://github.com/randy408/libspng>`_ 0.7.3
-- `pg_lzcompress.c <https://github.com/postgres/postgres/tree/
-  master/src/common/pg_lzcompress.c>`_ modified
-- `qoi.h <https://github.com/phoboslab/qoi/>`_ c3dcfe7
+- `libspng <https://github.com/randy408/libspng>`_ 0.7.4
+- `pg_lzcompress.c <https://github.com/postgres/postgres>`_ modified
+- `qoi.h <https://github.com/phoboslab/qoi/>`_ 36190eb
 - `rgbe.c <https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c>`_ modified
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.3.15
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.4
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
-- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.14.2
-- `numcodecs <https://github.com/zarr-developers/numcodecs>`_ 0.11.0
-- `bitshuffle <https://github.com/kiyo-masui/bitshuffle>`_ 0.5.1
+- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.15.0
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.1.1
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.5
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.0.9
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.3.2
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.4
 - `python-snappy <https://github.com/andrix/python-snappy>`_ 0.6.1
-- `python-zstd <https://github.com/sergey-dryabzhinsky/python-zstd>`_ 1.5.4.0
+- `python-zstd <https://github.com/sergey-dryabzhinsky/python-zstd>`_ 1.5.5.1
 - `pyliblzfse <https://github.com/ydkhatri/pyliblzfse>`_ 0.4.1
 - `zopflipy <https://github.com/hattya/zopflipy>`_ 1.8
 
 Revisions
 ---------
 
+2023.7.4
+
+- Pass 6900 tests.
+- Add BCn and DDS decoder via bcdec library.
+- Add functions to transcode JPEG XL to/from JPEG (#78).
+- Add option to decode select frames from animated WebP.
+- Use legacy JPEG8 codec when building without libjpeg-turbo 3 (#65).
+- Change blosc2_encode defaults to match blosc2-python (breaking).
+- Fix segfault writing JPEG2K with more than 4 samples.
+- Fix some codecs returning bytearray by default.
+- Fully vendor cfitsio's ricecomp.c.
+- Drop support for Python 3.8 and numpy < 1.21 (NEP29).
+
 2023.3.16
 
-- Pass 6884 tests.
 - Require libjpeg-turbo 2.1.91 (3.0 beta) and c-blosc2 2.7.1.
 - Add experimental type hints.
 - Add SZIP codec via libaec library.
@@ -211,7 +223,7 @@ Revisions
 
 2022.2.22
 
-- ...
+- …
 
 Refer to the CHANGES file for older revisions.
 
@@ -249,13 +261,14 @@ This library is largely a work in progress.
 
 The API is not stable yet and might change between revisions.
 
-Python <= 3.7 is no longer supported. 32-bit versions are deprecated.
+Python <= 3.8 is no longer supported. 32-bit versions are deprecated.
 
 Works on little-endian platforms only.
 
 Only ``win_amd64`` wheels include all features.
 
-The ``tiff``, ``packints``, and ``jpegsof3`` codecs are currently decode-only.
+The ``tiff``, ``bcn``, ``dds``, ``packints``, and ``jpegsof3`` codecs
+are currently decode-only.
 
 The ``heif`` and ``jetraw`` codecs are distributed as source code only due to
 license and possible patent usage issues.
@@ -287,11 +300,11 @@ latest Ubuntu Linux distributions:
     libwebp-dev libbz2-dev libopenjp2-7-dev libjpeg-dev libjxr-dev
     liblcms2-dev libcharls-dev libaec-dev libbrotli-dev libsnappy-dev
     libzopfli-dev libgif-dev libtiff-dev libdeflate-dev libavif-dev
-    libheif-dev libcfitsio-dev``
+    libheif-dev``
 
 Use the ``--lite`` build option to only build extensions without 3rd-party
 dependencies. Use the ``--skip-extension`` build options to skip building
-specific extensions, e.g.:
+specific extensions, for example:
 
     ``python -m pip install imagecodecs --global-option="build_ext"
     --global-option="--skip-bitshuffle"``
@@ -312,6 +325,8 @@ Other Python packages and C libraries providing imaging or compression codecs:
 `python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_,
 `python-lzw <https://github.com/joeatwork/python-lzw>`_,
 `python-lerc <https://pypi.org/project/lerc/>`_,
+`wavpack-numcodecs
+<https://github.com/AllenNeuralDynamics/wavpack-numcodecs>`_,
 `packbits <https://github.com/psd-tools/packbits>`_,
 `isa-l.igzip <https://github.com/intel/isa-l>`_,
 `fpzip <https://github.com/seung-lab/fpzip>`_,
@@ -344,6 +359,8 @@ Other Python packages and C libraries providing imaging or compression codecs:
 `Compressonator <https://github.com/GPUOpen-Tools/Compressonator>`_,
 `Wuffs <https://github.com/google/wuffs>`_,
 `TinyDNG <https://github.com/syoyo/tinydng>`_,
+`OpenJPH <https://github.com/aous72/OpenJPH>`_,
+`SPERR <https://github.com/NCAR/SPERR>`_ (GPL),
 `MAFISC
 <https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_.
 
@@ -437,6 +454,19 @@ dask.array:
 ...     with ims.aszarr() as store:
 ...         dask.array.from_zarr(store)
 dask.array<from-zarr, shape=(1, 256, 256, 3)...chunksize=(1, 256, 256, 3)...
+
+Write the Zarr store to a fsspec ReferenceFileSystem in JSON format
+and open it as a Zarr array:
+
+>>> store.write_fsspec(
+...     'temp.json', url='file://', codec_id='imagecodecs_jpeg2k'
+... )
+>>> import fsspec
+>>> mapper = fsspec.get_mapper(
+...     'reference://', fo='temp.json', target_protocol='file'
+... )
+>>> zarr.open(mapper, mode='r')
+<zarr.core.Array (1, 256, 256, 3) uint8 read-only>
 
 View the image in the JP2 file from the command line::
 
