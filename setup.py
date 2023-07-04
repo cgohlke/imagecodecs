@@ -10,6 +10,9 @@ import shutil
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext as _build_ext
 
+import numpy
+import Cython  # noqa
+
 buildnumber = ''  # e.g 'pre1' or 'post1'
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,10 +26,12 @@ def search(pattern, code, flags=0):
     return match.groups()[0]
 
 
-with open(os.path.join(base_dir, 'imagecodecs/imagecodecs.py')) as fh:
+with open(
+    os.path.join(base_dir, 'imagecodecs/imagecodecs.py'), encoding='utf-8'
+) as fh:
     code = fh.read().replace('\r\n', '\n').replace('\r', '\n')
 
-version = search(r"__version__ = '(.*?)'", code)
+version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev')
 version += ('.' + buildnumber) if buildnumber else ''
 
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
@@ -43,7 +48,7 @@ readme = '\n'.join(
 if 'sdist' in sys.argv:
     # update README, LICENSE, and CHANGES files
 
-    with open('README.rst', 'w') as fh:
+    with open('README.rst', 'w', encoding='utf-8') as fh:
         fh.write(readme)
 
     license = search(
@@ -53,28 +58,28 @@ if 'sdist' in sys.argv:
     )
     license = license.replace('# ', '').replace('#', '')
 
-    with open('LICENSE', 'w') as fh:
+    with open('LICENSE', 'w', encoding='utf-8') as fh:
         fh.write('BSD 3-Clause License\n\n')
         fh.write(license)
 
     revisions = search(
-        r'(?:\r\n|\r|\n){2}(Revisions.*)- \.\.\.',
+        r'(?:\r\n|\r|\n){2}(Revisions.*)- …',
         readme,
         re.MULTILINE | re.DOTALL,
     ).strip()
 
-    with open('CHANGES.rst') as fh:
+    with open('CHANGES.rst', encoding='utf-8') as fh:
         old = fh.read()
 
     old = old.split(revisions.splitlines()[-1])[-1]
-    with open('CHANGES.rst', 'w') as fh:
+    with open('CHANGES.rst', 'w', encoding='utf-8') as fh:
         fh.write(revisions.strip())
         fh.write(old)
 
 
 def ext(**kwargs):
     """Return Extension arguments."""
-    d = dict(
+    d: dict[str, object] = dict(
         sources=[],
         include_dirs=[],
         library_dirs=[],
@@ -84,7 +89,6 @@ def ext(**kwargs):
         extra_link_args=[],
         depends=[],
         cython_compile_time_env={},
-        cythonize=False,
     )
     d.update(kwargs)
     return d
@@ -101,26 +105,26 @@ OPTIONS = {
     + [('WIN32', 1)]  # type: ignore
     if sys.platform == 'win32'
     else [],
-    'extra_compile_args': [],  # ['/Zi', '/Od']
-    'extra_link_args': [],  # ['-debug:full']
+    'extra_compile_args': [],
+    'extra_link_args': [],
+    # 'extra_compile_args': ['/Zi', '/Od'],
+    # 'extra_link_args': ['-debug:full'],
     'depends': ['imagecodecs/_shared.pxd'],
     'cython_compile_time_env': {},
-    'cythonize': False,  # sys.version_info >= (3, 11)
 }
 
 EXTENSIONS = {
     'shared': ext(
-        cython_compile_time_env={'IS_PYPY': 'PyPy' in sys.version},
-        cythonize='PyPy' in sys.version,
+        cython_compile_time_env={'IS_PYPY': 'pypy' in sys.version.lower()},
     ),
     'imcd': ext(sources=['imagecodecs/imcd.c']),
     'aec': ext(libraries=['aec']),
     'apng': ext(libraries=['png']),
     'avif': ext(libraries=['avif']),
-    # 'exr': ext(
-    #     sources=['3rdparty/tinyexr/tinyexr.cc'],
-    #     include_dirs=['3rdparty/tinyexr'],
-    # ),
+    'bcn': ext(
+        include_dirs=['3rdparty/bcdec'],
+        define_macros=[('BCDEC_STATIC', 1), ('BCDEC_IMPLEMENTATION', 1)],
+    ),
     'bitshuffle': ext(
         sources=[
             '3rdparty/bitshuffle/bitshuffle_core.c',
@@ -135,6 +139,10 @@ EXTENSIONS = {
     'bz2': ext(libraries=['bz2']),
     'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
+    # 'exr': ext(
+    #     sources=['3rdparty/tinyexr/tinyexr.cc'],
+    #     include_dirs=['3rdparty/tinyexr'],
+    # ),
     'gif': ext(libraries=['gif']),
     'heif': ext(libraries=['heif']),
     'jetraw': ext(libraries=['jetraw', 'dpcore']),
@@ -143,7 +151,10 @@ EXTENSIONS = {
         include_dirs=['3rdparty/openjpeg'],
         libraries=['openjp2', 'lcms2'],
     ),
-    'jpeg8': ext(libraries=['jpeg']),
+    'jpeg8': ext(
+        sources=['imagecodecs/_jpeg8_legacy.pyx'],
+        libraries=['jpeg'],
+    ),
     'jpegls': ext(libraries=['charls']),
     'jpegsof3': ext(
         sources=['3rdparty/jpegsof3/jpegsof3.cpp'],
@@ -183,7 +194,10 @@ EXTENSIONS = {
         sources=['3rdparty/rgbe/rgbe.c', 'imagecodecs/imcd.c'],
         include_dirs=['3rdparty/rgbe'],
     ),
-    'rcomp': ext(libraries=['cfitsio', 'z']),
+    'rcomp': ext(
+        sources=['3rdparty/cfitsio/ricecomp.c'],
+        include_dirs=['3rdparty/cfitsio'],
+    ),
     'snappy': ext(libraries=['snappy']),
     'spng': ext(
         sources=['3rdparty/libspng/spng.c'],
@@ -193,7 +207,7 @@ EXTENSIONS = {
     ),
     'szip': ext(libraries=['sz']),
     'tiff': ext(libraries=['tiff']),
-    'webp': ext(libraries=['webp']),
+    'webp': ext(libraries=['webp', 'webpdemux']),
     'zfp': ext(libraries=['zfp']),
     'zlib': ext(libraries=['z']),
     'zlibng': ext(libraries=['z-ng']),
@@ -240,7 +254,7 @@ def customize_build_default(EXTENSIONS, OPTIONS):
 
 def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     """Customize build for Windows development environment with static libs."""
-    INCLIB = os.environ['INCLIB']
+    INCLIB = os.environ.get('INCLIB', '.')
 
     OPTIONS['include_dirs'].append(os.path.join(INCLIB, 'lib'))
     OPTIONS['library_dirs'].append(os.path.join(INCLIB, 'include'))
@@ -266,6 +280,10 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
 
+    if not os.environ.get('USE_JPEG8_LEGACY', False):
+        # use libjpeg-turbo 3
+        EXTENSIONS['jpeg8']['sources'] = []
+
     EXTENSIONS['mozjpeg']['include_dirs'] = [
         os.path.join(INCLIB, 'include', 'mozjpeg')
     ]
@@ -288,7 +306,11 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
     EXTENSIONS['gif']['libraries'] = ['libgif']
-    EXTENSIONS['webp']['libraries'] = ['libwebp', 'libsharpyuv']
+    EXTENSIONS['webp']['libraries'] = [
+        'libwebp',
+        'libwebpdemux',
+        'libsharpyuv',
+    ]
 
     # link with static zlib-ng compatibility mode library
     EXTENSIONS['png']['libraries'] = ['png', 'zlibstatic-ng-compat']
@@ -381,18 +403,18 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['mozjpeg']  # Win32 only
 
+    EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
+
+    EXTENSIONS['lzham']['libraries'] = ['lzhamdll']
+    if sys.platform == 'darwin':
+        del EXTENSIONS['lzham']
+
     if not os.environ.get('SKIP_OMP', False):
         if sys.platform == 'darwin':
             EXTENSIONS['zfp']['extra_compile_args'].append('-Xpreprocessor')
             EXTENSIONS['zfp']['extra_link_args'].append('-lomp')
         EXTENSIONS['zfp']['extra_compile_args'].append('-fopenmp')
 
-    base_path = os.environ.get(
-        'BASE_PATH', os.path.dirname(os.path.abspath(__file__))
-    )
-    include_base_path = os.path.join(
-        base_path, 'build_utils', 'libs_build', 'include'
-    )
     OPTIONS['library_dirs'] = [
         x
         for x in os.environ.get(
@@ -401,58 +423,24 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
         if x
     ]
 
-    EXTENSIONS['lzham']['libraries'] = ['lzhamdll']
-    if sys.platform == 'darwin':
-        del EXTENSIONS['lzham']
-
-    EXTENSIONS['zopfli']['include_dirs'].append(
-        os.path.join(include_base_path, 'zopfli')
+    base_path = os.environ.get(
+        'BASE_PATH', os.path.dirname(os.path.abspath(__file__))
+    )
+    include_base_path = os.path.join(
+        base_path, 'build_utils', 'libs_build', 'include'
     )
 
-    if os.path.exists(include_base_path):
-        OPTIONS['include_dirs'].append(include_base_path)
-        for el in os.listdir(include_base_path):
-            path_to_dir = os.path.join(include_base_path, el)
-            if os.path.isdir(path_to_dir):
-                OPTIONS['include_dirs'].append(path_to_dir)
-        jxr_path = os.path.join(include_base_path, 'libjxr')
-        if os.path.exists(jxr_path):
-            jpegxr_include_dirs = [jxr_path]
-            for el in os.listdir(jxr_path):
-                path_to_dir = os.path.join(jxr_path, el)
-                if os.path.isdir(path_to_dir):
-                    jpegxr_include_dirs.append(path_to_dir)
-            EXTENSIONS['jpegxr']['include_dirs'] = jpegxr_include_dirs
+    OPTIONS['include_dirs'].append(include_base_path)
+    for el in os.listdir(include_base_path):
+        path_to_dir = os.path.join(include_base_path, el)
+        if os.path.isdir(path_to_dir):
+            OPTIONS['include_dirs'].append(path_to_dir)
 
     for dir_path in OPTIONS['include_dirs']:
         if os.path.exists(os.path.join(dir_path, 'jxl', 'types.h')):
             break
     else:
         del EXTENSIONS['jpegxl']
-
-    for dir_path in OPTIONS['include_dirs']:
-        if os.path.exists(os.path.join(dir_path, 'avif', 'avif.h')):
-            break
-    else:
-        del EXTENSIONS['avif']
-
-    for dir_path in OPTIONS['include_dirs']:
-        if os.path.exists(os.path.join(dir_path, 'charls', 'charls.h')):
-            break
-    else:
-        del EXTENSIONS['jpegls']
-
-    for dir_path in OPTIONS['include_dirs']:
-        if os.path.exists(os.path.join(dir_path, 'zfp.h')):
-            break
-    else:
-        del EXTENSIONS['zfp']
-
-    for dir_path in OPTIONS['include_dirs']:
-        if os.path.exists(os.path.join(dir_path, 'Lerc_c_api.h')):
-            break
-    else:
-        del EXTENSIONS['lerc']
 
 
 def customize_build_condaforge(EXTENSIONS, OPTIONS):
@@ -467,10 +455,12 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['mozjpeg']  # Win32 only
     del EXTENSIONS['zlibng']
 
+    # uncomment if building with libjpeg-turbo 3
+    # EXTENSIONS['jpeg8']['sources'] = []
+
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
 
-        EXTENSIONS['rcomp']['sources'].append('3rdparty/cfitsio/ricecomp.c')
         EXTENSIONS['lz4f']['libraries'] = ['liblz4']
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
         EXTENSIONS['jpeg2k']['include_dirs'] += [
@@ -482,7 +472,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
         EXTENSIONS['lz4']['libraries'] = ['liblz4']
         EXTENSIONS['lzma']['libraries'] = ['liblzma']
         EXTENSIONS['png']['libraries'] = ['libpng', 'z']
-        EXTENSIONS['webp']['libraries'] = ['libwebp']
+        EXTENSIONS['webp']['libraries'] = ['libwebp', 'libwebpdemux']
         EXTENSIONS['zopfli']['include_dirs'] = [
             os.path.join(os.environ['LIBRARY_INC'], 'zopfli')
         ]
@@ -521,6 +511,9 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
+    # uncomment if building with libjpeg-turbo 3
+    # EXTENSIONS['jpeg8']['sources'] = []
+
     EXTENSIONS['szip']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['szip']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
     EXTENSIONS['aec']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
@@ -538,7 +531,6 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
 def customize_build_mingw(EXTENSIONS, OPTIONS):
     """Customize build for mingw-w64."""
 
-    del EXTENSIONS['apng']
     del EXTENSIONS['brunsli']
     del EXTENSIONS['heif']
     del EXTENSIONS['jetraw']  # commercial
@@ -548,6 +540,9 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
+    # uncomment if building with libjpeg-turbo 3
+    # EXTENSIONS['jpeg8']['sources'] = []
+
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         (
             sys.prefix + '/include/openjpeg-2.3',
@@ -556,8 +551,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
-    EXTENSIONS['rcomp']['include_dirs'].append(sys.prefix + '/include/cfitsio')
-    EXTENSIONS['rcomp']['sources'].append('3rdparty/cfitsio/ricecomp.c')
 
 
 if 'sdist' not in sys.argv:
@@ -581,21 +574,6 @@ if 'sdist' not in sys.argv:
             customize_build = customize_build_default
 
     customize_build(EXTENSIONS, OPTIONS)
-
-if any(opt['cythonize'] for opt in EXTENSIONS.values()):
-    OPTIONS['cythonize'] = True
-
-# use precompiled c files if Cython is not installed
-# work around "Cython in setup_requires doesn't work"
-# https://github.com/pypa/setuptools/issues/1317
-try:
-    import Cython  # noqa
-
-    EXT = '.pyx'
-except ImportError:
-    if OPTIONS['cythonize']:
-        raise
-    EXT = '.c'
 
 
 class build_ext(_build_ext):
@@ -623,29 +601,16 @@ class build_ext(_build_ext):
         _build_ext.initialize_options(self)
 
     def finalize_options(self):
-        # TODO: cythonize individual extensions as needed
-        # TODO: force=True swallows all build output; why?
-        self.force = OPTIONS['cythonize']
-
         _build_ext.finalize_options(self)
 
         # remove extensions based on user_options
         for ext in self.extensions.copy():
             name = ext.name.rsplit('_', 1)[-1]
-            if (self.lite and name not in ('imcd', 'shared')) or getattr(
+            if (self.lite and name not in {'imcd', 'shared'}) or getattr(
                 self, f'skip_{name}', False
             ):
                 print(f'skipping {ext.name!r} extension (deselected)')
                 self.extensions.remove(ext)
-
-        # add numpy include directory
-        # delay import of numpy until setup_requires are installed
-        # prevent numpy from detecting setup process
-        if isinstance(__builtins__, dict):
-            __builtins__['__NUMPY_SETUP__'] = False
-        else:
-            setattr(__builtins__, '__NUMPY_SETUP__', False)
-        import numpy
 
         self.include_dirs.append(numpy.get_include())
 
@@ -653,9 +618,13 @@ class build_ext(_build_ext):
 def extension(name):
     """Return setuptools Extension."""
     opt = EXTENSIONS[name]
+    sources = opt['sources']
+    fname = f'imagecodecs/_{name}'
+    if all(not n.startswith(fname) for n in sources):
+        sources = [fname + '.pyx'] + sources
     ext = Extension(
         f'imagecodecs._{name}',
-        sources=[f'imagecodecs/_{name}' + EXT] + opt['sources'],
+        sources=sources,
         **{
             key: (OPTIONS[key] + opt[key])
             for key in (
@@ -683,6 +652,7 @@ setup(
     license='BSD',
     description=description,
     long_description=readme,
+    long_description_content_type='text/x-rst',
     author='Christoph Gohlke',
     author_email='cgohlke@cgohlke.com',
     url='https://www.cgohlke.com',
@@ -691,9 +661,9 @@ setup(
         'Source Code': 'https://github.com/cgohlke/imagecodecs',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.8',
+    python_requires='>=3.9',
     install_requires=['numpy'],
-    setup_requires=['setuptools>=18.0', 'numpy'],  # cython>=0.29.30
+    # setup_requires=['setuptools', 'numpy', 'cython'],
     extras_require={'all': ['matplotlib', 'tifffile', 'numcodecs']},
     tests_require=[
         'pytest',
@@ -709,7 +679,8 @@ setup(
         'bitshuffle',  # git+https://github.com/cgohlke/bitshuffle@patch-1
         'zopflipy',
         'zarr',
-        'numcodecs'
+        'numcodecs',
+        # 'bz2',
         # 'zfpy',
         # 'brotli',
         # 'deflate',
@@ -725,7 +696,7 @@ setup(
     zip_safe=False,
     platforms=['any'],
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
@@ -733,10 +704,10 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
 )
