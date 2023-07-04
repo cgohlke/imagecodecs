@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.7.1` library.
+# Cython declarations for the `c-blosc2 2.10.0` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -46,6 +46,18 @@ cdef extern from 'blosc2.h':
     int BLOSC2_MAX_BUFFERSIZE
     int BLOSC_MAX_TYPESIZE
     int BLOSC_MIN_BUFFERSIZE
+
+    int BLOSC2_DEFINED_TUNER_START
+    int BLOSC2_DEFINED_TUNER_STOP
+    int BLOSC2_GLOBAL_REGISTERED_TUNER_START
+    int BLOSC2_GLOBAL_REGISTERED_TUNER_STOP
+    int BLOSC2_GLOBAL_REGISTERED_TUNERS
+    int BLOSC2_USER_REGISTERED_TUNER_START
+    int BLOSC2_USER_REGISTERED_TUNER_STOP
+
+    int BLOSC_STUNE
+    int BLOSC_LAST_TUNER
+    int BLOSC_LAST_REGISTERED_TUNE
 
     int BLOSC2_DEFINED_FILTERS_START
     int BLOSC2_DEFINED_FILTERS_STOP
@@ -185,6 +197,7 @@ cdef extern from 'blosc2.h':
     int BLOSC2_ERROR_NULL_POINTER
     int BLOSC2_ERROR_INVALID_INDEX
     int BLOSC2_ERROR_METALAYER_NOT_FOUND
+    int BLOSC2_ERROR_MAX_BUFSIZE_EXCEEDED
 
     char* print_error(
         int rc
@@ -361,6 +374,7 @@ cdef extern from 'blosc2.h':
 
     ctypedef struct blosc2_io_cb:
         uint8_t id
+        char* name
         blosc2_open_cb open
         blosc2_close_cb close
         blosc2_tell_cb tell
@@ -371,6 +385,7 @@ cdef extern from 'blosc2.h':
 
     ctypedef struct blosc2_io:
         uint8_t id
+        const char* name
         void* params
 
     const blosc2_io_cb BLOSC2_IO_CB_DEFAULTS
@@ -388,26 +403,29 @@ cdef extern from 'blosc2.h':
     ctypedef struct blosc2_context:
         pass
 
-    ctypedef struct blosc2_btune:
-        void (*btune_init)(
+    ctypedef struct blosc2_btuner:
+        void (*init)(
             void* config,
             blosc2_context* cctx,
             blosc2_context* dctx
         ) nogil
-        void (*btune_next_blocksize)(
+        void (*next_blocksize)(
             blosc2_context* context
         ) nogil
-        void (*btune_next_cparams)(
+        void (*next_cparams)(
             blosc2_context* context
         ) nogil
-        void (*btune_update)(
+        void (*update)(
             blosc2_context* context,
             double ctime
         ) nogil
-        void (*btune_free)(
+        void (*free)(
             blosc2_context* context
         ) nogil
-        void* btune_config
+        int id 'id_'
+        char* name
+
+    int register_tuner_private(blosc2_btuner* tuner) nogil
 
     ctypedef struct blosc2_prefilter_params:
         void* user_data
@@ -459,8 +477,11 @@ cdef extern from 'blosc2.h':
         uint8_t filters_meta[6]  # BLOSC2_MAX_FILTERS
         blosc2_prefilter_fn prefilter
         blosc2_prefilter_params* preparams
-        blosc2_btune* udbtune
+        void* tuner_params
+        int tuner_id
         bool instr_codec
+        void* codec_params
+        void* filter_params[6]  # BLOSC2_MAX_FILTERS
 
     const blosc2_cparams BLOSC2_CPARAMS_DEFAULTS
 
@@ -552,7 +573,7 @@ cdef extern from 'blosc2.h':
         int32_t nbytes,
         void* dest,
         int32_t destsize,
-        void* repeatval
+        const void* repeatval
     ) nogil
 
     int blosc2_chunk_uninit(
@@ -620,7 +641,8 @@ cdef extern from 'blosc2.h':
         uint16_t nmetalayers
         blosc2_metalayer* vlmetalayers[8 * 1024]  # BLOSC2_MAX_VLMETALAYERS
         int16_t nvlmetalayers
-        blosc2_btune* udbtune
+        void* tuner_params
+        int tuner_id
         int8_t ndim
         int64_t* blockshape
 
@@ -789,6 +811,12 @@ cdef extern from 'blosc2.h':
         int32_t content_len
     ) nogil
 
+    void swap_store(
+        void *dest,
+        const void *pa,
+        int size
+    ) nogil
+
     int blosc2_meta_get(
         blosc2_schunk* schunk,
         const char* name,
@@ -894,7 +922,7 @@ cdef extern from 'blosc2.h':
         uint8_t compcode
         char* compname
         uint8_t complib
-        uint8_t compver
+        uint8_t version
         blosc2_codec_encoder_cb encoder
         blosc2_codec_decoder_cb decoder
 
@@ -920,6 +948,8 @@ cdef extern from 'blosc2.h':
 
     ctypedef struct blosc2_filter:
         uint8_t id
+        char* name
+        uint8_t version
         blosc2_filter_forward_cb forward
         blosc2_filter_backward_cb backward
 
@@ -995,14 +1025,14 @@ cdef extern from 'b2nd.h':
         int8_t dtype_format
 
     b2nd_context_t* b2nd_create_ctx(
-        blosc2_storage* b2_storage,
+        const blosc2_storage* b2_storage,
         int8_t ndim,
-        int64_t* shape,
-        int32_t* chunkshape,
-        int32_t* blockshape,
-        char* dtype,
+        const int64_t* shape,
+        const int32_t* chunkshape,
+        const int32_t* blockshape,
+        const char* dtype,
         int8_t dtype_format,
-        blosc2_metalayer* metalayers,
+        const blosc2_metalayer* metalayers,
         int32_t nmetalayers
     ) nogil
 
@@ -1028,7 +1058,7 @@ cdef extern from 'b2nd.h':
     int b2nd_full(
         b2nd_context_t* ctx,
         b2nd_array_t** array,
-        void* fill_value
+        const void* fill_value
     ) nogil
 
     int b2nd_free(
@@ -1041,7 +1071,7 @@ cdef extern from 'b2nd.h':
     ) nogil
 
     int b2nd_to_cframe(
-        b2nd_array_t* array,
+        const b2nd_array_t* array,
         uint8_t** cframe,
         int64_t* cframe_len,
         bool* needs_free
@@ -1066,27 +1096,27 @@ cdef extern from 'b2nd.h':
     ) nogil
 
     int b2nd_save(
-        b2nd_array_t* array,
+        const b2nd_array_t* array,
         char* urlpath
     ) nogil
 
     int b2nd_from_cbuffer(
         b2nd_context_t* ctx,
         b2nd_array_t** array,
-        void* buffer,
+        const void* buffer,
         int64_t buffersize
     ) nogil
 
     int b2nd_to_cbuffer(
-        b2nd_array_t* array,
+        const b2nd_array_t* array,
         void* buffer,
-         int64_t buffersize
+        int64_t buffersize
     ) nogil
 
     int b2nd_get_slice(
         b2nd_context_t* ctx,
         b2nd_array_t** array,
-        b2nd_array_t* src,
+        const b2nd_array_t* src,
         const int64_t* start,
         const int64_t* stop
     ) nogil
@@ -1101,31 +1131,31 @@ cdef extern from 'b2nd.h':
     ) nogil
 
     int b2nd_get_slice_cbuffer(
-        b2nd_array_t* array,
-        int64_t* start,
-        int64_t* stop,
+        const b2nd_array_t* array,
+        const int64_t* start,
+        const int64_t* stop,
         void* buffer,
-        int64_t* buffershape,
+        const int64_t* buffershape,
         int64_t buffersize
     ) nogil
 
     int b2nd_set_slice_cbuffer(
-        void* buffer,
-        int64_t* buffershape,
+        const void* buffer,
+        const int64_t* buffershape,
         int64_t buffersize,
-        int64_t* start,
-        int64_t* stop,
+        const int64_t* start,
+        const int64_t* stop,
         b2nd_array_t* array
     ) nogil
 
     int b2nd_copy(
         b2nd_context_t* ctx,
-        b2nd_array_t* src,
+        const b2nd_array_t* src,
         b2nd_array_t** array
     ) nogil
 
     int b2nd_print_meta(
-        b2nd_array_t* array
+        const b2nd_array_t* array
     ) nogil
 
     int b2nd_resize(
@@ -1136,7 +1166,7 @@ cdef extern from 'b2nd.h':
 
     int b2nd_insert(
         b2nd_array_t* array,
-        void* buffer,
+        const void* buffer,
         int64_t buffersize,
         const int8_t axis,
         int64_t insert_start
@@ -1144,14 +1174,14 @@ cdef extern from 'b2nd.h':
 
     int b2nd_append(
         b2nd_array_t* array,
-        void* buffer,
+        const void* buffer,
         int64_t buffersize,
         const int8_t axis
     ) nogil
 
     int b2nd_delete(
         b2nd_array_t* array,
-        const int8_t axis,
+        int8_t axis,
         int64_t delete_start,
         int64_t delete_len
     ) nogil
@@ -1169,23 +1199,23 @@ cdef extern from 'b2nd.h':
         b2nd_array_t* array,
         int64_t** selection,
         int64_t* selection_size,
-        void* buffer,
+        const void* buffer,
         int64_t* buffershape,
         int64_t buffersize
     ) nogil
 
     int b2nd_serialize_meta(
         int8_t ndim,
-        int64_t* shape,
-        int32_t* chunkshape,
-        int32_t* blockshape,
+        const int64_t* shape,
+        const int32_t* chunkshape,
+        const int32_t* blockshape,
         const char* dtype,
         const int8_t dtype_format,
         uint8_t** smeta
     ) nogil
 
     int b2nd_deserialize_meta(
-        uint8_t* smeta,
+        const uint8_t* smeta,
         int32_t smeta_len,
         int8_t* ndim,
         int64_t* shape,
