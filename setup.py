@@ -31,7 +31,7 @@ with open(
 ) as fh:
     code = fh.read().replace('\r\n', '\n').replace('\r', '\n')
 
-version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev')
+version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev0')
 version += ('.' + buildnumber) if buildnumber else ''
 
 description = search(r'"""(.*)\.(?:\r\n|\r|\n)', code)
@@ -99,6 +99,7 @@ OPTIONS = {
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
     'define_macros': [
+        # ('CYTHON_TRACE_NOGIL', '1'),
         # ('CYTHON_LIMITED_API', '1'),
         # ('Py_LIMITED_API', '1'),
     ]
