@@ -5,6 +5,8 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: profile=False
+# cython: linetrace=False
 
 # Copyright (c) 2018-2023, Christoph Gohlke
 # All rights reserved.
@@ -37,7 +39,7 @@
 
 """JPEG 2000 codec for the imagecodecs package."""
 
-__version__ = '2023.7.4'
+__version__ = '2023.7.10'
 
 include '_shared.pxi'
 
@@ -515,16 +517,16 @@ def jpeg2k_decode(
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_read_header failed')
 
-            ret = opj_set_decode_area(
-                codec,
-                image,
-                <OPJ_INT32> parameters.DA_x0,
-                <OPJ_INT32> parameters.DA_y0,
-                <OPJ_INT32> parameters.DA_x1,
-                <OPJ_INT32> parameters.DA_y1
-            )
-            if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_set_decode_area failed')
+            # ret = opj_set_decode_area(
+            #     codec,
+            #     image,
+            #     <OPJ_INT32> parameters.DA_x0,
+            #     <OPJ_INT32> parameters.DA_y0,
+            #     <OPJ_INT32> parameters.DA_x1,
+            #     <OPJ_INT32> parameters.DA_y1
+            # )
+            # if ret == OPJ_FALSE:
+            #     raise Jpeg2kError('opj_set_decode_area failed')
 
             ret = opj_decode(codec, stream, image)
             if ret != OPJ_FALSE:
