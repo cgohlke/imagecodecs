@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2023.7.4
+:Version: 2023.7.10
 
 """
 
