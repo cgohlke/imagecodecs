@@ -17,7 +17,7 @@ Byteshuffle, Bitshuffle, CMS (color space transformations), and Float24
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.7.4
+:Version: 2023.7.10
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -112,7 +112,7 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.4
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.10
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
 - `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.15.0
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
@@ -128,9 +128,13 @@ Test requirements:
 Revisions
 ---------
 
-2023.7.4
+2023.7.10
 
 - Pass 6900 tests.
+- Rebuild with optimized compile flags.
+
+2023.7.4
+
 - Add BCn and DDS decoder via bcdec library.
 - Add functions to transcode JPEG XL to/from JPEG (#78).
 - Add option to decode select frames from animated WebP.
