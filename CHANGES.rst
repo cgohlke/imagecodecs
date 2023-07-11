@@ -1,9 +1,13 @@
 Revisions
 ---------
 
-2023.7.4
+2023.7.10
 
 - Pass 6900 tests.
+- Rebuild with optimized compile flags.
+
+2023.7.4
+
 - Add BCn and DDS decoder via bcdec library.
 - Add functions to transcode JPEG XL to/from JPEG (#78).
 - Add option to decode select frames from animated WebP.
