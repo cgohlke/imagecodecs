@@ -481,6 +481,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
             os.path.join(os.environ['LIBRARY_INC'], 'jxrlib')
         ]
         EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
+        EXTENSIONS['szip']['libraries'] = ['szip']
     else:
         EXTENSIONS['zopfli']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'zopfli')
