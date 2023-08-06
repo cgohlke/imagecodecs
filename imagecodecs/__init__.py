@@ -10,6 +10,7 @@ from .imagecodecs import (
     __version__,
     __getattr__,
     __dir__,
+    _codecs,
     _extensions,
     version,
     imread,
