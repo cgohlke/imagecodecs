@@ -3,6 +3,8 @@ include README.rst
 include CHANGES.rst
 include pyproject.toml
 
+include imagecodecs/py.typed
+
 include imagecodecs/*.c
 exclude imagecodecs/_*.c
 
