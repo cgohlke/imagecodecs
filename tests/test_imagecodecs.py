@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2023.7.10
+:Version: 2023.8.12
 
 """
 
@@ -172,7 +172,7 @@ def test_dependency_exist(name):
     if SKIP_NUMCODECS and IS_PYPY:
         mayfail = True
     elif name in {'blosc', 'blosc2', 'snappy'}:
-        if IS_PYPY or sys.version_info[1] >= 10:
+        if IS_PYPY or sys.version_info[1] >= 12:
             mayfail = True
     try:
         importlib.import_module(name)
@@ -464,8 +464,8 @@ def test_packbits_nop():
     not imagecodecs.PACKBITS.available, reason='Packbits missing'
 )
 @pytest.mark.parametrize('output', [None, 'array'])
-@pytest.mark.parametrize('codec', ['encode', 'decode'])
 @pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
+@pytest.mark.parametrize('codec', ['encode', 'decode'])
 def test_packbits_array(codec, output, dtype):
     """Test PackBits codec with arrays."""
     dtype = numpy.dtype(dtype)
@@ -832,6 +832,217 @@ def test_float24_roundtrip(byteorder):
     f3_decoded = imagecodecs.float24_decode(f3_bytes, byteorder=byteorder)
     f3_encoded = imagecodecs.float24_encode(f3_decoded, byteorder=byteorder)
     assert f3_bytes == f3_encoded
+
+
+@pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
+def test_eer():
+    """Test EER decoder."""
+    encoded = b'\x03\x1b\xfc\xb1\x35\xfb'  # from EER specification
+    assert imagecodecs.eer_check(encoded) is None
+
+    im = imagecodecs.eer_decode(encoded, (1, 312), 7, 1, 1)
+    assert im[0, 3]
+    assert im[0, 17]  # 17 = 3 + 13 + 1
+    assert im[0, 233]  # 233 = 3 + 13 + 127 + 88 + 2
+    assert im[0, 311]  # 311 = 3 + 13 + 127 + 88 + 77 + 3
+
+    im = imagecodecs.eer_decode(encoded, (20, 16), 7, 1, 1)
+    assert im[0, 3]
+    assert im[1, 1]  # 17 // 16, 17 % 16
+    assert im[14, 9]  # 233 // 16, 233 % 16
+    assert im[19, 7]  # 311 // 16, 311 % 16
+
+    with pytest.raises(RuntimeError):
+        # shape too small
+        im = imagecodecs.eer_decode(encoded, (19, 15), 7, 1, 1)
+
+
+@pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
+def test_eer_superres():
+    """Test EER decoder superresolution mode."""
+    encoded = b'\x03\x1b\xfc\xb1\x35\xfb'  # from EER specification
+
+    im = imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=True)
+    assert im[1, 6]
+    assert im[3, 3]
+    assert im[28, 19]
+    assert im[38, 15]
+
+    out = numpy.zeros((40, 32), numpy.bool_)
+    imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=True, out=out)
+    assert im[1, 6]
+    assert im[3, 3]
+    assert im[28, 19]
+    assert im[38, 15]
+
+    with pytest.raises(ValueError):
+        # shape not compatible with superresolution
+        im = imagecodecs.eer_decode(encoded, (40, 33), 7, 1, 1, superres=True)
+
+    with pytest.raises(RuntimeError):
+        # shape too small
+        im = imagecodecs.eer_decode(encoded, (40, 30), 7, 1, 1, superres=True)
+
+
+@pytest.mark.skipif(SKIP_NUMCODECS, reason='zarr or numcodecs missing')
+@pytest.mark.parametrize('dtype', ['uint8', 'float32'])
+@pytest.mark.parametrize(
+    'kind', ['crc32', 'adler32', 'fletcher32', 'lookup3', 'h5crc']
+)
+def test_checksum_roundtrip(kind, dtype):
+    """Test numcodecs.Checksum roundtrips."""
+    from imagecodecs.numcodecs import Checksum
+
+    if kind in {'crc32', 'adler32'} and not imagecodecs.ZLIB.available:
+        pytest.skip('ZLIB missing')
+    elif not imagecodecs.H5CHECKSUM.available:
+        pytest.skip('H5CHECKSUM missing')
+
+    data = numpy.arange(255, dtype=dtype).reshape(15, 17)[1:14, 2:15]
+    codec = Checksum(kind=kind)
+    encoded = codec.encode(data)
+    decoded = numpy.frombuffer(codec.decode(encoded), dtype=dtype)
+    assert_array_equal(data, decoded.reshape((13, 13)))
+
+    encoded = bytearray(encoded)
+    encoded[10] += 1
+    with pytest.raises(RuntimeError):
+        codec.decode(encoded)
+
+
+@pytest.mark.skipif(
+    SKIP_NUMCODECS or not imagecodecs.H5CHECKSUM.available,
+    reason='H5CHECKSUM, zarr, or numcodecs missing',
+)
+def test_checksum_fletcher32():
+    """Test numcodecs.Checksum fletcher32 kind."""
+    from imagecodecs.numcodecs import Checksum
+
+    codec = Checksum(kind='fletcher32')
+    data = (
+        b'w\x07\x00\x00\x00\x00\x00\x00\x85\xf6\xff\xff\xff\xff\xff\xff'
+        b'i\x07\x00\x00\x00\x00\x00\x00\x94\xf6\xff\xff\xff\xff\xff\xff'
+        b'\x88\t\x00\x00\x00\x00\x00\x00i\x03\x00\x00\x00\x00\x00\x00'
+        b'\x93\xfd\xff\xff\xff\xff\xff\xff\xc3\xfc\xff\xff\xff\xff\xff\xff'
+        b"'\x02\x00\x00\x00\x00\x00\x00\xba\xf7\xff\xff\xff\xff\xff\xff"
+        b'\xfd%\x86d'
+    )
+    decoded = codec.decode(data)
+    assert_array_equal(
+        numpy.frombuffer(decoded, dtype='<i8'),
+        [1911, -2427, 1897, -2412, 2440, 873, -621, -829, 551, -2118],
+    )
+    encoded = codec.encode(decoded)
+    assert encoded == data
+
+
+@pytest.mark.skipif(
+    SKIP_NUMCODECS or not imagecodecs.H5CHECKSUM.available,
+    reason='H5CHECKSUM, zarr, or numcodecs missing',
+)
+def test_checksum_lookup3():
+    """Test numcodecs.Checksum lookup3 kind."""
+    from imagecodecs.numcodecs import Checksum
+
+    data = b'Four score and seven years ago'
+    codec = Checksum(kind='lookup3')
+    result = codec.encode(data)
+    assert result[-4:] == b'\x51\x05\x77\x17'
+    assert bytes(codec.decode(result)) == data
+
+    codec = Checksum(kind='lookup3', value=0xDEADBEEF)
+    result = codec.encode(data)
+    assert bytes(codec.decode(result)) == data
+
+    codec = Checksum(kind='lookup3', value=1230)
+    result = codec.encode(data)
+    assert result[-4:] == b'\xd7Z\xe2\x0e'
+    assert bytes(codec.decode(result)) == data
+
+    codec = Checksum(kind='lookup3', value=1230, prefix=b'Hello world')
+    result = codec.encode(data)
+    assert bytes(codec.decode(result)) == data
+
+    data = (
+        b"\x00\x08\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xf7\x17\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xee'\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xe57\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xdcG\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xd3W\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xcag\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xc1w\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xb8\x87\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xaf\x97\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\xa6\xa7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\x9d\xb7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\x94\xc7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\x8b\xd7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"\x82\xe7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"y\xf7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b"n\x96\x07\x85"
+    )
+    codec = Checksum(
+        kind='lookup3', prefix=b'FADB\x00\x01\xcf\x01\x00\x00\x00\x00\x00\x00'
+    )
+    encoded = codec.encode(data[:-4])
+    codec.decode(encoded)
+    assert encoded == data
+
+
+@pytest.mark.skipif(
+    not imagecodecs.H5CHECKSUM.available, reason='H5CHECKSUM missing'
+)
+def test_h5checksum_lookup3():
+    """Test h5checksum_lookup3 function."""
+    from imagecodecs import h5checksum_lookup3 as lookup3
+
+    assert lookup3(b'', 0) == 0xDEADBEEF
+    assert lookup3(b'', 0xDEADBEEF) == 0xBD5B7DDE
+    assert lookup3(b'Four score and seven years ago', 0) == 0x17770551
+    assert lookup3(b'Four score and seven years ago', 1) == 0xCD628161
+    assert lookup3(b'jenkins', 0) == 0xC0E7DF9
+
+    checksum_list = [0]
+    for _ in range(9):
+        checksum = lookup3(b'', checksum_list[-1])
+        assert checksum not in checksum_list
+        checksum_list.append(checksum)
+
+    a = numpy.frombuffer(b'Four score and seven years ago', dtype=numpy.uint8)
+    assert lookup3(a, 0) == 0x17770551
+
+
+@pytest.mark.skipif(
+    not imagecodecs.H5CHECKSUM.available, reason='H5CHECKSUM missing'
+)
+def test_h5checksum_other():
+    """Test h5checksum metadata and hash_string functions."""
+    from imagecodecs import h5checksum_metadata, h5checksum_hash_string
+
+    assert h5checksum_metadata(b'', 0) == 3735928559
+    assert h5checksum_hash_string(b'', 0) == 5381
+
+    data = b'Four score and seven years ago'
+    assert h5checksum_metadata(data) == 393676113
+    assert h5checksum_hash_string(data) == 316074956
+
+
+@pytest.mark.parametrize('value', [None, 2])
+@pytest.mark.parametrize('kind', ['crc32', 'adler32'])
+@pytest.mark.parametrize('codec', ['zlib', 'zlibng', 'deflate'])
+def test_zlib_checksums(codec, kind, value):
+    """Test crc32 and adler32 checksum functions."""
+    import zlib
+
+    if not getattr(imagecodecs, codec.upper()).available:
+        pytest.skip(f'{codec} not available')
+
+    args = tuple() if value is None else (value,)
+    data = b'Four score and seven years ago'
+    expected = getattr(zlib, kind)(data, *args) & 0xFFFFFFFF
+    checksum = getattr(imagecodecs, codec + '_' + kind)(data, *args)
+    assert checksum == expected
 
 
 @pytest.mark.skipif(not imagecodecs.LZW.available, reason='LZW missing')
@@ -3319,7 +3530,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         level = None
         if dtype == 'uint16':
 
-            def encode(data, *args, **kwargs):
+            def encode(data, *args, **kwargs):  # noqa
                 return imagecodecs.ljpeg_encode(
                     data, bitspersample=12, *args, **kwargs
                 )
@@ -3342,7 +3553,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.xfail('webp does not support this case')
         if itype == 'rgba':
 
-            def decode(data, out=None):
+            def decode(data, out=None):  # noqa
                 return imagecodecs.webp_decode(data, hasalpha=True, out=out)
 
         if level:
@@ -3444,7 +3655,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         check = imagecodecs.avif_check
         if dtype == 'uint16':
 
-            def encode(data, *args, **kwargs):
+            def encode(data, *args, **kwargs):  # noqa
                 return imagecodecs.avif_encode(
                     data, bitspersample=12, *args, **kwargs
                 )
