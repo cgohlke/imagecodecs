@@ -37,7 +37,7 @@
 
 """Zlib-ng codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.8.12'
 
 include '_shared.pxi'
 
@@ -274,30 +274,30 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
 
 # CRC #########################################################################
 
-def zlibng_crc32(data):
+def zlibng_crc32(data, value=None):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
-        uint32_t crc = 0
+        uint32_t crc = 0 if value is None else value
 
     with nogil:
-        crc = zng_crc32_z(crc, NULL, 0)
+        # crc = zng_crc32_z(crc, NULL, 0)
         crc = zng_crc32_z(crc, <const uint8_t*> &src[0], srcsize)
-    return int(crc)
+    return int(crc) & 0xffffffff
 
 
-def zlibng_adler32(data):
+def zlibng_adler32(data, value=None):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
-        uint32_t adler
+        uint32_t adler = 1 if value is None else value
 
     with nogil:
-        adler = zng_adler32_z(0, NULL, 0)
+        # adler = zng_adler32_z(adler, NULL, 0)
         adler = zng_adler32_z(adler, <const uint8_t*> &src[0], srcsize)
-    return int(adler)
+    return int(adler) & 0xffffffff
 
 
 # Output Stream ###############################################################
