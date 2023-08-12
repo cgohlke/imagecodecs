@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2023.7.4'
+__version__ = '2023.8.12'
 
 include '_shared.pxi'
 
@@ -1151,6 +1151,83 @@ def float24_decode(data, byteorder=None, out=None):
     if ret < 0:
         raise Float24Error('imcd_float24_decode', ret)
     return out
+
+
+# EER #########################################################################
+
+# EER file format documentation 3.0. Section 4. by M. Leichsenring. Mar 2023
+
+EER = IMCD
+EerError = ImcdError
+eer_version = imcd_version
+
+
+def eer_check(const uint8_t[::1] data):
+    """Return whether data is EER encoded."""
+    return None
+
+
+def eer_decode(
+    data,
+    shape,
+    int rlebits,
+    int horzbits,
+    int vertbits,
+    bint superres=False,
+    out=None
+):
+    """Return decoded EER image."""
+    cdef:
+        numpy.ndarray dst
+        const uint8_t[::1] src = data
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t ret = 0
+        ssize_t height = shape[0]
+        ssize_t width = shape[1]
+        uint8_t* dstptr
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    if not (
+        1 < rlebits < 15
+        and 0 < horzbits < 5
+        and 0 < vertbits < 5
+        and 8 < rlebits + horzbits + vertbits < 17
+    ):
+        raise ValueError(
+            f'compression scheme {rlebits}_{horzbits}_{vertbits} not supported'
+        )
+
+    if superres and (height % (2**vertbits) or width % (2**horzbits)):
+        raise ValueError('shape not compatible with superresolution')
+
+    out = _create_array(out, shape, numpy.bool_, strides=None, zero=True)
+    dst = out
+    dstptr = <uint8_t*> dst.data
+
+    with nogil:
+        ret = imcd_eer_decode(
+            &src[0],
+            srcsize,
+            dstptr,
+            height,
+            width,
+            rlebits,
+            horzbits,
+            vertbits,
+            superres
+        )
+    if ret < 0:
+        raise EerError('imcd_eer_decode', ret)
+
+    return out
+
+
+def eer_encode(data, out=None):
+    """Return EER encoded image (not implemented)."""
+    raise NotImplementedError('eer_encode')
 
 
 # LZW #########################################################################
