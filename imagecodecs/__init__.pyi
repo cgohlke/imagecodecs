@@ -45,7 +45,7 @@ from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 BytesLike = Union[bytes, bytearray, mmap.mmap]
 
-__version__: Literal['2023.7.4']
+__version__: str
 
 
 def __dir__() -> list[str]:
@@ -1031,11 +1031,11 @@ def deflate_decode(
     """Return decoded DEFLATE data."""
 
 
-def deflate_crc32(data: BytesLike, /) -> int:
+def deflate_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
 
-def deflate_adler32(data: BytesLike, /) -> int:
+def deflate_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
 
 
@@ -1100,6 +1100,44 @@ def delta_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded DELTA data."""
+
+
+class EER:
+    """EER codec constants."""
+
+    available: bool
+    """EER codec is available."""
+
+
+EerError = RuntimeError
+eer_version = imcd_version
+
+
+def eer_check(data: BytesLike, /) -> None:
+    """Return whether data is EER encoded."""
+
+
+def eer_encode(
+    data: ArrayLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> None:
+    """Return EER encoded image (not implemented)."""
+
+
+def eer_decode(
+    data: BytesLike,
+    /,
+    shape: tuple[int, int],
+    rlebits: int,
+    horzbits: int,
+    vertbits: int,
+    *,
+    superres: bool = False,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded EER image."""
 
 
 class FLOAT24:
@@ -1255,6 +1293,39 @@ def gzip_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded GZIP data."""
+
+
+class H5CHECKSUM:
+    """H5checksum codec constants."""
+
+    available: bool
+    """H5checksum codec is available."""
+
+
+def h5checksum_version() -> str:
+    """Return h5checksum library version string."""
+
+
+def h5checksum_fletcher32(data: BytesLike, /, value: int | None = None) -> int:
+    """Return fletcher32 checksum of data (value is ignored)."""
+
+
+def h5checksum_lookup3(data: BytesLike, /, value: int | None = None) -> int:
+    """Return Jenkins lookup3 checksum of data."""
+
+
+def h5checksum_crc(data: BytesLike, /, value: int | None = None) -> int:
+    """Return crc checksum of data (value is ignored)."""
+
+
+def h5checksum_metadata(data: BytesLike, /, value: int | None = None) -> int:
+    """Return checksum of metadata."""
+
+
+def h5checksum_hash_string(
+    data: BytesLike, /, value: int | None = None
+) -> int:
+    """Return hash of bytes string (value is ignored)."""
 
 
 class HEIF:
@@ -3111,11 +3182,11 @@ def zlib_decode(
     """Return decoded DEFLATE data."""
 
 
-def zlib_crc32(data: BytesLike, /) -> int:
+def zlib_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
 
-def zlib_adler32(data: BytesLike, /) -> int:
+def zlib_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
 
 
@@ -3173,11 +3244,11 @@ def zlibng_decode(
     """Return decoded DEFLATE data."""
 
 
-def zlibng_crc32(data: BytesLike, /) -> int:
+def zlibng_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
 
-def zlibng_adler32(data: BytesLike, /) -> int:
+def zlibng_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
 
 
