@@ -102,6 +102,7 @@ OPTIONS = {
         # ('CYTHON_TRACE_NOGIL', '1'),
         # ('CYTHON_LIMITED_API', '1'),
         # ('Py_LIMITED_API', '1'),
+        # ('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')
     ]
     + [('WIN32', 1)]  # type: ignore
     if sys.platform == 'win32'
@@ -145,6 +146,10 @@ EXTENSIONS = {
     #     include_dirs=['3rdparty/tinyexr'],
     # ),
     'gif': ext(libraries=['gif']),
+    'h5checksum': ext(
+        sources=['3rdparty/hdf5/h5checksum.c'],
+        include_dirs=['3rdparty/hdf5'],
+    ),
     'heif': ext(libraries=['heif']),
     'jetraw': ext(libraries=['jetraw', 'dpcore']),
     'jpeg2k': ext(
@@ -481,6 +486,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
             os.path.join(os.environ['LIBRARY_INC'], 'jxrlib')
         ]
         EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
+        EXTENSIONS['szip']['libraries'] = ['szip']
     else:
         EXTENSIONS['zopfli']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'zopfli')
@@ -688,7 +694,7 @@ setup(
         # 'pytinyexr',
     ],
     packages=['imagecodecs'],
-    package_data={'imagecodecs': ['*.pyi', 'licenses/*']},
+    package_data={'imagecodecs': ['*.pyi', 'py.typed', 'licenses/*']},
     entry_points={
         'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
     },
