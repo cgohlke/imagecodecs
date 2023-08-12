@@ -417,6 +417,109 @@ class Bz2(Codec):
         return imagecodecs.bz2_decode(buf, out=_flat(out))
 
 
+class Checksum(Codec):
+    """Checksum codec for numcodecs."""
+
+    codec_id = 'imagecodecs_checksum'
+
+    def __init__(
+        self,
+        *,
+        kind: Literal['crc32', 'adler32', 'fletcher32', 'lookup3', 'h5crc'],
+        value: int | None = None,
+        prefix: bytes | None = None,
+        prepend: bool | None = None,
+        byteorder: Literal['<', '>', 'little', 'big'] = '<',
+    ) -> None:
+        if kind == 'crc32':
+            if imagecodecs.ZLIBNG.available:
+                self._checksum = imagecodecs.zlibng_crc32
+            elif imagecodecs.DEFLATE.available:
+                self._checksum = imagecodecs.deflate_crc32
+            elif imagecodecs.ZLIB.available:
+                self._checksum = imagecodecs.zlib_crc32
+            else:
+                raise ValueError('imagecodecs.ZLIB not available')
+            if prepend is None:
+                prepend = True
+        elif kind == 'adler32':
+            if imagecodecs.ZLIBNG.available:
+                self._checksum = imagecodecs.zlibng_adler32
+            elif imagecodecs.DEFLATE.available:
+                self._checksum = imagecodecs.deflate_adler32
+            if imagecodecs.ZLIB.available:
+                self._checksum = imagecodecs.zlib_adler32
+            else:
+                raise ValueError('imagecodecs.ZLIB not available')
+            if prepend is None:
+                prepend = True
+        elif kind == 'fletcher32':
+            if not imagecodecs.H5CHECKSUM.available:
+                raise ValueError('imagecodecs.H5CHECKSUM not available')
+            self._checksum = imagecodecs.h5checksum_fletcher32
+            if prepend is None:
+                prepend = False
+        elif kind == 'lookup3':
+            if not imagecodecs.H5CHECKSUM.available:
+                raise ValueError('imagecodecs.H5CHECKSUM not available')
+            self._checksum = imagecodecs.h5checksum_lookup3
+            if prepend is None:
+                prepend = False
+        elif kind == 'h5crc':
+            if not imagecodecs.H5CHECKSUM.available:
+                raise ValueError('imagecodecs.H5CHECKSUM not available')
+            self._checksum = imagecodecs.h5checksum_crc
+            if prepend is None:
+                prepend = False
+        else:
+            raise ValueError(f'checksum kind {kind!r} not supported')
+
+        self.kind = kind
+        self.value = value
+        self.prefix = prefix
+        self.prepend = bool(prepend)
+        self.byteorder: Any = {
+            '<': 'little',
+            '>': 'big',
+            'little': 'little',
+            'big': 'big',
+        }[byteorder]
+
+    def encode(self, buf):
+        buf = _contiguous(buf)
+        if self.prefix is None:
+            checksum = self._checksum(buf, self.value)
+        else:
+            checksum = self._checksum(self.prefix + buf, self.value)
+        out = bytearray(len(buf) + 4)
+        if self.prepend:
+            out[:4] = checksum.to_bytes(4, self.byteorder)
+            out[4:] = buf
+        else:
+            out[:-4] = buf
+            out[-4:] = checksum.to_bytes(4, self.byteorder)
+        return out
+
+    def decode(self, buf, out=None):
+        out = memoryview(buf)
+        if self.prepend:
+            expect = int.from_bytes(out[:4], self.byteorder)
+            out = out[4:]
+        else:
+            expect = int.from_bytes(out[-4:], self.byteorder)
+            out = out[:-4]
+        if self.prefix is None:
+            checksum = self._checksum(out, self.value)
+        else:
+            checksum = self._checksum(self.prefix + out, self.value)
+        if checksum != expect:
+            raise RuntimeError(
+                f'{self._checksum.__name__} checksum mismatch '
+                f'{checksum} != {expect}'
+            )
+        return out
+
+
 class Cms(Codec):
     """CMS codec for numcodecs."""
 
@@ -514,6 +617,44 @@ class Delta(Codec):
                 buf = buf.reshape(self.shape)
         return imagecodecs.delta_decode(
             buf, axis=self.axis, dist=self.dist, out=out
+        )
+
+
+class Eer(Codec):
+    """Electron Event Representation codec for numcodecs."""
+
+    codec_id = 'imagecodecs_eer'
+
+    def __init__(
+        self,
+        *,
+        shape: tuple[int, int],
+        rlebits: int,
+        horzbits: int,
+        vertbits: int,
+        superres: bool = False,
+    ) -> None:
+        if not imagecodecs.EER.available:
+            raise ValueError('imagecodecs.EER not available')
+
+        self.shape = shape
+        self.rlebits = rlebits
+        self.horzbits = horzbits
+        self.vertbits = vertbits
+        self.superres = bool(superres)
+
+    def encode(self, buf):
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.eer_decode(
+            buf,
+            self.shape,
+            rlebits=self.rlebits,
+            horzbits=self.horzbits,
+            vertbits=self.vertbits,
+            superres=self.superres,
+            out=out,
         )
 
 
@@ -1732,13 +1873,21 @@ class Zstd(Codec):
         return imagecodecs.zstd_decode(buf, out=_flat(out))
 
 
-def _flat(out: Any, /) -> memoryview | None:
+def _flat(buf: Any, /) -> memoryview | None:
     """Return numpy array as contiguous view of bytes if possible."""
-    if out is None:
+    if buf is None:
         return None
-    view = memoryview(out)
+    view = memoryview(buf)
     if view.readonly or not view.contiguous:
         return None
+    return view.cast('B')
+
+
+def _contiguous(buf: Any, /) -> memoryview:
+    """Return buffer as contiguous view of bytes."""
+    view = memoryview(buf)
+    if not view.contiguous:
+        view = memoryview(numpy.ascontiguousarray(buf))  # type: ignore
     return view.cast('B')
 
 
@@ -1762,7 +1911,7 @@ def register_codecs(
     force: bool = False,
     verbose: bool = True,
 ) -> None:
-    """Register codecs in this module with numcodecs."""
+    """Register imagecodecs.numcodecs codecs with numcodecs."""
     for name, cls in list(globals().items()):
         if not (
             isinstance(cls, type)
