@@ -119,6 +119,21 @@ uint8_t imcd_bitmask(const int bps)
     return result << (8 - bps);
 }
 
+uint16_t imcd_bitmask2(const int bps)
+{
+    uint16_t result = 0;
+    uint16_t power = 1;
+    int i;
+    if ((bps < 0) || (bps > 16)) {
+        return result;
+    }
+    for (i = 0; i < bps; i++) {
+        result += power;
+        power *= 2;
+    }
+    return result;
+}
+
 
 /********************************** Delta ************************************/
 
@@ -1382,6 +1397,113 @@ ssize_t imcd_float24_encode(
     return (srcsize / 4) * 4;
 }
 
+
+/*********************** Electron Event Representation ***********************/
+
+/* EER file format documentation 3.0. Section 4. by M. Leichsenring. March 2023
+
+The Electron Event Representation uses a variable length bitstream to encode
+detected electron events with sub pixel information.
+
+*/
+
+ssize_t
+imcd_eer_decode(
+    const uint8_t *src,
+    const ssize_t srcsize,
+    uint8_t *dst,
+    const ssize_t height,
+    const ssize_t width,
+    const int rlebits,
+    const int horzbits,
+    const int vertbits,
+    const bool superres)
+{
+    const ssize_t dstsize = height * width;
+    const ssize_t nbits = rlebits + horzbits + vertbits;
+    const ssize_t srcbits = srcsize * 8 - nbits;
+    const uint16_t rlemask = imcd_bitmask2(rlebits);
+    const uint16_t horzmask = imcd_bitmask2(horzbits);
+    const uint16_t vertmask = imcd_bitmask2(vertbits);
+    const ssize_t horzsize = (ssize_t)horzmask + 1;
+    const ssize_t vertsize = (ssize_t)vertmask + 1;
+    const ssize_t width2 = width / horzsize;
+    ssize_t bitindex = 0;
+    ssize_t pixelindex = 0;
+    ssize_t dstindex = 0;
+    ssize_t events = 0;
+    uint16_t word = 0;
+    uint16_t rle = 0;
+    ssize_t v, h;
+
+    if ((src == NULL) || (srcsize < 2) || (dst == NULL) || (height < 1) ||
+        (width < 1) || (nbits > 16) || (nbits <= 8) || (rlebits < 4) ||
+        (horzbits < 1) || (vertbits < 1)) {
+        return IMCD_VALUE_ERROR;
+    }
+
+    if (superres) {
+        if ((width % horzsize) || (height % vertsize)) {
+            return IMCD_VALUE_ERROR;
+        }
+        while (bitindex < srcbits) {
+            word = *((uint16_t *)(src + (bitindex / 8)));
+            word >>= bitindex % 8;
+            rle = word & rlemask;
+            pixelindex += (ssize_t)rle;
+            if (rle == rlemask) {
+                bitindex += rlebits;
+                continue;
+            }
+            word >>= rlebits;
+            v = (ssize_t)((word & vertmask) ^ ((uint16_t)1 << (vertbits - 1)));
+            word >>= vertbits;
+            h = (ssize_t)((word & horzmask) ^ ((uint16_t)1 << (horzbits - 1)));
+            v += (pixelindex / width2) * vertsize;
+            h += (pixelindex % width2) * horzsize;
+            dstindex = v * width + h;
+            if (dstindex == dstsize) {
+                break;
+            }
+            if (dstindex < 0) {
+                return IMCD_INPUT_CORRUPT;
+            }
+            if (dstindex > dstsize) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
+            dst[dstindex] += 1;
+            pixelindex++;
+            events++;
+            bitindex += nbits;
+        }
+    } else {
+        while (bitindex < srcbits) {
+            word = *((uint16_t *)(src + (bitindex / 8)));
+            word >>= bitindex % 8;
+            rle = word & rlemask;
+            dstindex += rle;
+            if (dstindex == dstsize) {
+                break;
+            }
+            if (dstindex < 0) {
+                return IMCD_INPUT_CORRUPT;
+            }
+            if (dstindex > dstsize) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
+            if (rle == rlemask) {
+                bitindex += rlebits;
+                continue;
+            }
+            dst[dstindex] += 1;
+            dstindex++;
+            events++;
+            bitindex += nbits;
+        }
+    }
+
+    return events;
+}
 
 /************************************ LZW ************************************/
 
