@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.x,x'
 
 include '_shared.pxi'
 
@@ -275,28 +275,28 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
 
 # CRC #########################################################################
 
-def zlib_crc32(data):
+def zlib_crc32(data, value=None):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         uInt srcsize = <uInt> src.size
-        uLong crc = 0
+        uLong crc = 0 if value is None else value
 
     with nogil:
-        crc = crc32(crc, NULL, 0)
+        # crc = crc32(crc, NULL, 0)
         crc = crc32(crc, <const Bytef*> &src[0], srcsize)
     return int(crc)
 
 
-def zlib_adler32(data):
+def zlib_adler32(data, value=None):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         uInt srcsize = <uInt> src.size
-        uLong adler
+        uLong adler = 1 if value is None else value
 
     with nogil:
-        adler = adler32(0, NULL, 0)
+        # adler = adler32(adler, NULL, 0)
         adler = adler32(adler, <const Bytef*> &src[0], srcsize)
     return int(adler)
 
