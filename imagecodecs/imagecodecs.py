@@ -38,16 +38,18 @@ Czifile, Zarr, kerchunk, and other scientific image input/output packages.
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZW,
 LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, SZIP, LERC,
-NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit,
+EER, NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit,
 Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K), JPEG LS, JPEG XL,
 JPEG XR (WDP, HD Photo), MOZJPEG, AVIF, HEIF, RGBE (HDR), Jetraw, PackBits,
 Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
 Byteshuffle, Bitshuffle, CMS (color space transformations), and Float24
 (24-bit floating point).
+Checksum functions are implemented for crc32, adler32, fletcher32, and
+Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.7.10
+:Version: 2023.8.12
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -76,8 +78,8 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.4, 3.12.0b3, 64-bit
-- `Numpy <https://pypi.org/project/numpy>`_ 1.25.0
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.4, 3.12.0rc, 64-bit
+- `Numpy <https://pypi.org/project/numpy>`_ 1.25.2
 - `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.11.0
   (optional, for Zarr compatible codecs)
 
@@ -88,7 +90,7 @@ Build requirements:
 - `brunsli <https://github.com/google/brunsli>`_ 0.1
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.4
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.0
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.1
 - `charls <https://github.com/team-charls/charls>`_ 2.4.2
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.1
 - `jetraw <https://github.com/Jetraw/Jetraw>`_ 22.02.16.1
@@ -107,7 +109,7 @@ Build requirements:
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.5)
 - `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.0
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.8.2
-- `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.3
+- `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.4
 - `libpng <https://github.com/glennrp/libpng>`_ 1.6.39
 - `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.39
 - `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.5.1
@@ -129,6 +131,7 @@ Vendored requirements:
 - `bcdec.h <https://github.com/iOrange/bcdec>`_ 026acf9
 - `bitshuffle <https://github.com/kiyo-masui/bitshuffle>`_ 0.5.1
 - `cfitsio ricecomp.c <https://heasarc.gsfc.nasa.gov/fitsio/>`_ modified
+- `h5checksum.c <https://github.com/HDFGroup/hdf5/>`_ modified
 - `jpg_0XC3.cpp
   <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
   modified
@@ -142,11 +145,11 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.10
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.18
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
-- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.15.0
+- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.16.0
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.5
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.6
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.0.9
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.3.2
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.4
@@ -158,9 +161,17 @@ Test requirements:
 Revisions
 ---------
 
+2023.8.12
+
+- Pass 6929 tests.
+- Add EER (Electron Event Representation) decoder.
+- Add option to pass initial value to crc32 and adler32 checksum functions.
+- Add fletcher32 and lookup3 checksum functions via HDF5's h5checksum.c.
+- Add Checksum codec for numcodecs.
+- Add py.typed marker.
+
 2023.7.10
 
-- Pass 6900 tests.
 - Rebuild with optimized compile flags.
 
 2023.7.4
@@ -267,7 +278,8 @@ Objectives
 Many scientific image storage formats like TIFF, CZI, DICOM, HDF, and Zarr
 are containers that hold large numbers of small data segments (chunks, tiles,
 stripes), which are encoded using a variety of compression and pre-filtering
-methods. Metadata common to all data segments are typically stored separately.
+methods. Metadata common to all data segments are typically stored separate
+from the segments.
 
 The purpose of the Imagecodecs library is to support Python modules in
 encoding and decoding such data segments. The specific aims are:
@@ -299,9 +311,9 @@ Python <= 3.8 is no longer supported. 32-bit versions are deprecated.
 
 Works on little-endian platforms only.
 
-Only ``win_amd64`` wheels include all features.
+Only the ``win_amd64`` wheels include all features.
 
-The ``tiff``, ``bcn``, ``dds``, ``packints``, and ``jpegsof3`` codecs
+The ``tiff``, ``bcn``, ``dds``, ``eer``, ``packints``, and ``jpegsof3`` codecs
 are currently decode-only.
 
 The ``heif`` and ``jetraw`` codecs are distributed as source code only due to
@@ -315,7 +327,7 @@ Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
 
-Wheels for macOS may not be available for the latest releases.
+Wheels for macOS may not be available for all releases.
 
 Build instructions for manylinux and macOS courtesy of
 `Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
@@ -510,7 +522,7 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2023.7.10'
+__version__ = '2023.8.12'
 
 import os
 import sys
@@ -579,6 +591,12 @@ _MODULES: dict[str, list[str]] = {
         'delta_decode',
         'delta_check',
         'delta_version',
+        'EER',
+        'EerError',
+        'eer_encode',
+        'eer_decode',
+        'eer_check',
+        'eer_version',
         'FLOAT24',
         'Float24Error',
         'float24_encode',
@@ -736,6 +754,15 @@ _MODULES: dict[str, list[str]] = {
         'gif_decode',
         'gif_check',
         'gif_version',
+    ],
+    '_h5checksum': [
+        'H5CHECKSUM',
+        'h5checksum_version',
+        'h5checksum_fletcher32',
+        'h5checksum_lookup3',
+        'h5checksum_crc',
+        'h5checksum_metadata',
+        'h5checksum_hash_string',
     ],
     '_heif': [
         'HEIF',
