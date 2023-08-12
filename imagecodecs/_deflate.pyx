@@ -37,7 +37,7 @@
 
 """Deflate and GZIP codecs for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.8.12'
 
 include '_shared.pxi'
 
@@ -379,24 +379,24 @@ def gzip_decode(data, out=None):
 
 # CRC #########################################################################
 
-def deflate_crc32(data):
+def deflate_crc32(data, value=None):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
-        uint32_t crc = 0
+        uint32_t crc = 0 if value is None else value
 
     with nogil:
         crc = libdeflate_crc32(crc, <const void*> &src[0], srcsize)
     return int(crc)
 
 
-def deflate_adler32(data):
+def deflate_adler32(data, value=None):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
-        uint32_t adler = 1
+        uint32_t adler = 1 if value is None else value
 
     with nogil:
         adler = libdeflate_adler32(adler, <const void*> &src[0], srcsize)
