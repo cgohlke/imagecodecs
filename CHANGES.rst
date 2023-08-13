@@ -1,9 +1,17 @@
 Revisions
 ---------
 
+2023.8.12
+
+- Pass 6929 tests.
+- Add EER (Electron Event Representation) decoder.
+- Add option to pass initial value to crc32 and adler32 checksum functions.
+- Add fletcher32 and lookup3 checksum functions via HDF5's h5checksum.c.
+- Add Checksum codec for numcodecs.
+- Add py.typed marker.
+
 2023.7.10
 
-- Pass 6900 tests.
 - Rebuild with optimized compile flags.
 
 2023.7.4
