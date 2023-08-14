@@ -547,8 +547,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
-    # uncomment if building with libjpeg-turbo 3
-    # EXTENSIONS['jpeg8']['sources'] = []
+    EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
 
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         (
