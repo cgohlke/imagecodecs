@@ -1,10 +1,15 @@
 # imagecodecs/libaec.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libaec 1.0.6` library.
+# Cython declarations for the `libaec 1.1.0` library.
 # https://gitlab.dkrz.de/k202009/libaec
 
 cdef extern from 'libaec.h':
+
+    int AEC_VERSION_MAJOR
+    int AEC_VERSION_MINOR
+    int AEC_VERSION_PATCH
+    char* AEC_VERSION_STR
 
     int AEC_DATA_SIGNED
     int AEC_DATA_3BYTE
@@ -19,6 +24,7 @@ cdef extern from 'libaec.h':
     int AEC_STREAM_ERROR
     int AEC_DATA_ERROR
     int AEC_MEM_ERROR
+    int AEC_RSI_OFFSETS_ERROR
 
     int AEC_NO_FLUSH
     int AEC_FLUSH
@@ -40,6 +46,26 @@ cdef extern from 'libaec.h':
         aec_stream* strm
     ) nogil
 
+    int aec_encode_enable_offsets(
+        aec_stream *strm
+    ) nogil
+
+    int aec_encode_count_offsets(
+        aec_stream *strm,
+        size_t *rsi_offsets_count
+    ) nogil
+
+    int aec_encode_get_offsets(
+        aec_stream *strm,
+        size_t *rsi_offsets,
+        size_t rsi_offsets_count
+    ) nogil
+
+    int aec_buffer_seek(
+        aec_stream *strm,
+        size_t offset
+    ) nogil
+
     int aec_encode_c 'aec_encode' (
         aec_stream* strm,
         int flush
@@ -53,9 +79,32 @@ cdef extern from 'libaec.h':
         aec_stream* strm
     ) nogil
 
+    int aec_decode_enable_offsets(
+        aec_stream *strm
+    ) nogil
+
+    int aec_decode_count_offsets(
+        aec_stream *strm,
+        size_t *rsi_offsets_count
+    ) nogil
+
+    int aec_decode_get_offsets(
+        aec_stream *strm,
+        size_t *rsi_offsets,
+        size_t rsi_offsets_count
+    ) nogil
+
     int aec_decode_c 'aec_decode' (
         aec_stream* strm,
         int flush
+    ) nogil
+
+    int aec_decode_range(
+        aec_stream *strm,
+        const size_t *rsi_offsets,
+        size_t rsi_offsets_count,
+        size_t pos,
+        size_t size
     ) nogil
 
     int aec_decode_end(
