@@ -239,8 +239,8 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
                         stream.next_out = (
                             <uint8_t*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295:
-                        stream.avail_out = <uint32_t> 4294967295
+                    if left > <size_t> 4294967295U:
+                        stream.avail_out = <uint32_t> 4294967295U
                     else:
                         stream.avail_out = <uint32_t> left
                     left -= stream.avail_out
@@ -248,8 +248,8 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
                 if stream.avail_in == 0:
                     if ret == Z_BUF_ERROR:
                         break
-                    if size > <size_t> 4294967295:
-                        stream.avail_in = <uint32_t> 4294967295
+                    if size > <size_t> 4294967295U:
+                        stream.avail_in = <uint32_t> 4294967295U
                     else:
                         stream.avail_in = <uint32_t> size
                     size -= stream.avail_in
