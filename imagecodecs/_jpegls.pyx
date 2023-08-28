@@ -99,7 +99,7 @@ def jpegls_encode(data, level=None, out=None):
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and srcsize < 4294967296
+        and srcsize < 4294967296U
     ):
         raise ValueError('invalid data shape or dtype')
 
