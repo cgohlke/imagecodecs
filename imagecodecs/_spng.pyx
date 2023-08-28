@@ -112,8 +112,8 @@ def spng_encode(data, level=None, out=None):
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and src.shape[0] < 2147483648
-        and src.shape[1] < 2147483648
+        and src.shape[0] <= 2147483647
+        and src.shape[1] <= 2147483647
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
