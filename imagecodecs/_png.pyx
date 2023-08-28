@@ -147,8 +147,8 @@ def png_encode(
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and src.shape[0] < 2147483648
-        and src.shape[1] < 2147483648
+        and src.shape[0] <= 2147483647
+        and src.shape[1] <= 2147483647
         and samples <= 4
         and src.strides[src.ndim - 1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
