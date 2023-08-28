@@ -220,8 +220,8 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
                         stream.next_out = (
                             <unsigned char*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295:
-                        stream.avail_out = <unsigned int> 4294967295
+                    if left > <size_t> 4294967295U:
+                        stream.avail_out = <unsigned int> 4294967295U
                     else:
                         stream.avail_out = <unsigned int> left
                     left -= stream.avail_out
@@ -229,8 +229,8 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
                 if stream.avail_in == 0:
                     if ret == LZHAM_Z_BUF_ERROR:
                         break
-                    if size > <size_t> 4294967295:
-                        stream.avail_in = <unsigned int> 4294967295
+                    if size > <size_t> 4294967295U:
+                        stream.avail_in = <unsigned int> 4294967295U
                     else:
                         stream.avail_in = <unsigned int> size
                     size -= stream.avail_in
