@@ -132,8 +132,8 @@ def lzfse_decode(data, out=None):
     if out is None:
         if dstsize < 0:
             dstsize = lzfse_decoded_size(<char*> &src[0], srcsize)
-            if dstsize < 0 or dstsize > 4294967295:
-                # arbitrary 4 GB limit
+            if dstsize < 0 or dstsize > 2147483647:
+                # arbitrary 2 GB limit
                 raise LzfseError(f'lzfse_decoded_size {dstsize} out of bound')
         out = _create_output(outtype, dstsize)
 
