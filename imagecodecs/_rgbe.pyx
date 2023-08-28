@@ -100,7 +100,7 @@ def rgbe_encode(
         # rgbe_header_info info
 
     if not (
-        srcsize < 2147483648
+        srcsize <= 2147483647
         and src.dtype.char == 'f'
         and src.ndim > 0
         and src.shape[src.ndim - 1] == 3
@@ -219,7 +219,7 @@ def rgbe_decode(
             arr.ndim > 0
             and arr.shape[arr.ndim - 1] == 4
             and arr.dtype.char == 'B'
-            and arr.nbytes < 2147483648
+            and arr.nbytes <= 2147483647
         ):
             raise ValueError('data must be a uint8 RGBE image array')
         out = _create_array(
@@ -275,7 +275,7 @@ def rgbe_decode(
             isinstance(out, numpy.ndarray)
             and out.ndim == 3
             and out.shape[2] == 3
-            and out.nbytes < 2147483648
+            and out.nbytes <= 2147483647
             and out.dtype.char == 'f'
             and out.flags['C_CONTIGUOUS']
         ):
