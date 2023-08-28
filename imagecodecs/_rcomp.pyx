@@ -95,7 +95,7 @@ def rcomp_encode(data, nblock=None, out=None):
         int ret = 0
 
     if not (
-        srcsize < 2147483648
+        srcsize <= 2147483647
         and dtype.kind in {b'i', b'u'}
         and dtype.itemsize in {1, 2, 4}
     ):
