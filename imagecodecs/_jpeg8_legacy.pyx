@@ -144,7 +144,7 @@ def jpeg8_encode(
     if not (
         src.dtype == numpy.uint8
         and src.ndim in {2, 3}
-        # src.nbytes < 2147483648 and  # limit to 2 GB
+        # src.nbytes <= 2147483647 and  # limit to 2 GB
         and samples in {1, 3, 4}
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
@@ -300,7 +300,7 @@ def jpeg8_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 4294967296:
+    if srcsize > 4294967296U:
         # limit to 4 GB
         raise ValueError('data too large')
 
