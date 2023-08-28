@@ -788,7 +788,6 @@ cdef extern from 'libheif/heif.h':
         heif_progress_step_total
         heif_progress_step_load_tile
 
-
     enum heif_chroma_downsampling_algorithm:
         heif_chroma_downsampling_nearest_neighbor
         heif_chroma_downsampling_average
