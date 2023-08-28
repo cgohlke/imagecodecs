@@ -71,6 +71,7 @@ class SzipError(RuntimeError):
             SZ_NO_ENCODER_ERROR: 'SZ_NO_ENCODER_ERROR',
             SZ_PARAM_ERROR: 'SZ_PARAM_ERROR',
             SZ_MEM_ERROR: 'SZ_MEM_ERROR',
+            # AEC_RSI_OFFSETS_ERROR: 'AEC_RSI_OFFSETS_ERROR',
             -2: 'AEC_STREAM_ERROR',
             -3: 'AEC_DATA_ERROR',
         }.get(err, f'unknown error {err!r}')
@@ -80,7 +81,7 @@ class SzipError(RuntimeError):
 
 def szip_version():
     """Return libaec library version string."""
-    # TODO: use version from header when available
+    # f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
     return 'libaec 1.0.x'
 
 
