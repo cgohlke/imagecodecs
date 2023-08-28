@@ -178,8 +178,8 @@ def apng_encode(
 
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
-        and height < 2147483648
-        and width < 2147483648
+        and height <= 2147483647
+        and width <= 2147483647
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
