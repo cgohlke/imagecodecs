@@ -134,7 +134,7 @@ def jetraw_encode(
 
     if not (
         src.ndim == 2
-        and srcsize < 2147483648
+        and srcsize <= 2147483647
         and src.dtype == numpy.uint16
     ):
         raise ValueError('invalid data shape or dtype')
@@ -151,7 +151,7 @@ def jetraw_encode(
 
     dst = out
     dstsize = dst.size
-    if dstsize >= 2147483648:
+    if dstsize > 2147483647:
         raise RuntimeError('output too large')
     pdstlen = <int32_t> dstsize
 
