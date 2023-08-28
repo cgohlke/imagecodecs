@@ -88,8 +88,8 @@ def qoi_encode(data, out=None):
     if not (
         src.dtype == numpy.uint8
         and src.ndim == 3
-        and src.shape[0] < 2147483648
-        and src.shape[1] < 2147483648
+        and src.shape[0] <= 2147483647
+        and src.shape[1] <= 2147483647
         and (samples == 3 or samples == 4)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
