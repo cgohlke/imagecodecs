@@ -151,10 +151,10 @@ def heif_encode(
         src.dtype in {numpy.uint8, numpy.uint16}
         # and numpy.PyArray_ISCONTIGUOUS(src)
         and src.ndim in {2, 3, 4}
-        and src.shape[0] < 4294967296
-        and src.shape[1] < 4294967296
-        and src.shape[src.ndim - 1] < 4294967296
-        and src.shape[src.ndim - 2] < 4294967296
+        and src.shape[0] <= 2147483647
+        and src.shape[1] <= 2147483647
+        and src.shape[src.ndim - 1] <= 2147483647
+        and src.shape[src.ndim - 2] <= 2147483647
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
