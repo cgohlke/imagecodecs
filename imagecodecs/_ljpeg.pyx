@@ -102,7 +102,7 @@ def ljpeg_encode(
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
         and samples == 1  # {1, 3, 4}  RGB does not work correctly
-        and src.shape[0] * src.shape[1] < 2147483648
+        and src.shape[0] * src.shape[1] <= 2147483647
         # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
         raise ValueError('invalid data shape or dtype')
@@ -192,7 +192,7 @@ def ljpeg_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 2147483648:
+    if srcsize > 2147483647:
         raise ValueError('data too large')
 
     if linearize is not None:
