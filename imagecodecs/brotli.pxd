@@ -1,7 +1,7 @@
 # imagecodecs/brotli.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Brotli 1.0.7` library.
+# Cython declarations for the `Brotli 1.1.0` library.
 # https://github.com/google/brotli
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -46,6 +46,16 @@ cdef extern from 'brotli/decode.h':
         BrotliDecoderState* state,
         BrotliDecoderParameter param,
         uint32_t value
+    ) nogil
+
+    ctypedef struct BrotliSharedDictionaryType:
+        pass
+
+    BROTLI_BOOL BrotliDecoderAttachDictionary(
+        BrotliDecoderState* state,
+        BrotliSharedDictionaryType type_,
+        size_t data_size,
+        const uint8_t *data
     ) nogil
 
     BrotliDecoderState* BrotliDecoderCreateInstance(
@@ -100,6 +110,23 @@ cdef extern from 'brotli/decode.h':
     ) nogil
 
     uint32_t BrotliDecoderVersion() nogil
+
+    ctypedef void (*brotli_decoder_metadata_start_func)(
+        void* opaque,
+        size_t size
+    ) nogil
+
+    ctypedef void (*brotli_decoder_metadata_chunk_func)(
+        void* opaque,
+        const uint8_t* data,
+        size_t size
+    ) nogil
+
+    void BrotliDecoderSetMetadataCallbacks(
+        BrotliDecoderState* state,
+        brotli_decoder_metadata_start_func start_func,
+        brotli_decoder_metadata_chunk_func chunk_func, void* opaque
+    ) nogil
 
 
 cdef extern from 'brotli/encode.h':
@@ -157,6 +184,28 @@ cdef extern from 'brotli/encode.h':
         BrotliEncoderState* state
     ) nogil
 
+    ctypedef struct BrotliEncoderPreparedDictionary:
+        pass
+
+    BrotliEncoderPreparedDictionary* BrotliEncoderPrepareDictionary(
+        BrotliSharedDictionaryType type_,
+        size_t data_size,
+        const uint8_t* data,
+        int quality,
+        brotli_alloc_func alloc_func,
+        brotli_free_func free_func,
+        void* opaque
+    ) nogil
+
+    void BrotliEncoderDestroyPreparedDictionary(
+        BrotliEncoderPreparedDictionary* dictionary
+    ) nogil
+
+    BROTLI_BOOL BrotliEncoderAttachPreparedDictionary(
+        BrotliEncoderState* state,
+        const BrotliEncoderPreparedDictionary* dictionary
+    ) nogil
+
     size_t BrotliEncoderMaxCompressedSize(
         size_t input_size
     ) nogil
@@ -192,6 +241,16 @@ cdef extern from 'brotli/encode.h':
     const uint8_t* BrotliEncoderTakeOutput(
         BrotliEncoderState* state,
         size_t* size
+    ) nogil
+
+    size_t BrotliEncoderEstimatePeakMemoryUsage(
+        int quality,
+        int lgwin,
+        size_t input_size
+    ) nogil
+
+    size_t BrotliEncoderGetPreparedDictionarySize(
+        const BrotliEncoderPreparedDictionary* dictionary
     ) nogil
 
     uint32_t BrotliEncoderVersion(
