@@ -5,16 +5,17 @@
 
 """Imagecodecs package command line script."""
 
+from __future__ import annotations
+
 import sys
 
 from matplotlib.pyplot import show
-
-from tifffile import imshow, askopenfilename, Timer
+from tifffile import Timer, askopenfilename, imshow
 
 from .imagecodecs import imread
 
 
-def main(argv=None, verbose=True, codec=None):
+def main(argv=None, verbose: bool = True) -> int:
     """Imagecodecs command line usage main function."""
     if argv is None:
         argv = sys.argv
@@ -30,6 +31,7 @@ def main(argv=None, verbose=True, codec=None):
         print('Usage: imagecodecs filename')
         return -1
 
+    message = ''
     timer = Timer()
     try:
         timer.start('Reading image')
