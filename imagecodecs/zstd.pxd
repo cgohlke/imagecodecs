@@ -609,7 +609,8 @@ cdef extern from 'zstd.h':
         void* dst,
         size_t dstCapacity,
         unsigned* magicVariant,
-        const void* src, size_t srcSize
+        const void* src,
+        size_t srcSize
     ) nogil
 
     unsigned ZSTD_isSkippableFrame(
