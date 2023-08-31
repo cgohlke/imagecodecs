@@ -1,7 +1,7 @@
 # imagecodecs/zlib.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zlib 1.2.13` library.
+# Cython declarations for the `zlib 1.3` library.
 # https://github.com/madler/zlib
 
 cdef extern from 'zlib.h':
