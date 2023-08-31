@@ -341,8 +341,7 @@ cdef extern from 'spng.h':
         int pass_
         uint8_t filter
 
-    ctypedef struct spng_ctx:
-        pass
+    ctypedef struct spng_ctx
 
     ctypedef int spng_read_fn(
         spng_ctx* ctx,
