@@ -196,6 +196,10 @@ EXTENSIONS = {
         include_dirs=['3rdparty/qoi'],
         define_macros=[('QOI_IMPLEMENTATION', 1)],
     ),
+    'quantize': ext(
+        sources=['3rdparty/netcdf-c/nc4var.c'],
+        include_dirs=['3rdparty/netcdf-c'],
+    ),
     'rgbe': ext(
         sources=['3rdparty/rgbe/rgbe.c', 'imagecodecs/imcd.c'],
         include_dirs=['3rdparty/rgbe'],
@@ -353,11 +357,6 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'lz4',
         'zstd_static',
     ]
-    EXTENSIONS['brotli']['libraries'] = [
-        'brotlienc-static',
-        'brotlidec-static',
-        'brotlicommon-static',
-    ]
     EXTENSIONS['lzma']['libraries'] = ['liblzma']
     EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
     EXTENSIONS['tiff']['define_macros'].extend(
@@ -382,9 +381,9 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'jxl-static',
         'jxl_dec-static',
         'jxl_threads-static',
-        'brotlienc-static',
-        'brotlidec-static',
-        'brotlicommon-static',
+        'brotlienc',
+        'brotlidec',
+        'brotlicommon',
         'hwy',
         # 'jxl_extras-static',
     ]
@@ -547,8 +546,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
-    # uncomment if building with libjpeg-turbo 3
-    # EXTENSIONS['jpeg8']['sources'] = []
+    EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
 
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         (
