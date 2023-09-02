@@ -295,12 +295,13 @@ class AVIF:
         YUV420: int
         YUV400: int
 
-    class QUANTIZER(enum.IntEnum):
-        """AVIF codec quantizers."""
+    class QUALITY(enum.IntEnum):
+        """AVIF codec quality."""
 
+        DEFAULT: int
         LOSSLESS: int
-        BEST_QUALITY: int
-        WORST_QUALITY: int
+        WORST: int
+        BEST: int
 
     class SPEED(enum.IntEnum):
         """AVIF codec speeds."""
@@ -327,6 +328,7 @@ class AVIF:
         LIBGAV1: int
         RAV1E: int
         SVT: int
+        AVM: int
 
 
 class AvifError(RuntimeError):
@@ -344,7 +346,7 @@ def avif_check(data: BytesLike, /) -> bool | None:
 def avif_encode(
     data: ArrayLike,
     /,
-    level: AVIF.QUANTIZER | int | None = None,
+    level: AVIF.QUALITY | int | None = None,
     *,
     speed: AVIF.SPEED | int | None = None,
     tilelog2: tuple[int, int] | None = None,
@@ -362,6 +364,7 @@ def avif_decode(
     /,
     index: int | None = None,
     *,
+    numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded AVIF image."""
@@ -2036,6 +2039,48 @@ def lz4f_decode(
     """Return decoded LZ4F data."""
 
 
+class LZ4H5:
+    """LZ4H5 codec constants."""
+
+    available: bool
+    """LZ4H5 codec is available."""
+
+    CLEVEL: LZ4.CLEVEL
+    """LZ4 codec compression levels."""
+
+
+class Lz4h5Error(RuntimeError):
+    """LZ4H5 codec exceptions."""
+
+
+def lz4h5_version() -> str:
+    """Return LZ4 library version string."""
+
+
+def lz4h5_check(data: BytesLike, /) -> bool | None:
+    """Return whether data is LZ4H5 encoded."""
+
+
+def lz4h5_encode(
+    data: BytesLike,
+    /,
+    level: int | None = None,
+    blocksize: int | None = None,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return LZ4H5 encoded data."""
+
+
+def lz4h5_decode(
+    data: BytesLike,
+    /,
+    *,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray:
+    """Return decoded LZ4H5 data."""
+
+
 class LZF:
     """LZF codec constants."""
 
@@ -2622,6 +2667,55 @@ def qoi_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded QOI image."""
+
+
+class QUANTIZE:
+    """Quantize codec constants."""
+
+    available: bool
+    """Quantize codec is available."""
+
+    class MODE(enum.IntEnum):
+        """Quantize mode."""
+
+        NOQUANTIZE: int
+        BITGROOM: int
+        GRANULARBR: int
+        BITROUND: int
+        SCALE: int
+
+
+class QuantizeError(RuntimeError):
+    """Quantize codec exceptions."""
+
+
+def quantize_version() -> str:
+    """Return nc4var library version string."""
+
+
+def quantize_encode(
+    data: NDArray[Any],
+    /,
+    mode: QUANTIZE.MODE
+    | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale'],
+    nsd: int,
+    *,
+    out: NDArray[Any] | None = None,
+):
+    """Return quantized floating point array."""
+    return None
+
+
+def quantize_decode(
+    data: NDArray[Any],
+    /,
+    mode: QUANTIZE.MODE
+    | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale'],
+    nsd: int,
+    *,
+    out: NDArray[Any] | None = None,
+):
+    """Return data if lossless else raise QuantizeError."""
 
 
 class RCOMP:
