@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.10.0` library.
+# Cython declarations for the `c-blosc2 2.10.2` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
