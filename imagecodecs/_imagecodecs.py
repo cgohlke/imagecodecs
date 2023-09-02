@@ -38,8 +38,7 @@ The module is intended for testing and reference, not production code.
 """
 
 from __future__ import annotations
-
-from . import __version__
+from .imagecodecs import __version__
 
 import bz2
 import functools
@@ -824,7 +823,7 @@ def lzfse_decode(data, out=None):
 @notimplemented(lzham)
 def lzham_encode(data, level=None, out=None):
     """Compress LZHAM."""
-    return lzham.compress(data, level=level)
+    return lzham.compress(data)
 
 
 @notimplemented(lzham)
