@@ -36,20 +36,20 @@ transformation, compression, and decompression functions for use in Tifffile,
 Czifile, Zarr, kerchunk, and other scientific image input/output packages.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
-ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZW,
-LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, SZIP, LERC,
-EER, NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8-bit, JPEG 12-bit,
+ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZ4H5,
+LZW, LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, SZIP,
+LERC, EER, NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8 and 12-bit,
 Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K), JPEG LS, JPEG XL,
 JPEG XR (WDP, HD Photo), MOZJPEG, AVIF, HEIF, RGBE (HDR), Jetraw, PackBits,
 Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
-Byteshuffle, Bitshuffle, CMS (color space transformations), and Float24
-(24-bit floating point).
+Byteshuffle, Bitshuffle, Quantize (Scale, BitGroom, BitRound, GranularBR),
+Float24 (24-bit floating point), and CMS (color space transformations).
 Checksum functions are implemented for crc32, adler32, fletcher32, and
 Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.8.12
+:Version: 2023.9.4
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -86,11 +86,11 @@ This revision was tested with the following requirements and dependencies
 Build requirements:
 
 - `Cython <https://github.com/cython/cython>`_ 0.29.36
-- `brotli <https://github.com/google/brotli>`_ 1.0.9
+- `brotli <https://github.com/google/brotli>`_ 1.1.0
 - `brunsli <https://github.com/google/brunsli>`_ 0.1
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
-- `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.4
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.1
+- `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.5
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.2
 - `charls <https://github.com/team-charls/charls>`_ 2.4.2
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.1
 - `jetraw <https://github.com/Jetraw/Jetraw>`_ 22.02.16.1
@@ -98,11 +98,11 @@ Build requirements:
 - `lcms <https://github.com/mm2/Little-CMS>`_ 2.15
 - `lerc <https://github.com/Esri/lerc>`_ 4.0.0
 - `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.0.6
-- `libavif <https://github.com/AOMediaCodec/libavif>`_ 0.11.1
-  (`aom <https://aomedia.googlesource.com/aom>`_ 3.6.1,
+- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.0.1
+  (`aom <https://aomedia.googlesource.com/aom>`_ 3.7.0,
   `dav1d <https://github.com/videolan/dav1d>`_ 1.2.1,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.6.6,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.6.0)
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.7.0)
 - `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.18
 - `libheif <https://github.com/strukturag/libheif>`_ 1.16.2
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.12,
@@ -139,15 +139,17 @@ Vendored requirements:
   <https://bitbucket.org/baldand/mlrawviewer/src/master/liblj92/>`_ modified
 - `liblzf <http://oldhome.schmorp.de/marc/liblzf.html>`_ 3.6
 - `libspng <https://github.com/randy408/libspng>`_ 0.7.4
+- `nc4var.c <https://github.com/Unidata/netcdf-c/blob/main/libsrc4/nc4var.c>`_
+  modified
 - `pg_lzcompress.c <https://github.com/postgres/postgres>`_ modified
 - `qoi.h <https://github.com/phoboslab/qoi/>`_ 36190eb
 - `rgbe.c <https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c>`_ modified
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.7.18
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.8.30
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
-- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.16.0
+- `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.16.1
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
 - `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.6
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.0.9
@@ -161,14 +163,23 @@ Test requirements:
 Revisions
 ---------
 
+2023.9.4
+
+- Pass 7110 tests.
+- Map avif_encode level parameter to quality (breaking).
+- Support monochrome images in avif_encode.
+- Add numthreads parameter to avif_decode (fix imread of AVIF).
+- Add experimental quantize filter (BitGroom, BitRound, GBR) via nc4var.c.
+- Add LZ4H5 codec.
+- Support more BCn compressed DDS fourcc types.
+- Require libavif 1.0.
+
 2023.8.12
 
-- Pass 6929 tests.
 - Add EER (Electron Event Representation) decoder.
 - Add option to pass initial value to crc32 and adler32 checksum functions.
 - Add fletcher32 and lookup3 checksum functions via HDF5's h5checksum.c.
 - Add Checksum codec for numcodecs.
-- Add py.typed marker.
 
 2023.7.10
 
@@ -215,7 +226,6 @@ Revisions
 
 2022.12.24
 
-- Pass 6512 tests.
 - Fix PNG codec error handling.
 - Fix truncated transferfunctions in cms_profile (#57).
 - Fix exceptions not raised in cdef functions not returning Python object.
@@ -311,6 +321,11 @@ Python <= 3.8 is no longer supported. 32-bit versions are deprecated.
 
 Works on little-endian platforms only.
 
+Supported platforms are ``win_amd64``, ``win_arm64``, ``win32``,
+``macosx_x86_64``, ``macosx_arm64``, and ``manylinux_x86_64``.
+
+Wheels may not be available for all platforms and all releases.
+
 Only the ``win_amd64`` wheels include all features.
 
 The ``tiff``, ``bcn``, ``dds``, ``eer``, ``packints``, and ``jpegsof3`` codecs
@@ -326,11 +341,6 @@ is required on Windows.
 Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
-
-Wheels for macOS may not be available for all releases.
-
-Build instructions for manylinux and macOS courtesy of
-`Grzegorz Bokota <https://github.com/Czaki/imagecodecs_build>`_.
 
 Update pip and setuptools to the latest version before installing imagecodecs::
 
@@ -408,7 +418,8 @@ Other Python packages and C libraries providing imaging or compression codecs:
 `OpenJPH <https://github.com/aous72/OpenJPH>`_,
 `SPERR <https://github.com/NCAR/SPERR>`_ (GPL),
 `MAFISC
-<https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_.
+<https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_,
+`B3D <https://github.com/balintbalazs/B3D>`_.
 
 Examples
 --------
@@ -522,16 +533,13 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2023.8.12'
+__version__ = '2023.9.4'
 
+import importlib
+import io
 import os
 import sys
-import io
-import importlib
 import threading
-
-import numpy
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -541,6 +549,8 @@ if TYPE_CHECKING:
     from typing import Any, BinaryIO
 
     from numpy.typing import ArrayLike, NDArray
+
+import numpy
 
 # map extension module names to attribute names
 _MODULES: dict[str, list[str]] = {
@@ -854,6 +864,12 @@ _MODULES: dict[str, list[str]] = {
         'lz4_decode',
         'lz4_check',
         'lz4_version',
+        'LZ4H5',
+        'Lz4h5Error',
+        'lz4h5_encode',
+        'lz4h5_decode',
+        'lz4h5_check',
+        'lz4h5_version',
     ],
     '_lz4f': [
         'LZ4F',
@@ -911,6 +927,14 @@ _MODULES: dict[str, list[str]] = {
         'pglz_check',
         'pglz_version',
     ],
+    '_png': [
+        'PNG',
+        'PngError',
+        'png_encode',
+        'png_decode',
+        'png_check',
+        'png_version',
+    ],
     '_qoi': [
         'QOI',
         'QoiError',
@@ -919,13 +943,13 @@ _MODULES: dict[str, list[str]] = {
         'qoi_check',
         'qoi_version',
     ],
-    '_png': [
-        'PNG',
-        'PngError',
-        'png_encode',
-        'png_decode',
-        'png_check',
-        'png_version',
+    '_quantize': [
+        'QUANTIZE',
+        'QuantizeError',
+        'quantize_encode',
+        'quantize_decode',
+        'quantize_check',
+        'quantize_version',
     ],
     '_rgbe': [
         'RGBE',
@@ -1222,6 +1246,8 @@ def _stub(name: str, module: ModuleType | None, /) -> Any:
         return StubError
 
     class StubType(type):
+        """Stub type metaclass."""
+
         def __getattr__(cls, arg: str, /) -> Any:
             raise DelayedImportError(name)
 
