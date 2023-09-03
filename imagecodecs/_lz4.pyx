@@ -37,7 +37,7 @@
 
 """LZ4 codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -80,7 +80,7 @@ def lz4_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        int srcsize = src.size
+        int srcsize = <int> src.size
         int dstsize
         int offset = 4 if header else 0
         int ret
@@ -107,7 +107,7 @@ def lz4_encode(
     dst = out
     dstsize = <int> dst.size - offset
 
-    if dst.size >= 2147483648:
+    if dst.size > 2147483647:
         raise ValueError('output too large')
 
     if hc:
@@ -162,7 +162,7 @@ def lz4_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size >= 2147483648:
+    if src.size > 2147483647:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -183,7 +183,7 @@ def lz4_decode(data, header=False, out=None):
     dst = out
     dstsize = <int> dst.size
 
-    if dst.size >= 2147483648:
+    if dst.size > 2147483647:
         raise ValueError('output too large')
 
     with nogil:
@@ -198,3 +198,219 @@ def lz4_decode(data, header=False, out=None):
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
+###############################################################################
+
+# LZ4H5 implements H5Z_FILTER_LZ4
+# https://support.hdfgroup.org/services/filters/HDF5_LZ4.pdf
+#
+# file header: orisize: >i8,  blksize: >i4
+# block: lz4size: >i4, data: bytes(lz4size)
+
+class LZ4H5:
+    """LZ4H5 codec constants."""
+
+    available = True
+
+    CLEVEL = LZ4.CLEVEL
+
+
+class Lz4h5Error(RuntimeError):
+    """LZ4H5 codec exceptions."""
+
+
+lz4h5_version = lz4_version
+
+
+def lz4h5_check(data):
+    """Return whether data is likely LZ4H5 encoded."""
+    if len(data) < 12:
+        return False
+    return None
+
+
+def lz4h5_encode(
+    data, level=None, blocksize=None, out=None
+):
+    """Return LZ4H5 encoded data."""
+    cdef:
+        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t dstpos = 12
+        ssize_t srcpos = 0
+        ssize_t nblocks
+        ssize_t blksize
+        int lz4size
+        int acceleration = _default_value(level, 1, 1, 65537)
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if blocksize is None:
+        blksize = <ssize_t> 1073741823
+    elif blocksize < 1 or blocksize > LZ4_MAX_INPUT_SIZE:
+        raise ValueError('invalid block size {blocksize}')
+    else:
+        blksize = blocksize
+
+    nblocks = (srcsize - 1) // blksize + 1
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = LZ4_compressBound(<int> blksize)
+            if dstsize < 0:
+                raise Lz4h5Error(f'LZ4_compressBound returned {dstsize}')
+            dstsize = nblocks * dstsize + nblocks * 4 + 12
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+    if dstsize < nblocks * 4 + 12:
+        raise Lz4h5Error(f'output too small {dstsize} < {nblocks}*4+12')
+
+    with nogil:
+        write_i8be(<uint8_t*> &dst[0], <uint64_t> srcsize)
+        write_i4be(<uint8_t*> &dst[8], <uint32_t> blksize)
+
+        if srcsize == 0:
+            write_i4be(<uint8_t*> &dst[dstpos], <uint32_t> 0)
+            dstpos += 4
+
+        while srcpos < srcsize and dstpos < dstsize:
+            dstpos += 4
+            blksize = min(blksize, srcsize - srcpos)
+            lz4size = LZ4_compress_fast(
+                <const char*> &src[srcpos],
+                <char*> &dst[dstpos],
+                <int> blksize,
+                <int> (dstsize - dstpos),
+                acceleration
+            )
+            if lz4size <= 0:
+                raise Lz4h5Error(f'LZ4_compress_fast returned {lz4size}')
+
+            write_i4be(<uint8_t*> &dst[dstpos - 4], <uint32_t> lz4size)
+            srcpos += blksize
+            dstpos += lz4size
+
+    del dst
+    return _return_output(out, dstsize, dstpos, outgiven)
+
+
+def lz4h5_decode(data, out=None):
+    """Return decoded LZ4H5 data."""
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t dstsize
+        ssize_t orisize
+        ssize_t srcpos = 12
+        ssize_t dstpos = 0
+        int lz4size
+        int blksize
+        int ret
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    if src.size < 16:
+        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 16')
+
+    orisize = <ssize_t> read_i8be(&src[0])
+    blksize = <int> read_i4be(&src[8])
+
+    if orisize < 0 or blksize < 0 or blksize > LZ4_MAX_INPUT_SIZE:
+        raise Lz4h5Error('invalid values in LZ4H5 header')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = orisize
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    if dstsize < orisize:
+        raise Lz4h5Error(
+            f'output size does not match header {dstsize} != {orisize}'
+        )
+
+    with nogil:
+        while srcpos < srcsize and dstpos < dstsize:
+            lz4size = <int> read_i4be(&src[srcpos])
+            srcpos += 4
+
+            if lz4size == 0:
+                break
+            if lz4size < 0 or srcpos + lz4size > srcsize:
+                raise Lz4h5Error(
+                    f'invalid block size {lz4size} @{srcpos} of {srcsize}'
+                )
+
+            blksize = min(<int64_t> blksize, <int64_t> (dstsize - dstpos))
+
+            ret = LZ4_decompress_safe(
+                <char*> &src[srcpos],
+                <char*> &dst[dstpos],
+                lz4size,
+                blksize
+            )
+            if ret < 0:
+                raise Lz4h5Error(f'LZ4_decompress_safe returned {ret}')
+
+            srcpos += lz4size
+            dstpos += ret
+
+    del dst
+    return _return_output(out, dstsize, dstpos, outgiven)
+
+
+cdef inline uint32_t read_i4be(const uint8_t* psrc) nogil:
+    # read >i4 to value
+    return (
+        ((<uint32_t> psrc[0]) << 24) |
+        ((<uint32_t> psrc[1]) << 16) |
+        ((<uint32_t> psrc[2]) << 8) |
+        (<uint32_t> psrc[3])
+    )
+
+
+cdef inline uint64_t read_i8be(const uint8_t* psrc) nogil:
+    # read >i8 to value
+    return (
+        ((<uint64_t> psrc[0]) << 56) |
+        ((<uint64_t> psrc[1]) << 48) |
+        ((<uint64_t> psrc[2]) << 40) |
+        ((<uint64_t> psrc[3]) << 32) |
+        ((<uint64_t> psrc[4]) << 24) |
+        ((<uint64_t> psrc[5]) << 16) |
+        ((<uint64_t> psrc[6]) << 8) |
+        (<uint64_t> psrc[7])
+    )
+
+
+cdef inline void write_i4be(uint8_t* pdst, uint32_t value) nogil:
+    # write >i4 to pdst
+    pdst[0] = (value >> 24) & 255
+    pdst[1] = (value >> 16) & 255
+    pdst[2] = (value >> 8) & 255
+    pdst[3] = value & 255
+
+
+cdef inline void write_i8be(uint8_t* pdst, uint64_t value) nogil:
+    # write >i8 to pdst
+    pdst[0] = (value >> 56) & 255
+    pdst[1] = (value >> 48) & 255
+    pdst[2] = (value >> 40) & 255
+    pdst[3] = (value >> 32) & 255
+    pdst[4] = (value >> 24) & 255
+    pdst[5] = (value >> 16) & 255
+    pdst[6] = (value >> 8) & 255
+    pdst[7] = value & 255
