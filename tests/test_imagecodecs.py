@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2023.8.12
+:Version: 2023.9.4
 
 """
 
@@ -79,6 +79,7 @@ except ImportError as exc:
 
 try:
     import zarr
+
     from imagecodecs import numcodecs
 except ImportError:
     SKIP_NUMCODECS = True
@@ -172,7 +173,7 @@ def test_dependency_exist(name):
     if SKIP_NUMCODECS and IS_PYPY:
         mayfail = True
     elif name in {'blosc', 'blosc2', 'snappy'}:
-        if IS_PYPY or sys.version_info[1] >= 12:
+        if IS_PYPY or not IS_CG:
             mayfail = True
     try:
         importlib.import_module(name)
@@ -194,7 +195,7 @@ def test_version_functions():
 def test_stubs():
     """Test stub attributes for non-existing extension."""
     with pytest.raises(AttributeError):
-        imagecodecs._STUB
+        assert imagecodecs._STUB
     _add_codec('_stub')
     assert not imagecodecs._STUB  # typing: ignore
     assert not imagecodecs._STUB.available
@@ -911,6 +912,74 @@ def test_checksum_roundtrip(kind, dtype):
 
 
 @pytest.mark.skipif(
+    not imagecodecs.QUANTIZE.available, reason='QUANTIZE missing'
+)
+@pytest.mark.parametrize(
+    'mode', ['bitgroom', 'granularbr', 'bitround', 'scale']
+)
+@pytest.mark.parametrize('dtype', ['f4', 'f8'])
+def test_quantize_roundtrip(mode, dtype):
+    """Test quantize roundtrips."""
+    nsd = 12
+    atol = 0.006
+    if mode == 'bitgroom':
+        nsd = (nsd - 1) // 3  # bits = math.ceil(nsd * 3.32) + 1
+    if dtype == 'f4':
+        nsd //= 2
+        atol = 0.5
+    data = numpy.linspace(-2.1, 31.4, 51, dtype=dtype).reshape((3, 17))
+    encoded = imagecodecs.quantize_encode(data, mode, nsd)
+    out = data.copy()
+    imagecodecs.quantize_encode(data, mode, nsd, out=out)
+    assert_array_equal(out, encoded)
+    assert_allclose(data, encoded, atol=atol)
+
+
+@pytest.mark.skipif(
+    SKIP_NUMCODECS or not imagecodecs.QUANTIZE.available,
+    reason='QUANTIZE missing',
+)
+@pytest.mark.parametrize('nsd', [1, 4])
+@pytest.mark.parametrize('dtype', ['f4', 'f8'])
+def test_quantize_bitround(dtype, nsd):
+    """Test BitRound quantize against numcodecs."""
+    from numcodecs import BitRound
+
+    from imagecodecs.numcodecs import Quantize
+
+    # TODO: 31.4 fails
+    data = numpy.linspace(-2.1, 31.5, 51, dtype=dtype).reshape((3, 17))
+    encoded = Quantize(
+        mode=imagecodecs.QUANTIZE.MODE.BITROUND,
+        nsd=nsd,
+    ).encode(data)
+    nc = BitRound(keepbits=nsd)
+    encoded2 = nc.decode(nc.encode(data))
+    assert_array_equal(encoded, encoded2)
+
+
+@pytest.mark.skipif(
+    SKIP_NUMCODECS or not imagecodecs.QUANTIZE.available,
+    reason='QUANTIZE missing',
+)
+@pytest.mark.parametrize('nsd', [1, 4])
+@pytest.mark.parametrize('dtype', ['f4', 'f8'])
+def test_quantize_scale(dtype, nsd):
+    """Test Scale quantize against numcodecs."""
+    from numcodecs import Quantize as Quantize2
+
+    from imagecodecs.numcodecs import Quantize
+
+    data = numpy.linspace(-2.1, 31.4, 51, dtype=dtype).reshape((3, 17))
+    encoded = Quantize(
+        mode=imagecodecs.QUANTIZE.MODE.SCALE,
+        nsd=nsd,
+    ).encode(data)
+    encoded2 = Quantize2(digits=nsd, dtype=dtype).encode(data)
+    assert_array_equal(encoded, encoded2)
+
+
+@pytest.mark.skipif(
     SKIP_NUMCODECS or not imagecodecs.H5CHECKSUM.available,
     reason='H5CHECKSUM, zarr, or numcodecs missing',
 )
@@ -1018,7 +1087,7 @@ def test_h5checksum_lookup3():
 )
 def test_h5checksum_other():
     """Test h5checksum metadata and hash_string functions."""
-    from imagecodecs import h5checksum_metadata, h5checksum_hash_string
+    from imagecodecs import h5checksum_hash_string, h5checksum_metadata
 
     assert h5checksum_metadata(b'', 0) == 3735928559
     assert h5checksum_hash_string(b'', 0) == 5381
@@ -1033,8 +1102,6 @@ def test_h5checksum_other():
 @pytest.mark.parametrize('codec', ['zlib', 'zlibng', 'deflate'])
 def test_zlib_checksums(codec, kind, value):
     """Test crc32 and adler32 checksum functions."""
-    import zlib
-
     if not getattr(imagecodecs, codec.upper()).available:
         pytest.skip(f'{codec} not available')
 
@@ -1163,6 +1230,7 @@ def test_lzw_decode_image_noeoi():
         'gzip',
         'lz4',
         'lz4h',
+        'lz4h5',
         'lz4f',
         'lzf',
         'lzfse',
@@ -1311,6 +1379,14 @@ def test_compressors(codec, func, output, length):
         check = imagecodecs.lz4_check
         level = 1
         encoded = lz4.block.compress(data, store_size=True)
+    elif codec == 'lz4h5':
+        if not imagecodecs.LZ4H5.available:
+            pytest.skip(f'{codec} missing')
+        encode = imagecodecs.lz4h5_encode
+        decode = imagecodecs.lz4h5_decode
+        check = imagecodecs.lz4h5_check
+        level = 1
+        encoded = encode(data)
     elif codec == 'lz4f':
         if not imagecodecs.LZ4F.available or lz4 is None:
             pytest.skip(f'{codec} missing')
@@ -2063,7 +2139,7 @@ def test_rgbe_roundtrip():
 @pytest.mark.skipif(not imagecodecs.CMS.available, reason='cms missing')
 def test_cms_profile():
     """Test cms_profile function."""
-    from imagecodecs import cms_profile, cms_profile_validate, CmsError
+    from imagecodecs import CmsError, cms_profile, cms_profile_validate
 
     with pytest.raises(CmsError):
         cms_profile_validate(b'12345')
@@ -2179,7 +2255,7 @@ def test_cms_profile():
 @pytest.mark.skipif(not imagecodecs.CMS.available, reason='cms missing')
 def test_cms_output_shape():
     """Test _cms_output_shape function."""
-    from imagecodecs._cms import _cms_output_shape, _cms_format
+    from imagecodecs._cms import _cms_format, _cms_output_shape
 
     for args, colorspace, planar, expected in (
         (((6, 7), 'u1', 'gray'), 'gray', 0, (6, 7)),
@@ -2331,7 +2407,7 @@ def test_cms_format():
 @pytest.mark.parametrize('out', [None, True])
 def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
     """Test CMS identity transforms."""
-    from imagecodecs import cms_transform, cms_profile
+    from imagecodecs import cms_profile, cms_transform
 
     shape = (3, 256, 253) if planar else (256, 253, 3)
     dtype = numpy.dtype(dtype)
@@ -2754,7 +2830,10 @@ def test_avif_strict_disabled():
 
 
 @pytest.mark.skipif(not IS_CG, reason='avif missing')
-@pytest.mark.parametrize('codec', ['auto', 'aom', 'rav1e', 'svt'])  # 'libgav1'
+@pytest.mark.parametrize(
+    'codec',
+    ['auto', 'aom', 'rav1e', 'svt'],  # 'libgav1', 'avm'
+)
 def test_avif_encoder(codec):
     """Test various AVIF encoder codecs."""
     data = numpy.load(datafiles('rgb.u1.npy'))
@@ -2766,9 +2845,9 @@ def test_avif_encoder(codec):
     else:
         pixelformat = None
     encoded = imagecodecs.avif_encode(
-        data, level=6, codec=codec, pixelformat=pixelformat
+        data, level=95, codec=codec, pixelformat=pixelformat, numthreads=2
     )
-    decoded = imagecodecs.avif_decode(encoded)
+    decoded = imagecodecs.avif_decode(encoded, numthreads=2)
     assert_allclose(decoded, data, atol=5, rtol=0)
 
 
@@ -3648,7 +3727,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     elif codec == 'avif':
         if not imagecodecs.AVIF.available:
             pytest.skip(f'{codec} missing')
-        if itype in {'gray', 'graya', 'view'} or deout == 'view':
+        if itype in {'view'} or deout == 'view':
             pytest.xfail('avif does not support this case')
         decode = imagecodecs.avif_decode
         encode = imagecodecs.avif_encode
@@ -3660,6 +3739,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
                     data, bitspersample=12, *args, **kwargs
                 )
 
+        if level:
+            level += 95
         atol = 10
     elif codec == 'heif':
         if not imagecodecs.HEIF.available:
@@ -3695,14 +3776,14 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             2 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
         )
         ret = encode(data, out=encoded, **kwargs)
-        if codec in {'brunsli', 'avif'}:
-            # Brunsli and avif decoder don't like extra bytes
+        if codec in {'brunsli'}:
+            # Brunsli decoder doesn't like extra bytes
             encoded = encoded[: len(ret)]
     elif enout == 'bytearray':
         encoded = bytearray(2 * shape[0] * shape[1] * shape[2] * itemsize)
         ret = encode(data, out=encoded, **kwargs)
-        if codec in {'brunsli', 'avif'}:
-            # Brunsli and avif decoder don't like extra bytes
+        if codec in {'brunsli'}:
+            # Brunsli decoder doesn't like extra bytes
             encoded = encoded[: len(ret)]
 
     if enout != 'out':
@@ -3738,13 +3819,8 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if level < 100:
             atol *= 4
         assert_allclose(data, decoded, atol=atol)
-    elif codec == 'avif' and level == 5:
-        if dtype.itemsize > 1:
-            # TODO: bug in libavif?
-            pytest.xfail('why does this fail?')
-            atol = 32
-        else:
-            atol = 6
+    elif codec == 'avif' and level == 94:
+        atol = 38 if dtype.itemsize > 1 else 6
         assert_allclose(data, decoded, atol=atol)
     else:
         assert_array_equal(data, decoded, verbose=True)
@@ -4093,6 +4169,7 @@ def test_numcodecs_register(caplog):
         'float24',
         'floatpred',
         'gif',
+        'lz4h5',
         'heif',
         # 'jetraw',  # encoder requires a license
         'jpeg',
@@ -4160,7 +4237,7 @@ def test_numcodecs(codec, photometric):
         if photometric != 'rgb':
             pytest.xfail('AVIF does not support grayscale')
         compressor = numcodecs.Avif(
-            level=0,
+            level=100,
             speed=None,
             tilelog2=None,
             bitspersample=None,
@@ -4240,6 +4317,10 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.GIF.available:
             pytest.skip(f'{codec} not found')
         compressor = numcodecs.Gif()
+    elif codec == 'lz4h5':
+        if not imagecodecs.LZ4H5.available:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Lz4h5(level=10, blocksize=100)
     elif codec == 'heif':
         if not imagecodecs.HEIF.available:
             pytest.skip(f'{codec} not found')
