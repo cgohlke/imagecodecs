@@ -175,7 +175,9 @@ class Avif(Codec):
         )
 
     def decode(self, buf, out=None):
-        return imagecodecs.avif_decode(buf, index=self.index, out=out)
+        return imagecodecs.avif_decode(
+            buf, index=self.index, numthreads=self.numthreads, out=out
+        )
 
 
 class Bitorder(Codec):
@@ -1242,6 +1244,32 @@ class Lz4f(Codec):
         return imagecodecs.lz4f_decode(buf, out=_flat(out))
 
 
+class Lz4h5(Codec):
+    """LZ4H5 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_lz4h5'
+
+    def __init__(
+        self,
+        *,
+        level: int | None = None,
+        blocksize: int | None = None,
+    ) -> None:
+        if not imagecodecs.LZ4H5.available:
+            raise ValueError('imagecodecs.LZ4H5 not available')
+
+        self.level = level
+        self.blocksize = blocksize
+
+    def encode(self, buf):
+        return imagecodecs.lz4h5_encode(
+            buf, level=self.level, blocksize=self.blocksize
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.lz4h5_decode(buf, out=_flat(out))
+
+
 class Lzf(Codec):
     """LZF codec for numcodecs."""
 
@@ -1454,6 +1482,31 @@ class Qoi(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.qoi_decode(buf, out=out)
+
+
+class Quantize(Codec):
+    """Quantize codec for numcodecs."""
+
+    codec_id = 'imagecodecs_quantize'
+
+    def __init__(
+        self,
+        *,
+        mode: Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale'],
+        nsd: int,  # number of significant digits
+    ) -> None:
+        if not imagecodecs.QUANTIZE.available:
+            raise ValueError('imagecodecs.QUANTIZE not available')
+
+        self.nsd = nsd
+        self.mode = mode
+
+    def encode(self, buf):
+        return imagecodecs.quantize_encode(buf, self.mode, self.nsd)
+
+    def decode(self, buf, out=None):
+        return buf
+        # return imagecodecs.quantize_decode(buf, self.mode, self.nsd, out=out)
 
 
 class Rcomp(Codec):
