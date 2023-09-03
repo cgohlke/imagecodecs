@@ -37,7 +37,7 @@
 
 """BCN and DDS codecs for the imagecodecs package."""
 
-__version__ = '2023.7.4'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -96,10 +96,10 @@ def bcn_decode(data, format, shape=None, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if not 128 < srcsize < 2147483648:
+    if not 128 < srcsize <= 2147483647:
         raise ValueError(f'input size {srcsize} out of bounds')
 
-    if shape is None and isinstance(out, numpy.ndarray):
+    if shape is None and hasattr(out, 'shape'):
         shape = out.shape
     elif shape is None:
         #  TODO: calculate output size from data size
@@ -356,7 +356,7 @@ def dds_decode(data, mipmap=0, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if not 128 < srcsize < 2147483648:
+    if not 128 < srcsize <= 2147483647:
         raise ValueError(f'input size {srcsize} out of bounds')
 
     sig = bytes(src[:4])
@@ -429,6 +429,31 @@ def dds_decode(data, mipmap=0, out=None):
             textures = 6
             cubes = dx10_header.arraySize
 
+    if fourcc == 1429291842:  # BC1U
+        fourcc = DDS_FOURCC_DXT1
+    elif fourcc == 1429357378:  # BC2U
+        fourcc = DDS_FOURCC_DXT3
+    elif fourcc == 1429422914:  # BC3U
+        fourcc = DDS_FOURCC_DXT5
+    elif fourcc == 1429488450:  # BC4U
+        fourcc = DXGI_FORMAT_BC4_UNORM
+    elif fourcc == 826889281:  # ATI1
+        fourcc = DXGI_FORMAT_BC4_UNORM
+    elif fourcc == 1429553986:  # BC5U
+        fourcc = DXGI_FORMAT_BC5_UNORM
+    elif fourcc == 843666497:  # ATI2
+        fourcc = DXGI_FORMAT_BC5_UNORM
+    elif fourcc == 82:  # DXGI_FORMAT_BC5_TYPELESS
+        fourcc = DXGI_FORMAT_BC5_UNORM
+    elif fourcc == 97:  # DXGI_FORMAT_BC7_TYPELESS
+        fourcc = DXGI_FORMAT_BC7_UNORM
+    elif fourcc == 99:  # DXGI_FORMAT_BC7_UNORM_SRGB
+        fourcc = DXGI_FORMAT_BC7_UNORM
+    # elif fourcc == 1395934018:  # BC4S
+    #     fourcc = DXGI_FORMAT_BC4_SNORM
+    # elif fourcc == 1395999554:  # BC5S
+    #     fourcc = DXGI_FORMAT_BC5_SNORM
+
     if (
         fourcc == DDS_FOURCC_DXT1
         or fourcc == DDS_FOURCC_DXT3
@@ -450,7 +475,8 @@ def dds_decode(data, mipmap=0, out=None):
         shape = height, width, 3
         dtype = numpy.float16
     else:
-        raise DdsError(f'fourcc {fourcc!r} not supported')
+        fourcc_str = int(fourcc).to_bytes(4, 'little').decode()
+        raise DdsError(f'fourcc {fourcc_str!r} ({fourcc}) not supported')
 
     if depth > 1:
         shape = (depth,) + shape
