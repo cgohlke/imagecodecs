@@ -37,7 +37,7 @@
 
 """AVIF codec for the imagecodecs package."""
 
-__version__ = '2023.7.4'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -57,13 +57,15 @@ class AVIF:
         YUV422 = AVIF_PIXEL_FORMAT_YUV422
         YUV420 = AVIF_PIXEL_FORMAT_YUV420
         YUV400 = AVIF_PIXEL_FORMAT_YUV400
+        COUNT = AVIF_PIXEL_FORMAT_COUNT
 
-    class QUANTIZER(enum.IntEnum):
-        """AVIF codec quantizers."""
+    class QUALITY(enum.IntEnum):
+        """AVIF codec quality."""
 
-        LOSSLESS = AVIF_QUANTIZER_LOSSLESS
-        BEST_QUALITY = AVIF_QUANTIZER_BEST_QUALITY
-        WORST_QUALITY = AVIF_QUANTIZER_WORST_QUALITY
+        DEFAULT = AVIF_QUALITY_DEFAULT  # -1
+        LOSSLESS = AVIF_QUALITY_LOSSLESS  # 100
+        WORST = AVIF_QUALITY_WORST  # 0
+        BEST = AVIF_QUALITY_BEST  # 100
 
     class SPEED(enum.IntEnum):
         """AVIF codec speeds."""
@@ -90,6 +92,7 @@ class AVIF:
         LIBGAV1 = AVIF_CODEC_CHOICE_LIBGAV1
         RAV1E = AVIF_CODEC_CHOICE_RAV1E
         SVT = AVIF_CODEC_CHOICE_SVT
+        AVM = AVIF_CODEC_CHOICE_AVM
 
 
 class AvifError(RuntimeError):
@@ -148,8 +151,8 @@ def avif_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize, size
         ssize_t itemsize = data.dtype.itemsize
+        int quality = AVIF_QUALITY_LOSSLESS
         int speed_ = AVIF_SPEED_DEFAULT
-        int quantizer = AVIF_QUANTIZER_LOSSLESS
         int tilerowslog2 = 0
         int tilecolslog2 = 0
         int duration = 1
@@ -177,10 +180,10 @@ def avif_encode(
         src.dtype in {numpy.uint8, numpy.uint16}
         # and numpy.PyArray_ISCONTIGUOUS(src)
         and src.ndim in {2, 3, 4}
-        and src.shape[0] < 2147483648
-        and src.shape[1] < 2147483648
-        and src.shape[src.ndim - 1] < 2147483648
-        and src.shape[src.ndim - 2] < 2147483648
+        and src.shape[0] <= 2147483647
+        and src.shape[1] <= 2147483647
+        and src.shape[src.ndim - 1] <= 2147483647
+        and src.shape[src.ndim - 2] <= 2147483647
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
@@ -210,10 +213,6 @@ def avif_encode(
     monochrome = samples < 3
     hasalpha = samples == 2 or samples == 4
 
-    if monochrome:
-        raise NotImplementedError('cannot encode monochome images')
-        # TODO: check status of libavif/aom monochome support
-
     if bitspersample is None:
         depth = <uint32_t> itemsize * 8
     else:
@@ -228,11 +227,11 @@ def avif_encode(
         if 0 <= tilecolslog2 <= 6:
             raise ValueError('invalid tileColsLog2')
 
-    quantizer = _default_value(
+    quality = _default_value(
         level,
-        AVIF_QUANTIZER_LOSSLESS,
-        AVIF_QUANTIZER_BEST_QUALITY,
-        AVIF_QUANTIZER_WORST_QUALITY
+        AVIF_QUALITY_LOSSLESS,  # 100
+        AVIF_QUALITY_DEFAULT,  # -1
+        AVIF_QUALITY_BEST  # 100
     )
 
     speed_ = _default_value(
@@ -244,8 +243,8 @@ def avif_encode(
 
     if monochrome:
         yuvformat = AVIF_PIXEL_FORMAT_YUV400
-        quantizer = AVIF_QUANTIZER_LOSSLESS
-    elif quantizer == AVIF_QUANTIZER_LOSSLESS:
+        quality = AVIF_QUALITY_LOSSLESS
+    elif quality == AVIF_QUALITY_LOSSLESS:
         yuvformat = AVIF_PIXEL_FORMAT_YUV444
     elif pixelformat is not None:
         yuvformat = _avif_pixelformat(pixelformat)
@@ -259,11 +258,9 @@ def avif_encode(
             if encoder == NULL:
                 raise AvifError('avifEncoderCreate', 'NULL')
 
+            encoder.quality = quality
+            encoder.qualityAlpha = AVIF_QUALITY_LOSSLESS
             encoder.maxThreads = maxthreads
-            encoder.minQuantizer = quantizer
-            encoder.maxQuantizer = quantizer
-            encoder.minQuantizerAlpha = AVIF_QUANTIZER_LOSSLESS
-            encoder.maxQuantizerAlpha = AVIF_QUANTIZER_LOSSLESS
             encoder.tileRowsLog2 = tilerowslog2
             encoder.tileColsLog2 = tilecolslog2
             encoder.speed = speed_
@@ -274,7 +271,7 @@ def avif_encode(
             if image == NULL:
                 raise AvifError('avifImageCreate', 'NULL')
 
-            if monochrome or quantizer == AVIF_QUANTIZER_LOSSLESS:
+            if monochrome or quality == AVIF_QUALITY_LOSSLESS:
                 if codecchoice == AVIF_CODEC_CHOICE_AUTO:
                     encoder.codecChoice = AVIF_CODEC_CHOICE_AOM
                 else:
@@ -292,7 +289,9 @@ def avif_encode(
 
             avifRGBImageSetDefaults(&rgb, image)
             if monochrome:
-                avifRGBImageAllocatePixels(&rgb)
+                res = avifRGBImageAllocatePixels(&rgb)
+                if res != AVIF_RESULT_OK:
+                    raise AvifError('avifRGBImageAllocatePixels', res)
                 if rgb.format != AVIF_RGB_FORMAT_RGBA:
                     raise RuntimeError('rgb.format != AVIF_RGB_FORMAT_RGBA')
                 srcptr = <uint8_t *> src.data
@@ -424,7 +423,7 @@ def avif_encode(
     return _return_output(out, dstsize, rawsize, outgiven)
 
 
-def avif_decode(data, index=None, out=None):
+def avif_decode(data, index=None, numthreads=None, out=None):
     """Return decoded AVIF image."""
     cdef:
         numpy.ndarray dst
@@ -434,6 +433,7 @@ def avif_decode(data, index=None, out=None):
         ssize_t samples, size, itemsize, i, j, k, dstindex, imagecount
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
+        int maxthreads = <int> _default_threads(numthreads)
         uint8_t* dstptr = NULL
         uint8_t* srcptr = NULL
         avifDecoder* decoder = NULL
@@ -452,6 +452,8 @@ def avif_decode(data, index=None, out=None):
 
             # required to read AVIF files created by ImageMagick
             decoder.strictFlags = AVIF_STRICT_DISABLED
+
+            decoder.maxThreads = maxthreads
 
             res = avifDecoderSetSource(decoder, AVIF_DECODER_SOURCE_AUTO)
             if res != AVIF_RESULT_OK:
@@ -637,10 +639,12 @@ cdef _avif_codecchoice(codec):
         AVIF_CODEC_CHOICE_LIBGAV1: AVIF_CODEC_CHOICE_LIBGAV1,
         AVIF_CODEC_CHOICE_RAV1E: AVIF_CODEC_CHOICE_RAV1E,
         AVIF_CODEC_CHOICE_SVT: AVIF_CODEC_CHOICE_SVT,
+        AVIF_CODEC_CHOICE_AVM: AVIF_CODEC_CHOICE_AVM,
         'auto': AVIF_CODEC_CHOICE_AUTO,
         'aom': AVIF_CODEC_CHOICE_AOM,
         'dav1d': AVIF_CODEC_CHOICE_DAV1D,
         'libgav1': AVIF_CODEC_CHOICE_LIBGAV1,
         'rav1e': AVIF_CODEC_CHOICE_RAV1E,
         'svt': AVIF_CODEC_CHOICE_SVT,
+        'avm': AVIF_CODEC_CHOICE_AVM,
     }[codec]
