@@ -17,7 +17,7 @@ cdef _create_output(out, ssize_t size, const char* string=*)
 
 cdef _return_output(out, ssize_t size, ssize_t used, outgiven)
 
-cdef _create_array(out, shape, dtype, strides=*, zero=*)
+cdef _create_array(out, shape, dtype, strides=*, zero=*, contig=*)
 
 cdef _default_value(value, default, smallest, largest)
 
