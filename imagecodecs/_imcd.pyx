@@ -37,7 +37,7 @@
 
 """Codecs for the imagecodecs package using the imcd.c library."""
 
-__version__ = '2023.8.12'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -153,11 +153,10 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
 
         isnative = data.dtype.isnative
 
-        if out is None:
-            out = numpy.empty_like(data)
-        elif not isinstance(out, numpy.ndarray):
-            raise ValueError('output is not a numpy array')
-        elif out.shape != data.shape or out.dtype != data.dtype:
+        out = _create_array(
+            out, data.shape, data.dtype, strides=None, zero=False, contig=False
+        )
+        if out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
 
         if not isnative:
@@ -276,11 +275,10 @@ cdef _xor(data, int axis, out, int decode):
         if data.dtype.kind not in 'fiu':
             raise ValueError('not an integer or floating-point array')
 
-        if out is None:
-            out = numpy.empty_like(data)
-        elif not isinstance(out, numpy.ndarray):
-            raise ValueError('output is not a numpy array')
-        elif out.shape != data.shape or out.dtype != data.dtype:
+        out = _create_array(
+            out, data.shape, data.dtype, strides=None, zero=False, contig=False
+        )
+        if out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
 
         if axis < 0:
@@ -437,12 +435,13 @@ cdef _byteshuffle(
     # if data is out:
     #     raise ValueError('cannot decode in-place')
     # TODO: support in-place decoding
+    if data is out:
+        out = None
 
-    if out is None or data is out:
-        out = numpy.empty_like(data)
-    elif not isinstance(out, numpy.ndarray):
-        raise ValueError('output is not a numpy array')
-    elif out.shape != data.shape or out.itemsize != data.itemsize:
+    out = _create_array(
+        out, data.shape, data.dtype, strides=None, zero=False, contig=False
+    )
+    if out.shape != data.shape or out.dtype != data.dtype:
         raise ValueError('output is not compatible with data array')
 
     ndim = data.ndim
@@ -626,12 +625,12 @@ def bitorder_encode(data, out=None):
                     numpy.PyArray_ITER_NEXT(srciter)
             return data
 
-        if out is None:
-            out = numpy.empty_like(data)
-        elif not isinstance(out, numpy.ndarray):
-            raise ValueError('output is not a numpy array')
-        elif data.shape != out.shape or itemsize != out.dtype.itemsize:
+        out = _create_array(
+            out, data.shape, data.dtype, strides=None, zero=False, contig=False
+        )
+        if out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
+
         srciter = numpy.PyArray_IterAllButAxis(data, &axis)
         dstiter = numpy.PyArray_IterAllButAxis(out, &axis)
         srcsize = data.shape[axis] * itemsize
