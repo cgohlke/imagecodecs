@@ -37,7 +37,7 @@
 
 """AEC codec for the imagecodecs package."""
 
-__version__ = '2023.3.16'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -70,6 +70,7 @@ class AecError(RuntimeError):
             AEC_STREAM_ERROR: 'AEC_STREAM_ERROR',
             AEC_DATA_ERROR: 'AEC_DATA_ERROR',
             AEC_MEM_ERROR: 'AEC_MEM_ERROR',
+            # AEC_RSI_OFFSETS_ERROR: 'AEC_RSI_OFFSETS_ERROR',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -77,7 +78,7 @@ class AecError(RuntimeError):
 
 def aec_version():
     """Return libaec library version string."""
-    # TODO: use version from header when available
+    # f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
     return 'libaec 1.0.x'
 
 
