@@ -131,7 +131,7 @@ def jpeg2k_encode(
         OPJ_CODEC_FORMAT codec_format
         OPJ_BOOL ret = OPJ_TRUE
         OPJ_COLOR_SPACE color_space
-        OPJ_UINT32 signed, prec, width, height, samples
+        OPJ_UINT32 sgnd, prec, width, height, samples
         ssize_t i, j
         int verbosity = verbose
         int tile_width = 0
@@ -145,7 +145,7 @@ def jpeg2k_encode(
     if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
         raise ValueError('invalid data shape or dtype')
 
-    if srcsize >= 4294967296:
+    if srcsize >= 4294967296U:
         raise ValueError('tile size must not exceed 4 GB')
 
     if quality < 1 or quality > 1000:
@@ -163,7 +163,7 @@ def jpeg2k_encode(
     else:
         raise ValueError('invalid codecformat')
 
-    signed = 1 if src.dtype.kind == 'i' else 0
+    sgnd = 1 if src.dtype.kind == 'i' else 0
     prec = <OPJ_UINT32> src.itemsize * 8
     width = <OPJ_UINT32> src.shape[1]
     height = <OPJ_UINT32> src.shape[0]
@@ -256,7 +256,7 @@ def jpeg2k_encode(
                 cmptparms[i].y0 = 0
                 cmptparms[i].prec = prec
                 # cmptparms[i].bpp = prec  # redundant, not required
-                cmptparms[i].sgnd = signed
+                cmptparms[i].sgnd = sgnd
 
             if tile_height > 0:
                 image = opj_image_tile_create(samples, cmptparms, color_space)
@@ -451,7 +451,7 @@ def jpeg2k_decode(
         opj_dparameters_t parameters
         OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
-        OPJ_UINT32 signed, prec, width, height
+        OPJ_UINT32 sgnd, prec, width, height
         ssize_t i, j, k, bandsize, samples
         int num_threads = <int> _default_threads(numthreads)
         int verbosity = verbose
@@ -554,7 +554,7 @@ def jpeg2k_decode(
                 image.icc_profile_len = 0
 
             comp = &image.comps[0]
-            signed = comp.sgnd
+            sgnd = comp.sgnd
             prec = comp.prec
             height = comp.h * comp.dy
             width = comp.w * comp.dx
@@ -563,7 +563,7 @@ def jpeg2k_decode(
 
             for i in range(samples):
                 comp = &image.comps[i]
-                if comp.sgnd != signed or comp.prec != prec:
+                if comp.sgnd != sgnd or comp.prec != prec:
                     raise NotImplementedError('components dtype mismatch')
                     # TODO: support upcast
                     # use scale_component
@@ -576,7 +576,7 @@ def jpeg2k_decode(
             elif itemsize < 1 or itemsize > 4:
                 raise Jpeg2kError(f'unsupported itemsize {itemsize}')
 
-        dtype = '{}{}'.format('i' if signed else 'u', itemsize)
+        dtype = '{}{}'.format('i' if sgnd else 'u', itemsize)
         if samples == 1:
             shape = int(height), int(width)
             contig = 0
@@ -593,7 +593,7 @@ def jpeg2k_decode(
             # memset(<void*> dst.data, 0, dst.nbytes)
             bandsize = <ssize_t> height * <ssize_t> width
             if itemsize == 1:
-                if signed:
+                if sgnd:
                     if contig:
                         for i in range(samples):
                             i1 = <int8_t*> dst.data + i
@@ -624,7 +624,7 @@ def jpeg2k_decode(
                                 u1[k] = <uint8_t> band[j]
                                 k += 1
             elif itemsize == 2:
-                if signed:
+                if sgnd:
                     if contig:
                         for i in range(samples):
                             i2 = <int16_t*> dst.data + i
@@ -661,7 +661,7 @@ def jpeg2k_decode(
                         <void *> image.comps[i].data,
                         bandsize * 4
                     )
-            elif signed:
+            elif sgnd:
                 for i in range(samples):
                     i4 = <int32_t*> dst.data + i
                     band = <int32_t*> image.comps[i].data
