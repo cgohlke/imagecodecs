@@ -142,7 +142,7 @@ cdef _return_output(out, ssize_t size, ssize_t used, outgiven):
     return out
 
 
-cdef _create_array(out, shape, dtype, strides=None, zero=False):
+cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
     """Return numpy array of shape and dtype from output argument."""
     if out is None or isinstance(out, numbers.Integral):
         if zero:
@@ -160,11 +160,12 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False):
             )
         ):
             raise ValueError(f'invalid output shape {out.shape!r} {shape!r}')
+        # out = out.reshape(shape)
         if strides is not None:
             for i, j in zip(strides, out.strides):
                 if i is not None and i != j:
                     raise ValueError('invalid output strides')
-        elif not numpy.PyArray_ISCONTIGUOUS(out):
+        elif contig and not numpy.PyArray_ISCONTIGUOUS(out):
             raise ValueError('output is not contiguous')
     else:
         dstsize = 1
