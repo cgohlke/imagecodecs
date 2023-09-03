@@ -37,7 +37,7 @@
 
 """Zlib codec for the imagecodecs package."""
 
-__version__ = '2023.x,x'
+__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -240,8 +240,8 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
                         stream.next_out = (
                             <Bytef*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295:
-                        stream.avail_out = <uInt> 4294967295
+                    if left > <size_t> 4294967295U:
+                        stream.avail_out = <uInt> 4294967295U
                     else:
                         stream.avail_out = <uInt> left
                     left -= stream.avail_out
@@ -249,8 +249,8 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
                 if stream.avail_in == 0:
                     if ret == Z_BUF_ERROR:
                         break
-                    if size > <size_t> 4294967295:
-                        stream.avail_in = <uInt> 4294967295
+                    if size > <size_t> 4294967295U:
+                        stream.avail_in = <uInt> 4294967295U
                     else:
                         stream.avail_in = <uInt> size
                     size -= stream.avail_in
