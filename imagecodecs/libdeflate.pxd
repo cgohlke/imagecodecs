@@ -1,7 +1,7 @@
 # imagecodecs/libdeflate.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libdeflate 1.18` library.
+# Cython declarations for the `libdeflate 1.19` library.
 # https://github.com/ebiggers/libdeflate
 
 from libc.stdint cimport uint32_t
@@ -18,6 +18,9 @@ cdef extern from 'libdeflate.h':
     struct libdeflate_decompressor:
         pass
 
+    struct libdeflate_options:
+        pass
+
     enum libdeflate_result:
         LIBDEFLATE_SUCCESS
         LIBDEFLATE_BAD_DATA
@@ -28,6 +31,11 @@ cdef extern from 'libdeflate.h':
 
     libdeflate_compressor* libdeflate_alloc_compressor(
         int compression_level
+    ) nogil
+
+    libdeflate_compressor* libdeflate_alloc_compressor_ex(
+        int compression_level,
+		const libdeflate_options *options
     ) nogil
 
     size_t libdeflate_deflate_compress(
@@ -76,6 +84,10 @@ cdef extern from 'libdeflate.h':
     # Decompression
 
     libdeflate_decompressor* libdeflate_alloc_decompressor() nogil
+
+    libdeflate_decompressor* libdeflate_alloc_decompressor_ex(
+        const libdeflate_options *options
+    ) nogil
 
     libdeflate_result libdeflate_deflate_decompress(
         libdeflate_decompressor* decompressor,
@@ -158,3 +170,8 @@ cdef extern from 'libdeflate.h':
         void* (*malloc_func)(size_t),
         void (*free_func)(void*)
     ) nogil
+
+    struct libdeflate_options:
+        size_t sizeof_options
+        void *(*malloc_func)(size_t) nogil
+        void (*free_func)(void *) nogil
