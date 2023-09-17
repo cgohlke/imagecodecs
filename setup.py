@@ -310,6 +310,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'Advapi32',
         'Userenv',
         'Bcrypt',
+        'ntdll',
     ]
     EXTENSIONS['szip']['libraries'] = ['szip-static']
     EXTENSIONS['aec']['libraries'] = ['aec-static']
