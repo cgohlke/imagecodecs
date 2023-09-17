@@ -1,7 +1,7 @@
 # imagecodecs/libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.5.1` library.
+# Cython declarations for the `libtiff 4.6.0` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stdio cimport FILE
@@ -1882,6 +1882,7 @@ cdef extern from 'tiffio.h':
     int TIFFTAG_LERC_MAXZERROR
     int TIFFTAG_WEBP_LEVEL
     int TIFFTAG_WEBP_LOSSLESS
+    int TIFFTAG_WEBP_LOSSLESS_EXACT
 
     int EXIFTAG_EXPOSURETIME
     int EXIFTAG_FNUMBER
