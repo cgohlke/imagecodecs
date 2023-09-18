@@ -1,9 +1,13 @@
 Revisions
 ---------
 
-2023.9.4
+2023.9.18
 
 - Pass 7110 tests.
+- Rebuild with updated dependencies fixes CVE-2023-4863.
+
+2023.9.4
+
 - Map avif_encode level parameter to quality (breaking).
 - Support monochrome images in avif_encode.
 - Add numthreads parameter to avif_decode (fix imread of AVIF).
