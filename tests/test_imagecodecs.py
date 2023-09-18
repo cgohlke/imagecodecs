@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2023.9.4
+:Version: 2023.9.18
 
 """
 
@@ -1490,8 +1490,7 @@ def test_compressors(codec, func, output, length):
                     'LZ4F_compressFrame cannot compress to exact output size'
                 )
                 encode(data, level, out=size)
-            elif codec in {'deflate', 'gzip'}:
-                # https://github.com/ebiggers/libdeflate/issues/102
+            elif codec in {'gzip'}:
                 ret = encode(data, level, out=size + 9)
             else:
                 ret = encode(data, level, out=size)
@@ -1508,8 +1507,7 @@ def test_compressors(codec, func, output, length):
             #     out = bytearray(max(size, 17))  # bug in blosc ?
             elif codec == 'lzf':
                 out = bytearray(size + 1)  # bug in liblzf ?
-            elif codec in {'deflate', 'gzip'}:
-                # https://github.com/ebiggers/libdeflate/issues/102
+            elif codec in {'gzip'}:
                 out = bytearray(size + 9)
             else:
                 out = bytearray(size)
