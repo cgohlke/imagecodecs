@@ -19,7 +19,7 @@ Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.9.4
+:Version: 2023.9.18
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -60,7 +60,7 @@ Build requirements:
 - `brunsli <https://github.com/google/brunsli>`_ 0.1
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.5
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.2
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.3
 - `charls <https://github.com/team-charls/charls>`_ 2.4.2
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.1
 - `jetraw <https://github.com/Jetraw/Jetraw>`_ 22.02.16.1
@@ -73,17 +73,17 @@ Build requirements:
   `dav1d <https://github.com/videolan/dav1d>`_ 1.2.1,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.6.6,
   `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.7.0)
-- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.18
+- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.19
 - `libheif <https://github.com/strukturag/libheif>`_ 1.16.2
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.12,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.5)
 - `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.0
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.8.2
 - `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.4
-- `libpng <https://github.com/glennrp/libpng>`_ 1.6.39
-- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.39
-- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.5.1
-- `libwebp <https://github.com/webmproject/libwebp>`_ 1.3.1
+- `libpng <https://github.com/glennrp/libpng>`_ 1.6.40
+- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.40
+- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.6.0
+- `libwebp <https://github.com/webmproject/libwebp>`_ 1.3.2
 - `lz4 <https://github.com/lz4/lz4>`_ 1.9.4
 - `lzfse <https://github.com/lzfse/lzfse/>`_ 1.0
 - `lzham_codec <https://github.com/richgel999/lzham_codec/>`_ 1.0
@@ -91,7 +91,7 @@ Build requirements:
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.0
 - `snappy <https://github.com/google/snappy>`_ 1.1.10
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.0
-- `zlib <https://github.com/madler/zlib>`_ 1.2.13
+- `zlib <https://github.com/madler/zlib>`_ 1.3
 - `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.1.3
 - `zopfli <https://github.com/google/zopfli>`_ 1.0.3
 - `zstd <https://github.com/facebook/zstd>`_ 1.5.5
@@ -117,11 +117,11 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.8.30
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.9.18
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
 - `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.16.1
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.6
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.7
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.0.9
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.3.2
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.4
@@ -133,9 +133,13 @@ Test requirements:
 Revisions
 ---------
 
-2023.9.4
+2023.9.18
 
 - Pass 7110 tests.
+- Rebuild with updated dependencies fixes CVE-2023-4863.
+
+2023.9.4
+
 - Map avif_encode level parameter to quality (breaking).
 - Support monochrome images in avif_encode.
 - Add numthreads parameter to avif_decode (fix imread of AVIF).
