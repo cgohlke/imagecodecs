@@ -1,7 +1,7 @@
 # imagecodecs/jetraw.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jetraw 22.02.16.1` library.
+# Cython declarations for the `jetraw 23.03.16.4` library.
 # https://github.com/Jetraw/Jetraw
 
 
@@ -28,6 +28,7 @@ cdef extern from 'jetraw/jetraw.h':
         dp_tiff_file_update_error
         dp_tiff_wrong_file_mode
         dp_bad_image
+        dp_unknown_cfa
 
     const char* dp_status_description(
         dp_status status
