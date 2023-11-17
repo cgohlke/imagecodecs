@@ -11,7 +11,8 @@ cdef extern from 'brunsli/decode.h':
     ctypedef size_t (*DecodeBrunsliSink)(
         void* sink,
         const uint8_t* buf,
-        size_t size)
+        size_t size
+    ) nogil
 
     int DecodeBrunsli(
         size_t size,
