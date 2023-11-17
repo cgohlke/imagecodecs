@@ -1,7 +1,7 @@
 # imagecodecs/liblzma.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `liblzma 5.4.1` library.
+# Cython declarations for the `liblzma 5.4.5` library.
 # https://git.tukaani.org/?p=xz.git
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -125,7 +125,9 @@ cdef extern from 'lzma.h':
 
     ctypedef uint64_t lzma_vli
 
-    int lzma_vli_is_valid(int vli) nogil
+    int lzma_vli_is_valid(
+        int vli
+    ) nogil
 
     lzma_ret lzma_vli_encode(
         lzma_vli vli,
