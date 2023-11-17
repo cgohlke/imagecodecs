@@ -1499,7 +1499,8 @@ cdef extern from 'png.h':
         int type,
         int nparams,
         png_const_charp units,
-        png_charpp params)
+        png_charpp params
+    ) nogil
 
     png_uint_32 png_get_pHYs(
         png_const_structrp png_ptr,
@@ -1908,7 +1909,8 @@ cdef extern from 'png.h':
 
     int png_image_begin_read_from_file(
         png_imagep image,
-        char* file_name)
+        char* file_name
+    ) nogil
 
     int png_image_begin_read_from_stdio(
         png_imagep image,
