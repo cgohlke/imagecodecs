@@ -470,7 +470,7 @@ cdef extern from 'spng.h':
 
     int spng_decode_chunks(
         spng_ctx *ctx
-    )
+    ) nogil
 
     int spng_get_row_info(
         spng_ctx* ctx,
