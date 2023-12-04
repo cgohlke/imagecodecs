@@ -1,7 +1,7 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 1.0.1` library.
+# Cython declarations for the `libavif 1.0.3` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int32_t
@@ -509,11 +509,11 @@ cdef extern from 'avif/avif.h':
 
     avifResult avifRGBImagePremultiplyAlpha(
         avifRGBImage* rgb
-    )
+    ) nogil
 
     avifResult avifRGBImageUnpremultiplyAlpha(
         avifRGBImage* rgb
-    )
+    ) nogil
 
     # YUV Utils
 
@@ -645,7 +645,7 @@ cdef extern from 'avif/avif.h':
 
     const char * avifProgressiveStateToString(
         avifProgressiveState progressiveState
-    )
+    ) nogil
 
     ctypedef struct avifDecoder:
         avifCodecChoice codecChoice
@@ -824,7 +824,7 @@ cdef extern from 'avif/avif.h':
         uint32_t gridRows,
         const avifImage* const* cellImages,
         avifAddImageFlags addImageFlags
-    )
+    ) nogil
 
     avifResult avifEncoderFinish(
         avifEncoder* encoder,
