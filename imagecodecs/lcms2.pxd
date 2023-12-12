@@ -1,7 +1,7 @@
 # imagecodecs/lcms2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Little 2.15` library.
+# Cython declarations for the `Little 2.16.1` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stdint cimport uint8_t
@@ -87,6 +87,7 @@ cdef extern from 'lcms2.h':
         cmsSigVcgtType
         cmsSigViewingConditionsType
         cmsSigXYZType
+        cmsSigMHC2Type
 
     ctypedef enum cmsTagSignature:
         cmsSigAToB0Tag
@@ -161,6 +162,7 @@ cdef extern from 'lcms2.h':
         cmsSigMetaTag
         cmsSigcicpTag
         cmsSigArgyllArtsTag
+        cmsSigMHC2Tag
 
     ctypedef enum cmsTechnologySignature:
         cmsSigDigitalCamera
@@ -601,6 +603,7 @@ cdef extern from 'lcms2.h':
     int TYPE_RGB_DBL
     int TYPE_BGR_DBL
     int TYPE_CMYK_DBL
+    int TYPE_OKLAB_DBL
 
     int TYPE_GRAY_HALF_FLT
     int TYPE_RGB_HALF_FLT
@@ -674,6 +677,15 @@ cdef extern from 'lcms2.h':
         cmsUInt8Number TransferCharacteristics
         cmsUInt8Number MatrixCoefficients
         cmsUInt8Number VideoFullRangeFlag
+
+    ctypedef struct cmsMHC2Type:
+        cmsUInt32Number CurveEntries
+        cmsFloat64Number* RedCurve
+        cmsFloat64Number* GreenCurve
+        cmsFloat64Number* BlueCurve
+        cmsFloat64Number MinLuminance
+        cmsFloat64Number PeakLuminance
+        cmsFloat64Number XYZ2XYZmatrix[3][4]
 
     int cmsGetEncodedCMMversion() nogil
 
@@ -1008,7 +1020,8 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number Precision
     ) nogil
 
-    cmsFloat64Number* cmsGetToneCurveParams(
+    const cmsCurveSegment* cmsGetToneCurveSegment(
+        cmsInt32Number n,
         const cmsToneCurve* t
     ) nogil
 
@@ -1246,6 +1259,7 @@ cdef extern from 'lcms2.h':
 
     char* cmsNoLanguage
     char* cmsNoCountry
+    char* cmsV2Unicode
 
     cmsMLU* cmsMLUalloc(
         cmsContext ContextID,
@@ -1274,6 +1288,13 @@ cdef extern from 'lcms2.h':
         const wchar_t* WideString
     ) nogil
 
+    cmsBool cmsMLUsetUTF8(
+        cmsMLU* mlu,
+        const char LanguageCode[3],
+        const char CountryCode[3],
+        const char* UTF8String
+    ) nogil
+
     cmsUInt32Number cmsMLUgetASCII(
         const cmsMLU* mlu,
         const char LanguageCode[3],
@@ -1287,6 +1308,14 @@ cdef extern from 'lcms2.h':
         const char LanguageCode[3],
         const char CountryCode[3],
         wchar_t* Buffer,
+        cmsUInt32Number BufferSize
+    ) nogil
+
+    cmsUInt32Number cmsMLUgetUTF8(
+        const cmsMLU* mlu,
+        const char LanguageCode[3],
+        const char CountryCode[3],
+        char* Buffer,
         cmsUInt32Number BufferSize
     ) nogil
 
@@ -1694,6 +1723,15 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number BufferSize
     ) nogil
 
+    cmsUInt32Number cmsGetProfileInfoUTF8(
+        cmsHPROFILE hProfile,
+        cmsInfoType Info,
+        const char LanguageCode[3],
+        const char CountryCode[3],
+        char* Buffer,
+        cmsUInt32Number BufferSize
+    ) nogil
+
     ctypedef struct cmsIOHANDLER:
         pass
 
@@ -1847,6 +1885,15 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number Limit
     ) nogil
 
+    cmsHPROFILE cmsCreateDeviceLinkFromCubeFile(
+        const char* cFileName
+    ) nogil
+
+    cmsHPROFILE cmsCreateDeviceLinkFromCubeFileTHR(
+        cmsContext ContextID,
+        const char* cFileName
+    ) nogil
+
     cmsHPROFILE cmsCreateLab2ProfileTHR(
         cmsContext ContextID,
         const cmsCIExyY* WhitePoint
@@ -1877,6 +1924,10 @@ cdef extern from 'lcms2.h':
     ) nogil
 
     cmsHPROFILE cmsCreate_sRGBProfile(
+    ) nogil
+
+    cmsHPROFILE cmsCreate_OkLabProfile(
+        cmsContext ctx
     ) nogil
 
     cmsHPROFILE cmsCreateBCHSWabstractProfileTHR(
