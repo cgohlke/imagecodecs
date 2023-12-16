@@ -1,9 +1,10 @@
 # imagecodecs/zfp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zfp 1.0.0` library.
+# Cython declarations for the `zfp 1.0.1` library.
 # https://github.com/LLNL/zfp
 
+from libc.stddef cimport ptrdiff_t
 from libc.stdint cimport (
     int8_t, int16_t, int32_t, int64_t, uint64_t, uint8_t, uint16_t
 )
