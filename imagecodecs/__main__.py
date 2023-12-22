@@ -1,6 +1,6 @@
 # imagecodecs/__main__.py
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # This source code is distributed under the BSD 3-Clause license.
 
 """Imagecodecs package command line script."""
