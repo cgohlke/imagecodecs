@@ -1,10 +1,12 @@
 # imagecodecs/libjxl.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `jpeg-xl 0.8.0` library.
+# Cython declarations for the `libjxl 0.9.0` library.
 # https://github.com/libjxl/libjxl
 
-from libc.stdint cimport uint8_t, uint32_t, uint64_t, int32_t, int64_t
+from libc.stdint cimport (
+    uint8_t, uint16_t, uint32_t, uint64_t, int32_t, int64_t
+)
 
 cdef extern from 'jxl/types.h':
 
@@ -12,14 +14,13 @@ cdef extern from 'jxl/types.h':
 
     int JXL_TRUE
     int JXL_FALSE
+    int TO_JXL_BOOL(int)
 
     ctypedef enum JxlDataType:
         JXL_TYPE_FLOAT
         JXL_TYPE_UINT8
         JXL_TYPE_UINT16
         JXL_TYPE_FLOAT16
-        # JXL_TYPE_UINT32  # deprecated: use JXL_TYPE_FLOAT
-        # JXL_TYPE_BOOLEAN  # deprecated: use JXL_TYPE_UINT8
 
     ctypedef enum JxlEndianness:
         JXL_NATIVE_ENDIAN
@@ -43,15 +44,6 @@ cdef extern from 'jxl/types.h':
         uint32_t exponent_bits_per_sample
 
     ctypedef char JxlBoxType[4]
-
-    ctypedef enum JxlProgressiveDetail:
-        kFrames
-        kDC
-        kLastPasses
-        kPasses
-        kDCProgressive
-        kDCGroups
-        kGroups
 
 
 cdef extern from 'jxl/codestream_header.h':
@@ -292,6 +284,14 @@ cdef extern from 'jxl/thread_parallel_runner.h':
 
 cdef extern from 'jxl/cms_interface.h':
 
+    ctypedef JXL_BOOL (*jpegxl_cms_set_fields_from_icc_func)(
+        void* user_data,
+        const uint8_t* icc_data,
+        size_t icc_size,
+        JxlColorEncoding* c,
+        JXL_BOOL* cmyk
+    ) nogil
+
     ctypedef struct icc_t:
         const uint8_t* data
         size_t size
@@ -326,6 +326,8 @@ cdef extern from 'jxl/cms_interface.h':
     ) nogil
 
     ctypedef struct JxlCmsInterface:
+        void* set_fields_data
+        jpegxl_cms_set_fields_from_icc_func set_fields_from_icc
         void* init_data
         jpegxl_cms_init_func init
         jpegxl_cms_get_buffer_func get_src_buf
@@ -334,9 +336,60 @@ cdef extern from 'jxl/cms_interface.h':
         jpegxl_cms_destroy_func destroy
 
 
+cdef extern from 'jxl/stats.h':
+
+    ctypedef struct JxlEncoderStats:
+        pass
+
+    JxlEncoderStats* JxlEncoderStatsCreate() nogil
+
+    void JxlEncoderStatsDestroy(
+        JxlEncoderStats* stats
+    ) nogil
+
+    ctypedef enum JxlEncoderStatsKey:
+        JXL_ENC_STAT_HEADER_BITS
+        JXL_ENC_STAT_TOC_BITS
+        JXL_ENC_STAT_DICTIONARY_BITS
+        JXL_ENC_STAT_SPLINES_BITS
+        JXL_ENC_STAT_NOISE_BITS
+        JXL_ENC_STAT_QUANT_BITS
+        JXL_ENC_STAT_MODULAR_TREE_BITS
+        JXL_ENC_STAT_MODULAR_GLOBAL_BITS
+        JXL_ENC_STAT_DC_BITS
+        JXL_ENC_STAT_MODULAR_DC_GROUP_BITS
+        JXL_ENC_STAT_CONTROL_FIELDS_BITS
+        JXL_ENC_STAT_COEF_ORDER_BITS
+        JXL_ENC_STAT_AC_HISTOGRAM_BITS
+        JXL_ENC_STAT_AC_BITS
+        JXL_ENC_STAT_MODULAR_AC_GROUP_BITS
+        JXL_ENC_STAT_NUM_SMALL_BLOCKS
+        JXL_ENC_STAT_NUM_DCT4X8_BLOCKS
+        JXL_ENC_STAT_NUM_AFV_BLOCKS
+        JXL_ENC_STAT_NUM_DCT8_BLOCKS
+        JXL_ENC_STAT_NUM_DCT8X32_BLOCKS
+        JXL_ENC_STAT_NUM_DCT16_BLOCKS
+        JXL_ENC_STAT_NUM_DCT16X32_BLOCKS
+        JXL_ENC_STAT_NUM_DCT32_BLOCKS
+        JXL_ENC_STAT_NUM_DCT32X64_BLOCKS
+        JXL_ENC_STAT_NUM_DCT64_BLOCKS
+        JXL_ENC_STAT_NUM_BUTTERAUGLI_ITERS
+        JXL_ENC_NUM_STATS
+
+    size_t JxlEncoderStatsGet(
+        const JxlEncoderStats* stats,
+        JxlEncoderStatsKey key
+    ) nogil
+
+    void JxlEncoderStatsMerge(
+        JxlEncoderStats* stats,
+        const JxlEncoderStats* other
+    ) nogil
+
+
 cdef extern from 'jxl/decode.h':
 
-    uint32_t JxlDecoderVersion()
+    uint32_t JxlDecoderVersion() nogil
 
     ctypedef enum JxlSignature:
         JXL_SIG_NOT_ENOUGH_BYTES
@@ -372,7 +425,6 @@ cdef extern from 'jxl/decode.h':
         JXL_DEC_NEED_IMAGE_OUT_BUFFER
         JXL_DEC_JPEG_NEED_MORE_OUTPUT
         JXL_DEC_BASIC_INFO
-        JXL_DEC_EXTENSIONS
         JXL_DEC_COLOR_ENCODING
         JXL_DEC_PREVIEW_IMAGE
         JXL_DEC_FRAME
@@ -380,6 +432,15 @@ cdef extern from 'jxl/decode.h':
         JXL_DEC_JPEG_RECONSTRUCTION
         JXL_DEC_BOX
         JXL_DEC_FRAME_PROGRESSION
+
+    ctypedef enum JxlProgressiveDetail:
+        kFrames
+        kDC
+        kLastPasses
+        kPasses
+        kDCProgressive
+        kDCGroups
+        kGroups
 
     void JxlDecoderRewind(
         JxlDecoder* dec
@@ -393,12 +454,6 @@ cdef extern from 'jxl/decode.h':
     JxlDecoderStatus JxlDecoderSkipCurrentFrame(
         JxlDecoder* dec
     ) nogil
-
-    # deprecated
-    # JxlDecoderStatus JxlDecoderDefaultPixelFormat(
-    #     const JxlDecoder* dec,
-    #     JxlPixelFormat* format
-    # ) nogil
 
     JxlDecoderStatus JxlDecoderSetParallelRunner(
         JxlDecoder* dec,
@@ -477,21 +532,18 @@ cdef extern from 'jxl/decode.h':
 
     JxlDecoderStatus JxlDecoderGetColorAsEncodedProfile(
         const JxlDecoder* dec,
-        const JxlPixelFormat* unused_format,  # deprecated
         JxlColorProfileTarget target,
         JxlColorEncoding* color_encoding
     ) nogil
 
     JxlDecoderStatus JxlDecoderGetICCProfileSize(
         const JxlDecoder* dec,
-        const JxlPixelFormat* unused_format,  # deprecated
         JxlColorProfileTarget target,
         size_t* size
     ) nogil
 
     JxlDecoderStatus JxlDecoderGetColorAsICCProfile(
         const JxlDecoder* dec,
-        const JxlPixelFormat* unused_format,  # deprecated
         JxlColorProfileTarget target,
         uint8_t* icc_profile,
         size_t size
@@ -514,7 +566,7 @@ cdef extern from 'jxl/decode.h':
         size_t icc_size
     ) nogil
 
-    void JxlDecoderSetCms(
+    JxlDecoderStatus JxlDecoderSetCms(
         JxlDecoder* dec,
         JxlCmsInterface cms
     ) nogil
@@ -594,7 +646,7 @@ cdef extern from 'jxl/decode.h':
         const JxlPixelFormat* format,
         JxlImageOutCallback callback,
         void* opaque
-    )
+    ) nogil
 
     JxlDecoderStatus JxlDecoderSetMultithreadedImageOutCallback(
         JxlDecoder* dec,
@@ -673,7 +725,7 @@ cdef extern from 'jxl/decode.h':
 
 cdef extern from 'jxl/encode.h':
 
-    uint32_t JxlEncoderVersion()
+    uint32_t JxlEncoderVersion() nogil
 
     ctypedef struct JxlEncoder:
         pass
@@ -681,15 +733,10 @@ cdef extern from 'jxl/encode.h':
     ctypedef struct JxlEncoderFrameSettings:
         pass
 
-    # deprecated
-    # ctypedef struct JxlEncoderOptions:
-    #     passs
-
     ctypedef enum JxlEncoderStatus:
         JXL_ENC_SUCCESS
         JXL_ENC_ERROR
         JXL_ENC_NEED_MORE_OUTPUT
-        # JXL_ENC_NOT_SUPPORTED  # deprecated
 
     ctypedef enum JxlEncoderError:
         JXL_ENC_ERR_OK
@@ -735,6 +782,10 @@ cdef extern from 'jxl/encode.h':
         JXL_ENC_FRAME_INDEX_BOX
         JXL_ENC_FRAME_SETTING_BROTLI_EFFORT
         JXL_ENC_FRAME_SETTING_JPEG_COMPRESS_BOXES
+        JXL_ENC_FRAME_SETTING_BUFFERING
+        JXL_ENC_FRAME_SETTING_JPEG_KEEP_EXIF
+        JXL_ENC_FRAME_SETTING_JPEG_KEEP_XMP
+        JXL_ENC_FRAME_SETTING_JPEG_KEEP_JUMBF
         JXL_ENC_FRAME_SETTING_FILL_ENUM
 
     JxlEncoder* JxlEncoderCreate(
@@ -804,6 +855,82 @@ cdef extern from 'jxl/encode.h':
         size_t size
     ) nogil
 
+    struct JxlEncoderOutputProcessor:
+        void* opaque
+
+        void* (*get_buffer)(
+            void* opaque,
+            size_t* size
+        ) nogil
+
+        void (*release_buffer)(
+            void* opaque,
+            size_t written_bytes
+        ) nogil
+
+        void (*seek)(
+            void* opaque,
+            uint64_t position
+        ) nogil
+
+        void (*set_finalized_position)(
+            void* opaque,
+            uint64_t finalized_position
+        ) nogil
+
+    JxlEncoderStatus JxlEncoderSetOutputProcessor(
+        JxlEncoder* enc,
+        JxlEncoderOutputProcessor output_processor
+    ) nogil
+
+    JxlEncoderStatus JxlEncoderFlushInput(
+        JxlEncoder* enc
+    ) nogil
+
+    struct JxlChunkedFrameInputSource:
+        void* opaque
+
+        void (*get_color_channels_pixel_format)(
+            void* opaque,
+            JxlPixelFormat* pixel_format
+        ) nogil
+
+        const void* (*get_color_channel_data_at)(
+            void* opaque,
+            size_t xpos,
+            size_t ypos,
+            size_t xsize,
+            size_t ysize,
+            size_t* row_offset
+        ) nogil
+
+        void (*get_extra_channel_pixel_format)(
+            void* opaque,
+            size_t ec_index,
+            JxlPixelFormat* pixel_format
+        ) nogil
+
+        const void* (*get_extra_channel_data_at)(
+            void* opaque,
+            size_t ec_index,
+            size_t xpos,
+            size_t ypos,
+            size_t xsize,
+            size_t ysize,
+            size_t* row_offset
+        ) nogil
+
+        void (*release_buffer)(
+            void* opaque,
+            const void* buf
+        ) nogil
+
+    JxlEncoderStatus JxlEncoderAddChunkedFrame(
+        const JxlEncoderFrameSettings* frame_settings,
+        JXL_BOOL is_last_frame,
+        JxlChunkedFrameInputSource chunked_frame_input
+    ) nogil
+
     JxlEncoderStatus JxlEncoderSetExtraChannelBuffer(
         const JxlEncoderFrameSettings* frame_settings,
         const JxlPixelFormat* pixel_format,
@@ -845,7 +972,7 @@ cdef extern from 'jxl/encode.h':
         JxlEncoder* enc,
         const uint8_t* icc_profile,
         size_t size
-    )
+    ) nogil
 
     void JxlEncoderInitBasicInfo(
         JxlBasicInfo* info
@@ -862,6 +989,12 @@ cdef extern from 'jxl/encode.h':
     JxlEncoderStatus JxlEncoderSetBasicInfo(
         JxlEncoder* enc,
         const JxlBasicInfo* info
+    ) nogil
+
+    JxlEncoderStatus JxlEncoderSetUpsamplingMode(
+        JxlEncoder* enc,
+        const int64_t factor,
+        const int64_t mode
     ) nogil
 
     void JxlEncoderInitExtraChannelInfo(
@@ -918,50 +1051,26 @@ cdef extern from 'jxl/encode.h':
         JXL_BOOL lossless
     ) nogil
 
-    JxlEncoderStatus JxlEncoderUseContainer(
-        JxlEncoder* enc,
-        JXL_BOOL use_container
-    ) nogil
-
-    # deprecated: use JxlEncoderSetFrameLossless
-    # JxlEncoderStatus JxlEncoderOptionsSetLossless(
-    #     JxlEncoderOptions* options,
-    #     JXL_BOOL lossless
-    # ) nogil
-
-    # deprecated: use JxlEncoderFrameSettingsSetOption
-    # JxlEncoderStatus JxlEncoderOptionsSetDecodingSpeed(
-    #     JxlEncoderOptions* options,
-    #     int tier
-    # ) nogil
-
-    # deprecated: use JxlEncoderFrameSettingsSetOption
-    # JxlEncoderStatus JxlEncoderOptionsSetEffort(
-    #     JxlEncoderOptions* options,
-    #     int effort
-    # ) nogil
 
     JxlEncoderStatus JxlEncoderSetFrameDistance(
         JxlEncoderFrameSettings* frame_settings,
         float distance
     ) nogil
 
-    # deprecated: use JxlEncoderSetFrameDistance
-    # JxlEncoderStatus JxlEncoderOptionsSetDistance(
-    #     JxlEncoderOptions* options,
-    #     float distance
-    # ) nogil
+    JxlEncoderStatus JxlEncoderSetExtraChannelDistance(
+        JxlEncoderFrameSettings* frame_settings,
+        size_t index,
+        float distance
+    ) nogil
+
+    float JxlEncoderDistanceFromQuality(
+        float quality
+    ) nogil
 
     JxlEncoderFrameSettings* JxlEncoderFrameSettingsCreate(
         JxlEncoder* enc,
         const JxlEncoderFrameSettings* source
     ) nogil
-
-    # deprecated
-    # JxlEncoderOptions* JxlEncoderOptionsCreate(
-    #     JxlEncoder* enc,
-    #     const JxlEncoderOptions* source
-    # ) nogil
 
     void JxlColorEncodingSetToSRGB(
         JxlColorEncoding* color_encoding,
@@ -975,4 +1084,24 @@ cdef extern from 'jxl/encode.h':
 
     void JxlEncoderAllowExpertOptions(
         JxlEncoder* enc
+    ) nogil
+
+    ctypedef void (*JxlDebugImageCallback)(
+        void* opaque,
+        const char* label,
+        size_t xsize,
+        size_t ysize,
+        const JxlColorEncoding* color,
+        const uint16_t* pixels
+    ) nogil
+
+    void JxlEncoderSetDebugImageCallback(
+        JxlEncoderFrameSettings* frame_settings,
+        JxlDebugImageCallback callback,
+        void* opaque
+    ) nogil
+
+    void JxlEncoderCollectStats(
+        JxlEncoderFrameSettings* frame_settings,
+        JxlEncoderStats* stats
     ) nogil
