@@ -1,6 +1,6 @@
 # imagecodecs/_imagecodecs.py
 
-# Copyright (c) 2008-2023, Christoph Gohlke
+# Copyright (c) 2008-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,6 @@ The module is intended for testing and reference, not production code.
 """
 
 from __future__ import annotations
-from .imagecodecs import __version__
 
 import bz2
 import functools
@@ -50,6 +49,8 @@ import sys
 import zlib
 
 import numpy
+
+from .imagecodecs import __version__
 
 try:
     import PIL as pillow
@@ -254,7 +255,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')
+        raise NotImplementedError(f'{dist=} not implemented')
 
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
@@ -284,7 +285,7 @@ def delta_decode(data, axis=-1, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')
+        raise NotImplementedError(f'{dist=} not implemented')
     if out is not None and not out.flags.writeable:
         out = None
     if isinstance(data, (bytes, bytearray)):
@@ -360,9 +361,9 @@ def floatpred_decode(data, axis=-2, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')  # TODO
+        raise NotImplementedError(f'{dist=} not implemented')  # TODO
     if axis != -2:
-        raise NotImplementedError(f'axis {axis!r} != -2')  # TODO
+        raise NotImplementedError(f'{axis=!r} != -2')  # TODO
     shape = data.shape
     dtype = data.dtype
     if len(shape) < 3:
@@ -562,7 +563,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
             bitw, shr, mask = switchbits[lentable]
 
     if code != 257:
-        # logging.warning(f'unexpected end of LZW stream (code {code!r})')
+        # logging.warning(f'unexpected end of LZW stream ({code=!r})')
         pass
 
     return b''.join(result)
@@ -605,7 +606,7 @@ def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
     if bitspersample in {8, 16, 32, 64}:
         return numpy.frombuffer(data, dtype)
     if bitspersample not in {1, 2, 4, 8, 16, 32}:
-        raise ValueError(f'itemsize not supported: {bitspersample}')
+        raise ValueError(f'{bitspersample=} not supported')
     if dtype.kind not in 'bu':
         raise ValueError('invalid dtype')
 
