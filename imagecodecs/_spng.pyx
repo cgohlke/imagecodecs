@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -151,7 +151,7 @@ def spng_encode(data, level=None, out=None):
                 flags = SPNG_DECODE_TRNS
                 ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR_ALPHA
             else:
-                raise ValueError(f'{samples} samples not supported')
+                raise ValueError(f'{samples=} not supported')
 
             ihdr.compression_method = 0
             ihdr.filter_method = SPNG_FILTER_NONE
