@@ -8,7 +8,7 @@
 # cython: profile=False
 # cython: linetrace=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,8 +38,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """JPEG 2000 codec for the imagecodecs package."""
-
-__version__ = '2023.7.10'
 
 include '_shared.pxi'
 
@@ -206,7 +204,7 @@ def jpeg2k_encode(
 
     if samples > 4095:
         # TODO: check this limit
-        raise ValueError(f'invalid number of samples {samples}')
+        raise ValueError(f'invalid number of {samples=}')
 
     if colorspace is None:
         if samples <= 2:
@@ -303,6 +301,10 @@ def jpeg2k_encode(
                 max(parameters.numresolution, 1), numresolution
             )
 
+            # multiple component transform: rgb->ycc
+            if samples == 3:
+                parameters.tcp_mct = <char> tcp_mct
+
             if quality == 0.0:
                 # lossless
                 parameters.irreversible = irreversible
@@ -314,10 +316,6 @@ def jpeg2k_encode(
 
                 # progression order resolution-position-component-layer
                 parameters.prog_order = OPJ_RPCL
-
-                # multiple component transform: rgb->ycc
-                if samples == 3:
-                    parameters.tcp_mct = <char> tcp_mct
 
                 # code block width and height
                 # parameters.cblockw_init = 64
@@ -574,7 +572,7 @@ def jpeg2k_decode(
             if itemsize == 3:
                 itemsize = 4
             elif itemsize < 1 or itemsize > 4:
-                raise Jpeg2kError(f'unsupported itemsize {itemsize}')
+                raise Jpeg2kError(f'unsupported {itemsize=}')
 
         dtype = '{}{}'.format('i' if sgnd else 'u', itemsize)
         if samples == 1:
@@ -692,7 +690,11 @@ ctypedef struct memopj_t:
     OPJ_UINT64 written
 
 
-cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
+cdef OPJ_SIZE_T opj_mem_read(
+    void* dst,
+    OPJ_SIZE_T size,
+    void* data
+) noexcept nogil:
     """opj_stream_set_read_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -711,7 +713,11 @@ cdef OPJ_SIZE_T opj_mem_read(void* dst, OPJ_SIZE_T size, void* data) nogil:
     return count
 
 
-cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
+cdef OPJ_SIZE_T opj_mem_write(
+    void* dst,
+    OPJ_SIZE_T size,
+    void* data
+) noexcept nogil:
     """opj_stream_set_write_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -733,7 +739,7 @@ cdef OPJ_SIZE_T opj_mem_write(void* dst, OPJ_SIZE_T size, void* data) nogil:
     return count
 
 
-cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) nogil:
+cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) noexcept nogil:
     """opj_stream_set_seek_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -744,7 +750,7 @@ cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) nogil:
     return OPJ_TRUE
 
 
-cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) nogil:
+cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) noexcept nogil:
     """opj_stream_set_skip_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -759,14 +765,14 @@ cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) nogil:
     return count
 
 
-cdef void opj_mem_nop(void* data) nogil:
+cdef void opj_mem_nop(void* data) noexcept nogil:
     """opj_stream_set_user_data."""
 
 
 cdef opj_stream_t* opj_memstream_create(
     memopj_t* memopj,
     OPJ_BOOL isinput
-) nogil:
+) noexcept nogil:
     """Return OPJ stream using memory as input or output."""
     cdef:
         opj_stream_t* stream = opj_stream_default_create(isinput)
@@ -791,16 +797,17 @@ cdef opj_stream_t* opj_memstream_create(
     return stream
 
 
-cdef void j2k_error_callback(char* msg, void* client_data) with gil:
+cdef void j2k_error_callback(char* msg, void* client_data) noexcept with gil:
     # TODO: this does not raise an exception, only prints the error message
-    raise Jpeg2kError(msg.decode().strip())
+    # raise Jpeg2kError(msg.decode().strip())
+    _log_warning('JPEG2K error: %s', msg.decode().strip())
 
 
-cdef void j2k_warning_callback(char* msg, void* client_data) with gil:
+cdef void j2k_warning_callback(char* msg, void* client_data) noexcept with gil:
     _log_warning('JPEG2K warning: %s', msg.decode().strip())
 
 
-cdef void j2k_info_callback(char* msg, void* client_data) with gil:
+cdef void j2k_info_callback(char* msg, void* client_data) noexcept with gil:
     _log_warning('JPEG2K info: %s', msg.decode().strip())
 
 
