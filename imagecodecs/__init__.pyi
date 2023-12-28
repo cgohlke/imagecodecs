@@ -1,6 +1,6 @@
 # imagecodecs/__init__.pyi
 
-# Copyright (c) 2023, Christoph Gohlke
+# Copyright (c) 2023-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,12 +38,12 @@
 import enum
 import mmap
 import os
-
-from typing import Any, BinaryIO, Callable, Literal, Sequence, Union, overload
+from collections.abc import Sequence
+from typing import Any, BinaryIO, Callable, Literal, overload
 
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-BytesLike = Union[bytes, bytearray, mmap.mmap]
+BytesLike = bytes | bytearray | mmap.mmap
 
 __version__: str
 
@@ -76,10 +76,12 @@ def version(
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
     /,
-    codec: str
-    | Callable[..., NDArray[Any]]
-    | list[str | Callable[..., NDArray[Any]]]
-    | None = None,
+    codec: (
+        str
+        | Callable[..., NDArray[Any]]
+        | list[str | Callable[..., NDArray[Any]]]
+        | None
+    ) = None,
     *,
     memmap: bool = False,
     return_codec: Literal[False],
@@ -92,10 +94,12 @@ def imread(
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
     /,
-    codec: str
-    | Callable[..., NDArray[Any]]
-    | list[str | Callable[..., NDArray[Any]]]
-    | None = None,
+    codec: (
+        str
+        | Callable[..., NDArray[Any]]
+        | list[str | Callable[..., NDArray[Any]]]
+        | None
+    ) = None,
     *,
     memmap: bool = False,
     return_codec: Literal[True],
@@ -118,16 +122,20 @@ def imagefileext() -> list[str]:
     """Return list of image file extensions handled by imread and imwrite."""
 
 
-def imcd_version() -> str:
-    """Return imcd library version string."""
-
-
 def cython_version() -> str:
     """Return Cython version string."""
 
 
 def numpy_abi_version() -> str:
     """Return Numpy ABI version string."""
+
+
+def imcd_version() -> str:
+    """Return imcd library version string."""
+
+
+class ImcdError(RuntimeError):
+    """IMCD codec exceptions."""
 
 
 class AEC:
@@ -428,7 +436,7 @@ class BITORDER:
     """BITORDER codec is available."""
 
 
-BitorderError = RuntimeError
+BitorderError = ImcdError
 bitorder_version = imcd_version
 
 
@@ -659,6 +667,45 @@ def blosc2_decode(
     """Return BLOSC2 encoded data."""
 
 
+class BMP:
+    """BMP codec constants."""
+
+    available: bool
+    """BMP codec is available."""
+
+
+class BmpError(RuntimeError):
+    """BMP codec exceptions."""
+
+
+def bmp_version() -> str:
+    """Return EasyBMP library version string."""
+
+
+def bmp_check(data: BytesLike, /) -> bool:
+    """Return whether data is BMP encoded image."""
+
+
+def bmp_encode(
+    data: ArrayLike,
+    /,
+    *,
+    ppm: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return BMP encoded image."""
+
+
+def bmp_decode(
+    data: BytesLike,
+    /,
+    *,
+    asrgb: bool | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded BMP image."""
+
+
 class BROTLI:
     """BROTLI codec constants."""
 
@@ -760,7 +807,7 @@ class BYTESHUFFLE:
     """BYTESHUFFLE codec is available."""
 
 
-ByteshuffleError = RuntimeError
+ByteshuffleError = ImcdError
 byteshuffle_version = imcd_version
 
 
@@ -1049,7 +1096,7 @@ class DELTA:
     """DELTA codec is available."""
 
 
-DeltaError = RuntimeError
+DeltaError = ImcdError
 delta_version = imcd_version
 
 
@@ -1112,7 +1159,7 @@ class EER:
     """EER codec is available."""
 
 
-EerError = RuntimeError
+EerError = ImcdError
 eer_version = imcd_version
 
 
@@ -1143,6 +1190,41 @@ def eer_decode(
     """Return decoded EER image."""
 
 
+class DICOMRLE:
+    """DICOMRLE codec constants."""
+
+    available: bool
+    """DICOMRLE codec is available."""
+
+
+DicomrleError = ImcdError
+dicomrle_version = imcd_version
+
+
+def dicomrle_check(data: BytesLike, /) -> bool:
+    """Return whether data is DICOMRLE encoded."""
+
+
+def dicomrle_encode(
+    data: BytesLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return DICOMRLE encoded data (not implemented)."""
+    raise NotImplementedError('dicomrle_encode')
+
+
+def dicomrle_decode(
+    data: BytesLike,
+    /,
+    dtype: DTypeLike,
+    *,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray:
+    """Return decoded DICOMRLE data."""
+
+
 class FLOAT24:
     """FLOAT24 codec constants."""
 
@@ -1158,7 +1240,7 @@ class FLOAT24:
         TOWARDZERO: int
 
 
-Float24Error = RuntimeError
+Float24Error = ImcdError
 float24_version = imcd_version
 
 
@@ -1170,7 +1252,7 @@ def float24_encode(
     data: ArrayLike,
     /,
     *,
-    byteorder: Literal['>'] | Literal['<'] | Literal['='] | None = None,
+    byteorder: Literal['>', '<', '='] | None = None,
     rounding: FLOAT24.ROUND | int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
@@ -1181,7 +1263,7 @@ def float24_decode(
     data: BytesLike,
     /,
     *,
-    byteorder: Literal['>'] | Literal['<'] | Literal['='] | None = None,
+    byteorder: Literal['>', '<', '='] | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded FLOAT24 array."""
@@ -1194,7 +1276,7 @@ class FLOATPRED:
     """FLOATPRED codec is available."""
 
 
-FloatpredError = RuntimeError
+FloatpredError = ImcdError
 floatpred_version = imcd_version
 
 
@@ -2260,6 +2342,46 @@ def lzma_decode(
     """Return decoded LZMA data."""
 
 
+class LZO:
+    """LZO codec constants."""
+
+    available: bool
+    """LZO codec is available."""
+
+
+class LzoError(RuntimeError):
+    """LZO codec exceptions."""
+
+
+def lzo_version() -> str:
+    """Return lzokay library version string."""
+
+
+def lzo_check(data: BytesLike, /) -> bool | None:
+    """Return whether data is LZO encoded."""
+
+
+def lzo_encode(
+    data: BytesLike,
+    /,
+    level: int | None = None,
+    *,
+    header: bool = False,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return LZO encoded data (not implemented)."""
+
+
+def lzo_decode(
+    data: BytesLike,
+    /,
+    *,
+    header: bool = False,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray:
+    """Return decoded LZO data."""
+
+
 class LZW:
     """LZW codec constants."""
 
@@ -2267,7 +2389,7 @@ class LZW:
     """LZW codec is available."""
 
 
-LzwError = RuntimeError
+LzwError = ImcdError
 
 lzw_version = imcd_version
 
@@ -2438,7 +2560,7 @@ class PACKBITS:
     """PACKBITS codec is available."""
 
 
-PackbitsError = RuntimeError
+PackbitsError = ImcdError
 
 packbits_version = imcd_version
 
@@ -2476,7 +2598,7 @@ class PACKINTS:
     """PACKINTS codec is available."""
 
 
-PackintsError = RuntimeError
+PackintsError = ImcdError
 
 packints_version = imcd_version
 
@@ -2696,8 +2818,10 @@ def quantize_version() -> str:
 def quantize_encode(
     data: NDArray[Any],
     /,
-    mode: QUANTIZE.MODE
-    | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale'],
+    mode: (
+        QUANTIZE.MODE
+        | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale']
+    ),
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
@@ -2709,8 +2833,10 @@ def quantize_encode(
 def quantize_decode(
     data: NDArray[Any],
     /,
-    mode: QUANTIZE.MODE
-    | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale'],
+    mode: (
+        QUANTIZE.MODE
+        | Literal['bitgroom', 'granularbr', 'gbr', 'bitround', 'scale']
+    ),
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
@@ -2835,6 +2961,59 @@ def snappy_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded SNAPPY data."""
+
+
+class SPERR:
+    """SPERR codec constants."""
+
+    available: bool
+    """SPERR codec is available."""
+
+    class MODE(enum.IntEnum):
+        """SPERR quality mode."""
+
+        BPP: int
+        PSNR: int
+        PWE: int
+
+
+class SperrError(RuntimeError):
+    """SPERR codec exceptions."""
+
+
+def sperr_version() -> str:
+    """Return SPERR library version string."""
+
+
+def sperr_check(data: BytesLike, /) -> None:
+    """Return whether data is SPERR encoded."""
+
+
+def sperr_encode(
+    data: ArrayLike,
+    /,
+    level: float,
+    *,
+    mode: SPERR.MODE | Literal['bpp', 'psnr', 'pwe'],
+    chunks: tuple[int, int, int] | None = None,
+    header: bool = True,
+    numthreads: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return SPERR encoded data."""
+
+
+def sperr_decode(
+    data: BytesLike,
+    /,
+    *,
+    shape: tuple[int, ...] | None = None,
+    dtype: DTypeLike | None = None,
+    header: bool = True,
+    numthreads: int | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded SPERR data."""
 
 
 class SPNG:
@@ -3097,7 +3276,7 @@ class XOR:
     """XOR codec is available."""
 
 
-XorError = RuntimeError
+XorError = ImcdError
 
 xor_version = imcd_version
 
@@ -3246,7 +3425,8 @@ class ZLIB:
         FIXED: int
 
 
-ZlibError = RuntimeError
+class ZlibError(RuntimeError):
+    """ZLIB codec exceptions."""
 
 
 def zlib_version() -> str:
@@ -3308,7 +3488,8 @@ class ZLIBNG:
         FIXED: int
 
 
-ZlibngError = RuntimeError
+class ZlibngError(RuntimeError):
+    """ZLIBNG codec exceptions."""
 
 
 def zlibng_version() -> str:
@@ -3360,7 +3541,8 @@ class ZOPFLI:
         DEFLATE: int
 
 
-ZopfliError = RuntimeError
+class ZopfliError(RuntimeError):
+    """ZOPFLI codec exceptions."""
 
 
 def zopfli_version() -> str:
