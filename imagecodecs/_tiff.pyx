@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """TIFF codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -768,14 +766,14 @@ cdef dirlist_t* dirlist_new(tdir_t size) nogil:
     return dirlist
 
 
-cdef void dirlist_del(dirlist_t* dirlist) nogil:
+cdef void dirlist_del(dirlist_t* dirlist) noexcept nogil:
     """Free memory."""
     if dirlist != NULL:
         free(dirlist.data)
         free(dirlist)
 
 
-cdef int dirlist_append(dirlist_t* dirlist, tdir_t ifd) nogil:
+cdef int dirlist_append(dirlist_t* dirlist, tdir_t ifd) noexcept nogil:
     """Append IFD to list."""
     cdef:
         tdir_t* tmp = NULL
@@ -850,7 +848,7 @@ cdef memtif_t* memtif_open(
     return memtif
 
 
-cdef memtif_t* memtif_new(toff_t size, toff_t inc) nogil:
+cdef memtif_t* memtif_new(toff_t size, toff_t inc) noexcept nogil:
     """Return new memtif with new buffer for writing."""
     cdef:
         memtif_t* memtif = <memtif_t*> malloc(sizeof(memtif_t))
@@ -872,7 +870,7 @@ cdef memtif_t* memtif_new(toff_t size, toff_t inc) nogil:
     return memtif
 
 
-cdef void memtif_del(memtif_t* memtif) nogil:
+cdef void memtif_del(memtif_t* memtif) noexcept nogil:
     """Delete memtif."""
     if memtif != NULL:
         if memtif.owner:
