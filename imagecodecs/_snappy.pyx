@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Snappy codec for the imagecodecs package."""
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -142,9 +140,8 @@ def snappy_decode(data, out=None):
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size
+        size_t output_length, result
         snappy_status ret
-        size_t output_length
-        size_t result
 
     if data is out:
         raise ValueError('cannot decode in-place')
