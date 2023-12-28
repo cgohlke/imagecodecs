@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -42,8 +42,6 @@ described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
 The format is identified by a Start of Frame (SOF) code 0xC3.
 
 """
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
