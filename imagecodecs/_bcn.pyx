@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2023, Christoph Gohlke
+# Copyright (c) 2023-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """BCN and DDS codecs for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -111,7 +109,7 @@ def bcn_decode(data, format, shape=None, out=None):
     bcn = format
     if bcn == 1 or bcn == 2 or bcn == 3 or bcn == 7:
         if ndim < 2 or shape[ndim - 1] != 4:
-            raise ValueError(f'invalid shape {shape!r} for BC{bcn}')
+            raise ValueError(f'invalid {shape=!r} for BC{bcn}')
         width = shape[ndim - 2]
         height = 1
         for i in range(ndim - 2):
@@ -119,7 +117,7 @@ def bcn_decode(data, format, shape=None, out=None):
         dtype = numpy.uint8
     elif bcn == 4:
         if ndim < 1:
-            raise ValueError(f'invalid shape {shape!r} for BC{bcn}')
+            raise ValueError(f'invalid {shape=!r} for BC{bcn}')
         width = shape[ndim - 1]
         height = 1
         for i in range(ndim - 1):
@@ -127,7 +125,7 @@ def bcn_decode(data, format, shape=None, out=None):
         dtype = numpy.uint8
     elif bcn == 5:
         if ndim < 2 or shape[ndim - 1] != 2:
-            raise ValueError(f'invalid shape {shape!r} for BC{bcn}')
+            raise ValueError(f'invalid {shape=!r} for BC{bcn}')
         width = shape[ndim - 2]
         height = 1
         for i in range(ndim - 2):
@@ -135,7 +133,7 @@ def bcn_decode(data, format, shape=None, out=None):
         dtype = numpy.uint8
     elif bcn == 6 or bcn == -6:
         if ndim < 2 or shape[ndim - 1] != 3:
-            raise ValueError(f'invalid shape {shape!r} for BC{bcn}')
+            raise ValueError(f'invalid {shape=!r} for BC{bcn}')
         width = shape[ndim - 2]
         height = 1
         for i in range(ndim - 2):
@@ -145,7 +143,7 @@ def bcn_decode(data, format, shape=None, out=None):
         raise BcnError(f'BC{bcn} not supported')
 
     if width % 4 or height % 4:
-        raise ValueError(f'invalid shape {shape!r} for BC{bcn}')
+        raise ValueError(f'invalid {shape=!r} for BC{bcn}')
 
     out = _create_array(out, shape, dtype)
     dst = out
@@ -387,7 +385,7 @@ def dds_decode(data, mipmap=0, out=None):
         mipmaps = dds_header.mipMapCount
 
     if mipmap >= mipmaps:
-        raise ValueError(f'mipmap {mipmap} out of range')
+        raise ValueError(f'{mipmap=} out of range')
 
     textures = 1
     if dds_header.caps & DDS_SURFACE_FLAGS_CUBEMAP:
@@ -413,9 +411,7 @@ def dds_decode(data, mipmap=0, out=None):
     if not (
         0 < width <= 65536 and 0 < height <= 65536 and 0 < depth <= 65536
     ):
-        raise DdsError(
-            f'depth, height or width out of range ({depth}, {height}, {width})'
-        )
+        raise DdsError(f'{depth=}, {height=}, or {width=} out of range')
 
     if fourcc == DDS_FOURCC_DX10:
         offset += sizeof(DDS_HEADER_DXT10_t)
