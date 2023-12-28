@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -42,8 +42,6 @@ Brunsli works as a transcoder converting between JPEG and JPEG XL.
 Brunsli 0.1 is not compatible with the final JPEG XL specification.
 
 """
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
