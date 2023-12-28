@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Legacy JPEG codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -300,7 +298,7 @@ def jpeg8_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 4294967296U:
+    if srcsize >= 4294967296U:
         # limit to 4 GB
         raise ValueError('data too large')
 
