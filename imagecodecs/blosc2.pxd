@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.10.2` library.
+# Cython declarations for the `c-blosc2 2.12.0` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -984,6 +984,13 @@ cdef extern from 'blosc2.h':
         int64_t* i
     ) nogil
 
+    int blosc2_get_slice_nchunks(
+        blosc2_schunk* schunk,
+        int64_t* start,
+        int64_t* stop,
+        int64_t** chunks_idx
+    ) nogil
+
 
 cdef extern from 'b2nd.h':
 
@@ -1223,4 +1230,16 @@ cdef extern from 'b2nd.h':
         int32_t* blockshape,
         char** dtype,
         int8_t* dtype_format
+    ) nogil
+
+    int b2nd_copy_buffer(
+        int8_t ndim,
+        uint8_t itemsize,
+        const void *src,
+        const int64_t *src_pad_shape,
+        const int64_t *src_start,
+        const int64_t *src_stop,
+        void *dst,
+        const int64_t *dst_pad_shape,
+        const int64_t *dst_start
     ) nogil
