@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Blosc codec for the imagecodecs package."""
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -195,7 +193,7 @@ def blosc_encode(
 def blosc_decode(data, numthreads=None, out=None):
     """Return decoded BLOSC data."""
     cdef:
-        const uint8_t[::1] src = data
+        const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size
