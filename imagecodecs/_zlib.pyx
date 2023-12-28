@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Zlib codec for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -311,7 +309,7 @@ ctypedef struct output_t:
     int owner
 
 
-cdef output_t* output_new(uint8_t* data, size_t size) nogil:
+cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
         output_t* output = <output_t*> malloc(sizeof(output_t))
@@ -333,7 +331,7 @@ cdef output_t* output_new(uint8_t* data, size_t size) nogil:
     return output
 
 
-cdef void output_del(output_t* output) nogil:
+cdef void output_del(output_t* output) noexcept nogil:
     """Free output."""
     if output != NULL:
         if output.owner != 0:
@@ -341,7 +339,7 @@ cdef void output_del(output_t* output) nogil:
         free(output)
 
 
-cdef int output_seek(output_t* output, size_t pos) nogil:
+cdef int output_seek(output_t* output, size_t pos) noexcept nogil:
     """Seek output to position."""
     if output == NULL or pos > output.size:
         return 0
@@ -351,7 +349,7 @@ cdef int output_seek(output_t* output, size_t pos) nogil:
     return 1
 
 
-cdef int output_resize(output_t* output, size_t newsize) nogil:
+cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
     """Resize output."""
     cdef:
         uint8_t* tmp
