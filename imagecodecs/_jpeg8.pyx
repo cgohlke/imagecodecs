@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """JPEG codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -158,7 +156,7 @@ def jpeg8_encode(
             bitspersample not in {8, 12, 16}
             or src.itemsize == 1 and bitspersample > 8
         ):
-            raise ValueError(f'invalid bitspersample {bitspersample}')
+            raise ValueError(f'invalid {bitspersample=}')
         data_precision = bitspersample
 
     # if validate and bitspersample == 12 and not _check_range(src):
