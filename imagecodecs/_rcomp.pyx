@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -44,8 +44,6 @@ universal noiseless coding. Proc. of the 9th AIAA Computing in Aerospace.
 Conf. AIAA-93-4541-CP, 1993. https://doi.org/10.2514/6.1993-4541
 
 """
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
