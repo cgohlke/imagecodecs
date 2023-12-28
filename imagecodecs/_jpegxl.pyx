@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """JPEG XL codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -88,7 +86,6 @@ class JpegxlError(RuntimeError):
                 JXL_DEC_NEED_IMAGE_OUT_BUFFER: 'JXL_DEC_NEED_IMAGE_OUT_BUFFER',
                 JXL_DEC_JPEG_NEED_MORE_OUTPUT: 'JXL_DEC_JPEG_NEED_MORE_OUTPUT',
                 JXL_DEC_BASIC_INFO: 'JXL_DEC_BASIC_INFO',
-                JXL_DEC_EXTENSIONS: 'JXL_DEC_EXTENSIONS',
                 JXL_DEC_COLOR_ENCODING: 'JXL_DEC_COLOR_ENCODING',
                 JXL_DEC_PREVIEW_IMAGE: 'JXL_DEC_PREVIEW_IMAGE',
                 JXL_DEC_FRAME: 'JXL_DEC_FRAME',
@@ -185,7 +182,6 @@ def jpegxl_encode(
         # JxlBlendInfo blend_info
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
-        int quality = 0
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
         int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
@@ -201,18 +197,7 @@ def jpegxl_encode(
             if lossless is None:
                 option_lossless = JXL_TRUE
         elif distance is None:
-            # formula from JpegXlSaveOpts::UpdateDistance
-            quality = level if level < 100 else 100
-            option_distance = <float> (
-                (0.1 + (100 - quality) * 0.09)
-                if quality >= 30 else
-                min(
-                    53.0 / 3000.0 * quality * quality
-                    - 23.0 / 20.0 * quality + 25.0,
-                    25.0
-                )
-                # min(6.24 + pow(2.5, (30 - quality) / 5.0) / 6.25, 15)
-            )
+            option_distance = JxlEncoderDistanceFromQuality(level)
             if lossless is None:
                 option_lossless = JXL_FALSE
     elif distance is not None and lossless is None:
@@ -352,7 +337,7 @@ def jpegxl_encode(
         basic_info.bits_per_sample = 16
         basic_info.exponent_bits_per_sample = 5
     else:
-        raise ValueError(f'dtype {dtype!r} not supported')
+        raise ValueError(f'{dtype=!r} not supported')
 
     try:
         with nogil:
@@ -802,9 +787,7 @@ def jpegxl_decode(
                         raise RuntimeError('buffer == NULL')
 
                     if frameindex >= frames:
-                        raise RuntimeError(
-                            f'frameindex {frameindex} > frames {frames}'
-                        )
+                        raise RuntimeError(f'{frameindex=} > {frames=}')
 
                     status = JxlDecoderImageOutBufferSize(
                         decoder, &pixel_format, &buffersize
@@ -814,9 +797,7 @@ def jpegxl_decode(
                             'JxlDecoderImageOutBufferSize', status
                         )
                     if buffersize != framesize:
-                        raise RuntimeError(
-                            f'buffersize {buffersize} != framesize {framesize}'
-                        )
+                        raise RuntimeError(f'{buffersize=} != {framesize=}')
 
                     status = JxlDecoderSetImageOutBuffer(
                         decoder,
@@ -846,8 +827,7 @@ def jpegxl_decode(
                                 )
                             if buffersize != framesize:
                                 raise RuntimeError(
-                                    f'buffersize {buffersize} '
-                                    f'!= framesize {framesize}'
+                                    f'{buffersize=} != {framesize=}'
                                 )
 
                             status = JxlDecoderSetExtraChannelBuffer(
@@ -870,7 +850,7 @@ def jpegxl_decode(
 
                 else:
                     raise RuntimeError(
-                        f'JxlDecoderProcessInput unknown status {status}'
+                        f'JxlDecoderProcessInput unknown {status=}'
                     )
 
     finally:
@@ -1136,7 +1116,7 @@ def jpegxl_decode_jpeg(
 
                 else:
                     raise RuntimeError(
-                        f'JxlDecoderProcessInput unknown status {status}'
+                        f'JxlDecoderProcessInput unknown {status=}'
                     )
 
         if output.owner:
@@ -1159,7 +1139,7 @@ def jpegxl_decode_jpeg(
     return out
 
 
-cdef size_t jpegxl_framecount(JxlDecoder* decoder) nogil:
+cdef size_t jpegxl_framecount(JxlDecoder* decoder) noexcept nogil:
     """Return number of frames."""
     cdef:
         JxlDecoderStatus status = JXL_DEC_SUCCESS
@@ -1196,7 +1176,7 @@ cdef _jpegxl_encode_photometric(photometric):
             JXL_COLOR_SPACE_XYB,
             JXL_COLOR_SPACE_UNKNOWN
         }:
-            raise ValueError(f'photometric {photometric!r} not supported')
+            raise ValueError(f'{photometric=!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
@@ -1209,7 +1189,7 @@ cdef _jpegxl_encode_photometric(photometric):
         return JXL_COLOR_SPACE_XYB
     if photometric == 'UNKNOWN':
         return JXL_COLOR_SPACE_UNKNOWN
-    raise ValueError(f'photometric {photometric!r} not supported')
+    raise ValueError(f'{photometric=!r} not supported')
 
 
 cdef _jpegxl_encode_extrasamples(extrasample):
@@ -1261,7 +1241,7 @@ ctypedef struct output_t:
     int owner
 
 
-cdef output_t* output_new(uint8_t* data, size_t size) nogil:
+cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
         output_t* output = <output_t*> malloc(sizeof(output_t))
@@ -1283,7 +1263,7 @@ cdef output_t* output_new(uint8_t* data, size_t size) nogil:
     return output
 
 
-cdef void output_del(output_t* output) nogil:
+cdef void output_del(output_t* output) noexcept nogil:
     """Free output."""
     if output != NULL:
         if output.owner != 0:
@@ -1291,7 +1271,7 @@ cdef void output_del(output_t* output) nogil:
         free(output)
 
 
-cdef int output_seek(output_t* output, size_t pos) nogil:
+cdef int output_seek(output_t* output, size_t pos) noexcept nogil:
     """Seek output to position."""
     if output == NULL or pos > output.size:
         return 0
@@ -1301,7 +1281,7 @@ cdef int output_seek(output_t* output, size_t pos) nogil:
     return 1
 
 
-cdef int output_resize(output_t* output, size_t newsize) nogil:
+cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
     """Resize output."""
     cdef:
         uint8_t* tmp
