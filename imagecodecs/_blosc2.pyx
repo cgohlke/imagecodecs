@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Blosc2 codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -165,7 +163,7 @@ def blosc2_encode(
         elif compressor == BLOSC_ZSTD_COMPNAME:
             compcode = BLOSC_ZSTD
         else:
-            raise ValueError(f'unknown Blosc2 compressor {compressor!r}')
+            raise ValueError(f'unknown Blosc2 {compressor=!r}')
     else:
         compcode = compressor
 
@@ -186,7 +184,7 @@ def blosc2_encode(
         elif shuffle == 'trunc_prec':
             cfilter = BLOSC_TRUNC_PREC
         else:
-            raise ValueError(f'unknown Blosc2 filter {shuffle!r}')
+            raise ValueError(f'unknown Blosc2 {shuffle=!r}')
     else:
         cfilter = shuffle
 
@@ -205,7 +203,7 @@ def blosc2_encode(
         elif splitmode == 'forward':
             csplitmode = BLOSC_FORWARD_COMPAT_SPLIT
         else:
-            raise ValueError(f'unknown Blosc2 splitmode {splitmode!r}')
+            raise ValueError(f'unknown Blosc2 {splitmode=!r}')
     else:
         csplitmode = splitmode
 
@@ -234,7 +232,7 @@ def blosc2_encode(
 
         context = blosc2_create_cctx(cparams)
         if context == NULL:
-            raise Blosc2Error(f'blosc2_create_cctx', ret='NULL')
+            raise Blosc2Error('blosc2_create_cctx', ret='NULL')
 
         ret = blosc2_compress_ctx(
             context,
@@ -256,7 +254,7 @@ def blosc2_encode(
 def blosc2_decode(data, numthreads=None, out=None):
     """Return decoded BLOSC2 data."""
     cdef:
-        const uint8_t[::1] src = data
+        const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.size
@@ -302,7 +300,7 @@ def blosc2_decode(data, numthreads=None, out=None):
 
         context = blosc2_create_dctx(dparams)
         if context == NULL:
-            raise Blosc2Error(f'blosc2_create_dctx', ret='NULL')
+            raise Blosc2Error('blosc2_create_dctx', ret='NULL')
 
         ret = blosc2_decompress_ctx(
             context,
