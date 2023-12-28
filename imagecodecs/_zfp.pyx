@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """ZFP codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -182,7 +180,7 @@ def zfp_encode(
         zmode = zfp_mode_expert
         minbits, maxbits, maxprec, minexp = level
     else:
-        raise ValueError(f'invalid ZFP mode {mode!r}')
+        raise ValueError(f'invalid ZFP {mode=!r}')
 
     if execution is None:
         zexec = zfp_exec_omp if threads > 1 else zfp_exec_serial
