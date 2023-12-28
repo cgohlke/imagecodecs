@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """PNG codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -344,7 +342,7 @@ def png_decode(data, out=None):
                 # samples = 4
                 pass
             else:
-                raise ValueError(f'PNG color type not supported {color_type}')
+                raise ValueError(f'PNG {color_type=!r} not supported')
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
                 png_set_tRNS_to_alpha(png_ptr)
