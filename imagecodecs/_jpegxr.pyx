@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2016-2023, Christoph Gohlke
+# Copyright (c) 2016-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -40,8 +40,6 @@
 The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
 """
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -164,8 +162,8 @@ def jpegxr_encode(
     stride = <U32> src.strides[0]
     samples = 1 if src.ndim == 2 else src.shape[2]
 
-    if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
-        raise ValueError('invalid data shape')
+    # if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
+    #     raise ValueError('invalid data shape')
 
     if dtype == numpy.bool_:
         if src.ndim != 2:
@@ -451,7 +449,7 @@ cdef ERR PKCodecFactory_CreateDecoderFromBytes(
     void* bytes,
     size_t len,
     PKImageDecode** ppDecode
-) nogil:
+) noexcept nogil:
     """Create PKImageDecode from byte string."""
     cdef:
         char* pExt = NULL
@@ -487,7 +485,7 @@ cdef ERR jxr_decode_guid(
     ssize_t* samples,
     U8* alpha,
     bint fp2int
-) nogil:
+) noexcept nogil:
     """Return dtype, samples, alpha from GUID.
 
     Change pixelformat to output format in-place.
@@ -760,7 +758,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
     ssize_t samples,
     int photometric,
     int* alpha
-) nogil:
+) noexcept nogil:
     """Return pixel format GUID from dtype, samples, and photometric."""
     cdef:
         int typenum = dtype.type_num
@@ -874,7 +872,7 @@ cdef _jxr_encode_photometric(photometric):
         return -1
     if isinstance(photometric, int):
         if photometric not in {-1, PK_PI_W0, PK_PI_B0, PK_PI_RGB, PK_PI_CMYK}:
-            raise ValueError(f'photometric {photometric!r} not supported')
+            raise ValueError(f'{photometric=!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric[:3] == 'RGB':
@@ -894,7 +892,7 @@ cdef _jxr_encode_photometric(photometric):
     #     return PK_PI_TransparencyMask
     # if photometric == 'RGBPALETTE' or photometric == 'PALETTE':
     #     return PK_PI_RGBPalette
-    raise ValueError(f'photometric {photometric!r} not supported')
+    raise ValueError(f'{photometric=!r} not supported')
 
 
 # Y, U, V, YHP, UHP, VHP
@@ -935,7 +933,7 @@ cdef int* DPK_QPS_32f = [
 ]
 
 
-cdef U8 jxr_quantization(int* qps, double quality, ssize_t i) nogil:
+cdef U8 jxr_quantization(int* qps, double quality, ssize_t i) noexcept nogil:
     """Return quantization from DPK_QPS table."""
     cdef:
         ssize_t qi = <ssize_t> (10.0 * quality)
@@ -952,7 +950,7 @@ cdef ERR jxr_set_encoder(
     double quality,
     int alpha,
     int pi
-) nogil:
+) noexcept nogil:
     """Set encoder compression parameters from level argument and pixel format.
 
     Code and tables adapted from jxrlib's JxrEncApp.c.
