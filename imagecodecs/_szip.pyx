@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2023, Christoph Gohlke
+# Copyright (c) 2023-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """SZIP codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -255,7 +253,7 @@ def szip_params(data, int options_mask=4, int pixels_per_block=32):
         not (2 <= pixels_per_block <= SZ_MAX_PIXELS_PER_BLOCK)
         or (pixels_per_block % 2)
     ):
-        raise ValueError(f'invalid pixels_per_block {pixels_per_block}')
+        raise ValueError(f'invalid {pixels_per_block=}')
 
     if ndim <= 1:
         pixels_in_line = data.size
