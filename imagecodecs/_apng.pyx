@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """APNG codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -422,9 +420,7 @@ def apng_decode(data, index=None, out=None):
                 # samples = 4
                 pass
             else:
-                raise ValueError(
-                    f'PNG color type {color_type!r} not supported'
-                )
+                raise ValueError(f'PNG {color_type=!r} not supported')
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL):
                 numframes = png_get_num_frames(png_ptr, info_ptr)
@@ -440,9 +436,7 @@ def apng_decode(data, index=None, out=None):
                 isapng = False
 
             if frameindex >= 0 and frameindex >= <ssize_t> numframes:
-                raise IndexError(
-                    f'index {frameindex} out of bounds {numframes}'
-                )
+                raise IndexError(f'{frameindex=} out of range {numframes}')
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
                 png_set_tRNS_to_alpha(png_ptr)
@@ -500,7 +494,7 @@ def apng_decode(data, index=None, out=None):
                         &frame_blend_op
                     )
                 elif frame != 0:
-                    raise RuntimeError(f'frame {frame} has no PNG_INFO_fcTL')
+                    raise RuntimeError(f'{frame=} has no PNG_INFO_fcTL')
                 # elif not apng:
                 # TODO: skip default image, which is not part of the animation
 
@@ -588,7 +582,7 @@ def apng_decode(data, index=None, out=None):
                             <const ssize_t> samples
                         )
                 else:
-                    raise ValueError(f'invalid blend_op {frame_blend_op}')
+                    raise ValueError(f'invalid {frame_blend_op=}')
 
                 if frame == numframes - 1:
                     continue
@@ -626,7 +620,7 @@ def apng_decode(data, index=None, out=None):
                     )
 
                 else:
-                    raise ValueError(f'invalid dispose_op {frame_dispose_op}')
+                    raise ValueError(f'invalid {frame_dispose_op=}')
 
     finally:
         if framebuffer != NULL:
@@ -647,7 +641,7 @@ cdef void png_composite_uint8(
     const ssize_t height,
     const ssize_t width,
     const ssize_t samples
-) nogil:
+) noexcept nogil:
     """Composite foreground image against background image."""
     cdef:
         png_bytep background
@@ -687,7 +681,7 @@ cdef void png_composite_uint16(
     const ssize_t height,
     const ssize_t width,
     const ssize_t samples
-) nogil:
+) noexcept nogil:
     """Composite foreground image against background image."""
     cdef:
         png_uint_16p background
@@ -733,7 +727,7 @@ cdef _png_colortype(photometric):
             PNG_COLOR_TYPE_RGB,
             PNG_COLOR_TYPE_RGB_ALPHA,
         }:
-            raise ValueError(f'photometric {photometric!r} not supported')
+            raise ValueError(f'{photometric=!r} not supported')
         return photometric
     photometric = photometric.upper()
     if photometric == 'RGB':
@@ -746,7 +740,7 @@ cdef _png_colortype(photometric):
         'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
     }:
         return PNG_COLOR_TYPE_GRAY
-    raise ValueError(f'photometric {photometric!r} not supported')
+    raise ValueError(f'{photometric=!r} not supported')
 
 
 cdef void png_error_callback(
@@ -847,12 +841,12 @@ cdef void png_output_flush_fn(
     pass
 
 
-cdef ssize_t png_size_max(ssize_t size, ssize_t frames) nogil:
+cdef ssize_t png_size_max(ssize_t size, ssize_t frames) noexcept nogil:
     """Return upper bound size of APNG stream from uncompressed image size."""
     # TODO: review this
     size /= frames
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
-    size += 8 + 25 + 16 + 44 + 12 + 64 # sig IHDR gAMA cHRM IEND
+    size += 8 + 25 + 16 + 44 + 12 + 64  # sig IHDR gAMA cHRM IEND
     size *= frames
     return size
