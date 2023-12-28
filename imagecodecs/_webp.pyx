@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """WebP codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -260,8 +258,8 @@ def webp_decode(data, index=0, hasalpha=None, out=None):
         if index is None:
             index = 0
         frame = index + 1 if index >= 0 else frames + index + 1
-        if frame < 1 or frame > frames:
-            raise IndexError(f'index {index} out of range {frames}')
+        if frame < 1 or <uint32_t> frame > frames:
+            raise IndexError(f'{index=} out of range {frames}')
 
         ret = WebPDemuxGetFrame(demux, frame, &iter)
         if ret == 0:
