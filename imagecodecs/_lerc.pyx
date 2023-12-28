@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2023, Christoph Gohlke
+# Copyright (c) 2020-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -38,8 +38,6 @@
 """LERC (Limited Error Raster Compression) codec for the imagecodecs package.
 
 """
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -227,7 +225,7 @@ def lerc_encode(
     if compression == 'deflate':
         from . import zlib_encode
         return zlib_encode(out, **compressionargs)
-    raise ValueError(f'compression {compression!r} not supported')
+    raise ValueError(f'{compression=!r} not supported')
 
 
 def lerc_decode(data, masks=None, out=None):
