@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2020-2023, Christoph Gohlke
+# Copyright (c) 2020-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """AVIF codec for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -476,9 +474,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
             imagecount = decoder.imageCount
 
             if frameindex >= imagecount:
-                raise IndexError(
-                    f'index {frameindex} out of bounds {imagecount}'
-                )
+                raise IndexError(f'{frameindex=} out of range {imagecount=}')
 
             if imagecount == 1:
                 frameindex = 0
