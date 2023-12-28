@@ -1,7 +1,7 @@
-/* imcd.c */
+/* imagecodecs/imcd.c */
 
 /*
-Copyright (c) 2008-2023, Christoph Gohlke.
+Copyright (c) 2008-2024, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -69,7 +69,7 @@ POSSIBILITY OF SUCH DAMAGE.
 /* Inplace swap bytes. */
 void imcd_swapbytes(
     void* src,
-    const ssize_t srcsize,
+    const ssize_t srcsize,  /* number items, not bytes */
     const ssize_t itemsize)
 {
     uint16_t* d16;
@@ -601,6 +601,10 @@ ssize_t imcd_packbits_decode_size(
     }
     while (srcptr < srcend) {
         n = (ssize_t)(*srcptr++) + 1;
+        if ((n == 0) && (srcptr == srcend)) {
+            /* DICOM pad byte */
+            break;
+        }
         if (n < 129) {
             /* literal */
             srcptr += n;
@@ -621,7 +625,8 @@ ssize_t imcd_packbits_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const ssize_t dstsize)
+    const ssize_t dstsize,
+    const ssize_t dststride)
 {
     uint8_t* srcptr = (uint8_t*)src;
     uint8_t* dstptr = dst;
@@ -637,16 +642,21 @@ ssize_t imcd_packbits_decode(
 
     while (srcptr < srcend) {
         n = (ssize_t)(*srcptr++) + 1;
+        if ((n == 1) && (srcptr == srcend)) {
+            /* DICOM pad byte */
+            break;
+        }
         if (n < 129) {
             /* literal */
             if (srcptr + n > srcend) {
                 return IMCD_INPUT_CORRUPT;
             }
-            if (dstptr + n > dstend) {
+            if (dstptr + (n - 1) * dststride >= dstend) {
                 return IMCD_OUTPUT_TOO_SMALL;
             }
             while (n--) {
-                *dstptr++ = *srcptr++;
+                *dstptr = *srcptr++;
+                dstptr += dststride;
             }
         }
         else if (n > 129) {
@@ -655,17 +665,18 @@ ssize_t imcd_packbits_decode(
             if (srcptr >= srcend) {
                 return IMCD_INPUT_CORRUPT;
             }
-            if (dstptr + n > dstend) {
+            if (dstptr + (n - 1) * dststride >= dstend) {
                 return IMCD_OUTPUT_TOO_SMALL;
             }
             e = *srcptr++;
             while (n--) {
-                *dstptr++ = e;
+                *dstptr = e;
+                dstptr += dststride;
             }
         }
         /* else if (n == 129) {NOP} */
     }
-    return (ssize_t)(dstptr - dst);
+    return ((ssize_t)(dstptr - dst)) / dststride;
 }
 
 /* Return maximum length of PackBits compressed sequence. */
