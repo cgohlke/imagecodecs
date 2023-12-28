@@ -2,18 +2,19 @@
 
 """Imagecodecs package Setuptools script."""
 
-import sys
 import os
 import re
 import shutil
+import sys
 
-from setuptools import setup, Extension
+import Cython  # noqa
+import numpy
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext as _build_ext
 
-import numpy
-import Cython  # noqa
+buildnumber = ''  # e.g. 'pre1' or 'post1'
 
-buildnumber = ''  # e.g 'pre1' or 'post1'
+DEBUG = bool(os.environ.get('IMAGECODECS_DEBUG', False))
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -102,15 +103,13 @@ OPTIONS = {
         # ('CYTHON_TRACE_NOGIL', '1'),
         # ('CYTHON_LIMITED_API', '1'),
         # ('Py_LIMITED_API', '1'),
-        # ('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')
+        ('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION'),
     ]
     + [('WIN32', 1)]  # type: ignore
     if sys.platform == 'win32'
     else [],
-    'extra_compile_args': [],
-    'extra_link_args': [],
-    # 'extra_compile_args': ['/Zi', '/Od'],
-    # 'extra_link_args': ['-debug:full'],
+    'extra_compile_args': ['/Zi', '/Od'] if DEBUG else [],
+    'extra_link_args': ['-debug:full'] if DEBUG else [],
     'depends': ['imagecodecs/_shared.pxd'],
     'cython_compile_time_env': {},
 }
@@ -136,6 +135,7 @@ EXTENSIONS = {
     ),
     'blosc': ext(libraries=['blosc']),
     'blosc2': ext(libraries=['blosc2']),
+    'bmp': ext(),
     'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
     'brunsli': ext(libraries=['brunslidec-c', 'brunslienc-c']),
     'bz2': ext(libraries=['bz2']),
@@ -166,7 +166,7 @@ EXTENSIONS = {
         sources=['3rdparty/jpegsof3/jpegsof3.cpp'],
         include_dirs=['3rdparty/jpegsof3'],
     ),
-    'jpegxl': ext(libraries=['jxl', 'jxl_dec', 'jxl_threads']),
+    'jpegxl': ext(libraries=['jxl', 'jxl_threads']),
     'jpegxr': ext(
         libraries=['jpegxr', 'jxrglue'],
         define_macros=[('__ANSI__', 1)] if sys.platform != 'win32' else [],
@@ -184,6 +184,7 @@ EXTENSIONS = {
     'lzfse': ext(libraries=['lzfse'], sources=['imagecodecs/imcd.c']),
     'lzham': ext(libraries=['lzham']),
     'lzma': ext(libraries=['lzma']),
+    'lzo': ext(libraries=['lzokay-c', 'lzokay']),
     'mozjpeg': ext(libraries=['mozjpeg']),
     # 'nvjpeg': ext(libraries=['nvjpeg', 'cuda']),
     # 'nvjpeg2k': ext(libraries=['nvjpeg2k', 'cuda']),
@@ -209,6 +210,7 @@ EXTENSIONS = {
         include_dirs=['3rdparty/cfitsio'],
     ),
     'snappy': ext(libraries=['snappy']),
+    'sperr': ext(libraries=['SPERR']),
     'spng': ext(
         sources=['3rdparty/libspng/spng.c'],
         include_dirs=['3rdparty/libspng'],
@@ -239,7 +241,9 @@ def customize_build_default(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lz4f']  # requires static linking
     del EXTENSIONS['lzfse']  # lzfse not commonly available
     del EXTENSIONS['lzham']  # lzham not commonly available
+    del EXTENSIONS['lzo']  # lzokay not commonly available
     del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['sperr']  # sperr not commonly available
     del EXTENSIONS['zlibng']  # zlib-ng library not commonly available
 
     if 'arch' not in platform.platform():
@@ -279,6 +283,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         # del EXTENSIONS['nvjpeg2k']
         del EXTENSIONS['jetraw']
         del EXTENSIONS['heif']
+        del EXTENSIONS['sperr']
         for dll in dlls:
             try:
                 os.remove('imagecodecs/' + dll)
@@ -313,6 +318,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'ntdll',
     ]
     EXTENSIONS['szip']['libraries'] = ['szip-static']
+    EXTENSIONS['cms']['libraries'] = ['lcms2_static']
     EXTENSIONS['aec']['libraries'] = ['aec-static']
     EXTENSIONS['bz2']['libraries'] = ['libbz2']
     EXTENSIONS['lzf']['libraries'] = ['lzf']
@@ -379,14 +385,15 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         (('JXL_STATIC_DEFINE', 1), ('JXL_THREADS_STATIC_DEFINE', 1))
     )
     EXTENSIONS['jpegxl']['libraries'] = [
-        'jxl-static',
-        'jxl_dec-static',
-        'jxl_threads-static',
+        'jxl',
+        'jxl_cms',
+        'jxl_extras_codec',
+        'jxl_threads',
         'brotlienc',
         'brotlidec',
         'brotlicommon',
         'hwy',
-        # 'jxl_extras-static',
+        'lcms2_static',
     ]
     EXTENSIONS['brunsli']['libraries'] = [
         'brunslidec-c',
@@ -458,11 +465,12 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
+    del EXTENSIONS['lzo']
     del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['sperr']
     del EXTENSIONS['zlibng']
 
-    # uncomment if building with libjpeg-turbo 3
-    # EXTENSIONS['jpeg8']['sources'] = []
+    EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
 
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
@@ -514,7 +522,9 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['lz4f']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
+    del EXTENSIONS['lzo']
     del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['sperr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -543,12 +553,13 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['jetraw']  # commercial
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
+    del EXTENSIONS['lzo']
     del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['sperr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
     EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
-
     EXTENSIONS['jpeg2k']['include_dirs'].extend(
         (
             sys.prefix + '/include/openjpeg-2.3',
