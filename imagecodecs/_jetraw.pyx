@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2022-2023, Christoph Gohlke
+# Copyright (c) 2022-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Jetraw codec for the imagecodecs package."""
-
-__version__ = '2023.3.16'
 
 include '_shared.pxi'
 
@@ -146,7 +144,7 @@ def jetraw_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = min(max(src.size, 1024), 2147483647)
+            dstsize = min(max(src.size, <ssize_t> 1024), <ssize_t> 2147483647)
         out = _create_output(outtype, dstsize)
 
     dst = out
