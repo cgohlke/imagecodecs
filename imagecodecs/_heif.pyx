@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2022-2023, Christoph Gohlke
+# Copyright (c) 2022-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -42,8 +42,6 @@ This implementation reads and writes sequences of top level images only.
 
 """
 
-__version__ = '2023.7.4'
-
 include '_shared.pxi'
 
 from libheif cimport *
@@ -58,14 +56,15 @@ class HEIF:
         """HEIF codec compression levels."""
 
         UNDEFINED = heif_compression_undefined
-        HEVC = heif_compression_HEVC
-        AVC = heif_compression_AVC
+        HEVC = heif_compression_HEVC  # H.265
+        AVC = heif_compression_AVC  # H.264
         JPEG = heif_compression_JPEG
         AV1 = heif_compression_AV1
         VVC = heif_compression_VVC
         EVC = heif_compression_EVC
         JPEG2000 = heif_compression_JPEG2000
         UNCOMPRESSED = heif_compression_uncompressed
+        MASK = heif_compression_mask
 
     class COLORSPACE(enum.IntEnum):
         """HEIF codec color spaces."""
@@ -213,7 +212,11 @@ def heif_encode(
         compressed = output_new(<uint8_t*> &dst[0], dstsize)
     else:
         compressed = output_new(
-            NULL, max(32768, src.size // (4 if lossless != 0 else 16))
+            NULL,
+            max(
+                <ssize_t> 32768,
+                src.size // <ssize_t> (4 if lossless != 0 else 16)
+            )
         )
     if compressed == NULL:
         raise MemoryError('output_new failed')
@@ -525,7 +528,7 @@ def heif_decode(data, index=0, photometric=None, out=None):
 
             if imageindex >= imagecount:
                 raise IndexError(
-                    f'index {imageindex} out of bounds {imagecount}'
+                    f'index {imageindex} out of range {imagecount}'
                 )
 
             if imagecount == 1:
@@ -741,7 +744,7 @@ cdef _heif_photometric(photometric):
             'GRAY', 'BLACKISZERO', 'MINISBLACK', 'WHITEISZERO', 'MINISWHITE'
         }:
             return heif_colorspace_monochrome
-    raise ValueError(f'photometric {photometric!r} not supported')
+    raise ValueError(f'{photometric=!r} not supported')
 
 
 cdef _heif_compression(compression):
@@ -754,9 +757,9 @@ cdef _heif_compression(compression):
         heif_compression_AVC,
         heif_compression_JPEG,
         heif_compression_AV1,
-        # heif_compression_VVC,
-        # heif_compression_EVC,
-        # heif_compression_JPEG2000,
+        heif_compression_VVC,
+        heif_compression_EVC,
+        heif_compression_JPEG2000,
     }:
         return compression
     if isinstance(compression, str):
@@ -769,15 +772,15 @@ cdef _heif_compression(compression):
             return heif_compression_AV1
         if compression == 'JPEG':
             return heif_compression_JPEG
-        # if compression == 'VVC':
-        #     return heif_compression_VVC
-        # if compression == 'EVC':
-        #     return heif_compression_EVC
-        # if compression == 'JPEG2000':
-        #     return heif_compression_JPEG2000
+        if compression == 'VVC':
+            return heif_compression_VVC
+        if compression == 'EVC':
+            return heif_compression_EVC
+        if compression == 'JPEG2000':
+            return heif_compression_JPEG2000
         if compression == 'UNDEFINED':
             return heif_compression_undefined
-    raise ValueError(f'compression {compression!r} not supported')
+    raise ValueError(f'{compression=!r} not supported')
 
 
 cdef heif_error heif_write_callback(
@@ -791,11 +794,13 @@ cdef heif_error heif_write_callback(
         output_t* output = <output_t*> userdata
         heif_error err
 
-    err.code = heif_error_Ok
-    err.subcode = heif_suberror_Unspecified
-    err.message = NULL
     if output_write(output, data, size) == 0:
         err.code = heif_error_Encoding_error
+        err.message = b'Error during encoding or writing output file'
+    else:
+        err.code = heif_error_Ok
+        err.message = b'Success'
+    err.subcode = heif_suberror_Unspecified
     return err
 
 
@@ -807,7 +812,7 @@ ctypedef struct output_t:
     int owner
 
 
-cdef output_t* output_new(uint8_t* data, size_t size) nogil:
+cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
         output_t* output = <output_t*> malloc(sizeof(output_t))
@@ -829,7 +834,7 @@ cdef output_t* output_new(uint8_t* data, size_t size) nogil:
     return output
 
 
-cdef void output_del(output_t* output) nogil:
+cdef void output_del(output_t* output) noexcept nogil:
     """Free output."""
     if output != NULL:
         if output.owner != 0:
@@ -837,7 +842,11 @@ cdef void output_del(output_t* output) nogil:
         free(output)
 
 
-cdef int output_write(output_t* output, const void* data, size_t size) nogil:
+cdef int output_write(
+    output_t* output,
+    const void* data,
+    size_t size
+) noexcept nogil:
     """Write data to output."""
     if output == NULL:
         return 0
@@ -851,7 +860,7 @@ cdef int output_write(output_t* output, const void* data, size_t size) nogil:
     return 1
 
 
-cdef int output_seek(output_t* output, size_t pos) nogil:
+cdef int output_seek(output_t* output, size_t pos) noexcept nogil:
     """Seek output to position."""
     if output == NULL or pos > output.size:
         return 0
@@ -861,7 +870,7 @@ cdef int output_seek(output_t* output, size_t pos) nogil:
     return 1
 
 
-cdef int output_resize(output_t* output, size_t newsize) nogil:
+cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
     """Resize output."""
     cdef:
         uint8_t* tmp
