@@ -1,7 +1,7 @@
 # imagecodecs/libheif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libheif 1.16.2` library.
+# Cython declarations for the `libheif 1.17.6` library.
 # https://github.com/strukturag/libheif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t, int64_t
@@ -111,8 +111,54 @@ cdef extern from 'libheif/heif.h':
         heif_suberror_code subcode
         const char* message
 
+    const heif_error heif_error_success
+
     ctypedef uint32_t heif_item_id
     ctypedef uint32_t heif_property_id
+
+    enum heif_compression_format:
+        heif_compression_undefined
+        heif_compression_HEVC
+        heif_compression_AVC
+        heif_compression_JPEG
+        heif_compression_AV1
+        heif_compression_VVC
+        heif_compression_EVC
+        heif_compression_JPEG2000
+        heif_compression_uncompressed
+        heif_compression_mask
+
+    enum heif_chroma:
+        heif_chroma_undefined
+        heif_chroma_monochrome
+        heif_chroma_420
+        heif_chroma_422
+        heif_chroma_444
+        heif_chroma_interleaved_RGB
+        heif_chroma_interleaved_RGBA
+        heif_chroma_interleaved_RRGGBB_BE
+        heif_chroma_interleaved_RRGGBBAA_BE
+        heif_chroma_interleaved_RRGGBB_LE
+        heif_chroma_interleaved_RRGGBBAA_LE
+
+    # int heif_chroma_interleaved_24bit = heif_chroma_interleaved_RGB
+    # int heif_chroma_interleaved_32bit = heif_chroma_interleaved_RGBA
+
+    enum heif_colorspace:
+        heif_colorspace_undefined
+        heif_colorspace_YCbCr
+        heif_colorspace_RGB
+        heif_colorspace_monochrome
+
+    enum heif_channel:
+        heif_channel_Y
+        heif_channel_Cb
+        heif_channel_Cr
+        heif_channel_R
+        heif_channel_G
+        heif_channel_B
+        heif_channel_Alpha
+        heif_channel_interleaved
 
     struct heif_init_params:
         int version
@@ -145,6 +191,12 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_unload_plugin(
         const heif_plugin_info* plugin
+    ) nogil
+
+    const char** heif_get_plugin_directories() nogil
+
+    void heif_free_plugin_directories(
+        const char**
     ) nogil
 
     enum heif_filetype_result:
@@ -181,6 +233,8 @@ cdef extern from 'libheif/heif.h':
         heif_vvis
         heif_evbi
         heif_evbs
+        heif_j2ki
+        heif_j2is
 
     heif_brand heif_main_brand(
         const uint8_t* data,
@@ -189,22 +243,21 @@ cdef extern from 'libheif/heif.h':
 
     ctypedef uint32_t heif_brand2
 
-    int heif_brand2_heic
-    int heif_brand2_heix
-    int heif_brand2_hevc
-    int heif_brand2_hevx
-    int heif_brand2_heim
-    int heif_brand2_heis
-    int heif_brand2_hevm
-    int heif_brand2_hevs
-    int heif_brand2_avif
-    int heif_brand2_avis
     int heif_brand2_mif1
+    int heif_brand2_mif2
     int heif_brand2_msf1
     int heif_brand2_vvic
     int heif_brand2_vvis
     int heif_brand2_evbi
+    int heif_brand2_evmi
     int heif_brand2_evbs
+    int heif_brand2_evms
+    int heif_brand2_jpeg
+    int heif_brand2_jpgs
+    int heif_brand2_j2ki
+    int heif_brand2_j2is
+    int heif_brand2_miaf
+    int heif_brand2_1pic
 
     heif_brand2 heif_read_main_brand(
         const uint8_t* data,
@@ -389,6 +442,16 @@ cdef extern from 'libheif/heif.h':
         const heif_image_handle*
     ) nogil
 
+    heif_error heif_image_handle_get_preferred_decoding_colorspace(
+        const heif_image_handle* image_handle,
+        heif_colorspace* out_colorspace,
+        heif_chroma* out_chroma
+    ) nogil
+
+    heif_context* heif_image_handle_get_context(
+        const heif_image_handle* handle
+    ) nogil
+
     int heif_image_handle_get_ispe_width(
         const heif_image_handle* handle
     ) nogil
@@ -464,8 +527,8 @@ cdef extern from 'libheif/heif.h':
         heif_image_handle** out_thumbnail_handle
     ) nogil
 
-    #define LIBHEIF_AUX_IMAGE_FILTER_OMIT_ALPHA (1UL<<1)
-    #define LIBHEIF_AUX_IMAGE_FILTER_OMIT_DEPTH (2UL<<1)
+    int LIBHEIF_AUX_IMAGE_FILTER_OMIT_ALPHA
+    int LIBHEIF_AUX_IMAGE_FILTER_OMIT_DEPTH
 
     int heif_image_handle_get_number_of_auxiliary_images(
         const heif_image_handle* handle,
@@ -531,6 +594,11 @@ cdef extern from 'libheif/heif.h':
         const heif_image_handle* handle,
         heif_item_id metadata_id_,
         void* out_data
+    ) nogil
+
+    const char* heif_image_handle_get_metadata_item_uri_type(
+        const heif_image_handle* handle,
+        heif_item_id metadata_id
     ) nogil
 
     enum heif_color_profile_type:
@@ -661,129 +729,6 @@ cdef extern from 'libheif/heif.h':
         heif_color_profile_nclx** out_data
     ) nogil
 
-    enum heif_item_property_type:
-        # heif_item_property_unknown
-        heif_item_property_type_invalid
-        heif_item_property_type_user_description
-        heif_item_property_type_transform_mirror
-        heif_item_property_type_transform_rotation
-        heif_item_property_type_transform_crop
-        heif_item_property_type_image_size
-
-    int heif_item_get_properties_of_type(
-        const heif_context* context,
-        heif_item_id id_,
-        heif_item_property_type type_,
-        heif_property_id* out_list,
-        int count
-    ) nogil
-
-    int heif_item_get_transformation_properties(
-        const heif_context* context,
-        heif_item_id id_,
-        heif_property_id* out_list,
-        int count
-    ) nogil
-
-    heif_item_property_type heif_item_get_property_type(
-        const heif_context* context,
-        heif_item_id id_,
-        heif_property_id property_id
-    ) nogil
-
-    struct heif_property_user_description:
-        int version
-        const char* lang
-        const char* name
-        const char* description
-        const char* tags
-
-    heif_error heif_item_get_property_user_description(
-        const heif_context* context,
-        heif_item_id itemId,
-        heif_property_id propertyId,
-        heif_property_user_description** out
-    ) nogil
-
-    heif_error heif_item_add_property_user_description(
-        const heif_context* context,
-        heif_item_id itemId,
-        const heif_property_user_description* description,
-        heif_property_id* out_propertyId
-    ) nogil
-
-    void heif_property_user_description_release(
-        heif_property_user_description*
-    ) nogil
-
-    enum heif_transform_mirror_direction:
-        heif_transform_mirror_direction_vertical
-        heif_transform_mirror_direction_horizontal
-
-    heif_transform_mirror_direction heif_item_get_property_transform_mirror(
-        const heif_context* context,
-        heif_item_id itemId,
-        heif_property_id propertyId
-    ) nogil
-
-    int heif_item_get_property_transform_rotation_ccw(
-        const heif_context* context,
-        heif_item_id itemId,
-        heif_property_id propertyId
-    ) nogil
-
-    void heif_item_get_property_transform_crop_borders(
-        const heif_context* context,
-        heif_item_id itemId,
-        heif_property_id propertyId,
-        int image_width,
-        int image_height,
-        int* left,
-        int* top,
-        int* right,
-        int* bottom
-    ) nogil
-
-    enum heif_compression_format:
-        heif_compression_undefined
-        heif_compression_HEVC
-        heif_compression_AVC
-        heif_compression_JPEG
-        heif_compression_AV1
-        heif_compression_VVC
-        heif_compression_EVC
-        heif_compression_JPEG2000
-        heif_compression_uncompressed
-
-    enum heif_chroma:
-        heif_chroma_undefined
-        heif_chroma_monochrome
-        heif_chroma_420
-        heif_chroma_422
-        heif_chroma_444
-        heif_chroma_interleaved_RGB
-        heif_chroma_interleaved_RGBA
-        heif_chroma_interleaved_RRGGBB_BE
-        heif_chroma_interleaved_RRGGBBAA_BE
-        heif_chroma_interleaved_RRGGBB_LE
-        heif_chroma_interleaved_RRGGBBAA_LE
-
-    enum heif_colorspace:
-        heif_colorspace_undefined
-        heif_colorspace_YCbCr
-        heif_colorspace_RGB
-        heif_colorspace_monochrome
-
-    enum heif_channel:
-        heif_channel_Y
-        heif_channel_Cb
-        heif_channel_Cr
-        heif_channel_R
-        heif_channel_G
-        heif_channel_B
-        heif_channel_Alpha
-        heif_channel_interleaved
-
     enum heif_progress_step:
         heif_progress_step_total
         heif_progress_step_load_tile
@@ -855,21 +800,21 @@ cdef extern from 'libheif/heif.h':
     ) nogil
 
     int heif_image_get_width(
-        const heif_image*,
+        const heif_image* img,
         heif_channel channel
     ) nogil
 
     int heif_image_get_height(
-        const heif_image*,
+        const heif_image* img,
         heif_channel channel
     ) nogil
 
     int heif_image_get_primary_width(
-        const heif_image*
+        const heif_image* img
     ) nogil
 
     int heif_image_get_primary_height(
-        const heif_image*
+        const heif_image* img
     ) nogil
 
     heif_error heif_image_crop(
@@ -1372,6 +1317,9 @@ cdef extern from 'libheif/heif.h':
         const heif_encoder_descriptor*
     ) nogil
 
+
+cdef extern from 'libheif/heif_regions.h':
+
     struct heif_region_item:
         pass
 
@@ -1561,4 +1509,90 @@ cdef extern from 'libheif/heif.h':
         const int32_t* pts_array,
         int nPoints,
         heif_region** out_region
+    ) nogil
+
+
+cdef extern from 'libheif/heif_properties.h':
+
+    enum heif_item_property_type:
+        # heif_item_property_unknown
+        heif_item_property_type_invalid
+        heif_item_property_type_user_description
+        heif_item_property_type_transform_mirror
+        heif_item_property_type_transform_rotation
+        heif_item_property_type_transform_crop
+        heif_item_property_type_image_size
+
+    int heif_item_get_properties_of_type(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_item_property_type type_,
+        heif_property_id* out_list,
+        int count
+    ) nogil
+
+    int heif_item_get_transformation_properties(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_property_id* out_list,
+        int count
+    ) nogil
+
+    heif_item_property_type heif_item_get_property_type(
+        const heif_context* context,
+        heif_item_id id_,
+        heif_property_id property_id
+    ) nogil
+
+    struct heif_property_user_description:
+        int version
+        const char* lang
+        const char* name
+        const char* description
+        const char* tags
+
+    heif_error heif_item_get_property_user_description(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId,
+        heif_property_user_description** out
+    ) nogil
+
+    heif_error heif_item_add_property_user_description(
+        const heif_context* context,
+        heif_item_id itemId,
+        const heif_property_user_description* description,
+        heif_property_id* out_propertyId
+    ) nogil
+
+    void heif_property_user_description_release(
+        heif_property_user_description*
+    ) nogil
+
+    enum heif_transform_mirror_direction:
+        heif_transform_mirror_direction_vertical
+        heif_transform_mirror_direction_horizontal
+
+    heif_transform_mirror_direction heif_item_get_property_transform_mirror(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId
+    ) nogil
+
+    int heif_item_get_property_transform_rotation_ccw(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId
+    ) nogil
+
+    void heif_item_get_property_transform_crop_borders(
+        const heif_context* context,
+        heif_item_id itemId,
+        heif_property_id propertyId,
+        int image_width,
+        int image_height,
+        int* left,
+        int* top,
+        int* right,
+        int* bottom
     ) nogil
