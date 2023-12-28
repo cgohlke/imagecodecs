@@ -1,7 +1,7 @@
-/* imcd.h */
+/* imagecodecs/imcd.h */
 
 /*
-Copyright (c) 2008-2023, Christoph Gohlke.
+Copyright (c) 2008-2024, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2023.8.12"
+#define IMCD_VERSION "2024.1.1"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -138,7 +138,8 @@ ssize_t imcd_packbits_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const ssize_t dstsize
+    const ssize_t dstsize,
+    const ssize_t dststride
 );
 
 
