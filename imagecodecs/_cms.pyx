@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """CMS codec for the imagecodecs package."""
-
-__version__ = '2023.7.4'
 
 include '_shared.pxi'
 
@@ -369,7 +367,7 @@ def cms_profile(
             Primaries.Blue.y = primaries[10] / primaries[11]
             Primaries.Blue.Y = 1.0
         else:
-            raise ValueError('invalid length of primaries')
+            raise ValueError(f'invalid length of primaries {len(primaries)}')
         pPrimaries = &Primaries
 
     ppTransferFunction[0] = NULL
@@ -473,7 +471,7 @@ def cms_profile(
                 hProfile = adobe_rgb_compatible()
 
         if hProfile == NULL:
-            raise ValueError(f'failed to create CMS profile for {profile!r}')
+            raise ValueError(f'failed to create CMS {profile=!r}')
 
         ret = cmsSaveProfileToMem(hProfile, NULL, &BytesNeeded)
         if ret == 0:
@@ -530,9 +528,7 @@ def _cms_output_shape(
     try:
         outchannels, outextrachannel = _CMS_FORMATS[colorspace.lower()][1:3]
     except (KeyError, AttributeError) as exc:
-        raise ValueError(
-            f'invalid output colorspace {colorspace!r}'
-        ) from exc
+        raise ValueError(f'invalid output {colorspace=!r}') from exc
 
     inplanar = T_PLANAR(inputformat)
     insamples = T_CHANNELS(inputformat) + T_EXTRA(inputformat)
@@ -662,8 +658,8 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
         raise ValueError('invalid shape')
 
     # TODO: float16 segfaulting
-    if dtype.char not in 'BHdf':
-        raise ValueError(f'dtype {dtype!r} not supported')
+    if dtype.char not in 'BHdfe':
+        raise ValueError(f'{dtype=!r} not supported')
 
     if itemsize == 8:
         itemsize = 0  # 8 would overflow the bitfield
@@ -734,7 +730,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
                 swapfirst
             ) =  _CMS_FORMATS[colorspace.lower()]
         except (KeyError, AttributeError) as exc:
-            raise ValueError(f'invalid colorspace {colorspace!r}') from exc
+            raise ValueError(f'invalid {colorspace=!r}') from exc
 
         if planar is None and ndim > 2:
             # determine isplanar
@@ -810,7 +806,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
                 )
         elif samples != channels + extrachannel:
             raise ValueError(
-                f'shape {shape!r} does not match colorspace {colorspace!r} '
+                f'shape {shape!r} does not match {colorspace=!r} '
                 f'with {channels + extrachannel} '
                 f'{"planar" if isplanar else "contig"} samples'
             )
