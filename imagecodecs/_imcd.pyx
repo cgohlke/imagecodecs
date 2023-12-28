@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Codecs for the imagecodecs package using the imcd.c library."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -145,7 +143,7 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
         bint isnative = True
 
     if dist != 1:
-        raise NotImplementedError(f'dist {dist} not implemented')  # TODO
+        raise NotImplementedError(f'{dist=} not implemented')  # TODO
 
     if isinstance(data, numpy.ndarray):
         if data.dtype.kind not in 'fiu':
@@ -447,12 +445,12 @@ cdef _byteshuffle(
     ndim = data.ndim
     axis = axis % ndim
     if ndim < 1 or ndim - axis > 2:
-        raise ValueError('invalid axis')
+        raise ValueError(f'invalid {axis=}')
 
     samples = data.shape[axis+1] if ndim - axis == 2 else 1
 
     if dist != 1 and dist != 2 and dist != 4:
-        raise NotImplementedError(f'dist {dist} not implemented')
+        raise NotImplementedError(f'{dist=} not implemented')
 
     samples *= dist
 
@@ -838,13 +836,140 @@ def packbits_decode(data, out=None):
             &src[0],
             srcsize,
             <uint8_t*> &dst[0],
-            dstsize
+            dstsize,
+            1
         )
     if ret < 0:
         raise PackbitsError('imcd_packbits_decode', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
+
+# DICOM RLE ###################################################################
+
+# https://dicom.nema.org
+# /medical/Dicom/current/output/chtml/part05/sect_8.2.2.html
+
+DICOMRLE = IMCD
+DicomrleError = ImcdError
+dicomrle_version = imcd_version
+
+ctypedef struct dicomrle_header:
+    uint32_t segments
+    uint32_t offset[15]
+
+
+def dicomrle_check(const uint8_t[::1] data):
+    """Return whether data is DICOMRLE encoded data."""
+    cdef:
+        ssize_t segment
+        dicomrle_header header
+
+    if data.size < 64:
+        return False
+    memcpy(&header, &data[0], 64)
+    if header.segments == 0 or header.segments > 15 or header.offset[0] != 64:
+        return False
+    for segment in range(header.segments):
+        if header.offset[segment] == 0 or header.offset[segment] >= data.size:
+            return False
+    return True
+
+
+def dicomrle_encode(data, out=None):
+    """Return DICOMRLE encoded data."""
+    raise NotImplementedError('dicomrle_encode')
+
+
+def dicomrle_decode(data, dtype, out=None):
+    """Return decoded DICOMRLE data."""
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.size
+        ssize_t itemsize, dstsize, decoded_size, size, ret, segment, offset
+        bint byteswap = 0
+        dicomrle_header header
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+    if srcsize < 64:
+        raise ValueError(f'invalid DICOM RLE size {srcsize} < 64')
+
+    memcpy(&header, &src[0], 64)
+    if header.segments == 0 or header.segments > 15 or header.offset[0] != 64:
+        raise ValueError(f'invalid DICOM RLE {header.segments=}')
+
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    byteswap = itemsize > 1 and dtype.byteorder != '>'
+    if header.segments % itemsize != 0:
+        raise ValueError(f'{itemsize=} does not match {header.segments=}')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+    if out is None:
+        if dstsize < 0:
+            with nogil:
+                dstsize = 0
+                segment = 0
+                while segment < header.segments:
+                    if header.segments == segment + 1:
+                        size = srcsize - <ssize_t> header.offset[segment]
+                    else:
+                        size = (
+                            <ssize_t> header.offset[segment + 1]
+                            - <ssize_t> header.offset[segment]
+                        )
+                    if size <= 0:
+                        raise ValueError(f'invalid {size=} of {segment=}')
+                    ret = imcd_packbits_decode_size(
+                        &src[header.offset[segment]], size
+                    )
+                    if ret < 0:
+                        raise DicomrleError('imcd_packbits_decode_size', ret)
+                    # all decoded segments in a sample have the same size
+                    dstsize += itemsize * ret
+                    segment += itemsize
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    with nogil:
+        decoded_size = 0
+        offset = 0
+        segment = 0
+        while segment < header.segments:
+            if header.segments == segment + 1:
+                size = srcsize - <ssize_t> header.offset[segment]
+            else:
+                size = (
+                    <ssize_t> header.offset[segment + 1]
+                    - <ssize_t> header.offset[segment]
+                )
+            if size <= 0:
+                raise ValueError(f'invalid {segment=} {size=}')
+            ret = imcd_packbits_decode(
+                &src[header.offset[segment]],
+                size,
+                <uint8_t*> &dst[offset],
+                max(0, dstsize - offset),
+                itemsize
+            )
+            if ret < 0:
+                raise DicomrleError('imcd_packbits_decode', ret)
+            decoded_size += ret
+            offset += 1
+            segment += 1
+            if segment % itemsize == 0:
+                offset = decoded_size
+
+        if byteswap:
+            imcd_swapbytes(<void*> &dst[0], decoded_size // itemsize, itemsize)
+
+    del dst
+    return _return_output(out, dstsize, decoded_size, outgiven)
 
 
 # CCITTRLE ####################################################################
@@ -1199,7 +1324,13 @@ def eer_decode(
             f'compression scheme {rlebits}_{horzbits}_{vertbits} not supported'
         )
 
-    if superres and (height % (2**vertbits) or width % (2**horzbits)):
+    if (
+        superres
+        and (
+            height % (2 ** <uint32_t> vertbits)
+            or width % (2 ** <uint32_t> horzbits)
+        )
+    ):
         raise ValueError('shape not compatible with superresolution')
 
     out = _create_array(out, shape, numpy.bool_, strides=None, zero=True)
@@ -1317,7 +1448,7 @@ def lzw_encode(data, out=None):
 
     with nogil:
         ret = imcd_lzw_encode(
-            <const uint8_t*> &src[0], srcsize, &dst[0], dstsize
+            <const uint8_t*> &src[0], srcsize, <uint8_t*> &dst[0], dstsize
         )
     if ret < 0:
         raise LzwError('imcd_lzw_encode', ret)
