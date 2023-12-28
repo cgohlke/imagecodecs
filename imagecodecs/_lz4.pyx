@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """LZ4 codec for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -354,7 +352,10 @@ def lz4h5_decode(data, out=None):
                     f'invalid block size {lz4size} @{srcpos} of {srcsize}'
                 )
 
-            blksize = min(<int64_t> blksize, <int64_t> (dstsize - dstpos))
+            blksize = <int >min(
+                <int64_t> blksize,
+                <int64_t> (dstsize - dstpos)
+            )
 
             ret = LZ4_decompress_safe(
                 <char*> &src[srcpos],
@@ -372,7 +373,7 @@ def lz4h5_decode(data, out=None):
     return _return_output(out, dstsize, dstpos, outgiven)
 
 
-cdef inline uint32_t read_i4be(const uint8_t* psrc) nogil:
+cdef inline uint32_t read_i4be(const uint8_t* psrc) noexcept nogil:
     # read >i4 to value
     return (
         ((<uint32_t> psrc[0]) << 24) |
@@ -382,7 +383,7 @@ cdef inline uint32_t read_i4be(const uint8_t* psrc) nogil:
     )
 
 
-cdef inline uint64_t read_i8be(const uint8_t* psrc) nogil:
+cdef inline uint64_t read_i8be(const uint8_t* psrc) noexcept nogil:
     # read >i8 to value
     return (
         ((<uint64_t> psrc[0]) << 56) |
@@ -396,7 +397,7 @@ cdef inline uint64_t read_i8be(const uint8_t* psrc) nogil:
     )
 
 
-cdef inline void write_i4be(uint8_t* pdst, uint32_t value) nogil:
+cdef inline void write_i4be(uint8_t* pdst, uint32_t value) noexcept nogil:
     # write >i4 to pdst
     pdst[0] = (value >> 24) & 255
     pdst[1] = (value >> 16) & 255
@@ -404,7 +405,7 @@ cdef inline void write_i4be(uint8_t* pdst, uint32_t value) nogil:
     pdst[3] = value & 255
 
 
-cdef inline void write_i8be(uint8_t* pdst, uint64_t value) nogil:
+cdef inline void write_i8be(uint8_t* pdst, uint64_t value) noexcept nogil:
     # write >i8 to pdst
     pdst[0] = (value >> 56) & 255
     pdst[1] = (value >> 48) & 255
