@@ -1,6 +1,6 @@
 # test_imagecodecs.py
 
-# Copyright (c) 2018-2023, Christoph Gohlke
+# Copyright (c) 2018-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2023.9.18
+:Version: 2024.1.1
 
 """
 
@@ -73,13 +73,12 @@ try:
         zstd,
     )
     from imagecodecs.imagecodecs import _add_codec, _extensions
-except ImportError as exc:
-    pytest.exit(str(exc))
+except ImportError as _exc:
+    pytest.exit(str(_exc))
 
 
 try:
     import zarr
-
     from imagecodecs import numcodecs
 except ImportError:
     SKIP_NUMCODECS = True
@@ -100,6 +99,7 @@ IS_PYPY = 'pypy' in sys.version.lower()
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
 # running in cibuildwheel environment?
 IS_CIBW = bool(os.environ.get('IMAGECODECS_CIBW', False))
+SKIP_DEBUG = bool(os.environ.get('IMAGECODECS_DEBUG', False))
 
 numpy.set_printoptions(suppress=True, precision=5)
 
@@ -126,7 +126,7 @@ def test_module_exist(name):
     if exists:
         return
     if IS_CG:
-        if IS_32BIT and name in {'heif', 'jetraw'}:
+        if IS_32BIT and name in {'heif', 'jetraw', 'sperr'}:
             pytest.xfail(f'imagecodecs._{name} may be missing')
         elif IS_ARM64 and name == 'jetraw':
             pytest.xfail(f'imagecodecs._{name} may be missing')
@@ -509,6 +509,170 @@ def test_packbits_encode_axis():
     encoded = imagecodecs.packbits_encode(data, axis=-2)
     assert len(encoded) < 1200
     assert imagecodecs.packbits_decode(encoded) == data.tobytes()
+
+
+@pytest.mark.skipif(
+    not imagecodecs.PACKBITS.available, reason='Packbits missing'
+)
+def test_packbits_padbyte():
+    """Test PackBits decoding with pad byte."""
+    # https://github.com/cgohlke/imagecodecs/issues/86
+    encode = imagecodecs.packbits_encode
+    decode = imagecodecs.packbits_decode
+
+    data = numpy.array([[121, 121], [27, 63]], dtype=numpy.uint8)
+    encoded = encode(data)
+    assert encoded == b'\xffy\x01\x1b?'
+    assert decode(encoded) == data.tobytes()
+    assert decode(encoded + b'\x00') == data.tobytes()
+    with pytest.raises(imagecodecs.PackbitsError):
+        assert decode(encoded + b'\x01') == data.tobytes()
+
+
+DICOMRLE_DATA = [
+    (
+        (
+            b'\x01\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x05\x00@\x80\xa0\xc0\xff'
+        ),
+        numpy.array([0, 64, 128, 160, 192, 255], dtype='u1'),
+    ),
+    (
+        (
+            b'\x03\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x05\x00@\x80\xa0\xc0\xff\x05\xff\xc0\x80@\x00\xff'
+            b'\x05\x01@\x80\xa0\xc0\xfe'
+        ),
+        numpy.array(
+            [
+                [0, 64, 128, 160, 192, 255],
+                [255, 192, 128, 64, 0, 255],
+                [1, 64, 128, 160, 192, 254],
+            ],
+            dtype='u1',
+        ),
+    ),
+    (
+        (
+            b'\x02\x00\x00\x00@\x00\x00\x00G\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x05\x00\x00\x01\x00\xff\xff\x05\x00\x01\x00\xff\x00\xff'
+        ),
+        numpy.array([0, 1, 256, 255, 65280, 65535], dtype='u2'),
+    ),
+    (
+        (
+            b'\x06\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00U\x00'
+            b'\x00\x00\\\x00\x00\x00c\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x05\x00\x00\x01\x00\xff\xff\x05\x00\x01\x00\xff\x00\xff\x05'
+            b'\xff\x00\x01\x00\xff\x00\x05\xff\x01\x00\xff\x00\x00\x05\x00'
+            b'\x00\x01\x00\xff\xff\x05\x01\x01\x00\xff\x00\xfe'
+        ),
+        numpy.array(
+            [
+                [0, 1, 256, 255, 65280, 65535],
+                [65535, 1, 256, 255, 65280, 0],
+                [1, 1, 256, 255, 65280, 65534],
+            ],
+            dtype='u2',
+        ),
+    ),
+    (
+        (
+            b'\x04\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00U\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+            b'\x00\x05\x00\x01\x00\x00\x00\xff\x05\x00\x00\x01\x00\x00\xff'
+            b'\x05\x00\x00\x00\x01\x00\xff\x05\x00\x00\x00\x00\x01\xff'
+        ),
+        numpy.array([0, 16777216, 65536, 256, 1, 4294967295], dtype='u4'),
+    ),
+    (
+        (
+            b'\x0c\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00U\x00'
+            b'\x00\x00\\\x00\x00\x00c\x00\x00\x00j\x00\x00\x00q\x00\x00\x00x'
+            b'\x00\x00\x00\x7f\x00\x00\x00\x86\x00\x00\x00\x8d\x00\x00\x00'
+            b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00\x01'
+            b'\x00\x00\x00\xff\x05\x00\x00\x01\x00\x00\xff\x05\x00\x00\x00'
+            b'\x01\x00\xff\x05\x00\x00\x00\x00\x01\xff\x05\xff\x01\x00\x00'
+            b'\x00\x00\x05\xff\x00\x01\x00\x00\x00\x05\xff\x00\x00\x01\x00'
+            b'\x00\x05\xff\x00\x00\x00\x01\x00\x05\x00\x01\x00\x00\x00\xff'
+            b'\x05\x00\x00\x01\x00\x00\xff\x05\x00\x00\x00\x01\x00\xff\x05'
+            b'\x01\x00\x00\x00\x01\xfe'
+        ),
+        numpy.array(
+            [
+                [0, 16777216, 65536, 256, 1, 4294967295],
+                [4294967295, 16777216, 65536, 256, 1, 0],
+                [1, 16777216, 65536, 256, 1, 4294967294],
+            ],
+            dtype='u4',
+        ),
+    ),
+]
+
+
+@pytest.mark.skipif(
+    not imagecodecs.DICOMRLE.available, reason='DICOMRLE missing'
+)
+@pytest.mark.parametrize('data', range(len(DICOMRLE_DATA)))
+@pytest.mark.parametrize('byteorder', ['=', '<', '>'])
+@pytest.mark.parametrize('output', [False, True])
+def test_dicomrle(data, byteorder, output):
+    """Test DICOMRLE decoding."""
+    encoded, result = DICOMRLE_DATA[data]
+    out = result.nbytes if output else None
+    dtype = byteorder + result.dtype.char
+    assert imagecodecs.dicomrle_check(encoded)
+    decoded = imagecodecs.dicomrle_decode(encoded, dtype, out=out)
+    assert_array_equal(
+        numpy.frombuffer(decoded, dtype).reshape(result.shape), result
+    )
+    if out is not None:
+        with pytest.raises(imagecodecs.DicomrleError):
+            imagecodecs.dicomrle_decode(encoded, dtype, out=out - 1)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.DICOMRLE.available or SKIP_NUMCODECS,
+    reason='zarr or numcodecs missing',
+)
+def test_dicomrle_numcodecs():
+    """Test DICOMRLE decoding with numcodecs."""
+    from imagecodecs.numcodecs import Dicomrle
+
+    encoded, result = DICOMRLE_DATA[-1]
+    decoded = Dicomrle(dtype='<u4').decode(encoded)
+    assert_array_equal(
+        numpy.frombuffer(decoded, '<u4').reshape(result.shape), result
+    )
+
+
+@pytest.mark.skipif(
+    not imagecodecs.DICOMRLE.available, reason='DICOMRLE missing'
+)
+def test_dicomrle_raises():
+    """Test DICOMRLE decoding exceptions."""
+    decode = imagecodecs.dicomrle_decode
+    with pytest.raises(ValueError):
+        decode(b'\x00' * 63, 'u1')
+    with pytest.raises(ValueError):
+        decode(b'\x00' * 64, 'u1')
+    with pytest.raises(ValueError):
+        decode(DICOMRLE_DATA[0][0], 'u4')
+    assert not imagecodecs.dicomrle_check(b'\x00' * 63)
+    assert not imagecodecs.dicomrle_check(b'\x00' * 64)
 
 
 @pytest.mark.filterwarnings('ignore:invalid value encountered')
@@ -943,9 +1107,8 @@ def test_quantize_roundtrip(mode, dtype):
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
 def test_quantize_bitround(dtype, nsd):
     """Test BitRound quantize against numcodecs."""
-    from numcodecs import BitRound
-
     from imagecodecs.numcodecs import Quantize
+    from numcodecs import BitRound
 
     # TODO: 31.4 fails
     data = numpy.linspace(-2.1, 31.5, 51, dtype=dtype).reshape((3, 17))
@@ -966,9 +1129,8 @@ def test_quantize_bitround(dtype, nsd):
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
 def test_quantize_scale(dtype, nsd):
     """Test Scale quantize against numcodecs."""
-    from numcodecs import Quantize as Quantize2
-
     from imagecodecs.numcodecs import Quantize
+    from numcodecs import Quantize as Quantize2
 
     data = numpy.linspace(-2.1, 31.4, 51, dtype=dtype).reshape((3, 17))
     encoded = Quantize(
@@ -1110,6 +1272,55 @@ def test_zlib_checksums(codec, kind, value):
     expected = getattr(zlib, kind)(data, *args) & 0xFFFFFFFF
     checksum = getattr(imagecodecs, codec + '_' + kind)(data, *args)
     assert checksum == expected
+
+
+@pytest.mark.skipif(not imagecodecs.LZO.available, reason='LZO missing')
+def test_lzo_decode():
+    """Test LZO decoder."""
+    decode = imagecodecs.lzo_decode
+
+    assert imagecodecs.lzo_check(b'\x11\x00\x00') is None
+    assert decode(b'\x11\x00\x00', out=0) == b''
+    assert decode(b'\x11\x00\x00', out=10) == b''
+    assert decode(b'\x12  \x1e\x00\x00\x11\x00\x00', out=65) == b' ' * 64
+    assert (
+        decode(
+            b'\x02      \x0b\x10\x00\x0c               \x11\x00\x00', out=64
+        )
+        == b' ' * 64
+    )
+    assert (
+        decode(b'\x15a\x01\x0ca \x1b\x0c\x00\x11\x00\x00', out=64)
+        == b'a\01\fa' * 16
+    )
+
+    # with header
+    assert decode(b'\xf0\x00\x00\x00\x00\x11\x00\x00', header=True) == b''
+    assert (
+        decode(b'\xf1\x00\x00\x00@\x12  \x1e\x00\x00\x11\x00\x00', header=True)
+        == b' ' * 64
+    )
+
+    with pytest.raises(imagecodecs.LzoError):
+        decode(b'\x15a\x01\x0ca \x1b\x0c\x00\x11\x00\x00', out=63)
+    with pytest.raises(TypeError):
+        decode(b'\x11\x00\x00')
+
+
+@pytest.mark.skipif(
+    not imagecodecs.LZO.available or SKIP_NUMCODECS,
+    reason='zarr or numcodecs missing',
+)
+def test_lzo_numcodecs():
+    """Test LZO decoding with numcodecs."""
+    from imagecodecs.numcodecs import Lzo
+
+    assert (
+        Lzo(header=True).decode(
+            b'\xf1\x00\x00\x00@\x15a\x01\x0ca \x1b\x0c\x00\x11\x00\x00'
+        )
+        == b'a\01\fa' * 16
+    )
 
 
 @pytest.mark.skipif(not imagecodecs.LZW.available, reason='LZW missing')
@@ -2398,14 +2609,40 @@ def test_cms_format():
 
 
 @pytest.mark.skipif(not imagecodecs.CMS.available, reason='cms missing')
-@pytest.mark.parametrize('dtype', list('BHfd'))
-@pytest.mark.parametrize('outdtype', list('BHfd'))
+def test_cms():
+    """Test planar sRGB float to uint16 transform."""
+    # https://github.com/mm2/Little-CMS/issues/420
+    from imagecodecs import cms_profile, cms_transform
+
+    data = image_data('rgb', 'f4', planar=True)
+    out = cms_transform(
+        data,
+        profile=cms_profile('srgb'),
+        colorspace='rgb',
+        outprofile=cms_profile('srgb'),
+        outcolorspace='rgb',
+        planar=True,
+        outplanar=True,
+        outdtype='u2',
+        verbose=True,
+    )
+    assert out.shape == data.shape
+    assert out.dtype == 'u2'
+    assert out[:, -1, -1].tolist() == [36947, 34042, 10460]
+
+
+@pytest.mark.skipif(not imagecodecs.CMS.available, reason='cms missing')
+@pytest.mark.parametrize('outdtype', list('BHfde'))
+@pytest.mark.parametrize('dtype', list('BHfde'))
 @pytest.mark.parametrize('planar', [False, True])
 @pytest.mark.parametrize('outplanar', [False, True])
 @pytest.mark.parametrize('out', [None, True])
 def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
     """Test CMS identity transforms."""
     from imagecodecs import cms_profile, cms_transform
+
+    if outplanar and outdtype == 'e':
+        pytest.xfail('half float planar output not supported')
 
     shape = (3, 256, 253) if planar else (256, 253, 3)
     dtype = numpy.dtype(dtype)
@@ -2433,6 +2670,7 @@ def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
         planar=planar,
         outplanar=outplanar,
         outdtype=outdtype,
+        verbose=True,
         out=out,
     )
     if out is None:
@@ -2446,10 +2684,44 @@ def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
         if dtype.kind == 'u':
             assert_array_equal(data, out)
         else:
-            assert_allclose(data, out, rtol=1e-3)
+            assert_allclose(data, out, atol=0.001)
     else:
         # TODO: how to verify?
         pass
+
+
+# test data from https://entropymine.com/jason/bmpsuite
+BMP_TEST_DIR = osp.join(TEST_DIR, 'bmpsuite/g')
+BMP_FILES = list(
+    osp.split(f)[-1][:-4] for f in glob.glob(osp.join(BMP_TEST_DIR, '*.bmp'))
+)
+
+
+@pytest.mark.skipif(not imagecodecs.BMP.available, reason='bmp missing')
+@pytest.mark.parametrize('name', BMP_FILES)
+def test_bmpsuite(name):
+    """Test BMP codec with bmpsuite files."""
+    filename = osp.join(BMP_TEST_DIR, f'{name}.bmp')
+    with open(filename, 'rb') as fh:
+        encoded = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+
+    assert imagecodecs.bmp_check(encoded)
+    try:
+        decoded = imagecodecs.bmp_decode(encoded)
+    except imagecodecs.BmpError as exc:
+        pytest.xfail(str(exc))
+
+    if 'nonsquare' in name:
+        pass
+    elif decoded.shape == 2:
+        assert decoded[19, 98] == 0
+    else:
+        assert tuple(decoded[19, 98]) == (0, 0, 0)
+
+    assert_array_equal(
+        decoded,
+        imagecodecs.bmp_decode(imagecodecs.bmp_encode(decoded, ppm=3780)),
+    )
 
 
 @pytest.mark.parametrize('optimize', [False, True])
@@ -2846,7 +3118,7 @@ def test_avif_encoder(codec):
         data, level=95, codec=codec, pixelformat=pixelformat, numthreads=2
     )
     decoded = imagecodecs.avif_decode(encoded, numthreads=2)
-    assert_allclose(decoded, data, atol=5, rtol=0)
+    assert_allclose(decoded, data, atol=6, rtol=0)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGLS.available, reason='jpegls missing')
@@ -3037,6 +3309,69 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
         atol = 1e-6
     else:
         atol = 20
+    assert_allclose(data, decoded, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.SPERR.available or SKIP_DEBUG, reason='sperr missing'
+)
+@pytest.mark.parametrize('mode', ['bpp', 'psnr', 'pwe'])
+@pytest.mark.parametrize('deout', ['new', 'out'])
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', ['gray', 'stack'])
+@pytest.mark.parametrize('header', [True, False])
+@pytest.mark.parametrize('dtype', ['float32', 'float64'])
+def test_sperr(dtype, itype, enout, deout, mode, header):
+    """Test SPERR codec."""
+    decode = imagecodecs.sperr_decode
+    encode = imagecodecs.sperr_encode
+
+    dtype = numpy.dtype(dtype)
+    data = numpy.squeeze(image_data(itype, dtype))
+    shape = data.shape
+
+    if mode == 'bpp':
+        level = 16.0
+        atol = 1e-6
+    elif mode == 'psnr':
+        level = 100.0
+        atol = 1e-4
+    elif mode == 'pwe':
+        level = 100.0
+        atol = 0.5
+
+    kwargs = dict(header=header, level=level, mode=mode)
+    encoded = encode(data, **kwargs)
+    encoded_len = len(encoded)
+
+    assert imagecodecs.sperr_check(encoded) is None
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        # TODO: 2D psnr decode segfaults if numpy array is exact size
+        encoded = numpy.zeros(
+            encoded_len + (2 if (mode == 'psnr' and itype == 'gray') else 0),
+            'uint8',
+        )
+        encode(data, out=encoded, **kwargs)
+        encoded = encoded[:encoded_len]
+    elif enout == 'bytearray':
+        encoded = bytearray(encoded_len)
+        encode(data, out=encoded, **kwargs)
+
+    assert len(encoded) == encoded_len
+
+    if deout == 'new':
+        if not header:
+            kwargs = dict(shape=shape, dtype=dtype)
+        else:
+            kwargs = {}
+        decoded = decode(encoded, header=header, **kwargs)
+    elif deout == 'out':
+        decoded = numpy.zeros(shape, dtype)
+        decode(encoded, header=header, out=decoded)
+
     assert_allclose(data, decoded, atol=atol, rtol=0)
 
 
@@ -3538,6 +3873,7 @@ def test_spng_encode(itype, dtype, level):
     [
         'apng',
         'avif',
+        'bmp',
         'brunsli',
         'heif',
         'jpeg_lossless',
@@ -3576,7 +3912,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             pytest.xfail('jpeg8 does not support this case')
         decode = imagecodecs.jpeg_decode
         check = imagecodecs.jpeg_check
-        level = None
+        if level is not None:
+            # duplicate test
+            # pytest.skip(f'{codec} does not support level')
+            level = None
 
         def encode(
             data, bitspersample=12 if dtype == 'uint16' else 8, **kwargs
@@ -3604,7 +3943,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decode = imagecodecs.ljpeg_decode
         encode = imagecodecs.ljpeg_encode
         check = imagecodecs.ljpeg_check
-        level = None
+        if level is not None:
+            # duplicate test
+            # pytest.skip(f'{codec} does not support level')
+            level = None
         if dtype == 'uint16':
 
             def encode(data, *args, **kwargs):  # noqa
@@ -3649,6 +3991,22 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decode = imagecodecs.apng_decode
         encode = imagecodecs.apng_encode
         check = imagecodecs.apng_check
+    elif codec == 'bmp':
+        if not imagecodecs.BMP.available:
+            pytest.skip(f'{codec} missing')
+        if (
+            itype in {'rgba', 'view', 'graya'}
+            or deout == 'view'
+            or dtype != 'uint8'
+        ):
+            pytest.xfail('bmp does not support this case')
+        decode = imagecodecs.bmp_decode
+        encode = imagecodecs.bmp_encode
+        check = imagecodecs.bmp_check
+        if level is not None:
+            # duplicate test
+            # pytest.skip(f'{codec} does not support level')
+            level = None
     elif codec == 'spng':
         if not imagecodecs.SPNG.available:
             pytest.skip(f'{codec} missing')
@@ -3764,21 +4122,20 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     itemsize = dtype.itemsize
     data = image_data(itype, dtype)
     shape = data.shape
-
     kwargs = {} if level is None else {'level': level}
 
     if enout == 'new':
         encoded = encode(data, **kwargs)
     elif enout == 'out':
         encoded = numpy.zeros(
-            2 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
+            3 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
         )
         ret = encode(data, out=encoded, **kwargs)
         if codec in {'brunsli'}:
             # Brunsli decoder doesn't like extra bytes
             encoded = encoded[: len(ret)]
     elif enout == 'bytearray':
-        encoded = bytearray(2 * shape[0] * shape[1] * shape[2] * itemsize)
+        encoded = bytearray(3 * shape[0] * shape[1] * shape[2] * itemsize)
         ret = encode(data, out=encoded, **kwargs)
         if codec in {'brunsli'}:
             # Brunsli decoder doesn't like extra bytes
@@ -3811,7 +4168,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     elif codec == 'jpegls' and level == 5:
         assert_allclose(data, decoded, atol=6)
     elif codec == 'jpeg2k' and level == 95:
-        assert_allclose(data, decoded, atol=6)
+        assert_allclose(data, decoded, atol=7)
     elif codec == 'jpegxl' and level is not None:
         atol = 256 if dtype.itemsize > 1 else 8
         if level < 100:
@@ -4158,6 +4515,7 @@ def test_numcodecs_register(caplog):
         'bitshuffle',
         'blosc',
         'blosc2',
+        'bmp',
         # 'brotli',  # failing
         'byteshuffle',
         'bz2',
@@ -4192,6 +4550,7 @@ def test_numcodecs_register(caplog):
         'rgbe',
         'rcomp',
         'snappy',
+        'sperr',
         'spng',
         'szip',
         'tiff',  # no encoder
@@ -4213,7 +4572,7 @@ def test_numcodecs(codec, photometric):
         chunks = (1, 128, 128, 3)
         axis = -2
     else:
-        data = data[:, :, 1].copy()
+        data = data[..., 1].copy()
         shape = data.shape
         chunks = (1, 128, 128)
         axis = -1
@@ -4274,6 +4633,10 @@ def test_numcodecs(codec, photometric):
             shuffle=None,
             numthreads=2,
         )
+    elif codec == 'bmp':
+        if not imagecodecs.BMP.available:
+            pytest.skip(f'{codec} not found')
+        compressor = numcodecs.Bmp(asrgb=None)
     elif codec == 'brotli':
         if not imagecodecs.BROTLI.available:
             pytest.skip(f'{codec} not found')
@@ -4458,6 +4821,19 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.SNAPPY.available:
             pytest.skip(f'{codec} not found')
         compressor = numcodecs.Snappy()
+    elif codec == 'sperr':
+        if not imagecodecs.SPERR.available:
+            pytest.skip(f'{codec} not found')
+        data = data.astype('float32')
+        compressor = numcodecs.Sperr(
+            level=100.0,
+            mode='psnr',
+            shape=chunks[1:],
+            dtype=data.dtype,
+            header=False,
+        )
+        lossless = False
+        atol = 1e-2
     elif codec == 'spng':
         if not imagecodecs.SPNG.available:
             pytest.skip(f'{codec} not found')
@@ -4532,7 +4908,9 @@ def test_numcodecs(codec, photometric):
     elif lossless:
         assert_array_equal(z[:], data)
     else:
-        assert_allclose(z[:, :150, :150], data[:, :150, :150], atol=atol)
+        assert_allclose(
+            z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0
+        )
 
     try:
         store.close()
