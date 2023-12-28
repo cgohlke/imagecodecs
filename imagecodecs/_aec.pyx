@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2019-2023, Christoph Gohlke
+# Copyright (c) 2019-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """AEC codec for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -78,8 +76,9 @@ class AecError(RuntimeError):
 
 def aec_version():
     """Return libaec library version string."""
-    # f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
-    return 'libaec 1.0.x'
+    return (
+        f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
+    )
 
 
 def aec_check(data):
@@ -138,13 +137,12 @@ def aec_encode(
     if bitspersample is not None:
         if bitspersample > bits_per_sample > 8:
             raise ValueError(
-                f'bitspersample {bitspersample} larger than '
-                f'itemsize*8 {bits_per_sample!r}'
+                f'{bitspersample=} > itemsize*8={bits_per_sample!r}'
             )
         bits_per_sample = bitspersample
 
     if bits_per_sample > 32:
-        raise ValueError(f'invalid bits_per_sample {bits_per_sample}')
+        raise ValueError(f'invalid {bits_per_sample=}')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -198,7 +196,7 @@ def aec_decode(
 ):
     """Return decoded AEC data."""
     cdef:
-        const uint8_t[::1] src = data
+        const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
