@@ -1,6 +1,6 @@
 # imagecodecs/numcodecs.py
 
-# Copyright (c) 2021-2023, Christoph Gohlke
+# Copyright (c) 2021-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,18 +35,18 @@ from __future__ import annotations
 
 __all__ = ['register_codecs']
 
-import numpy
-from numcodecs.abc import Codec
-from numcodecs.registry import register_codec, get_codec
+from typing import TYPE_CHECKING
 
 import imagecodecs
-
-from typing import TYPE_CHECKING
+import numpy
+from numcodecs.abc import Codec
+from numcodecs.registry import get_codec, register_codec
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any, Literal
-    from numpy.typing import NDArray
+
+    from numpy.typing import DTypeLike, NDArray
 
 
 class Aec(Codec):
@@ -319,6 +319,33 @@ class Blosc2(Codec):
         )
 
 
+class Bmp(Codec):
+    """BMP codec for numcodecs."""
+
+    codec_id = 'imagecodecs_bmp'
+
+    def __init__(
+        self,
+        *,
+        ppm: int | None = None,
+        asrgb: bool | None = None,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.BMP.available:
+            raise ValueError('imagecodecs.BMP not available')
+
+        self.ppm = None if ppm is None else max(1, int(ppm))
+        self.asrgb = None if asrgb is None else bool(asrgb)
+        self.squeeze = squeeze
+
+    def encode(self, buf):
+        buf = _image(buf, self.squeeze)
+        return imagecodecs.bmp_encode(buf, ppm=self.ppm)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.bmp_decode(buf, asrgb=self.asrgb, out=out)
+
+
 class Brotli(Codec):
     """Brotli codec for numcodecs."""
 
@@ -356,7 +383,7 @@ class Byteshuffle(Codec):
         self,
         *,
         shape: tuple[int, ...],
-        dtype: numpy.dtype | str,
+        dtype: DTypeLike,
         axis: int = -1,
         dist: int = 1,
         delta: bool = False,
@@ -374,8 +401,10 @@ class Byteshuffle(Codec):
 
     def encode(self, buf):
         buf = numpy.asarray(buf)
-        assert buf.shape == self.shape
-        assert buf.dtype == self.dtype
+        if buf.shape != self.shape:
+            raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+        if buf.dtype != self.dtype:
+            raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
         return imagecodecs.byteshuffle_encode(
             buf,
             axis=self.axis,
@@ -474,7 +503,7 @@ class Checksum(Codec):
             if prepend is None:
                 prepend = False
         else:
-            raise ValueError(f'checksum kind {kind!r} not supported')
+            raise ValueError(f'checksum {kind=!r} not supported')
 
         self.kind = kind
         self.value = value
@@ -591,7 +620,7 @@ class Delta(Codec):
         self,
         *,
         shape: tuple[int, ...] | None = None,
-        dtype: numpy.dtype | str | None = None,
+        dtype: DTypeLike = None,
         axis: int = -1,
         dist: int = 1,
     ) -> None:
@@ -606,8 +635,10 @@ class Delta(Codec):
     def encode(self, buf):
         if self.shape is not None or self.dtype is not None:
             buf = numpy.asarray(buf)
-            assert buf.shape == self.shape
-            assert buf.dtype == self.dtype
+            if buf.shape != self.shape:
+                raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+            if buf.dtype != self.dtype:
+                raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
         return imagecodecs.delta_encode(
             buf, axis=self.axis, dist=self.dist
         ).tobytes()
@@ -620,6 +651,25 @@ class Delta(Codec):
         return imagecodecs.delta_decode(
             buf, axis=self.axis, dist=self.dist, out=out
         )
+
+
+class Dicomrle(Codec):
+    """DICOMRLE codec for numcodecs."""
+
+    codec_id = 'imagecodecs_dicomrle'
+
+    def __init__(self, *, dtype: DTypeLike) -> None:
+        if not imagecodecs.DICOMRLE.available:
+            raise ValueError('imagecodecs.DICOMRLE not available')
+
+        self.dtype = numpy.dtype(dtype).str  # TODO: preserve endianness
+
+    def encode(self, buf, out=None):
+        # buf = _image(buf, self.squeeze)
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.dicomrle_decode(buf, self.dtype, out=out)
 
 
 class Eer(Codec):
@@ -667,7 +717,7 @@ class Float24(Codec):
 
     def __init__(
         self,
-        byteorder: Literal['>'] | Literal['<'] | Literal['='] | None = None,
+        byteorder: Literal['>', '<', '='] | None = None,
         rounding: int | None = None,
     ) -> None:
         if not imagecodecs.FLOAT24.available:
@@ -697,7 +747,7 @@ class Floatpred(Codec):
         self,
         *,
         shape: tuple[int, ...],
-        dtype: numpy.dtype | str,
+        dtype: DTypeLike,
         axis: int = -1,
         dist: int = 1,
     ) -> None:
@@ -711,8 +761,10 @@ class Floatpred(Codec):
 
     def encode(self, buf):
         buf = numpy.asarray(buf)
-        assert buf.shape == self.shape
-        assert buf.dtype == self.dtype
+        if buf.shape != self.shape:
+            raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+        if buf.dtype != self.dtype:
+            raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
         return imagecodecs.floatpred_encode(
             buf, axis=self.axis, dist=self.dist
         ).tobytes()
@@ -1124,7 +1176,7 @@ class Lerc(Codec):
         # masks: ArrayLike | None = None,
         version: int | None = None,
         planar: bool | None = None,
-        compression: Literal['zstd'] | Literal['deflate'] | None = None,
+        compression: Literal['zstd', 'deflate'] | None = None,
         compressionargs: dict[str, Any] | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
@@ -1354,6 +1406,24 @@ class Lzma(Codec):
         return imagecodecs.lzma_decode(buf, out=_flat(out))
 
 
+class Lzo(Codec):
+    """LZO codec for numcodecs."""
+
+    codec_id = 'imagecodecs_lzo'
+
+    def __init__(self, *, header: bool = False) -> None:
+        if not imagecodecs.LZO.available:
+            raise ValueError('imagecodecs.LZO not available')
+        self.header = bool(header)
+
+    def encode(self, buf):
+        # return imagecodecs.lzo_encode(buf)
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.lzo_decode(buf, header=self.header, out=_flat(out))
+
+
 class Lzw(Codec):
     """LZW codec for numcodecs."""
 
@@ -1518,7 +1588,7 @@ class Rcomp(Codec):
         self,
         *,
         shape: tuple[int, ...],
-        dtype: numpy.dtype | str,
+        dtype: DTypeLike,
         nblock: int | None = None,
     ) -> None:
         if not imagecodecs.RCOMP.available:
@@ -1593,6 +1663,70 @@ class Snappy(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.snappy_decode(buf, out=_flat(out))
+
+
+class Sperr(Codec):
+    """SPERR codec for numcodecs."""
+
+    codec_id = 'imagecodecs_sperr'
+
+    def __init__(
+        self,
+        *,
+        level: float,
+        mode: Literal['bpp', 'psnr', 'pwe'],
+        dtype: DTypeLike = None,
+        shape: tuple[int, ...] | None = None,
+        chunks: tuple[int, int, int] | None = None,
+        header: bool = True,
+        numthreads: int | None = None,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.SPERR.available:
+            raise ValueError('imagecodecs.SPERR not available')
+
+        if header:
+            self.shape = None
+            self.dtype = None
+        elif shape is None or dtype is None:
+            raise ValueError('invalid shape or dtype')
+        else:
+            self.shape = tuple(shape)
+            self.dtype = numpy.dtype(dtype).str
+        self.mode = mode
+        self.level = float(level)
+        self.chunks = None if chunks is None else tuple(chunks)
+        self.header = bool(header)
+        self.numthreads = numthreads
+        self.squeeze = squeeze
+
+    def encode(self, buf):
+        buf = _image(buf, self.squeeze)
+        if not self.header:
+            if buf.shape != self.shape:
+                raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+            if buf.dtype != self.dtype:
+                raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
+        return imagecodecs.sperr_encode(
+            buf,
+            level=self.level,
+            mode=self.mode,
+            chunks=self.chunks,
+            header=self.header,
+            numthreads=self.numthreads,
+        )
+
+    def decode(self, buf, out=None):
+        if self.header:
+            return imagecodecs.sperr_decode(buf, out=out)
+        return imagecodecs.sperr_decode(
+            buf,
+            shape=self.shape,
+            dtype=numpy.dtype(self.dtype),
+            header=self.header,
+            numthreads=self.numthreads,
+            out=out,
+        )
 
 
 class Spng(Codec):
@@ -1753,7 +1887,7 @@ class Xor(Codec):
         self,
         *,
         shape: tuple[int, ...] | None = None,
-        dtype: numpy.dtype | None = None,
+        dtype: DTypeLike = None,
         axis: int = -1,
     ) -> None:
         if not imagecodecs.XOR.available:
@@ -1766,8 +1900,10 @@ class Xor(Codec):
     def encode(self, buf):
         if self.shape is not None or self.dtype is not None:
             buf = numpy.asarray(buf)
-            assert buf.shape == self.shape
-            assert buf.dtype == self.dtype
+            if buf.shape != self.shape:
+                raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+            if buf.dtype != self.dtype:
+                raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
         return imagecodecs.xor_encode(buf, axis=self.axis).tobytes()
 
     def decode(self, buf, out=None):
@@ -1787,7 +1923,7 @@ class Zfp(Codec):
         self,
         *,
         shape: tuple[int, ...] | None = None,
-        dtype: numpy.dtype | None = None,
+        dtype: DTypeLike = None,
         strides: tuple[int, ...] | None = None,
         level: int | None = None,
         mode: int | str | None = None,
@@ -1819,8 +1955,10 @@ class Zfp(Codec):
     def encode(self, buf):
         buf = numpy.asarray(buf)
         if not self.header:
-            assert buf.shape == self.shape
-            assert buf.dtype == self.dtype
+            if buf.shape != self.shape:
+                raise ValueError(f'{buf.shape=} does not match {self.shape=}')
+            if buf.dtype != self.dtype:
+                raise ValueError(f'{buf.dtype=} does not match {self.dtype=}')
         return imagecodecs.zfp_encode(
             buf,
             level=self.level,
