@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2023, Christoph Gohlke
+# Copyright (c) 2023-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,8 +36,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 """Quantize codec for the imagecodecs package."""
-
-__version__ = '2023.9.4'
 
 include '_shared.pxi'
 
@@ -86,7 +84,7 @@ def quantize_encode(data, mode, int nsd, out=None):
         numpy.ndarray dst
         size_t src_size
         nc_type src_type
-        int ret
+        int ret = 0
         int range_error = 0
         int strict_nc3 = 0
         int quantize_mode = NC_NOQUANTIZE
@@ -123,7 +121,7 @@ def quantize_encode(data, mode, int nsd, out=None):
     elif mode == 'noquantize':
         quantize_mode = NC_NOQUANTIZE
     else:
-        raise ValueError(f'invalid quantize mode {mode!r}')
+        raise ValueError(f'invalid quantize {mode=!r}')
 
     if not 0 <= nsd < 64:
         raise ValueError(f'invalid number of significant digits {nsd!r}')
@@ -160,8 +158,8 @@ def quantize_encode(data, mode, int nsd, out=None):
                 quantize_mode,
                 nsd
             )
-        if ret < 0:
-            raise QuantizeError(f'nc4_convert_type returnd {ret!r}')
+            if ret < 0:
+                raise QuantizeError(f'nc4_convert_type returned {ret!r}')
 
     return out
 
@@ -169,7 +167,7 @@ def quantize_encode(data, mode, int nsd, out=None):
 def quantize_decode(data, mode, nsd, out=None):
     """Return de-quantized data. Raise QuantizeError if lossy."""
     if mode != NC_NOQUANTIZE:
-        raise QuantizeError(f'Quantize mode {mode} is lossy.')
+        raise QuantizeError(f'Quantize {mode=} is lossy.')
     return data
 
 ###############################################################################
@@ -184,7 +182,7 @@ cdef void quantize_scale_f(
     float* out,
     ssize_t size,
     int nsb
-) nogil:
+) noexcept nogil:
     cdef:
         float scale
         double exp
@@ -195,7 +193,7 @@ cdef void quantize_scale_f(
     scale = <float> pow(2.0, ceil(log2(pow(10.0, -exp))))
 
     for i in range(size):
-        out[i] = round(data[i] * scale) / scale
+        out[i] = <float> round(data[i] * scale) / scale
 
 
 cdef void quantize_scale_d(
@@ -203,7 +201,7 @@ cdef void quantize_scale_d(
     double* out,
     ssize_t size,
     int nsb
-) nogil:
+) noexcept nogil:
     cdef:
         double scale
         double exp
