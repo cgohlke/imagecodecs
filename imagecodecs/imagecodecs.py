@@ -1,6 +1,6 @@
 # imagecodecs.py
 
-# Copyright (c) 2008-2023, Christoph Gohlke
+# Copyright (c) 2008-2024, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,19 +37,21 @@ Czifile, Zarr, kerchunk, and other scientific image input/output packages.
 
 Decode and/or encode functions are implemented for Zlib (DEFLATE), GZIP,
 ZStandard (ZSTD), Blosc, Brotli, Snappy, LZMA, BZ2, LZ4, LZ4F, LZ4HC, LZ4H5,
-LZW, LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, AEC, SZIP,
-LERC, EER, NPY, BCn, DDS, PNG, APNG, GIF, TIFF, WebP, QOI, JPEG 8 and 12-bit,
-Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K), JPEG LS, JPEG XL,
-JPEG XR (WDP, HD Photo), MOZJPEG, AVIF, HEIF, RGBE (HDR), Jetraw, PackBits,
-Packed Integers, Delta, XOR Delta, Floating Point Predictor, Bitorder reversal,
-Byteshuffle, Bitshuffle, Quantize (Scale, BitGroom, BitRound, GranularBR),
-Float24 (24-bit floating point), and CMS (color space transformations).
+LZW, LZO, LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, SPERR,
+AEC, SZIP, LERC, EER, NPY, BCn, DDS, BMP, PNG, APNG, GIF, TIFF, WebP, QOI,
+JPEG 8 and 12-bit, Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K),
+JPEG LS, JPEG XL, JPEG XR (WDP, HD Photo), MOZJPEG, AVIF, HEIF, RGBE (HDR),
+Jetraw, DICOMRLE, PackBits, Packed Integers, Delta, XOR Delta,
+Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
+Float24 (24-bit floating point),
+Quantize (Scale, BitGroom, BitRound, GranularBR), and
+CMS (color space transformations).
 Checksum functions are implemented for crc32, adler32, fletcher32, and
 Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD 3-Clause
-:Version: 2023.9.18
+:Version: 2024.1.1
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -78,38 +80,38 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.4, 3.12.0rc, 64-bit
-- `Numpy <https://pypi.org/project/numpy>`_ 1.25.2
-- `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.11.0
+- `CPython <https://www.python.org>`_ 3.9.13, 3.10.11, 3.11.7, 3.12.1, 64-bit
+- `Numpy <https://pypi.org/project/numpy>`_ 1.26.2
+- `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.12.1
   (optional, for Zarr compatible codecs)
 
 Build requirements:
 
-- `Cython <https://github.com/cython/cython>`_ 0.29.36
+- `Cython <https://github.com/cython/cython>`_ 3.0.7
 - `brotli <https://github.com/google/brotli>`_ 1.1.0
 - `brunsli <https://github.com/google/brunsli>`_ 0.1
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.5
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.10.3
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.12.0
 - `charls <https://github.com/team-charls/charls>`_ 2.4.2
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.1
-- `jetraw <https://github.com/Jetraw/Jetraw>`_ 22.02.16.1
+- `jetraw <https://github.com/Jetraw/Jetraw>`_ 23.03.16.4
 - `jxrlib <https://github.com/cgohlke/jxrlib>`_ 1.2
-- `lcms <https://github.com/mm2/Little-CMS>`_ 2.15
+- `lcms2 <https://github.com/mm2/Little-CMS>`_ 2.16.0
 - `lerc <https://github.com/Esri/lerc>`_ 4.0.0
-- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.0.6
-- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.0.1
-  (`aom <https://aomedia.googlesource.com/aom>`_ 3.7.0,
-  `dav1d <https://github.com/videolan/dav1d>`_ 1.2.1,
+- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.2
+- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.0.3
+  (`aom <https://aomedia.googlesource.com/aom>`_ 3.8.0,
+  `dav1d <https://github.com/videolan/dav1d>`_ 1.3.0,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.6.6,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.7.0)
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 1.8.0)
 - `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.19
-- `libheif <https://github.com/strukturag/libheif>`_ 1.16.2
-  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.12,
+- `libheif <https://github.com/strukturag/libheif>`_ 1.17.6
+  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.15,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.5)
-- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.0
-- `libjxl <https://github.com/libjxl/libjxl>`_ 0.8.2
-- `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.4
+- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.1
+- `libjxl <https://github.com/libjxl/libjxl>`_ 0.9.0
+- `liblzma <https://git.tukaani.org/?p=xz.git>`_ 5.4.5
 - `libpng <https://github.com/glennrp/libpng>`_ 1.6.40
 - `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.40
 - `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.6.0
@@ -117,12 +119,14 @@ Build requirements:
 - `lz4 <https://github.com/lz4/lz4>`_ 1.9.4
 - `lzfse <https://github.com/lzfse/lzfse/>`_ 1.0
 - `lzham_codec <https://github.com/richgel999/lzham_codec/>`_ 1.0
-- `mozjpeg <https://github.com/mozilla/mozjpeg>`_ 4.1.1
+- `lzokay <https://github.com/AxioDL/lzokay>`_ db2df1f
+- `mozjpeg <https://github.com/mozilla/mozjpeg>`_ 4.1.5
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.0
 - `snappy <https://github.com/google/snappy>`_ 1.1.10
-- `zfp <https://github.com/LLNL/zfp>`_ 1.0.0
+- `sperr <https://github.com/NCAR/SPERR>`_ 0.8.0
+- `zfp <https://github.com/LLNL/zfp>`_ 1.0.1
 - `zlib <https://github.com/madler/zlib>`_ 1.3
-- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.1.3
+- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.1.5
 - `zopfli <https://github.com/google/zopfli>`_ 1.0.3
 - `zstd <https://github.com/facebook/zstd>`_ 1.5.5
 
@@ -147,33 +151,46 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://pypi.org/project/tifffile>`_ 2023.9.18
+- `tifffile <https://pypi.org/project/tifffile>`_ 2023.12.9
 - `czifile <https://pypi.org/project/czifile>`_ 2019.7.2
 - `zarr <https://github.com/zarr-developers/zarr-python>`_ 2.16.1
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.1
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.2.7
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 2.4.0
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.0.9
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.3.2
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.4
 - `python-snappy <https://github.com/andrix/python-snappy>`_ 0.6.1
 - `python-zstd <https://github.com/sergey-dryabzhinsky/python-zstd>`_ 1.5.5.1
 - `pyliblzfse <https://github.com/ydkhatri/pyliblzfse>`_ 0.4.1
-- `zopflipy <https://github.com/hattya/zopflipy>`_ 1.8
+- `zopflipy <https://github.com/hattya/zopflipy>`_ 1.9
 
 Revisions
 ---------
 
+2024.1.1
+
+- Pass 7420 tests.
+- Add 8/24-bit BMP codec.
+- Add SPERR codec based on SPERR library.
+- Add LZO decoder based on lzokay library.
+- Add DICOMRLE decoder.
+- Enable float16 in CMS codec.
+- Enable MCT for lossless JPEG2K encoder (#88).
+- Ignore pad-byte in PackBits decoder (#86).
+- Fix heif_write_callback error message not set.
+- Require lcms2 2.16 with issue-420 fixes.
+- Require libjxl 0.9, libaec 1.1, Cython 3.
+
 2023.9.18
 
-- Pass 7110 tests.
-- Rebuild with updated dependencies fixes CVE-2023-4863.
+- Rebuild with updated dependencies fixes CVE-2024-4863.
 
 2023.9.4
 
 - Map avif_encode level parameter to quality (breaking).
 - Support monochrome images in avif_encode.
 - Add numthreads parameter to avif_decode (fix imread of AVIF).
-- Add experimental quantize filter (BitGroom, BitRound, GBR) via nc4var.c.
+- Add quantize filter (BitGroom, BitRound, GBR) via nc4var.c.
 - Add LZ4H5 codec.
 - Support more BCn compressed DDS fourcc types.
 - Require libavif 1.0.
@@ -230,58 +247,6 @@ Revisions
 
 2022.12.24
 
-- Fix PNG codec error handling.
-- Fix truncated transferfunctions in cms_profile (#57).
-- Fix exceptions not raised in cdef functions not returning Python object.
-
-2022.12.22
-
-- Require libtiff 4.5.
-- Require libavif 0.11.
-- Change jpegxl_encode level parameter to resemble libjpeg quality (breaking).
-- Add LZFSE codec via lzfse library.
-- Add LZHAM codec via lzham library.
-- Fix AttributeError in cms_profile (#52).
-- Support gamma argument in cms_profile (#53).
-- Raise limit of TIFF pages to 1048576.
-- Use libtiff thread-safe error/warning handlers.
-- Add option to specify filters and strategy in png_encode.
-- Add option to specify integrity check type in lzma_encode.
-- Fix DeprecationWarning with NumPy 1.24.
-- Support Python 3.11 and win-arm64.
-
-2022.9.26
-
-- Support JPEG XL multi-channel (planar grayscale only) and multi-frame.
-- Require libjxl 0.7.
-- Switch to Blosc2 API and require c-blosc 2.4 (breaking).
-- Return LogLuv encoded TIFF as float32.
-- Add RGBE codec via rgbe.c.
-
-2022.8.8
-
-- Drop support for libjpeg.
-- Fix encoding JPEG in RGB color space.
-- Require ZFP 1.0.
-
-2022.7.31
-
-- Add option to decode WebP as RGBA.
-- Add option to specify WebP compression method.
-- Use exact lossless WebP encoding.
-
-2022.7.27
-
-- Add LZW encoder.
-- Add QOI codec via qoi.h (#37).
-- Add HEIF codec via libheif (source only; #33).
-- Add JETRAW codec via Jetraw demo (source only).
-- Add ByteShuffle codec, a generic version of FloatPred.
-- Replace imcd_floatpred by imcd_byteshuffle (breaking).
-- Use bool type in imcd (breaking).
-
-2022.2.22
-
 - …
 
 Refer to the CHANGES file for older revisions.
@@ -332,8 +297,8 @@ Wheels may not be available for all platforms and all releases.
 
 Only the ``win_amd64`` wheels include all features.
 
-The ``tiff``, ``bcn``, ``dds``, ``eer``, ``packints``, and ``jpegsof3`` codecs
-are currently decode-only.
+The ``tiff``, ``bcn``, ``dds``, ``dicomrle``, ``eer``, ``lzo``, ``packints``,
+and ``jpegsof3`` codecs are currently decode-only.
 
 The ``heif`` and ``jetraw`` codecs are distributed as source code only due to
 license and possible patent usage issues.
@@ -370,8 +335,8 @@ specific extensions, for example:
     --global-option="--skip-bitshuffle"``
 
 The ``apng``, ``avif``, ``jetraw``, ``jpegls``, ``jpegxl``, ``lerc``,
-``lz4f``, ``lzfse``, ``lzham``, ``mozjpeg``, ``zfp``, and ``zlibng``
-extensions are disabled by default when building from source.
+``lz4f``, ``lzfse``, ``lzham``, ``lzo``, ``mozjpeg``, ``sperr``, ``zfp``,
+and ``zlibng`` extensions are disabled by default when building from source.
 
 To modify other build settings such as library names and compiler arguments,
 provide a ``imagecodecs_distributor_setup.customize_build`` function, which
@@ -420,7 +385,7 @@ Other Python packages and C libraries providing imaging or compression codecs:
 `Wuffs <https://github.com/google/wuffs>`_,
 `TinyDNG <https://github.com/syoyo/tinydng>`_,
 `OpenJPH <https://github.com/aous72/OpenJPH>`_,
-`SPERR <https://github.com/NCAR/SPERR>`_ (GPL),
+`Grok <https://github.com/GrokImageCompression/grok>`_ (AGPL),
 `MAFISC
 <https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_,
 `B3D <https://github.com/balintbalazs/B3D>`_.
@@ -537,7 +502,7 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2023.9.18'
+__version__ = '2024.1.1'
 
 import importlib
 import io
@@ -605,6 +570,12 @@ _MODULES: dict[str, list[str]] = {
         'delta_decode',
         'delta_check',
         'delta_version',
+        'DICOMRLE',
+        'DicomrleError',
+        'dicomrle_encode',
+        'dicomrle_decode',
+        'dicomrle_check',
+        'dicomrle_version',
         'EER',
         'EerError',
         'eer_encode',
@@ -695,6 +666,14 @@ _MODULES: dict[str, list[str]] = {
         'blosc2_decode',
         'blosc2_check',
         'blosc2_version',
+    ],
+    '_bmp': [
+        'BMP',
+        'BmpError',
+        'bmp_encode',
+        'bmp_decode',
+        'bmp_check',
+        'bmp_version',
     ],
     '_brotli': [
         'BROTLI',
@@ -915,6 +894,14 @@ _MODULES: dict[str, list[str]] = {
         'lzma_check',
         'lzma_version',
     ],
+    '_lzo': [
+        'LZO',
+        'LzoError',
+        'lzo_encode',
+        'lzo_decode',
+        'lzo_check',
+        'lzo_version',
+    ],
     '_mozjpeg': [
         'MOZJPEG',
         'MozjpegError',
@@ -978,6 +965,14 @@ _MODULES: dict[str, list[str]] = {
         'snappy_decode',
         'snappy_check',
         'snappy_version',
+    ],
+    '_sperr': [
+        'SPERR',
+        'SperrError',
+        'sperr_encode',
+        'sperr_decode',
+        'sperr_check',
+        'sperr_version',
     ],
     '_spng': [
         'SPNG',
@@ -1388,6 +1383,7 @@ def imread(
                 'jpegxl',
                 'avif',
                 'heif',
+                'bmp',
                 # 'brunsli',
                 # 'exr',
                 'zfp',
@@ -1504,7 +1500,7 @@ def imwrite(
         try:
             codec = getattr(imagecodecs, codec + '_encode')
         except AttributeError as exc:
-            raise ValueError(f'invalid codec {codec!r}') from exc
+            raise ValueError(f'invalid {codec=!r}') from exc
 
     elif isinstance(codec, str):
         codec = codec.lower()
@@ -1512,10 +1508,10 @@ def imwrite(
         try:
             codec = getattr(imagecodecs, codec + '_encode')
         except AttributeError as exc:
-            raise ValueError(f'invalid codec {codec!r}') from exc
+            raise ValueError(f'invalid {codec=!r}') from exc
 
     if not callable(codec):
-        raise ValueError(f'invalid codec {codec!r}')
+        raise ValueError(f'invalid {codec=!r}')
 
     image: bytes = codec(data, **kwargs)
     if hasattr(fileobj, 'write'):
@@ -1534,7 +1530,7 @@ def _imcodecs(_codecs: dict[str, str] = {}) -> dict[str, str]:
             codecs = {
                 'apng': ('apng',),
                 'avif': ('avif', 'avifs'),
-                # 'bmp': ('bmp', 'dip', 'rle'),
+                'bmp': ('bmp', 'dip'),  # 'rle'
                 'brunsli': ('brn',),
                 'dds': ('dds',),
                 # 'exr': ('exr',),
