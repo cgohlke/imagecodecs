@@ -1,17 +1,30 @@
 Revisions
 ---------
 
+2024.1.1
+
+- Pass 7420 tests.
+- Add 8/24-bit BMP codec.
+- Add SPERR codec based on SPERR library.
+- Add LZO decoder based on lzokay library.
+- Add DICOMRLE decoder.
+- Enable float16 in CMS codec.
+- Enable MCT for lossless JPEG2K encoder (#88).
+- Ignore pad-byte in PackBits decoder (#86).
+- Fix heif_write_callback error message not set.
+- Require lcms2 2.16 with issue-420 fixes.
+- Require libjxl 0.9, libaec 1.1, Cython 3.
+
 2023.9.18
 
-- Pass 7110 tests.
-- Rebuild with updated dependencies fixes CVE-2023-4863.
+- Rebuild with updated dependencies fixes CVE-2024-4863.
 
 2023.9.4
 
 - Map avif_encode level parameter to quality (breaking).
 - Support monochrome images in avif_encode.
 - Add numthreads parameter to avif_decode (fix imread of AVIF).
-- Add experimental quantize filter (BitGroom, BitRound, GBR) via nc4var.c.
+- Add quantize filter (BitGroom, BitRound, GBR) via nc4var.c.
 - Add LZ4H5 codec.
 - Support more BCn compressed DDS fourcc types.
 - Require libavif 1.0.
