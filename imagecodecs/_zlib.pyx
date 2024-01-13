@@ -246,6 +246,7 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
 
                 if stream.avail_in == 0:
                     if ret == Z_BUF_ERROR:
+                        # ret = Z_STREAM_END
                         break
                     if size > <size_t> 4294967295U:
                         stream.avail_in = <uInt> 4294967295U
