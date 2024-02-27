@@ -8,9 +8,6 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#define hbool_t _Bool
-#define FALSE false
-#define TRUE true
 #define FUNC_ENTER_NOAPI_NOINIT_NOERR
 #define FUNC_ENTER_PACKAGE_NOERR
 #define H5_ATTR_FALLTHROUGH
@@ -19,7 +16,7 @@
 
 #define H5_VERS_MAJOR 1
 #define H5_VERS_MINOR 14
-#define H5_VERS_RELEASE 1
+#define H5_VERS_RELEASE 3
 
 uint32_t H5_checksum_fletcher32(const void *data, size_t len);
 uint32_t H5_checksum_crc(const void *data, size_t len);
