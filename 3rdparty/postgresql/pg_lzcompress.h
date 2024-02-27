@@ -12,7 +12,7 @@
 
 /* Modified definitions */
 
-#define PG_LZCOMPRESS_VERSION "13.2"
+#define PG_LZCOMPRESS_VERSION "15.6"
 
 #define Min(a, b) ((a) < (b) ? (a) : (b))
 
