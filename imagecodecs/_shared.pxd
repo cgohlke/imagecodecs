@@ -19,6 +19,8 @@ cdef _return_output(out, ssize_t size, ssize_t used, outgiven)
 
 cdef _create_array(out, shape, dtype, strides=*, zero=*, contig=*)
 
+cdef tuple _squeeze_shape(tuple shape, ssize_t ndim)
+
 cdef _default_value(value, default, smallest, largest)
 
 cdef _default_threads(numthreads)
