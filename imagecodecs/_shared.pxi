@@ -20,6 +20,7 @@ from ._shared cimport (
     _readable_input,
     _writable_input,
     _inplace_input,
+    _squeeze_shape,
     _default_value,
     _default_threads
 )
