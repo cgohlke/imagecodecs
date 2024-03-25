@@ -1464,6 +1464,62 @@ class Packbits(Codec):
         return imagecodecs.packbits_decode(buf, out=_flat(out))
 
 
+class Packints(Codec):
+    """Packed integer codec for numcodecs."""
+
+    codec_id = 'imagecodecs_packints'
+
+    def __init__(
+        self, *, dtype: DTypeLike, bitspersample: int, runlen: int = 0
+    ) -> None:
+        if not imagecodecs.PACKINTS.available:
+            raise ValueError('imagecodecs.PACKINTS not available')
+
+        self.dtype = numpy.dtype(dtype).str
+        self.bitspersample = bitspersample
+        self.runlen = runlen
+
+    def encode(self, buf):
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.packints_decode(
+            buf,
+            dtype=self.dtype,
+            bitspersample=self.bitspersample,
+            runlen=self.runlen,
+            out=_flat(out),
+        )
+
+
+class Pcodec(Codec):
+    """Pcodec codec for numcodecs."""
+
+    codec_id = 'imagecodecs_pcodec'
+
+    def __init__(
+        self,
+        *,
+        shape: tuple[int, ...],
+        dtype: DTypeLike,
+        level: int | None = None,
+    ) -> None:
+        if not imagecodecs.PCODEC.available:
+            raise ValueError('imagecodecs.PCODEC not available')
+
+        self.shape = tuple(shape)
+        self.dtype = numpy.dtype(dtype).str
+        self.level = level
+
+    def encode(self, buf):
+        return imagecodecs.pcodec_encode(buf, level=self.level)
+
+    def decode(self, buf, out=None):
+        return imagecodecs.pcodec_decode(
+            buf, shape=self.shape, dtype=self.dtype, out=out
+        )
+
+
 class Pglz(Codec):
     """PGLZ codec for numcodecs."""
 
