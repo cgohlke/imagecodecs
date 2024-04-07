@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.12.0` library.
+# Cython declarations for the `c-blosc2 2.14.2` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -425,7 +425,9 @@ cdef extern from 'blosc2.h':
         int id 'id_'
         char* name
 
-    int register_tuner_private(blosc2_btuner* tuner) nogil
+    int blosc2_register_tuner(
+        blosc2_btuner* tuner
+    ) nogil
 
     ctypedef struct blosc2_prefilter_params:
         void* user_data
@@ -727,7 +729,7 @@ cdef extern from 'blosc2.h':
 
     int64_t blosc2_schunk_append_buffer(
         blosc2_schunk* schunk,
-        void* src,
+        const void* src,
         int32_t nbytes
     ) nogil
 
@@ -809,12 +811,6 @@ cdef extern from 'blosc2.h':
         const char* name,
         uint8_t* content,
         int32_t content_len
-    ) nogil
-
-    void swap_store(
-        void *dest,
-        const void *pa,
-        int size
     ) nogil
 
     int blosc2_meta_get(
