@@ -28,7 +28,8 @@ cdef extern from 'lzham.h':
         void* pUser_data
     ) nogil
 
-    void lzham_set_memory_callbacks(lzham_realloc_func pRealloc,
+    void lzham_set_memory_callbacks(
+        lzham_realloc_func pRealloc,
         lzham_msize_func pMSize,
         void* pUser_data
     ) nogil
