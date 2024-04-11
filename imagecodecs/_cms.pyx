@@ -291,7 +291,7 @@ cms_decode = cms_transform
 @cython.boundscheck(True)
 def cms_profile(
     profile,
-    whitepoint=None, # gray and rgb
+    whitepoint=None,  # gray and rgb
     primaries=None,  # rgb
     transferfunction=None,  # gray and rgb
     gamma=None
@@ -303,7 +303,7 @@ def cms_profile(
         cmsCIExyY* pWhitePoint = NULL
         cmsCIExyYTRIPLE Primaries
         cmsCIExyYTRIPLE* pPrimaries = NULL
-        cmsToneCurve TransferFunction
+        # cmsToneCurve TransferFunction
         cmsToneCurve* ppTransferFunction[3]
         cmsUInt32Number BytesNeeded
         cmsBool ret
@@ -593,7 +593,7 @@ def _cms_format_decode(cmsUInt32Number cmsformat):
 
     # can't use lcms T_FLOAT macro; it is redefined in Python structmember.h
     # isfloat = bool(T_FLOAT(cmsformat))
-    isfloat = bool((((cmsformat) >> 22 ) & 1))
+    isfloat = bool((((cmsformat) >> 22) & 1))
     itemsize = int(T_BYTES(cmsformat))
     if itemsize == 0:
         itemsize = 8
@@ -637,7 +637,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
         cmsUInt32Number itemsize = 0
         cmsUInt32Number channels = 0
         cmsUInt32Number extrachannel = 0
-        cmsUInt32Number multichannel = 0
+        # cmsUInt32Number multichannel = 0
         cmsUInt32Number isplanar = 0
         cmsUInt32Number swap = 0
         cmsUInt32Number swapfirst = 0
@@ -728,7 +728,7 @@ def _cms_format(shape, dtype, colorspace=None, planar=None):
                 extrachannel,
                 swap,
                 swapfirst
-            ) =  _CMS_FORMATS[colorspace.lower()]
+            ) = _CMS_FORMATS[colorspace.lower()]
         except (KeyError, AttributeError) as exc:
             raise ValueError(f'invalid {colorspace=!r}') from exc
 
