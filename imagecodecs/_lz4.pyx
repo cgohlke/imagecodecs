@@ -205,6 +205,7 @@ def lz4_decode(data, header=False, out=None):
 # file header: orisize: >i8,  blksize: >i4
 # block: lz4size: >i4, data: bytes(lz4size)
 
+
 class LZ4H5:
     """LZ4H5 codec constants."""
 
