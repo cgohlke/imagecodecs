@@ -431,7 +431,7 @@ cdef ERR WriteWS_Realloc(
     pWS.state.buf.cbCur += cb
 
     # keep track of bytes written
-    if pWS.state.buf.cbCur >  pWS.state.buf.cbBufCount:
+    if pWS.state.buf.cbCur > pWS.state.buf.cbBufCount:
         pWS.state.buf.cbBufCount = pWS.state.buf.cbCur
 
     return WMP_errSuccess
@@ -452,7 +452,6 @@ cdef ERR PKCodecFactory_CreateDecoderFromBytes(
 ) noexcept nogil:
     """Create PKImageDecode from byte string."""
     cdef:
-        char* pExt = NULL
         const PKIID* pIID = NULL
         WMPStream* stream = NULL
         PKImageDecode* decoder = NULL
