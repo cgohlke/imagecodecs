@@ -1,7 +1,7 @@
 # imagecodecs/libdeflate.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libdeflate 1.19` library.
+# Cython declarations for the `libdeflate 1.20` library.
 # https://github.com/ebiggers/libdeflate
 
 from libc.stdint cimport uint32_t
@@ -35,7 +35,7 @@ cdef extern from 'libdeflate.h':
 
     libdeflate_compressor* libdeflate_alloc_compressor_ex(
         int compression_level,
-		const libdeflate_options *options
+        const libdeflate_options *options
     ) nogil
 
     size_t libdeflate_deflate_compress(
