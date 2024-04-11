@@ -51,7 +51,7 @@ class QOI:
         """QOI codec color spaces."""
 
         SRGB = qoi.QOI_SRGB
-        LINEAR  = qoi.QOI_LINEAR
+        LINEAR = qoi.QOI_LINEAR
 
 
 class QoiError(RuntimeError):
@@ -77,7 +77,6 @@ def qoi_encode(data, out=None):
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.nbytes
         void* buffer = NULL
         qoi.qoi_desc desc
         int out_len
