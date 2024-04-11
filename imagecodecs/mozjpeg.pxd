@@ -487,7 +487,6 @@ cdef extern from 'mozjpeg/jpeglib.h':
             j_compress_ptr cinfo
         ) nogil
 
-
     struct jpeg_source_mgr:
         const JOCTET* next_input_byte
         size_t bytes_in_buffer
@@ -513,7 +512,6 @@ cdef extern from 'mozjpeg/jpeglib.h':
         void (*term_source) (
             j_decompress_ptr cinfo
         ) nogil
-
 
     int JPOOL_PERMANENT
     int JPOOL_IMAGE
