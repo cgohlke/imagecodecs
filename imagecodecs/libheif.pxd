@@ -470,7 +470,7 @@ cdef extern from 'libheif/heif.h':
 
     int heif_image_handle_get_list_of_depth_image_IDs(
         const heif_image_handle* handle,
-          heif_item_id* ids,
+        heif_item_id* ids,
         int count
     ) nogil
 
@@ -582,12 +582,12 @@ cdef extern from 'libheif/heif.h':
 
     const char* heif_image_handle_get_metadata_content_type(
         const heif_image_handle* handle,
-         heif_item_id metadata_id
+        heif_item_id metadata_id
     ) nogil
 
     size_t heif_image_handle_get_metadata_size(
         const heif_image_handle* handle,
-          heif_item_id metadata_id
+        heif_item_id metadata_id
     ) nogil
 
     heif_error heif_image_handle_get_metadata(
@@ -964,11 +964,11 @@ cdef extern from 'libheif/heif.h':
     struct heif_writer:
         int writer_api_version
         heif_error (* write)(
-        heif_context* ctx,
-        const void* data,
-        size_t size,
-        void* userdata
-    ) nogil
+            heif_context* ctx,
+            const void* data,
+            size_t size,
+            void* userdata
+        ) nogil
 
     heif_error heif_context_write(
         heif_context*,
@@ -1015,8 +1015,8 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_context_get_encoder(
         heif_context* context,
-          const heif_encoder_descriptor*,
-          heif_encoder** out_encoder
+        const heif_encoder_descriptor*,
+        heif_encoder** out_encoder
     ) nogil
 
     int heif_have_decoder_for_format(
@@ -1097,8 +1097,8 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_encoder_set_parameter_integer(
         heif_encoder*,
-         const char* parameter_name,
-         int value
+        const char* parameter_name,
+        int value
     ) nogil
 
     heif_error heif_encoder_get_parameter_integer(
@@ -1237,8 +1237,8 @@ cdef extern from 'libheif/heif.h':
 
     heif_error heif_context_add_exif_metadata(
         heif_context*,
-         const heif_image_handle* image_handle,
-         const void* data,
+        const heif_image_handle* image_handle,
+        const void* data,
         int size
     ) nogil
 
@@ -1266,7 +1266,8 @@ cdef extern from 'libheif/heif.h':
         const char* content_type
     ) nogil
 
-    heif_error heif_image_create(int width,
+    heif_error heif_image_create(
+        int width,
         int height,
         heif_colorspace colorspace,
         heif_chroma chroma,
