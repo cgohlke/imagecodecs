@@ -106,7 +106,6 @@ def zfp_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         size_t byteswritten
         ssize_t dstsize
-        ssize_t srcsize = src.nbytes
         bitstream* stream = NULL
         zfp_stream* zfp = NULL
         zfp_field* field = NULL
