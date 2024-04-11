@@ -222,12 +222,12 @@ def deflate_decode(data, bint raw=False, out=None):
                     &actual_out_nbytes_ret
                 )
                 # if ret == LIBDEFLATE_INSUFFICIENT_SPACE:
-                    # allow partial decompression for cases found in TIFF
-                    # _log_warning(
-                    #    'libdeflate_zlib_decompress '
-                    #    'LIBDEFLATE_INSUFFICIENT_SPACE'
-                    # )
-                    # pass
+                #    allow partial decompression for cases found in TIFF
+                #    _log_warning(
+                #       'libdeflate_zlib_decompress '
+                #       'LIBDEFLATE_INSUFFICIENT_SPACE'
+                #    )
+                #    pass
                 if ret != LIBDEFLATE_SUCCESS:
                     raise DeflateError('libdeflate_zlib_decompress', ret)
 
