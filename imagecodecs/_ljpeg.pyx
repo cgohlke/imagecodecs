@@ -174,7 +174,6 @@ def ljpeg_decode(
     cdef:
         numpy.ndarray dst
         numpy.ndarray table
-        numpy.dtype dtype
         const uint8_t[::1] src = _writable_input(data)
         uint16_t* target = NULL
         uint16_t* linearize_table = NULL
@@ -224,7 +223,6 @@ def ljpeg_decode(
         else:
             dst = numpy.empty(shape, numpy.uint16)
 
-        dstsize = dst.nbytes
         target = <uint16_t*> dst.data
 
         with nogil:
