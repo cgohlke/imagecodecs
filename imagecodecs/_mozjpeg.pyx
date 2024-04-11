@@ -115,7 +115,6 @@ def mozjpeg_encode(
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int quality = _default_value(level, 95, 0, 100)
@@ -291,7 +290,6 @@ def mozjpeg_decode(
         ssize_t srcsize = src.size
         ssize_t dstsize
         ssize_t rowstride
-        int numlines
         my_error_mgr err
         jpeg_decompress_struct cinfo
         JSAMPROW rowpointer
