@@ -1,7 +1,7 @@
 # imagecodecs/libjxl.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjxl 0.9.0` library.
+# Cython declarations for the `libjxl 0.10.2` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport (
@@ -708,6 +708,11 @@ cdef extern from 'jxl/decode.h':
         uint64_t* size
     ) nogil
 
+    JxlDecoderStatus JxlDecoderGetBoxSizeContents(
+        const JxlDecoder* dec,
+        uint64_t* size
+    ) nogil
+
     JxlDecoderStatus JxlDecoderSetProgressiveDetail(
         JxlDecoder* dec,
         JxlProgressiveDetail detail
@@ -993,8 +998,8 @@ cdef extern from 'jxl/encode.h':
 
     JxlEncoderStatus JxlEncoderSetUpsamplingMode(
         JxlEncoder* enc,
-        const int64_t factor,
-        const int64_t mode
+        int64_t factor,
+        int64_t mode
     ) nogil
 
     void JxlEncoderInitExtraChannelInfo(
@@ -1050,7 +1055,6 @@ cdef extern from 'jxl/encode.h':
         JxlEncoderFrameSettings* frame_settings,
         JXL_BOOL lossless
     ) nogil
-
 
     JxlEncoderStatus JxlEncoderSetFrameDistance(
         JxlEncoderFrameSettings* frame_settings,
