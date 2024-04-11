@@ -56,7 +56,7 @@ class ZstdError(RuntimeError):
             const char* errmsg
 
         if msg:
-            mg = f'{func} returned {msg!r}'
+            msg = f'{func} returned {msg!r}'
         else:
             errmsg = ZSTD_getErrorName(err)
             msg = f'{func} returned {errmsg.decode()!r}'
