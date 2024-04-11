@@ -1,7 +1,7 @@
 # imagecodecs/giflib.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `giflib 5.2.1` library.
+# Cython declarations for the `giflib 5.2.2` library.
 # http://giflib.sourceforge.net
 
 cdef extern from 'gif_lib.h':
@@ -113,14 +113,14 @@ cdef extern from 'gif_lib.h':
         void* Private
 
     ctypedef int (*InputFunc) (
-        GifFileType*, 
-        GifByteType*, 
+        GifFileType*,
+        GifByteType*,
         int
     ) nogil
 
     ctypedef int (*OutputFunc) (
-        GifFileType*, 
-        const GifByteType*, 
+        GifFileType*,
+        const GifByteType*,
         int
     ) nogil
 
@@ -184,7 +184,8 @@ cdef extern from 'gif_lib.h':
         const ColorMapObject* GifColorMap
     ) nogil
 
-    int EGifPutImageDesc(GifFileType* GifFile,
+    int EGifPutImageDesc(
+        GifFileType* GifFile,
         const int GifLeft,
         const int GifTop,
         const int GifWidth,
@@ -270,7 +271,7 @@ cdef extern from 'gif_lib.h':
     ) nogil
 
     int DGifCloseFile(
-        GifFileType* GifFile, 
+        GifFileType* GifFile,
         int* ErrorCode
     ) nogil
 
