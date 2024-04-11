@@ -389,7 +389,7 @@ cdef extern from 'zlib-ng.h':
         const char* s
     ) nogil
 
-    char*  zng_gzgets(
+    char* zng_gzgets(
         gzFile file,
         char* buf,
         int32_t len
@@ -452,7 +452,7 @@ cdef extern from 'zlib-ng.h':
         gzFile file
     ) nogil
 
-    const char*  zng_gzerror(
+    const char* zng_gzerror(
         gzFile file,
         int32_t* errnum
     ) nogil
