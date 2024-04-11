@@ -198,7 +198,6 @@ def gif_decode(data, index=None, asrgb=True, out=None):
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
-        ssize_t dstsize
         GifFileType* gif
         SavedImage* image
         GifImageDesc* descr
@@ -213,7 +212,6 @@ def gif_decode(data, index=None, asrgb=True, out=None):
         uint8_t* palptr
         uint8_t* srcptr
         uint8_t* dstptr
-        uint8_t* extptr
         uint8_t color
         bint rgb = asrgb
         bint previous_is_background = False
@@ -298,7 +296,6 @@ def gif_decode(data, index=None, asrgb=True, out=None):
 
         out = _create_array(out, shape, numpy.uint8, strides=None, zero=rgb==0)
         dst = out
-        dstsize = dst.size
         dstptr = <uint8_t*> &dst.data[0]
 
         with nogil:
