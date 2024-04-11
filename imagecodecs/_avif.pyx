@@ -153,7 +153,7 @@ def avif_encode(
         int speed_ = AVIF_SPEED_DEFAULT
         int tilerowslog2 = 0
         int tilecolslog2 = 0
-        int duration = 1
+        # int duration = 1
         int timescale = 1
         int keyframeinterval = 0
         int maxthreads = <int> _default_threads(numthreads)
