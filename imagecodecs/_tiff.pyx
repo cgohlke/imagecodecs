@@ -217,7 +217,7 @@ def tiff_decode(
         tdir_t dirnum, dirstart, dirstop, dirstep
         int ret
         uint32_t strip
-        ssize_t i, j, size, sizeleft, outindex, imagesize, images
+        ssize_t i, size, sizeleft, outindex, imagesize, images
         ssize_t[8] sizes
         ssize_t[8] sizes2
         char[2] dtype
