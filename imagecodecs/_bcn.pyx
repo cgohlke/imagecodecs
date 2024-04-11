@@ -85,7 +85,6 @@ def bcn_decode(data, format, shape=None, out=None):
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.nbytes
-        ssize_t dstsize
         ssize_t width, height, i, ret
         char *psrc = NULL
         char *pdst = NULL
@@ -342,8 +341,7 @@ def dds_decode(data, mipmap=0, out=None):
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.nbytes
-        ssize_t dstsize
-        ssize_t width, height, textures, depth, cubes, pitch, offset, i, j, k
+        ssize_t width, height, textures, depth, cubes, offset
         unsigned int fourcc, mipmaps
         DDS_HEADER_t* dds_header = NULL
         DDS_HEADER_DXT10_t* dx10_header = NULL
