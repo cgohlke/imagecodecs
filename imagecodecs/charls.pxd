@@ -317,8 +317,7 @@ cdef extern from 'charls/charls.h':
         size_t entry_data_size
     ) nogil
 
-    charls_jpegls_errc \
-    charls_jpegls_encoder_write_spiff_end_of_directory_entry(
+    charls_jpegls_errc charls_jpegls_encoder_write_spiff_end_of_directory_entry(
         charls_jpegls_encoder* encoder
     ) nogil
 
