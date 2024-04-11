@@ -96,6 +96,7 @@ def blosc2_version():
 def blosc2_check(data):
     """Return whether data is BLOSC2 encoded."""
 
+
 def blosc2_encode(
     data,
     level=None,
@@ -245,7 +246,7 @@ def blosc2_encode(
         blosc2_free_ctx(context)
 
     if ret <= 0:
-        raise Blosc2Error(f'blosc2_compress_ctx', ret)
+        raise Blosc2Error('blosc2_compress_ctx', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -313,7 +314,7 @@ def blosc2_decode(data, numthreads=None, out=None):
         blosc2_free_ctx(context)
 
     if ret < 0:
-        raise Blosc2Error(f'blosc2_decompress_ctx', ret)
+        raise Blosc2Error('blosc2_decompress_ctx', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
