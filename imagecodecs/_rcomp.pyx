@@ -73,7 +73,7 @@ class RcompError(RuntimeError):
 
 def rcomp_version():
     """Return ricecomp library version string."""
-    return f'ricecomp ' + RCOMP_VERSION.decode()
+    return 'ricecomp ' + RCOMP_VERSION.decode()
 
 
 def rcomp_check(data):
