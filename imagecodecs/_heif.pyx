@@ -120,8 +120,8 @@ def heif_encode(
         numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t itemsize = data.dtype.itemsize
-        ssize_t dstsize, size
-        ssize_t imageindex, srcindex
+        ssize_t dstsize
+        ssize_t srcindex
         ssize_t height, width, samples, depth, row, rowsize, imagecount
         output_t* compressed = NULL
         heif_context* context = NULL
@@ -135,14 +135,13 @@ def heif_encode(
         heif_error err
         int lossless = 1 if (level is None or level > 100) else 0
         int quality = _default_value(level, 90, 0, 100)
-        int stride, ystride, astride, bps
+        int stride, ystride, astride
         bint monochrome, hasalpha
         uint8_t* srcptr = NULL
         uint8_t* dstptr = NULL
         uint8_t* yptr = NULL
         uint8_t* aptr = NULL
         uint16_t* src2ptr = NULL
-        uint16_t* dst2ptr = NULL
         uint16_t* y2ptr = NULL
         uint16_t* a2ptr = NULL
 
@@ -258,8 +257,8 @@ def heif_encode(
                     nclx = heif_nclx_color_profile_alloc()
                     if nclx == NULL:
                         raise HeifError(
-                        'heif_nclx_color_profile_alloc', b'NULL'
-                    )
+                            'heif_nclx_color_profile_alloc', b'NULL'
+                        )
                     nclx.matrix_coefficients = heif_matrix_coefficients_RGB_GBR
 
                     options = heif_encoding_options_alloc()
@@ -482,7 +481,6 @@ def heif_decode(data, index=0, photometric=None, out=None):
         heif_image_handle* handle = NULL
         heif_image* image = NULL
         heif_item_id* imageids = NULL
-        heif_item_id primary_imageid
         heif_colorspace colorspace = heif_colorspace_RGB
         heif_chroma chroma = heif_chroma_undefined
         heif_chroma chroma_sequence = heif_chroma_undefined
