@@ -93,7 +93,7 @@ def bmp_encode(data, ppm=None, out=None):
         and src.shape[0] <= 2147483647
         and src.shape[1] <= 2147483647
     ):
-        raise ValueError(f'invalid data shape or dtype')
+        raise ValueError('invalid data shape or dtype')
 
     # infoheader
     memset(<void*> &infoheader, 0, sizeof(bmp_infoheader_t))
@@ -153,7 +153,7 @@ def bmp_encode(data, ppm=None, out=None):
             # write index
             srcindex = 0
             for i in range(<ssize_t> infoheader.height):
-                dstindex =  <ssize_t> (
+                dstindex = <ssize_t> (
                     fileheader.offbits
                     + (infoheader.height - 1 - i) * (infoheader.width + rowpad)
                 )
@@ -169,7 +169,7 @@ def bmp_encode(data, ppm=None, out=None):
             # write BGR
             srcindex = 0
             for i in range(<ssize_t> infoheader.height):
-                dstindex =  <ssize_t> (
+                dstindex = <ssize_t> (
                     fileheader.offbits
                     + (infoheader.height - 1 - i)
                     * (infoheader.width * 3 + rowpad)
@@ -253,7 +253,7 @@ def bmp_decode(data, asrgb=None, out=None):
     if infoheader.clr_used > 256:
         raise BmpError(f'{infoheader.clr_used=} not implemented')
     if infoheader.clr_used * 4 + offset > fileheader.offbits:
-        raise BmpError(f'invalid palette')
+        raise BmpError('invalid palette')
     if infoheader.size_image == 0:
         if infoheader.compression_type != 0:
             raise BmpError(f'invalid {infoheader.size_image=}')
@@ -287,7 +287,7 @@ def bmp_decode(data, asrgb=None, out=None):
             samples = 1
 
     # create output array
-    height  = <ssize_t> abs(infoheader.height)
+    height = <ssize_t> abs(infoheader.height)
     width = <ssize_t> infoheader.width
     rowpad = <ssize_t> ((width * infoheader.bitcount) // 8) % 4
     rowpad = 0 if rowpad == 0 else 4 - rowpad
