@@ -41,8 +41,6 @@ include '_shared.pxi'
 
 from zlib_ng cimport *
 
-from  libc.math cimport ceil
-
 
 class ZLIBNG:
     """ZLIBNG codec constants."""
