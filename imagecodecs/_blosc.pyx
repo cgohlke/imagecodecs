@@ -196,7 +196,6 @@ def blosc_decode(data, numthreads=None, out=None):
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
         size_t nbytes, cbytes, blocksize
         int numinternalthreads = <int> _default_threads(numthreads)
         int ret
