@@ -234,13 +234,12 @@ def lerc_decode(data, masks=None, out=None):
         numpy.ndarray dst
         numpy.ndarray valid
         const uint8_t[::1] src = data
-        const uint8_t[::1] header
         ssize_t srcsize
         unsigned int[9] infoArray
         double[3] dataRangeArray
         unsigned char* pValidBytes = NULL
         lerc_status ret
-        int version
+        # int version
         int nDepth
         int nCols
         int nRows
@@ -285,7 +284,7 @@ def lerc_decode(data, masks=None, out=None):
     if ret != 0:
         raise LercError('lerc_getBlobInfo', ret)
 
-    version = infoArray[0]
+    # version = infoArray[0]
     dataType = infoArray[1]
     nDepth = infoArray[2]
     nCols = infoArray[3]
