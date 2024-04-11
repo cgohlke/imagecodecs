@@ -389,8 +389,8 @@ cdef extern from 'zfp.h':
     ) nogil
 
     void zfp_field_set_size_1d(
-    zfp_field* field,
-    size_t nx
+        zfp_field* field,
+        size_t nx
     ) nogil
 
     void zfp_field_set_size_2d(
@@ -855,7 +855,6 @@ cdef extern from 'zfp.h':
         double* block
     ) nogil
 
-
     size_t zfp_decode_block_strided_int32_1(
         zfp_stream* stream,
         int32* p,
@@ -908,7 +907,6 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx
     ) nogil
 
-
     size_t zfp_decode_block_int32_2(
         zfp_stream* stream,
         int32* block
@@ -928,7 +926,6 @@ cdef extern from 'zfp.h':
         zfp_stream* stream,
         double* block
     ) nogil
-
 
     size_t zfp_decode_block_strided_int32_2(
         zfp_stream* stream,
@@ -994,7 +991,6 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy
     ) nogil
 
-
     size_t zfp_decode_block_int32_3(
         zfp_stream* stream,
         int32* block
@@ -1014,7 +1010,6 @@ cdef extern from 'zfp.h':
         zfp_stream* stream,
         double* block
     ) nogil
-
 
     size_t zfp_decode_block_strided_int32_3(
         zfp_stream* stream,
@@ -1091,7 +1086,6 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz
     ) nogil
-
 
     size_t zfp_decode_block_int32_4(
         zfp_stream* stream,
