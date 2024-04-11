@@ -121,7 +121,7 @@ def rgbe_encode(
             if stream == NULL:
                 raise MemoryError('rgbe_stream_new failed')
             ret = RGBE_WritePixels(
-                stream, <float *> src.data, <int> (size  // 4)
+                stream, <float *> src.data, <int> (size // 4)
             )
             rgbe_stream_del(stream)
         if ret != RGBE_RETURN_SUCCESS:
@@ -192,7 +192,6 @@ def rgbe_decode(
         const uint8_t[::1] src
         ssize_t srcsize
         ssize_t size = 0
-        void* buffer = NULL
         int dorle = -1 if rle is None else (1 if rle else 0)
         int width, height
         int ret = RGBE_RETURN_SUCCESS
@@ -269,18 +268,22 @@ def rgbe_decode(
             out = _create_array(
                 out, (int(height), int(width), 3), numpy.float32
             )
-        elif not (
-            isinstance(out, numpy.ndarray)
-            and out.ndim == 3
-            and out.shape[2] == 3
-            and out.nbytes <= 2147483647
-            and out.dtype.char == 'f'
-            and out.flags['C_CONTIGUOUS']
-        ):
-            raise ValueError('no rgbe header found')
+        elif isinstance(out, numpy.ndarray):
+            shape = _squeeze_shape(out.shape, 3)
+            if not (
+                len(shape) == 3
+                and shape[2] == 3
+                and out.nbytes <= 2147483647
+                and out.dtype.char == 'f'
+                and out.flags['C_CONTIGUOUS']
+            ):
+                raise ValueError(
+                    f'no rgbe header found {out.shape=} {out.dtype=}'
+                )
+            height = <int> shape[0]
+            width = <int> shape[1]
         else:
-            height = <int> out.shape[0]
-            width = <int> out.shape[1]
+            raise ValueError('no rgbe header found')
 
         dst = out
 
