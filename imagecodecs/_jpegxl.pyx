@@ -39,7 +39,6 @@
 
 include '_shared.pxi'
 
-from libc.math cimport pow
 from libjxl cimport *
 
 
@@ -183,7 +182,7 @@ def jpegxl_encode(
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
-        int option_effort = _default_value(effort, 3, 3, 9)  # 7 is too slow
+        int option_effort = _default_value(effort, 5, 1, 10)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
         size_t num_threads = <size_t> _default_threads(numthreads)
         size_t channel_index
