@@ -86,7 +86,6 @@ def quantize_encode(data, mode, int nsd, out=None):
         nc_type src_type
         int ret = 0
         int range_error = 0
-        int strict_nc3 = 0
         int quantize_mode = NC_NOQUANTIZE
         # uint64_t fill_value = 0
 
@@ -176,6 +175,7 @@ def quantize_decode(data, mode, nsd, out=None):
 # Data is quantized using round(scale*data)/scale, where scale is 2**bits,
 # and bits is determined from the nsd. For example, if nsd=1, bits will be 4.
 # https://github.com/Blosc/bcolz utils.py
+
 
 cdef void quantize_scale_f(
     const float* data,
