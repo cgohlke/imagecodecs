@@ -1107,8 +1107,8 @@ cdef extern from 'lcms2.h':
     ) nogil
 
     ctypedef enum cmsStageLoc:
-       cmsAT_BEGIN
-       cmsAT_END
+        cmsAT_BEGIN
+        cmsAT_END
 
     cmsBool cmsPipelineInsertStage(
         cmsPipeline* lut,
@@ -1242,8 +1242,7 @@ cdef extern from 'lcms2.h':
     cmsBool cmsSliceSpace16(
         cmsUInt32Number nInputs,
         const cmsUInt32Number clutPoints[],
-
-    cmsSAMPLER16 Sampler,
+        cmsSAMPLER16 Sampler,
         void* Cargo
     ) nogil
 
@@ -1859,8 +1858,7 @@ cdef extern from 'lcms2.h':
 
     cmsHPROFILE cmsCreateGrayProfile(
         const cmsCIExyY* WhitePoint,
-
-    const cmsToneCurve* TransferFunction
+        const cmsToneCurve* TransferFunction
     ) nogil
 
     cmsHPROFILE cmsCreateLinearizationDeviceLinkTHR(
@@ -2125,8 +2123,7 @@ cdef extern from 'lcms2.h':
 
     void cmsSetAlarmCodesTHR(
         cmsContext ContextID,
-
-    const cmsUInt16Number AlarmCodes[]
+        const cmsUInt16Number AlarmCodes[]
     ) nogil
 
     void cmsGetAlarmCodesTHR(
@@ -2162,8 +2159,8 @@ cdef extern from 'lcms2.h':
     ) nogil
 
     ctypedef enum cmsPSResourceType:
-       cmsPS_RESOURCE_CSA
-       cmsPS_RESOURCE_CRD
+        cmsPS_RESOURCE_CSA
+        cmsPS_RESOURCE_CRD
 
     cmsUInt32Number cmsGetPostScriptColorResource(
         cmsContext ContextID,
