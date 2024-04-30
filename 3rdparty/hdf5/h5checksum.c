@@ -64,7 +64,7 @@
 static uint32_t H5_crc_table[256];
 
 /* Flag: has the table been computed? */
-static hbool_t H5_crc_table_computed = FALSE;
+static bool H5_crc_table_computed = false;
 
 /*-------------------------------------------------------------------------
  * Function:	H5_checksum_fletcher32
@@ -93,8 +93,9 @@ static hbool_t H5_crc_table_computed = FALSE;
 uint32_t
 H5_checksum_fletcher32(const void *_data, size_t _len)
 {
-    const uint8_t *data = (const uint8_t *)_data;
-    size_t len = _len / 2;      /* Length in 16-bit words */
+    const uint8_t *data =
+        (const uint8_t *)_data; /* Pointer to the data to be summed */
+    size_t len = _len / 2; /* Length in 16-bit words */
     uint32_t sum1 = 0, sum2 = 0;
 
     FUNC_ENTER_NOAPI_NOINIT_NOERR
@@ -146,7 +147,7 @@ H5_checksum_fletcher32(const void *_data, size_t _len)
 static void
 H5__checksum_crc_make_table(void)
 {
-    uint32_t c;    /* Checksum for each byte value */
+    uint32_t c; /* Checksum for each byte value */
     unsigned n, k; /* Local index variables */
 
     FUNC_ENTER_PACKAGE_NOERR
@@ -161,7 +162,7 @@ H5__checksum_crc_make_table(void)
                 c = c >> 1;
         H5_crc_table[n] = c;
     }
-    H5_crc_table_computed = TRUE;
+    H5_crc_table_computed = true;
 
     FUNC_LEAVE_NOAPI_VOID
 } /* end H5__checksum_crc_make_table() */
