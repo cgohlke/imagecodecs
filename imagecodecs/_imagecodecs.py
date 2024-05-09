@@ -182,14 +182,18 @@ def notimplemented(arg=False):
     """Return function decorator that raises NotImplementedError if not arg.
 
     >>> @notimplemented
-    ... def test(): pass
+    ... def test():
+    ...     pass
+    ...
     >>> test()
     Traceback (most recent call last):
     ...
     NotImplementedError: test not implemented
 
     >>> @notimplemented(True)
-    ... def test(): pass
+    ... def test():
+    ...     pass
+    ...
     >>> test()
 
     """
@@ -270,7 +274,9 @@ def delta_encode(data, axis=-1, dist=1, out=None):
     key: list[int | slice] = [slice(None)] * data.ndim
     key[axis] = 0
     diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
-    diff = diff if data.dtype.isnative else diff.byteswap(True).newbyteorder()
+    if not data.dtype.isnative:
+        diff = diff.byteswap(True)
+        diff = diff.view(diff.dtype.newbyteorder())
 
     if dtype.kind == 'f':
         return diff.view(dtype)
@@ -292,7 +298,10 @@ def delta_decode(data, axis=-1, dist=1, out=None):
         data = numpy.frombuffer(data, dtype='u1')
         return numpy.cumsum(data, axis=0, dtype='u1', out=out).tobytes()
     out = numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
-    return out if data.dtype.isnative else out.byteswap(True).newbyteorder()
+    if data.dtype.isnative:
+        return out
+    out = out.byteswap(True)
+    return out.view(out.dtype.newbyteorder())
 
 
 def xor_encode(data, axis=-1, out=None):
@@ -324,7 +333,8 @@ def xor_encode(data, axis=-1, out=None):
     if dtype.kind == 'f':
         return xor.view(dtype)
     if not data.dtype.isnative:
-        xor = xor.byteswap(True).newbyteorder()
+        xor = xor.byteswap(True)
+        xor = xor.view(xor.dtype.newbyteorder())
     return xor
 
 
@@ -457,7 +467,8 @@ def packbits_decode(encoded, out=None):
     >>> packbits_decode(b'\x02123')
     b'123'
     >>> packbits_decode(
-    ...   b'\xfe\xaa\x02\x80\x00\x2a\xfd\xaa\x03\x80\x00\x2a\x22\xf7\xaa')[:-4]
+    ...     b'\xfe\xaa\x02\x80\x00\x2a\xfd\xaa\x03\x80\x00\x2a\x22\xf7\xaa'
+    ... )[:-4]
     b'\xaa\xaa\xaa\x80\x00*\xaa\xaa\xaa\xaa\x80\x00*"\xaa\xaa\xaa\xaa\xaa\xaa'
 
     """
@@ -490,8 +501,10 @@ def lzw_decode(encoded, buffersize=0, out=None):
     and is not compatible with old style LZW compressed files like
     quad-lzw.tif.
 
-    >>> lzw_decode(b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
-    ...            b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02')
+    >>> lzw_decode(
+    ...     b'\x80\x1c\xcc\'\x91\x01\xa0\xc2m6\x99NB\x03\xc9\xbe\x0b'
+    ...     b'\x07\x84\xc2\xcd\xa68|"\x14 3\xc3\xa0\xd1c\x94\x02\x02'
+    ... )
     b'say hammer yo hammer mc hammer go hammer'
 
     """
