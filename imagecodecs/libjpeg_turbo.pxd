@@ -1,7 +1,7 @@
 # imagecodecs/libjpeg_turbo.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 3.0.1` library.
+# Cython declarations for the `libjpeg-turbo 3.0.3` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 from libc.stdio cimport FILE
@@ -464,7 +464,6 @@ cdef extern from 'jpeglib.h':
             j_compress_ptr cinfo
         ) nogil
 
-
     struct jpeg_source_mgr:
         const JOCTET* next_input_byte
         size_t bytes_in_buffer
@@ -490,7 +489,6 @@ cdef extern from 'jpeglib.h':
         void (*term_source) (
             j_decompress_ptr cinfo
         ) nogil
-
 
     int JPOOL_PERMANENT
     int JPOOL_IMAGE
