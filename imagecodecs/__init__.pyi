@@ -48,19 +48,16 @@ BytesLike = bytes | bytearray | mmap.mmap
 __version__: str
 
 
-def __dir__() -> list[str]:
-    ...
+def __dir__() -> list[str]: ...
 
 
-def __getattr__(name: str, /) -> Any:
-    ...
+def __getattr__(name: str, /) -> Any: ...
 
 
 class DelayedImportError(ImportError):
     """Delayed ImportError."""
 
-    def __init__(self, name: str, /) -> None:
-        ...
+    def __init__(self, name: str, /) -> None: ...
 
 
 def version(
@@ -84,7 +81,7 @@ def imread(
     ) = None,
     *,
     memmap: bool = False,
-    return_codec: Literal[False],
+    return_codec: Literal[False] = ...,
     **kwargs: Any,
 ) -> NDArray[Any]:
     """Return image array from file."""
@@ -105,6 +102,24 @@ def imread(
     return_codec: Literal[True],
     **kwargs: Any,
 ) -> tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
+    """Return image array and decode function from file."""
+
+
+@overload
+def imread(
+    fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
+    /,
+    codec: (
+        str
+        | Callable[..., NDArray[Any]]
+        | list[str | Callable[..., NDArray[Any]]]
+        | None
+    ) = None,
+    *,
+    memmap: bool = False,
+    return_codec: bool,
+    **kwargs: Any,
+) -> NDArray[Any] | tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
     """Return image array and decode function from file."""
 
 
@@ -2417,6 +2432,44 @@ def lzw_decode(
     """Return decoded LZW data."""
 
 
+# class MONO12P:
+#     """MONO12P codec constants."""
+
+#     available: bool
+#     """MONO12P codec is available."""
+
+
+# Mono12pError = ImcdError
+
+# mono12p_version = imcd_version
+
+
+# def mono12p_check(data: BytesLike, /) -> None:
+#     """Return whether data is MONO12P encoded."""
+
+
+# def mono12p_encode(
+#     data: ArrayLike,
+#     /,
+#     msfirst: bool = False,
+#     *,
+#     axis: int = -1,
+#     out: int | bytearray | None = None,
+# ) -> bytes | bytearray:
+#     """Return MONO12P packed integers."""
+
+
+# def mono12p_decode(
+#     data: BytesLike,
+#     /,
+#     msfirst: bool = False,
+#     *,
+#     runlen: int = 0,
+#     out: NDArray[Any] | None = None,
+# ) -> NDArray[Any]:
+#     """Return unpacked MONO12P integers."""
+
+
 class MOZJPEG:
     """MOZJPEG codec constants."""
 
@@ -2628,6 +2681,46 @@ def packints_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return unpacked integers."""
+
+
+class PCODEC:
+    """Pcodec codec constants."""
+
+    available: bool
+    """Pcodec codec is available."""
+
+
+class PcodecError(RuntimeError):
+    """Pcodec codec exceptions."""
+
+
+def pcodec_version() -> str:
+    """Return pcodec library version string."""
+
+
+def pcodec_check(data: BytesLike, /) -> None:
+    """Return whether data is pcodec encoded."""
+
+
+def pcodec_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return pcodec encoded data."""
+
+
+def pcodec_decode(
+    data: BytesLike,
+    /,
+    shape: tuple[int, ...] | None = None,
+    dtype: DTypeLike | None = None,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded pcodec data."""
 
 
 class PGLZ:
