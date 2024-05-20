@@ -43,9 +43,6 @@ from imcd cimport *
 
 from libc.math cimport ceil
 
-from cpython.bytes cimport PyBytes_FromStringAndSize
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-
 cdef extern from 'numpy/arrayobject.h':
     int NPY_VERSION
     int NPY_FEATURE_VERSION
@@ -159,7 +156,8 @@ cdef _delta(data, int axis, ssize_t dist, out, int decode):
 
         if not isnative:
             # imcd_delta requires native byteorder
-            data = data.byteswap().newbyteorder()
+            data = data.byteswap()
+            data = data.view(data.dtype.newbyteorder())
 
         if axis < 0:
             axis = data.ndim + axis
@@ -1054,9 +1052,7 @@ def packints_decode(
         uint8_t* dstptr = NULL
         ssize_t srcsize = src.size
         ssize_t dstsize = 0
-        ssize_t bytesize
-        ssize_t itemsize
-        ssize_t skipbits, i
+        ssize_t bytesize, itemsize, skipbits, i
         ssize_t ret = 0
 
     if data is out:
@@ -1137,6 +1133,30 @@ def packints_decode(
             imcd_swapbytes(<void*> dstptr, dstsize, itemsize)
 
     return out
+
+
+# MONO12P #####################################################################
+
+MONO12P = IMCD
+Mono12pError = ImcdError
+mono12p_version = imcd_version
+mono12p_check = imcd_check
+
+
+def mono12p_encode(
+    data, msfirst=False, int axis=-1, out=None
+):
+    """Return MONO12 packed integers (not implemented)."""
+
+    raise NotImplementedError('packints_encode')
+
+
+def mono12p_decode(
+    data, msfirst=False, ssize_t runlen=0, out=None
+):
+    """Return unpacked MONO12p integers (not implemented)."""
+
+    raise NotImplementedError('mono12p_decode')
 
 
 # 24-bit Floating Point #######################################################
@@ -1252,9 +1272,9 @@ def float24_decode(data, byteorder=None, out=None):
     if out is None:
         out = numpy.empty(srcsize // 3, numpy.float32)
     elif (
-        not isinstance(data, numpy.ndarray)
+        not isinstance(out, numpy.ndarray)
         or out.dtype != numpy.float32  # must be native
-        or out.size < srcsize
+        or out.size < srcsize // 3
     ):
         raise ValueError('invalid output type, size, or dtype')
     elif not numpy.PyArray_ISCONTIGUOUS(out):
@@ -1305,7 +1325,6 @@ def eer_decode(
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
-        ssize_t dstsize
         ssize_t ret = 0
         ssize_t height = shape[0]
         ssize_t width = shape[1]
@@ -1419,7 +1438,6 @@ def lzw_decode(data, buffersize=0, out=None):
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
-
 
 
 def lzw_encode(data, out=None):
