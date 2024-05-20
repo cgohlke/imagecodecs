@@ -915,7 +915,7 @@ ssize_t imcd_packints_decode(
     const uint8_t* src,
     const ssize_t srcsize,  /** size of src in bytes */
     uint8_t* dst,  /** buffer to store unpacked items */
-    const ssize_t dstsize,   /** number of items to unpack */
+    const ssize_t items,  /** number of items to unpack */
     const int bps  /** number of bits in integer */
     )
 {
@@ -936,10 +936,10 @@ ssize_t imcd_packints_decode(
         case 16:
         case 32:
         case 64:
-            memcpy(dst, src, dstsize * itemsize);
-            return dstsize;
+            memcpy(dst, src, items * itemsize);
+            return items;
         case 1:
-            for (i = 0, j = 0; i < dstsize/8; i++) {
+            for (i = 0, j = 0; i < items/8; i++) {
                 value = src[i];
                 dst[j++] = (value & (uint8_t)(128)) >> 7;
                 dst[j++] = (value & (uint8_t)(64)) >> 6;
@@ -950,9 +950,9 @@ ssize_t imcd_packints_decode(
                 dst[j++] = (value & (uint8_t)(2)) >> 1;
                 dst[j++] = (value & (uint8_t)(1));
             }
-            if (dstsize % 8) {
+            if (items % 8) {
                 value = src[i];
-                switch (dstsize % 8)
+                switch (items % 8)
                 {
                     case 7: dst[j+6] = (value & (uint8_t)(2)) >> 1;
                     case 6: dst[j+5] = (value & (uint8_t)(4)) >> 2;
@@ -963,45 +963,45 @@ ssize_t imcd_packints_decode(
                     case 1: dst[j] = (value & (uint8_t)(128)) >> 7;
                 }
             }
-            return dstsize;
+            return items;
         case 2:
-            for (i = 0, j = 0; i < dstsize/4; i++) {
+            for (i = 0, j = 0; i < items/4; i++) {
                 value = src[i];
                 dst[j++] = (value & (uint8_t)(192)) >> 6;
                 dst[j++] = (value & (uint8_t)(48)) >> 4;
                 dst[j++] = (value & (uint8_t)(12)) >> 2;
                 dst[j++] = (value & (uint8_t)(3));
             }
-            if (dstsize % 4) {
+            if (items % 4) {
                 value = src[i];
-                switch (dstsize % 4)
+                switch (items % 4)
                 {
                     case 3: dst[j+2] = (value & (uint8_t)(12)) >> 2;
                     case 2: dst[j+1] = (value & (uint8_t)(48)) >> 4;
                     case 1: dst[j] = (value & (uint8_t)(192)) >> 6;
                 }
             }
-            return dstsize;
+            return items;
         case 4:
-            for (i = 0, j = 0; i < dstsize/2; i++) {
+            for (i = 0, j = 0; i < items/2; i++) {
                 value = src[i];
                 dst[j++] = (value & (uint8_t)(240)) >> 4;
                 dst[j++] = (value & (uint8_t)(15));
             }
-            if (dstsize % 2) {
+            if (items % 2) {
                 value = src[i];
                 dst[j] = (value & (uint8_t)(240)) >> 4;
             }
-            return dstsize;
+            return items;
         case 24:
             j = k = 0;
-            for (i = 0; i < dstsize; i++) {
+            for (i = 0; i < items; i++) {
                 dst[j++] = 0;
                 dst[j++] = src[k++];
                 dst[j++] = src[k++];
                 dst[j++] = src[k++];
             }
-            return dstsize;
+            return items;
     }
     /* 3, 5, 6, 7 */
     if (bps < 8) {
@@ -1012,7 +1012,7 @@ ssize_t imcd_packints_decode(
         val.b[IMCD_LSB] = src[j++];
         mask.b[IMCD_MSB] = imcd_bitmask(bps);
         mask.b[IMCD_LSB] = 0;
-        for (i = 0; i < dstsize; i++) {
+        for (i = 0; i < items; i++) {
             shr -= bps;
             tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[IMCD_LSB];
@@ -1026,7 +1026,7 @@ ssize_t imcd_packints_decode(
                 mask.i >>= bps;
             }
         }
-        return dstsize;
+        return items;
     }
     /* 9, 10, 11, 12, 13, 14, 15 */
     if (bps < 16) {
@@ -1040,7 +1040,7 @@ ssize_t imcd_packints_decode(
         }
         mask.b[3] = 0xFF;
         mask.b[2] = imcd_bitmask(bps-8);
-        for (i = 0; i < dstsize; i++) {
+        for (i = 0; i < items; i++) {
             shr -= bps;
             tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
@@ -1060,7 +1060,7 @@ ssize_t imcd_packints_decode(
 #else
     /* not implemented */
 #endif
-        return dstsize;
+        return items;
     }
     /* 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 */
     if (bps < 32) {
@@ -1076,7 +1076,7 @@ ssize_t imcd_packints_decode(
         mask.b[6] = 0xFF;
         mask.b[5] = bps > 23 ? 0xFF : imcd_bitmask(bps - 16);
         mask.b[4] = bps < 24 ? 0x00 : imcd_bitmask(bps - 24);
-        for (i = 0; i < dstsize; i++) {
+        for (i = 0; i < items; i++) {
             shr -= bps;
             tmp.i = (val.i & mask.i) >> shr;
             dst[k++] = tmp.b[0]; /* swap bytes */
@@ -1102,7 +1102,7 @@ ssize_t imcd_packints_decode(
 #else
     /* Not implemented */
 #endif
-        return dstsize;
+        return items;
     }
     return IMCD_ERROR;
 }
@@ -1115,16 +1115,114 @@ ssize_t imcd_packints_encode(
     const uint8_t* src,
     const ssize_t srcsize,  /** size of src in bytes */
     uint8_t* dst,  /** buffer to store packed items */
-    const ssize_t dstsize,   /** number of items to pack */
+    const ssize_t items,  /** number of items to pack */
     const int bps  /** number of bits in integer */
     )
 {
+    ssize_t i, j, k;
+    ssize_t itemsize;
+    uint8_t value;
+
     if (srcsize == 0) {
         return 0;
     }
 
-    /* Input validation is done in wrapper function */
+    /* TODO: complete implementation */
 
+    /* Input validation is done in wrapper function */
+    itemsize = (ssize_t)(ceil(bps / 8.0));
+    itemsize = itemsize < 3 ? itemsize : itemsize > 4 ? 8 : 4;
+
+    switch (bps)
+    {
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+            memcpy(dst, src, items * itemsize);
+            return items;
+        case 1:
+            for (i = 0, j = 0; j < items/8; j++) {
+                value = 0;
+                value |= (src[i++] << 7) & (uint8_t)(128);
+                value |= (src[i++] << 6) & (uint8_t)(64);
+                value |= (src[i++] << 5) & (uint8_t)(32);
+                value |= (src[i++] << 4) & (uint8_t)(16);
+                value |= (src[i++] << 3) & (uint8_t)(8);
+                value |= (src[i++] << 2) & (uint8_t)(4);
+                value |= (src[i++] << 1) & (uint8_t)(2);
+                value |= (src[i++] << 0) & (uint8_t)(1);
+                dst[j] = value;
+            }
+            if (items % 8) {
+                value = 0;
+                switch (items % 8)
+                {
+                    case 7: value |= (src[i++] << 7) & (uint8_t)(128);
+                    case 6: value |= (src[i++] << 6) & (uint8_t)(64);
+                    case 5: value |= (src[i++] << 5) & (uint8_t)(32);
+                    case 4: value |= (src[i++] << 4) & (uint8_t)(16);
+                    case 3: value |= (src[i++] << 3) & (uint8_t)(8);
+                    case 2: value |= (src[i++] << 2) & (uint8_t)(4);
+                    case 1: value |= (src[i++] << 1) & (uint8_t)(2);
+                }
+                dst[j++] = value;
+            }
+            return items;
+        case 2:
+            for (i = 0, j = 0; j < items/8; j++) {
+                value = 0;
+                value |= (src[i++] << 6) & (uint8_t)(192);
+                value |= (src[i++] << 4) & (uint8_t)(48);
+                value |= (src[i++] << 2) & (uint8_t)(12);
+                value |= (src[i++] << 0) & (uint8_t)(3);
+                dst[j] = value;
+            }
+            if (items % 8) {
+                value = 0;
+                switch (items % 8)
+                {
+                    case 3: value |= (src[i++] << 6) & (uint8_t)(192);
+                    case 2: value |= (src[i++] << 4) & (uint8_t)(48);
+                    case 1: value |= (src[i++] << 2) & (uint8_t)(12);
+                }
+                dst[j] = value;
+            }
+            return items;
+        case 4:
+            for (i = 0, j = 0; j < items/8; j++) {
+                value = 0;
+                value |= (src[i++] << 4) & (uint8_t)(240);
+                value |= (src[i++] << 0) & (uint8_t)(15);
+                dst[j] = value;
+            }
+            if (items % 8) {
+                dst[j] = (src[i++] << 4) & (uint8_t)(240);
+            }
+            return items;
+        // case 10:
+        //     return items;
+        case 12:
+            for (i = 0, j = 0; j < srcsize / 2; j+=3) {
+                value = 0;
+                value = src[i++] & (uint8_t)(15);
+                value = (src[i] >> 4) & (uint8_t)(15);
+                dst[j] = value;
+                value = 0;
+                value = (src[i++] << 4) & (uint8_t)(15);
+                value |= src[i++] & (uint8_t)(15);
+                dst[j+1] = value;
+                dst[j+2] = src[i++];
+            }
+            if (items % 2) {
+                dst[j] = (src[i++] << 4) & (uint8_t)(240);
+            }
+            return items;
+        // case 14:
+        //     return items;
+        // case 24:
+        //     return items;
+    }
     return IMCD_NOTIMPLEMENTED_ERROR;
 }
 
