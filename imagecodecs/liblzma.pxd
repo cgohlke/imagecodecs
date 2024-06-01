@@ -1,8 +1,8 @@
 # imagecodecs/liblzma.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `liblzma 5.4.5` library.
-# https://git.tukaani.org/?p=xz.git
+# Cython declarations for the `liblzma 5.6.2` library.
+# https://github.com/tukaani-project/xz
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
 
@@ -99,7 +99,7 @@ cdef extern from 'lzma.h':
 
     void lzma_get_progress(
         lzma_stream* strm,
-		uint64_t* progress_in,
+        uint64_t* progress_in,
         uint64_t* progress_out
     ) nogil
 
@@ -112,7 +112,7 @@ cdef extern from 'lzma.h':
     ) nogil
 
     lzma_ret lzma_memlimit_set(
-		lzma_stream* strm,
+        lzma_stream* strm,
         uint64_t memlimit
     ) nogil
 
@@ -872,7 +872,7 @@ cdef extern from 'lzma.h':
 
     lzma_bool lzma_index_iter_locate(
         lzma_index_iter* iter_,
-         lzma_vli target
+        lzma_vli target
     ) nogil
 
     lzma_ret lzma_index_cat(
@@ -881,7 +881,7 @@ cdef extern from 'lzma.h':
         const lzma_allocator* allocator
     ) nogil
 
-    lzma_index*  lzma_index_dup(
+    lzma_index* lzma_index_dup(
         const lzma_index* i,
         const lzma_allocator* allocator
     ) nogil
