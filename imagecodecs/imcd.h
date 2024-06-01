@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2024.1.1"
+#define IMCD_VERSION "2024.6.1"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -109,7 +109,7 @@ ssize_t imcd_packints_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const ssize_t dstsize,
+    const ssize_t items,
     const int bps
 );
 
@@ -118,7 +118,7 @@ ssize_t imcd_packints_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const ssize_t dstsize,
+    const ssize_t items,
     const int bps
 );
 
