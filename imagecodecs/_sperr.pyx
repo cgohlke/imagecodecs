@@ -95,7 +95,6 @@ def sperr_encode(
     cdef:
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         void* dst_ptr = NULL
         size_t dst_len
@@ -252,6 +251,7 @@ def sperr_decode(
         else:
             raise ValueError(f'invalid {dtype=}')
 
+        shape = _squeeze_shape(shape, 2)
         ndim = len(shape)
         if ndim == 2:
             dimz = 1
@@ -300,7 +300,7 @@ def sperr_decode(
         if ndim == 2:
             ret = sperr_decomp_2d(
                 <const void*> &src[10 * out_inc_header],
-                src_len,
+                src_len - 10 * out_inc_header,
                 is_float,
                 dimx,
                 dimy,
