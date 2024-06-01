@@ -130,7 +130,7 @@ def jpeg2k_encode(
         OPJ_BOOL ret = OPJ_TRUE
         OPJ_COLOR_SPACE color_space
         OPJ_UINT32 sgnd, prec, width, height, samples
-        ssize_t i, j
+        ssize_t i
         int verbosity = verbose
         int tile_width = 0
         int tile_height = 0
@@ -216,24 +216,34 @@ def jpeg2k_encode(
     else:
         color_space = _opj_colorspace(colorspace)
 
+    # create memory stream
+    memopj.data = NULL
+    memopj.size = 0
+    memopj.offset = 0
+    memopj.written = 0
+    memopj.owner = 0
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize + 2048  # TODO: ?
-        out = _create_output(outtype, dstsize)
+            dstsize = max(4096, srcsize // (2 if quality == 0.0 else 4))
+            memopj.data = <OPJ_UINT8*> malloc(dstsize)
+            if memopj.data == NULL:
+                raise MemoryError('failed to allocate output buffer')
+            memopj.size = dstsize
+            memopj.owner = 1
+        else:
+            out = _create_output(outtype, dstsize)
 
-    dst = out
-    dstsize = dst.nbytes
+    if out is not None:
+        dst = out
+        dstsize = dst.nbytes
+        memopj.data = <OPJ_UINT8*> &dst[0]
+        memopj.size = dstsize
 
     try:
         with nogil:
-
-            # create memory stream
-            memopj.data = <OPJ_UINT8*> &dst[0]
-            memopj.size = dstsize
-            memopj.offset = 0
-            memopj.written = 0
 
             stream = opj_memstream_create(&memopj, OPJ_FALSE)
             if stream == NULL:
@@ -302,7 +312,7 @@ def jpeg2k_encode(
             )
 
             # multiple component transform: rgb->ycc
-            if samples == 3:
+            if samples == 3 and color_space == OPJ_CLRSPC_SRGB:
                 parameters.tcp_mct = <char> tcp_mct
 
             if quality == 0.0:
@@ -408,6 +418,10 @@ def jpeg2k_encode(
 
             byteswritten = <ssize_t> memopj.written
 
+    except Exception:
+        if memopj.owner:
+            free(memopj.data)
+        raise
     finally:
         if stream != NULL:
             opj_stream_destroy(stream)
@@ -417,6 +431,11 @@ def jpeg2k_encode(
             opj_image_destroy(image)
         if cmptparms != NULL:
             free(cmptparms)
+
+    if out is None:
+        out = _create_output(outtype, memopj.size, <const char *> memopj.data)
+        free(memopj.data)
+        return out
 
     del dst
     return _return_output(out, dstsize, byteswritten, outgiven)
@@ -688,6 +707,52 @@ ctypedef struct memopj_t:
     OPJ_UINT64 size
     OPJ_UINT64 offset
     OPJ_UINT64 written
+    int owner
+
+
+cdef memopj_t* memopj_new(uint8_t* data, size_t size) noexcept nogil:
+    """Return new memopj."""
+    cdef:
+        memopj_t* memopj = <memopj_t*> malloc(sizeof(memopj_t))
+
+    if memopj == NULL:
+        return NULL
+    memopj.size = size
+    memopj.written = 0
+    memopj.offset = 0
+    if data == NULL:
+        memopj.owner = 1
+        memopj.data = <OPJ_UINT8*> malloc(size)
+    else:
+        memopj.owner = 0
+        memopj.data = <OPJ_UINT8*> data
+    if memopj.data == NULL:
+        free(memopj)
+        return NULL
+    return memopj
+
+
+cdef OPJ_BOOL opj_mem_resize(
+    memopj_t* memopj,
+    OPJ_SIZE_T newsize
+) noexcept nogil:
+    """Reallocate buffer to at least fit newsize bytes."""
+    if newsize < 0:
+        return OPJ_FALSE
+    if newsize <= memopj.size:
+        return OPJ_TRUE
+    if not memopj.owner:
+        return OPJ_FALSE
+    if newsize <= <OPJ_SIZE_T> (<double> memopj.size * 1.25):
+        # moderate upsize: overallocate
+        newsize = newsize + newsize // 4
+        newsize = (((newsize - 1) // 4096) + 1) * 4096
+    tmp = <OPJ_UINT8*> realloc(<void*> memopj.data, newsize)
+    if tmp == NULL:
+        return OPJ_FALSE
+    memopj.data = tmp
+    memopj.size = newsize
+    return OPJ_TRUE
 
 
 cdef OPJ_SIZE_T opj_mem_read(
@@ -723,11 +788,16 @@ cdef OPJ_SIZE_T opj_mem_write(
         memopj_t* memopj = <memopj_t*> data
         OPJ_SIZE_T count = size
 
-    if memopj.offset >= memopj.size:
-        return <OPJ_SIZE_T> -1
-    if size > memopj.size - memopj.offset:
-        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-        memopj.written = memopj.size + 1  # indicates error
+    if not memopj.owner:
+        if memopj.offset >= memopj.size:
+            return <OPJ_SIZE_T> -1  # error
+        if size > memopj.size - memopj.offset:
+            count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
+            memopj.written = memopj.size + 1  # indicates error
+    elif memopj.offset >= memopj.size or size > memopj.size - memopj.offset:
+        if opj_mem_resize(memopj, memopj.offset + count) != OPJ_TRUE:
+            return <OPJ_SIZE_T> -1  # error
+
     memcpy(
         <void*> &(memopj.data[memopj.offset]),
         <const void*> dst,
@@ -744,9 +814,12 @@ cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) noexcept nogil:
     cdef:
         memopj_t* memopj = <memopj_t*> data
 
-    if size < 0 or size >= <OPJ_OFF_T> memopj.size:
-        return OPJ_FALSE
-    memopj.offset = <OPJ_SIZE_T> size
+    # if size < 0 or size >= <OPJ_OFF_T> memopj.size:
+    #     if not memopj.owner:
+    #         return OPJ_FALSE
+    #     if opj_mem_resize(memopj, <OPJ_SIZE_T> size) != OPJ_TRUE:
+    #         return OPJ_FALSE
+    memopj.offset = <OPJ_SIZE_T> size  # allow seek beyond memopj.size
     return OPJ_TRUE
 
 
@@ -754,14 +827,19 @@ cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) noexcept nogil:
     """opj_stream_set_skip_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
-        OPJ_SIZE_T count
+        OPJ_SIZE_T count = <OPJ_SIZE_T> size
 
     if size < 0:
         return -1
-    count = <OPJ_SIZE_T> size
-    if count > memopj.size - memopj.offset:
-        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-    memopj.offset += count
+    # if count > memopj.size - memopj.offset:
+    #     if memopj.owner:
+    #         if opj_mem_resize(
+    #             memopj, <OPJ_SIZE_T> memopj.offset + count
+    #         ) != OPJ_TRUE:
+    #             count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
+    #     else:
+    #         count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
+    memopj.offset += count  # allow seek beyond memopj.size
     return count
 
 
