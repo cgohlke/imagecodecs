@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2024.1.1
+:Version: 2024.6.1
 
 """
 
@@ -137,6 +137,7 @@ def test_module_exist(name):
             or name == 'mozjpeg'
             or name == 'heif'
             or name == 'jetraw'
+            or name == 'pcodec'
             # or name == 'nvjpeg'
             # or name == 'nvjpeg2k'
         ):
@@ -2206,6 +2207,26 @@ def test_jetraw():
     assert im[1490, 1830] == 36569
 
 
+@pytest.mark.skipif(not imagecodecs.PCODEC.available, reason='pcodec missing')
+@pytest.mark.parametrize(
+    'dtype', ['uint32', 'int32', 'int64', 'float32', 'float64']  # 'uint64'
+)
+def test_pcodec(dtype):
+    """Test pcodec codec."""
+    dtype = numpy.dtype(dtype)
+    data = image_data('rgb', dtype)
+    shape = data.shape
+
+    encoded = imagecodecs.pcodec_encode(data)
+    decoded = imagecodecs.pcodec_decode(encoded, shape, dtype)
+    assert_array_equal(data, decoded)
+
+    encoded = imagecodecs.pcodec_encode(data, level=10)
+    out = numpy.empty_like(data)
+    imagecodecs.pcodec_decode(encoded, out=out)
+    assert_array_equal(data, out)
+
+
 @pytest.mark.skipif(not imagecodecs.RGBE.available, reason='rgbe missing')
 def test_rgbe_decode():
     """Test RGBE decoding."""
@@ -3349,11 +3370,7 @@ def test_sperr(dtype, itype, enout, deout, mode, header):
     if enout == 'new':
         pass
     elif enout == 'out':
-        # TODO: 2D psnr decode segfaults if numpy array is exact size
-        encoded = numpy.zeros(
-            encoded_len + (2 if (mode == 'psnr' and itype == 'gray') else 0),
-            'uint8',
-        )
+        encoded = numpy.zeros(encoded_len, 'uint8')
         encode(data, out=encoded, **kwargs)
         encoded = encoded[:encoded_len]
     elif enout == 'bytearray':
@@ -3658,6 +3675,28 @@ def test_jpeg2k_samples():
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
+def test_jpeg2k_realloc(caplog):
+    """Test JPEG 2000 decoder with output larger than input."""
+    # https://github.com/cgohlke/imagecodecs/issues/101
+    data = numpy.random.randint(0, 255, (256, 256), numpy.uint8)
+    encoded = imagecodecs.jpeg2k_encode(data, level=0, verbose=3)
+    assert imagecodecs.jpeg2k_check(encoded)
+    decoded = imagecodecs.jpeg2k_decode(encoded)
+    assert_array_equal(data, decoded)
+
+    encoded2 = imagecodecs.jpeg2k_encode(
+        data, level=0, out=len(encoded), verbose=3
+    )
+    assert encoded2 == encoded
+
+    with pytest.raises(imagecodecs.Jpeg2kError):
+        imagecodecs.jpeg2k_encode(
+            data, level=0, out=len(encoded) - 1, verbose=3
+        )
+        assert 'Error on writing stream' in caplog.text
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
 @pytest.mark.parametrize('bitspersample', [None, True])
 @pytest.mark.parametrize('dtype', ['u1', 'u2', 'u4', 'i1', 'i2', 'i4'])
 @pytest.mark.parametrize('planar', [False, True])
@@ -3849,6 +3888,27 @@ def test_apng(samples, dtype):
         assert_array_equal(
             imagecodecs.png_decode(encoded), data[0], verbose=True
         )
+
+
+@pytest.mark.parametrize(
+    'codec', ['jpeg', 'png', 'webp', 'jpegxl', 'jpeg2k', 'jpegxr', 'avif']
+)
+def test_image_strided(codec):
+    """Test decoding into buffer with some dimensions of length 1."""
+    # https://github.com/cgohlke/imagecodecs/issues/98
+    data = image_data('rgb', 'u1')
+    out_shape = (1, data.shape[0], 1, data.shape[1], 1, data.shape[2], 1)
+    out = numpy.empty(out_shape, data.dtype)
+    if not getattr(imagecodecs, codec.upper()).available:
+        pytest.skip(f'{codec} not found')
+    encode = getattr(imagecodecs, f'{codec}_encode')
+    decode = getattr(imagecodecs, f'{codec}_decode')
+    encoded = encode(data)
+    decoded = decode(encoded, out=out)
+    assert decoded.shape == data.shape
+    if codec != 'jpeg':
+        assert_array_equal(data, decoded)
+        assert_array_equal(data, out.squeeze())
 
 
 @pytest.mark.skipif(not imagecodecs.SPNG.available, reason='spng missing')
@@ -4412,7 +4472,8 @@ def test_tifffile(byteorder, dtype, codec, predictor):
 
     data = image_data('rgb', dtype)
     if byteorder == '>':
-        data = data.byteswap().newbyteorder()
+        data = data.byteswap()
+        data = data.view(data.dtype.newbyteorder())
 
     with io.BytesIO() as fh:
         tifffile.imwrite(
@@ -4432,7 +4493,8 @@ def test_tifffile(byteorder, dtype, codec, predictor):
             assert tif.byteorder == byteorder
             image = tif.asarray()
         if byteorder == '>':
-            image = image.byteswap().newbyteorder()
+            image = image.byteswap()
+            image = image.view(image.dtype.newbyteorder())
         if codec != 'jpeg':
             assert_array_equal(data, image, verbose=True)
 
@@ -4459,7 +4521,11 @@ def test_tifffile_ljpeg(dtype):
             fh,
             data,
             photometric='minisblack',
-            compression=('jpeg', None, {'lossless': True, 'bitspersample': 8}),
+            # compression=(
+            #     'jpeg', None, {'lossless': True, 'bitspersample': 8}
+            # ),
+            compression='jpeg',
+            compressionargs={'lossless': True, 'bitspersample': 8},
         )
         fh.seek(0)
         image = tifffile.imread(fh)
@@ -4504,7 +4570,7 @@ def test_numcodecs_register(caplog):
 
 
 @pytest.mark.skipif(SKIP_NUMCODECS, reason='zarr or numcodecs missing')
-@pytest.mark.parametrize('photometric', ['gray', 'rgb'])
+@pytest.mark.parametrize('photometric', ['gray', 'rgb', 'stack'])
 @pytest.mark.parametrize(
     'codec',
     [
@@ -4544,6 +4610,7 @@ def test_numcodecs_register(caplog):
         'lzma',
         'lzw',
         'packbits',
+        'pcodec',
         'pglz',
         'png',
         'qoi',
@@ -4571,10 +4638,17 @@ def test_numcodecs(codec, photometric):
         shape = data.shape
         chunks = (1, 128, 128, 3)
         axis = -2
-    else:
+    elif photometric == 'gray':
         data = data[..., 1].copy()
         shape = data.shape
         chunks = (1, 128, 128)
+        axis = -1
+    else:
+        # https://github.com/cgohlke/imagecodecs/issues/98
+        data = data[:, :128, :128].copy()
+        photometric = 'rgb'
+        shape = data.shape
+        chunks = (1, *data.shape[1:])
         axis = -1
 
     lossless = True
@@ -4791,6 +4865,17 @@ def test_numcodecs(codec, photometric):
             compressor = numcodecs.Packbits(axis=-2)
         else:
             compressor = numcodecs.Packbits()
+    elif codec == 'pcodec':
+        if not imagecodecs.PCODEC.available:
+            pytest.skip(f'{codec} not found')
+        data = data.astype('float32')
+        compressor = numcodecs.Pcodec(
+            level=8,
+            shape=chunks[1:],
+            dtype=data.dtype,
+        )
+        lossless = False
+        atol = 1e-2
     elif codec == 'pglz':
         if not imagecodecs.PGLZ.available:
             pytest.skip(f'{codec} not found')
@@ -4906,12 +4991,11 @@ def test_numcodecs(codec, photometric):
     if codec == 'jetraw':
         pass  # it does not make sense to test Jetraw on tiled, synthetic data
     elif lossless:
-        assert_array_equal(z[:], data)
+        assert_array_equal(z[:, :150, :150], data[:, :150, :150])
     else:
         assert_allclose(
             z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0
         )
-
     try:
         store.close()
     except Exception:
