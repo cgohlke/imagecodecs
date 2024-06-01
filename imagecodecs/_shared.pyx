@@ -42,7 +42,6 @@ import numbers
 import numpy
 
 cimport numpy
-cimport cython
 
 from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_Check
 
@@ -151,22 +150,26 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
             out = numpy.empty(shape, dtype)
     elif isinstance(out, numpy.ndarray):
         if out.itemsize != numpy.dtype(dtype).itemsize:
-            raise ValueError('invalid output dtype')
-        if (
-            out.shape != shape
-            and (
+            raise ValueError(f'invalid {out.dtype=}, {dtype=}')
+        if out.shape != shape:
+            if (
                 tuple(int(i) for i in out.shape if i != 1)
                 != tuple(int(i) for i in shape if i != 1)
-            )
-        ):
-            raise ValueError(f'invalid output shape {out.shape!r} {shape!r}')
-        # out = out.reshape(shape)
+            ):
+                raise ValueError(f'invalid {out.shape=!r}, {shape=!r}')
+            out = out.reshape(shape)
         if strides is not None:
+            if len(strides) != len(out.strides):
+                raise ValueError(f'{out.strides=!r} do not match {strides=!r}')
             for i, j in zip(strides, out.strides):
                 if i is not None and i != j:
-                    raise ValueError('invalid output strides')
+                    raise ValueError(
+                        f'invalid {out.strides=!r}, {strides=!r}'
+                    )
         elif contig and not numpy.PyArray_ISCONTIGUOUS(out):
-            raise ValueError('output is not contiguous')
+            raise ValueError(
+                f'output is not contiguous {out.shape=!r}, {out.strides=!r}'
+            )
     else:
         dstsize = 1
         for i in shape:
@@ -258,6 +261,22 @@ cdef const uint8_t[::1] _inplace_input(data):
         src = writable
 
     return src
+
+
+cdef tuple _squeeze_shape(tuple shape, ssize_t ndim):
+    """Return shape with leading length-one dimensions removed."""
+    cdef:
+        ssize_t i = 0
+        ssize_t length = len(shape)
+
+    if length <= ndim:
+        return shape
+    length -= ndim
+    for size in shape:
+        if size != 1 or i == length:
+            break
+        i += 1
+    return shape[i:]
 
 
 cdef _default_value(value, default, smallest, largest):
