@@ -1,9 +1,17 @@
 Revisions
 ---------
 
+2024.6.1
+
+- Pass 7486 tests.
+- Fix segfault in sperr_decode.
+- Fix segfault when strided-decoding into buffers with unexpected shapes (#98).
+- Fix jpeg2k_encoder output buffer too small (#101).
+- Add PCODEC codec based on pcodec library.
+- Support NumPy 2.
+
 2024.1.1
 
-- Pass 7420 tests.
 - Add 8/24-bit BMP codec.
 - Add SPERR codec based on SPERR library.
 - Add LZO decoder based on lzokay library.
