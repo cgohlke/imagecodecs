@@ -39,6 +39,11 @@
 
 include '_shared.pxi'
 
+cdef extern from 'errno.h':
+    int errno
+    int E2BIG
+    int EINVAL
+
 from liblzf cimport *
 
 
@@ -127,6 +132,8 @@ def lzf_decode(data, header=False, out=None):
         unsigned int ret
         ssize_t offset = 4 if header else 0
 
+    global errno
+
     if data is out:
         raise ValueError('cannot decode in-place')
 
@@ -142,7 +149,10 @@ def lzf_decode(data, header=False, out=None):
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize
+            dstsize = srcsize * 8
+            # raise TypeError(
+            #    "lzf_decode() missing 1 required keyword-only argument: 'out'"
+            # )
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -152,14 +162,23 @@ def lzf_decode(data, header=False, out=None):
         raise ValueError('output too large')
 
     with nogil:
+        errno = 0
         ret = lzf_decompress(
             <void*> &src[offset],
             <unsigned int> (srcsize - offset),
             <void*> &dst[0],
             <unsigned int> dstsize
         )
-    if ret == 0:
-        raise LzfError(f'lzf_decompress returned {ret}')
+        if ret == 0:
+            if errno == E2BIG:
+                raise LzfError(
+                    'lzf_decompress detected the output buffer is '
+                    'not large enough to hold the decompressed data'
+                )
+            if errno == EINVAL:
+                raise LzfError(
+                    'lzf_decompress detected an error in the compressed data'
+                )
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
