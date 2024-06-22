@@ -199,7 +199,7 @@ cdef brunsli_sink_t* brunsli_sink_new(size_t size) noexcept nogil:
     cdef:
         brunsli_sink_t* sink = NULL
 
-    sink = <brunsli_sink_t*> malloc(sizeof(brunsli_sink_t))
+    sink = <brunsli_sink_t*> calloc(1, sizeof(brunsli_sink_t))
     if sink == NULL:
         return NULL
     sink.byteswritten = 0
