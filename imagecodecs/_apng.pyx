@@ -266,7 +266,7 @@ def apng_encode(
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
-            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
 
@@ -470,7 +470,7 @@ def apng_decode(data, index=None, out=None):
             frame_x_offset = 0
             frame_y_offset = 0
 
-            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
 
