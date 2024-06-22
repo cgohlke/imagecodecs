@@ -234,7 +234,7 @@ ctypedef struct output_t:
 cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
-        output_t* output = <output_t*> malloc(sizeof(output_t))
+        output_t* output = <output_t*> calloc(1, sizeof(output_t))
 
     if output == NULL:
         return NULL
