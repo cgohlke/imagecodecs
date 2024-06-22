@@ -536,8 +536,8 @@ def heif_decode(data, index=0, photometric=None, out=None):
                         'heif_context_get_primary_image_handle', err.message
                     )
             else:
-                imageids = <heif_item_id*> malloc(
-                    imagecount * sizeof(heif_item_id)
+                imageids = <heif_item_id*> calloc(
+                    imagecount, sizeof(heif_item_id)
                 )
                 if imageids == NULL:
                     raise MemoryError('failed to allocate imageids')
@@ -813,7 +813,7 @@ ctypedef struct output_t:
 cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
-        output_t* output = <output_t*> malloc(sizeof(output_t))
+        output_t* output = <output_t*> calloc(1, sizeof(output_t))
 
     if output == NULL:
         return NULL
