@@ -228,7 +228,7 @@ def png_encode(
             if bit_depth > 8:
                 png_set_swap(png_ptr)
 
-            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
@@ -367,7 +367,7 @@ def png_decode(data, out=None):
         rowstride = dst.strides[0]
 
         with nogil:
-            rowpointers = <png_bytepp> malloc(sizeof(png_bytep) * height)
+            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
             for row in range(height):
