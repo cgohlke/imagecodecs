@@ -1715,8 +1715,7 @@ def jpeg_decode(
         msg = str(exc)
 
         if (
-            'Unsupported JPEG data precision' in msg
-            or 'Unsupported color conversion' in msg
+            'Unsupported color conversion' in msg
             or 'Bogus Huffman table definition' in msg
             or 'SOF type' in msg
         ):
@@ -1746,10 +1745,6 @@ def jpeg_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return JPEG encoded image."""
-    if lossless and bitspersample not in {None, 8, 12, 16}:
-        return imagecodecs.ljpeg_encode(
-            data, bitspersample=bitspersample, out=out
-        )
     return imagecodecs.jpeg8_encode(
         data,
         level=level,

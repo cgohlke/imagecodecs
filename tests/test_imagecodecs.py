@@ -2930,7 +2930,6 @@ def test_ljpeg(fname, result, codec):
         decode = imagecodecs.jpeg8_decode
         check = imagecodecs.jpeg8_check
         if fname in {
-            '2ch.ljp',  # Unsupported JPEG data precision 14
             '2dht.ljp',  # Unsupported color conversion request
             'rgb24.ljp',  # Unsupported color conversion request
             'linearraw.ljp',  # Unsupported color conversion request
