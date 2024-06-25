@@ -109,7 +109,7 @@ Build requirements:
 - `libheif <https://github.com/strukturag/libheif>`_ 1.17.6
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.15,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.6)
-- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.3
+- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 6ec8e41f50e5a83fe078732cbf0360272165ed45
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.10.2
 - `liblzma <https://github.com/tukaani-project/xz>`_ 5.6.2
 - `libpng <https://github.com/glennrp/libpng>`_ 1.6.43

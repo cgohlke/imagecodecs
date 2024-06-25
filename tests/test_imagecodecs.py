@@ -2934,13 +2934,16 @@ def test_ljpeg(fname, result, codec):
             'rgb24.ljp',  # Unsupported color conversion request
             'linearraw.ljp',  # Unsupported color conversion request
             'dng0.ljp',  # Invalid progressive/lossless parameters Ss=0 ...
-            # 'dng1.ljp',  # Bogus Huffman table definition
-            # 'dng2.ljp',  # Bogus Huffman table definition
-            # 'dng3.ljp',  # Bogus Huffman table definition
-            # 'dng4.ljp',  # Bogus Huffman table definition
-            # 'dng5.ljp',  # Bogus Huffman table definition
-            # 'dng6.ljp',  # Bogus Huffman table definition
-            # 'dng7.ljp',  # Bogus Huffman table definition
+            # The below "Bogus Huffman table definition" errors can be fixed
+            # with the suggested patch discussed here:
+            # https://github.com/libjpeg-turbo/libjpeg-turbo/issues/765
+            'dng1.ljp',  # Bogus Huffman table definition
+            'dng2.ljp',  # Bogus Huffman table definition
+            'dng3.ljp',  # Bogus Huffman table definition
+            'dng4.ljp',  # Bogus Huffman table definition
+            'dng5.ljp',  # Bogus Huffman table definition
+            'dng6.ljp',  # Bogus Huffman table definition
+            'dng7.ljp',  # Bogus Huffman table definition
         }:
             pytest.xfail('libjpeg-turbo does not support this case')
     elif codec == 'ljpeg':
