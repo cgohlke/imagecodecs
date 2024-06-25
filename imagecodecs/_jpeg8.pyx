@@ -141,7 +141,7 @@ def jpeg8_encode(
         (src.dtype == numpy.uint8 or src.dtype == numpy.uint16)
         and src.ndim in {2, 3}
         # src.nbytes <= 2147483647 and  # limit to 2 GB
-        and samples in {1, 3, 4}
+        and samples in {1, 2, 3, 4}
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
@@ -154,9 +154,12 @@ def jpeg8_encode(
         if (
             not (lossless and 2 <= bitspersample <= 16)
             or (not lossless and bitspersample not in {8, 12})
-            or src.itemsize < (bitspersample + 7) // 8
+            or src.itemsize != (bitspersample + 7) // 8
         ):
-            raise ValueError(f'invalid {bitspersample=}')
+            raise ValueError(
+                f'invalid {bitspersample=}'
+                f' (in combination with {src.itemsize=})'
+            )
         data_precision = bitspersample
 
     # if validate and bitspersample == 12 and not _check_range(src):
