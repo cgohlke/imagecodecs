@@ -141,7 +141,7 @@ def jpeg8_encode(
         (src.dtype == numpy.uint8 or src.dtype == numpy.uint16)
         and src.ndim in {2, 3}
         # src.nbytes <= 2147483647 and  # limit to 2 GB
-        and samples in {1, 3, 4}
+        and samples in {1, 2, 3, 4}
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
     ):
@@ -152,10 +152,14 @@ def jpeg8_encode(
 
     if bitspersample is not None:
         if (
-            bitspersample not in {8, 12, 16}
-            or src.itemsize == 1 and bitspersample > 8
+            not (lossless and 2 <= bitspersample <= 16)
+            or (not lossless and bitspersample not in {8, 12})
+            or src.itemsize != (bitspersample + 7) // 8
         ):
-            raise ValueError(f'invalid {bitspersample=}')
+            raise ValueError(
+                f'invalid {bitspersample=}'
+                f' (in combination with {src.itemsize=})'
+            )
         data_precision = bitspersample
 
     # if validate and bitspersample == 12 and not _check_range(src):
@@ -264,19 +268,19 @@ def jpeg8_encode(
 
         jpeg_start_compress(&cinfo, 1)
 
-        if cinfo.data_precision == 8:
+        if cinfo.data_precision <= 8:
             while cinfo.next_scanline < cinfo.image_height:
                 rowpointer8 = <JSAMPROW> (
                     <char*> src.data + cinfo.next_scanline * rowstride
                 )
                 jpeg_write_scanlines(&cinfo, &rowpointer8, 1)
-        elif cinfo.data_precision == 12:
+        elif cinfo.data_precision <= 12:
             while cinfo.next_scanline < cinfo.image_height:
                 rowpointer12 = <J12SAMPROW> (
                     <char*> src.data + cinfo.next_scanline * rowstride
                 )
                 jpeg12_write_scanlines(&cinfo, &rowpointer12, 1)
-        elif cinfo.data_precision == 16:
+        elif cinfo.data_precision <= 16:
             while cinfo.next_scanline < cinfo.image_height:
                 rowpointer16 = <J16SAMPROW> (
                     <char*> src.data + cinfo.next_scanline * rowstride
@@ -410,13 +414,13 @@ def jpeg8_decode(
             while cinfo.output_scanline < cinfo.output_height:
                 jpeg_read_scanlines(&cinfo, &rowpointer8, 1)
                 rowpointer8 += rowstride
-        elif cinfo.data_precision == 12:
+        elif cinfo.data_precision <= 12:
             rowpointer12 = <J12SAMPROW> dst.data
             while cinfo.output_scanline < cinfo.output_height:
                 jpeg12_read_scanlines(&cinfo, &rowpointer12, 1)
                 rowpointer12 += rowstride
         else:
-            # elif cinfo.data_precision == 16:
+            # elif cinfo.data_precision <= 16:
             rowpointer16 = <J16SAMPROW> dst.data
             while cinfo.output_scanline < cinfo.output_height:
                 jpeg16_read_scanlines(&cinfo, &rowpointer16, 1)

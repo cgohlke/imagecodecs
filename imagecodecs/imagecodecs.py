@@ -109,7 +109,7 @@ Build requirements:
 - `libheif <https://github.com/strukturag/libheif>`_ 1.17.6
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.15,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 3.6)
-- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.0.3
+- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 6ec8e41f50e5a83fe078732cbf0360272165ed45
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.10.2
 - `liblzma <https://github.com/tukaani-project/xz>`_ 5.6.2
 - `libpng <https://github.com/glennrp/libpng>`_ 1.6.43
@@ -1715,8 +1715,7 @@ def jpeg_decode(
         msg = str(exc)
 
         if (
-            'Unsupported JPEG data precision' in msg
-            or 'Unsupported color conversion' in msg
+            'Unsupported color conversion' in msg
             or 'Bogus Huffman table definition' in msg
             or 'SOF type' in msg
         ):
@@ -1746,10 +1745,6 @@ def jpeg_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return JPEG encoded image."""
-    if lossless and bitspersample not in {None, 8, 12, 16}:
-        return imagecodecs.ljpeg_encode(
-            data, bitspersample=bitspersample, out=out
-        )
     return imagecodecs.jpeg8_encode(
         data,
         level=level,
