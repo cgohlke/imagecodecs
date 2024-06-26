@@ -2922,6 +2922,7 @@ def test_mozjpeg():
 )
 def test_ljpeg(fname, result, codec):
     """Test Lossless JPEG decoders."""
+    kwargs = {}
     if codec == 'jpeg8':
         if not imagecodecs.JPEG8.available:
             pytest.skip('jpeg8 missing')
@@ -2930,9 +2931,7 @@ def test_ljpeg(fname, result, codec):
         decode = imagecodecs.jpeg8_decode
         check = imagecodecs.jpeg8_check
         if fname in {
-            '2dht.ljp',  # Unsupported color conversion request
             'rgb24.ljp',  # Unsupported color conversion request
-            'linearraw.ljp',  # Unsupported color conversion request
             'dng0.ljp',  # Invalid progressive/lossless parameters Ss=0 ...
             # The below "Bogus Huffman table definition" errors can be fixed
             # with the suggested patch discussed here:
@@ -2946,6 +2945,11 @@ def test_ljpeg(fname, result, codec):
             'dng7.ljp',  # Bogus Huffman table definition
         }:
             pytest.xfail('libjpeg-turbo does not support this case')
+        elif fname in {
+            '2dht.ljp',
+            'linearraw.ljp',
+        }:
+            kwargs["colorspace"] = "YCBCR"
     elif codec == 'ljpeg':
         if not imagecodecs.LJPEG.available:
             pytest.skip('ljpeg missing')
@@ -2969,7 +2973,7 @@ def test_ljpeg(fname, result, codec):
         pytest.skip(f'{fname} not found')
 
     assert check(data) in {None, True}
-    decoded = decode(data)
+    decoded = decode(data, **kwargs)
 
     shape, dtype, index, value = result
     assert decoded.shape == shape
