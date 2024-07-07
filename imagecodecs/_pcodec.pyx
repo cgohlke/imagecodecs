@@ -65,7 +65,7 @@ class PcodecError(RuntimeError):
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 0.2.4'
+    return 'pcodec 0.3.1'
 
 
 def pcodec_check(const uint8_t[::1] data):
@@ -183,4 +183,7 @@ PCO_TYPE = {
     ('i', 8): PCO_TYPE_I64,
     ('f', 4): PCO_TYPE_F32,
     ('f', 8): PCO_TYPE_F64,
+    ('u', 2): PCO_TYPE_U16,
+    ('i', 2): PCO_TYPE_I16,
+    ('f', 2): PCO_TYPE_F16,
 }
