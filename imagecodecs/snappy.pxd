@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t
 
-cdef extern from 'snappy-c.h':
+cdef extern from 'snappy-c.h' nogil:
 
     ctypedef enum snappy_status:
         SNAPPY_OK
@@ -18,26 +18,26 @@ cdef extern from 'snappy-c.h':
         size_t input_length,
         char* compressed,
         size_t* compressed_length
-    ) nogil
+    )
 
     snappy_status snappy_uncompress(
         const char* compressed,
         size_t compressed_length,
         char* uncompressed,
         size_t* uncompressed_length
-    ) nogil
+    )
 
     size_t snappy_max_compressed_length(
         size_t source_length
-    ) nogil
+    )
 
     snappy_status snappy_uncompressed_length(
         const char* compressed,
         size_t compressed_length,
         size_t* result
-    ) nogil
+    )
 
     snappy_status snappy_validate_compressed_buffer(
         const char* compressed,
         size_t compressed_length
-    ) nogil
+    )
