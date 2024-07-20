@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
-cdef extern from 'brunsli/decode.h':
+cdef extern from 'brunsli/decode.h' nogil:
 
     ctypedef size_t (*DecodeBrunsliSink)(
         void* sink,
@@ -19,17 +19,17 @@ cdef extern from 'brunsli/decode.h':
         const uint8_t* data,
         void* sink,
         DecodeBrunsliSink out_fun
-    ) nogil
+    )
 
 
-cdef extern from 'brunsli/encode.h':
+cdef extern from 'brunsli/encode.h' nogil:
 
     int EncodeBrunsli(
         size_t size,
         const unsigned char* data,
         void* sink,
         DecodeBrunsliSink out_fun
-    ) nogil
+    )
 
 
 # ctypedef enum brunsli_status:
