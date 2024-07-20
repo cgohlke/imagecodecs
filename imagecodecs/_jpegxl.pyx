@@ -186,6 +186,7 @@ def jpegxl_encode(
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
         size_t num_threads = <size_t> _default_threads(numthreads)
         size_t channel_index
+        uint32_t bits_per_sample
         bint is_planar = bool(planar)
 
     if data is out:
@@ -210,14 +211,13 @@ def jpegxl_encode(
     if not (src.dtype.kind in 'uf' and src.ndim in {2, 3, 4}):
         raise ValueError('invalid data shape or dtype')
 
+    memset(<void*> &bit_depth, 0, sizeof(JxlBitDepth))
     if bitspersample is None or src.dtype.kind == 'f':
         bit_depth.dtype = JXL_BIT_DEPTH_FROM_PIXEL_FORMAT
         bits_per_sample = 0
-        exponent_bits_per_sample = 0
     else:
         bit_depth.dtype = JXL_BIT_DEPTH_FROM_CODESTREAM
         bits_per_sample = bitspersample
-        exponent_bits_per_sample = 0
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -323,10 +323,14 @@ def jpegxl_encode(
 
     if dtype == numpy.uint8:
         pixel_format.data_type = JXL_TYPE_UINT8
-        basic_info.bits_per_sample = 8
+        if bits_per_sample < 1 or bits_per_sample > 8:
+            bits_per_sample = 8
+        basic_info.bits_per_sample = bits_per_sample
     elif dtype == numpy.uint16:
         pixel_format.data_type = JXL_TYPE_UINT16
-        basic_info.bits_per_sample = 16
+        if bits_per_sample < 1 or bits_per_sample > 16:
+            bits_per_sample = 16
+        basic_info.bits_per_sample = bits_per_sample
     elif dtype == numpy.float32:
         pixel_format.data_type = JXL_TYPE_FLOAT
         basic_info.bits_per_sample = 32
@@ -364,7 +368,7 @@ def jpegxl_encode(
                 basic_info.animation.num_loops = 0
                 basic_info.animation.have_timecodes = JXL_FALSE
 
-            framesize = ysize * xsize * basic_info.bits_per_sample // 8
+            framesize = ysize * xsize * dtype.itemsize
             if not is_planar:
                 framesize *= samples
 
@@ -595,6 +599,7 @@ def jpegxl_decode(
         JxlSignature signature
         JxlBasicInfo basic_info
         JxlPixelFormat pixel_format
+        JxlBitDepth bit_depth
         size_t num_threads = _default_threads(numthreads)
         size_t channel_index
         bint keep_orientation = bool(keeporientation)
@@ -619,6 +624,7 @@ def jpegxl_decode(
 
             memset(<void*> &basic_info, 0, sizeof(JxlBasicInfo))
             memset(<void*> &pixel_format, 0, sizeof(JxlPixelFormat))
+            memset(<void*> &bit_depth, 0, sizeof(JxlBitDepth))
 
             decoder = JxlDecoderCreate(NULL)
             if decoder == NULL:
@@ -760,9 +766,11 @@ def jpegxl_decode(
                                     ' not supported'
                                 )
                         elif basic_info.bits_per_sample <= 8:
+                            bit_depth.dtype = JXL_BIT_DEPTH_FROM_CODESTREAM
                             pixel_format.data_type = JXL_TYPE_UINT8
                             dtype = numpy.uint8
                         elif basic_info.bits_per_sample <= 16:
+                            bit_depth.dtype = JXL_BIT_DEPTH_FROM_CODESTREAM
                             pixel_format.data_type = JXL_TYPE_UINT16
                             dtype = numpy.uint16
                         else:
@@ -809,6 +817,16 @@ def jpegxl_decode(
                         raise JpegxlError(
                             'JxlDecoderSetImageOutBuffer', status
                         )
+
+                    if bit_depth.dtype == JXL_BIT_DEPTH_FROM_CODESTREAM:
+                        # do not rescale uint images
+                        status = JxlDecoderSetImageOutBitDepth(
+                            decoder, &bit_depth
+                        )
+                        if status != JXL_DEC_SUCCESS:
+                            raise JpegxlError(
+                                'JxlDecoderSetImageOutBitDepth', status
+                            )
 
                     if is_planar:
                         for channel_index in range(
@@ -1113,6 +1131,12 @@ def jpegxl_decode_jpeg(
                     )
                     break
 
+                elif status == JXL_DEC_NEED_IMAGE_OUT_BUFFER:
+                    # TODO: support grayscale or multiple frames
+                    raise ValueError(
+                        "can't transcode grayscale or animated JPEG XL to JPEG"
+                    )
+
                 else:
                     raise RuntimeError(
                         f'JxlDecoderProcessInput unknown {status=}'
@@ -1243,7 +1267,7 @@ ctypedef struct output_t:
 cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new output."""
     cdef:
-        output_t* output = <output_t*> malloc(sizeof(output_t))
+        output_t* output = <output_t*> calloc(1, sizeof(output_t))
 
     if output == NULL:
         return NULL
