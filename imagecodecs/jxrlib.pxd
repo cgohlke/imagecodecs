@@ -9,7 +9,7 @@
 
 from libc.stdio cimport FILE
 
-cdef extern from 'windowsmediaphoto.h':
+cdef extern from 'windowsmediaphoto.h' nogil:
 
     ctypedef long ERR
     ctypedef int Bool
@@ -204,21 +204,21 @@ cdef extern from 'windowsmediaphoto.h':
         WMPStream** ppWS,
         const char* szFilename,
         const char* szMode
-    ) nogil
+    )
 
     ERR CloseWS_File(
         WMPStream** ppWS
-    ) nogil
+    )
 
     ERR CreateWS_Memory(
         WMPStream** ppWS,
         void* pv,
         size_t cb
-    ) nogil
+    )
 
     ERR CloseWS_Memory(
         WMPStream** ppWS
-    ) nogil
+    )
 
     ctypedef struct CWMImageInfo:
         size_t cWidth
@@ -289,42 +289,42 @@ cdef extern from 'windowsmediaphoto.h':
         CWMImageInfo* pII,
         CWMIStrCodecParam* pSCP,
         CTXSTRCODEC* pctxSC
-    ) nogil
+    )
 
     Int ImageStrEncEncode(
         CTXSTRCODEC ctxSC,
         const CWMImageBufferInfo* pBI
-    ) nogil
+    )
 
     Int ImageStrEncTerm(
         CTXSTRCODEC ctxSC
-    ) nogil
+    )
 
     Int ImageStrDecGetInfo(
         CWMImageInfo* pII,
         CWMIStrCodecParam* pSCP
-    ) nogil
+    )
 
     Int ImageStrDecInit(
         CWMImageInfo* pII,
         CWMIStrCodecParam* pSCP,
         CTXSTRCODEC* pctxSC
-    ) nogil
+    )
 
     Int ImageStrDecDecode(
         CTXSTRCODEC ctxSC,
         const CWMImageBufferInfo* pBI,
         # size_t* pcDecodedLines  # ifdef REENTRANT_MODE
-    ) nogil
+    )
 
     Int ImageStrDecTerm(
         CTXSTRCODEC ctxSC
-    ) nogil
+    )
 
     Int WMPhotoValidate(
         CWMImageInfo* pII,
         CWMIStrCodecParam *pSCP
-    ) nogil
+    )
 
     ctypedef struct CWMTranscodingParam:
         size_t cLeftX
@@ -341,7 +341,7 @@ cdef extern from 'windowsmediaphoto.h':
         WMPStream* pStreamDec,
         WMPStream* pStreamEnc,
         CWMTranscodingParam* pParam
-    ) nogil
+    )
 
     ctypedef struct CWMDetilingParam:
         size_t cWidth
@@ -358,10 +358,10 @@ cdef extern from 'windowsmediaphoto.h':
 
     Int WMPhotoDetile(
         CWMDetilingParam* pParam
-    ) nogil
+    )
 
 
-cdef extern from 'guiddef.h':
+cdef extern from 'guiddef.h' nogil:
 
     ctypedef struct GUID:
         pass
@@ -369,10 +369,10 @@ cdef extern from 'guiddef.h':
     int IsEqualGUID(
         GUID*,
         GUID*
-    ) nogil
+    )
 
 
-cdef extern from 'JXRMeta.h':
+cdef extern from 'JXRMeta.h' nogil:
 
     int WMP_tagNull
     int WMP_tagDocumentName
@@ -495,7 +495,7 @@ cdef extern from 'JXRMeta.h':
         U32 uDescMetadataByteCount
 
 
-cdef extern from 'JXRGlue.h':
+cdef extern from 'JXRGlue.h' nogil:
 
     int WMP_SDK_VERSION
     int PK_SDK_VERSION
@@ -661,21 +661,21 @@ cdef extern from 'JXRGlue.h':
     ERR GetImageEncodeIID(
         const char* szExt,
         const PKIID** ppIID
-    ) nogil
+    )
 
     ERR GetImageDecodeIID(
         const char* szExt,
         const PKIID** ppIID
-    ) nogil
+    )
 
     ERR PixelFormatLookup(
         PKPixelInfo* pPI,
         U8 uLookupType
-    ) nogil
+    )
 
     PKPixelFormatGUID* GetPixelFormatFromHash(
         const U8 uPFHash
-    ) nogil
+    )
 
     # PKImageDecode
 
@@ -788,70 +788,70 @@ cdef extern from 'JXRGlue.h':
 
     ERR PKImageDecode_Create_WMP(
         PKImageDecode** ppID
-    ) nogil
+    )
 
     ERR PKImageDecode_Initialize(
         PKImageDecode* pID,
         WMPStream* pStream
-    ) nogil
+    )
 
     ERR PKImageDecode_GetPixelFormat(
         PKImageDecode* pID,
         PKPixelFormatGUID* pPF
-    ) nogil
+    )
 
     ERR PKImageDecode_GetSize(
         PKImageDecode* pID,
         I32* piWidth,
         I32* piHeight
-    ) nogil
+    )
 
     ERR PKImageDecode_GetResolution(
         PKImageDecode* pID,
         Float* pfrX,
         Float* pfrY
-    ) nogil
+    )
 
     ERR PKImageDecode_GetColorContext(
         PKImageDecode* pID,
         U8* pbColorContext,
         U32* pcbColorContext
-    ) nogil
+    )
 
     ERR PKImageDecode_GetDescriptiveMetadata(
         PKImageDecode* pID,
         DESCRIPTIVEMETADATA* pDescMetadata
-    ) nogil
+    )
 
     ERR PKImageDecode_Copy(
         PKImageDecode* pID,
         const PKRect* pRect,
         U8* pb,
         U32 cbStride
-    ) nogil
+    )
 
     ERR PKImageDecode_GetFrameCount(
         PKImageDecode* pID,
         U32* puCount
-    ) nogil
+    )
 
     ERR PKImageDecode_SelectFrame(
         PKImageDecode* pID,
         U32 uFrame
-    ) nogil
+    )
 
     ERR PKCodecFactory_CreateDecoderFromFile(
         const char* szFilename,
         PKImageDecode** ppDecoder
-    ) nogil
+    )
 
     ERR PKImageDecode_Create(
         PKImageDecode** ppID
-    ) nogil
+    )
 
     ERR PKImageDecode_Release(
         PKImageDecode** ppID
-    ) nogil
+    )
 
     # PKImageEncode
 
@@ -1010,101 +1010,101 @@ cdef extern from 'JXRGlue.h':
 
     ERR PKImageEncode_Create_WMP(
         PKImageEncode** ppIE
-    ) nogil
+    )
 
     ERR PKImageEncode_Initialize(
         PKImageEncode* pIE,
         WMPStream* pStream,
         void* pvParam,
         size_t cbParam
-    ) nogil
+    )
 
     ERR PKImageEncode_Terminate(
         PKImageEncode* pIE
-    ) nogil
+    )
 
     ERR PKImageEncode_SetPixelFormat(
         PKImageEncode* pIE,
         PKPixelFormatGUID enPixelFormat
-    ) nogil
+    )
 
     ERR PKImageEncode_SetSize(
         PKImageEncode* pIE,
         I32 iWidth,
         I32 iHeight
-    ) nogil
+    )
 
     ERR PKImageEncode_SetResolution(
         PKImageEncode* pIE,
         Float rX,
         Float rY
-    ) nogil
+    )
 
     ERR PKImageEncode_SetColorContext(
         PKImageEncode* pIE,
         const U8* pbColorContext,
         U32 cbColorContext
-    ) nogil
+    )
 
     ERR PKImageEncode_SetDescriptiveMetadata(
         PKImageEncode* pIE,
         const DESCRIPTIVEMETADATA* pDescMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_WritePixels(
         PKImageEncode* pIE,
         U32 cLine,
         U8* pbPixel,
         U32 cbStride
-    ) nogil
+    )
 
     ERR PKImageEncode_CreateNewFrame(
         PKImageEncode* pIE,
         void* pvParam,
         size_t cbParam
-    ) nogil
+    )
 
     ERR PKImageEncode_Release(
         PKImageEncode** ppIE
-    ) nogil
+    )
 
     ERR PKImageEncode_SetXMPMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbXMPMetadata,
         U32 cbXMPMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_SetEXIFMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbEXIFMetadata,
         U32 cbEXIFMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_SetGPSInfoMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbGPSInfoMetadata,
         U32 cbGPSInfoMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_SetIPTCNAAMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbIPTCNAAMetadata,
         U32 cbIPTCNAAMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_SetPhotoshopMetadata_WMP(
         PKImageEncode* pIE,
         const U8* pbPhotoshopMetadata,
         U32 cbPhotoshopMetadata
-    ) nogil
+    )
 
     ERR PKImageEncode_Create(
         PKImageEncode** ppIE
-    ) nogil
+    )
 
     void FreeDescMetadata(
         DPKPROPVARIANT* pvar
-    ) nogil
+    )
 
     # PKStream
 
@@ -1148,11 +1148,11 @@ cdef extern from 'JXRGlue.h':
 
     ERR PKCreateFactory_CreateStream(
         PKStream** ppStream
-    ) nogil
+    )
 
     ERR PKCreateFactory_Release(
         PKFactory** ppFactory
-    ) nogil
+    )
 
     # extern ERR PKCreateFactory(
     #     PKFactory**,
@@ -1188,16 +1188,16 @@ cdef extern from 'JXRGlue.h':
     # extern ERR PKCreateCodecFactory(
     #     PKCodecFactory**,
     #     U32
-    # ) nogil
+    # )
 
     ERR PKCreateCodecFactory_Release(
         PKCodecFactory**
-    ) nogil
+    )
 
     ERR PKCodecFactory_CreateCodec(
         const PKIID* iid,
         void** ppv
-    ) nogil
+    )
 
     # PKFormatConverter
 
@@ -1272,56 +1272,56 @@ cdef extern from 'JXRGlue.h':
         PKImageEncode* pIE,
         PKFormatConverter* pFC,
         PKRect* pRect
-    ) nogil
+    )
 
     ERR PKImageEncode_WriteSource(
         PKImageEncode* pIE,
         PKFormatConverter* pFC,
         PKRect* pRect
-    ) nogil
+    )
 
     ERR PKFormatConverter_Initialize(
         PKFormatConverter* pFC,
         PKImageDecode* pID,
         char* pExt,
         PKPixelFormatGUID enPF
-    ) nogil
+    )
 
     ERR PKFormatConverter_InitializeConvert(
         PKFormatConverter* pFC,
         const PKPixelFormatGUID enPFFrom,
         char* pExt,
         PKPixelFormatGUID enPFTo
-    ) nogil
+    )
 
     ERR PKFormatConverter_GetPixelFormat(
         PKFormatConverter* pFC,
         PKPixelFormatGUID* pPF
-    ) nogil
+    )
 
     ERR PKFormatConverter_GetSourcePixelFormat(
         PKFormatConverter* pFC,
         PKPixelFormatGUID* pPF
-    ) nogil
+    )
 
     ERR PKFormatConverter_GetSize(
         PKFormatConverter* pFC,
         I32* piWidth,
         I32* piHeight
-    ) nogil
+    )
 
     ERR PKFormatConverter_GetResolution(
         PKFormatConverter* pFC,
         Float* pfrX,
         Float* pfrY
-    ) nogil
+    )
 
     ERR PKFormatConverter_Copy(
         PKFormatConverter* pFC,
         const PKRect* pRect,
         U8* pb,
         U32 cbStride
-    ) nogil
+    )
 
     ERR PKFormatConverter_Convert(
         PKFormatConverter* pFC,
@@ -1329,39 +1329,39 @@ cdef extern from 'JXRGlue.h':
         pRect,
         U8* pb,
         U32 cbStride
-    ) nogil
+    )
 
     ERR PKFormatConverter_EnumConversions(
         const PKPixelFormatGUID* pguidSourcePF,
         const U32 iIndex,
         const PKPixelFormatGUID** ppguidTargetPF
-    ) nogil
+    )
 
     ERR PKCodecFactory_CreateFormatConverter(
         PKFormatConverter** ppFConverter
-    ) nogil
+    )
 
     ERR PKFormatConverter_Release(
         PKFormatConverter** ppFC
-    ) nogil
+    )
 
     # Memory
 
     ERR PKAlloc(
         void** ppv,
         size_t cb
-    ) nogil
+    )
 
     ERR PKFree(
         void** ppv
-    ) nogil
+    )
 
     ERR PKAllocAligned(
         void** ppv,
         size_t cb,
         size_t iAlign
-    ) nogil
+    )
 
     ERR PKFreeAligned(
         void** ppv
-    ) nogil
+    )
