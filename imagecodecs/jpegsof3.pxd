@@ -4,7 +4,7 @@
 # Cython declarations for the `jpegsof3 2023.1.23` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/jpegsof3/
 
-cdef extern from 'jpegsof3.h':
+cdef extern from 'jpegsof3.h' nogil:
 
     char* JPEGSOF3_VERSION
 
@@ -29,4 +29,4 @@ cdef extern from 'jpegsof3.h':
         int* dimY,
         int* bits,
         int* frames
-    ) nogil
+    )
