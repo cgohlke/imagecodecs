@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint16_t
 
-cdef extern from 'lj92.h':
+cdef extern from 'lj92.h' nogil:
 
     char* LJ92_VERSION
 
@@ -29,11 +29,11 @@ cdef extern from 'lj92.h':
         int* height,
         int* bitdepth,
         int* components
-    ) nogil
+    )
 
     void lj92_close(
         lj92 lj
-    ) nogil
+    )
 
     int lj92_decode(
         lj92 lj,
@@ -42,7 +42,7 @@ cdef extern from 'lj92.h':
         int skipLength,
         const uint16_t* linearize,
         int linearizeLength
-    ) nogil
+    )
 
     int lj92_encode(
         const uint16_t* image,
@@ -56,4 +56,4 @@ cdef extern from 'lj92.h':
         int delinearizeLength,
         uint8_t** encoded,
         int* encodedLength
-    ) nogil
+    )
