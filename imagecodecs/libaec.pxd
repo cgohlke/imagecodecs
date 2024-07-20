@@ -4,7 +4,7 @@
 # Cython declarations for the `libaec 1.1.2` library.
 # https://gitlab.dkrz.de/k202009/libaec
 
-cdef extern from 'libaec.h':
+cdef extern from 'libaec.h' nogil:
 
     int AEC_VERSION_MAJOR
     int AEC_VERSION_MINOR
@@ -44,60 +44,60 @@ cdef extern from 'libaec.h':
 
     int aec_encode_init(
         aec_stream* strm
-    ) nogil
+    )
 
     int aec_encode_enable_offsets(
         aec_stream *strm
-    ) nogil
+    )
 
     int aec_encode_count_offsets(
         aec_stream *strm,
         size_t *rsi_offsets_count
-    ) nogil
+    )
 
     int aec_encode_get_offsets(
         aec_stream *strm,
         size_t *rsi_offsets,
         size_t rsi_offsets_count
-    ) nogil
+    )
 
     int aec_buffer_seek(
         aec_stream *strm,
         size_t offset
-    ) nogil
+    )
 
     int aec_encode_c 'aec_encode' (
         aec_stream* strm,
         int flush
-    ) nogil
+    )
 
     int aec_encode_end(
         aec_stream* strm
-    ) nogil
+    )
 
     int aec_decode_init(
         aec_stream* strm
-    ) nogil
+    )
 
     int aec_decode_enable_offsets(
         aec_stream *strm
-    ) nogil
+    )
 
     int aec_decode_count_offsets(
         aec_stream *strm,
         size_t *rsi_offsets_count
-    ) nogil
+    )
 
     int aec_decode_get_offsets(
         aec_stream *strm,
         size_t *rsi_offsets,
         size_t rsi_offsets_count
-    ) nogil
+    )
 
     int aec_decode_c 'aec_decode' (
         aec_stream* strm,
         int flush
-    ) nogil
+    )
 
     int aec_decode_range(
         aec_stream *strm,
@@ -105,16 +105,16 @@ cdef extern from 'libaec.h':
         size_t rsi_offsets_count,
         size_t pos,
         size_t size
-    ) nogil
+    )
 
     int aec_decode_end(
         aec_stream* strm
-    ) nogil
+    )
 
     int aec_buffer_encode(
         aec_stream* strm
-    ) nogil
+    )
 
     int aec_buffer_decode(
         aec_stream* strm
-    ) nogil
+    )
