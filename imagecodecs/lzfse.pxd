@@ -6,9 +6,9 @@
 
 from libc.stdint cimport uint8_t
 
-cdef extern from 'lzfse.h':
+cdef extern from 'lzfse.h' nogil:
 
-    size_t lzfse_encode_scratch_size() nogil
+    size_t lzfse_encode_scratch_size()
 
     size_t lzfse_encode_buffer(
         uint8_t * dst_buffer,
@@ -16,9 +16,9 @@ cdef extern from 'lzfse.h':
         const uint8_t *src_buffer,
         size_t src_size,
         void *scratch_buffer
-    ) nogil
+    )
 
-    size_t lzfse_decode_scratch_size() nogil
+    size_t lzfse_decode_scratch_size()
 
     size_t lzfse_decode_buffer(
         uint8_t *dst_buffer,
@@ -26,4 +26,4 @@ cdef extern from 'lzfse.h':
         const uint8_t *src_buffer,
         size_t src_size,
         void *scratch_buffer
-    ) nogil
+    )
