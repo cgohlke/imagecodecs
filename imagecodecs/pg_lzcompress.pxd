@@ -6,7 +6,7 @@
 
 from libc.stdint cimport int16_t, int32_t, int
 
-cdef extern from 'pg_lzcompress.h':
+cdef extern from 'pg_lzcompress.h' nogil:
 
     char* PG_LZCOMPRESS_VERSION
 
@@ -14,7 +14,7 @@ cdef extern from 'pg_lzcompress.h':
     ctypedef int32_t int32
     ctypedef bint bool_t
 
-    int32 PGLZ_MAX_OUTPUT(int32) nogil
+    int32 PGLZ_MAX_OUTPUT(int32)
 
     ctypedef struct PGLZ_Strategy:
         int32 min_input_size
@@ -33,7 +33,7 @@ cdef extern from 'pg_lzcompress.h':
         int32 slen,
         char *dest,
         const PGLZ_Strategy *strategy
-    ) nogil
+    )
 
     int32 pglz_decompress(
         const char *source,
@@ -41,9 +41,9 @@ cdef extern from 'pg_lzcompress.h':
         char *dest,
         int32 rawsize,
         bool_t check_complete
-    ) nogil
+    )
 
     int32 pglz_maximum_compressed_size(
         int32 rawsize,
         int32 total_compressed_size
-    ) nogil
+    )
