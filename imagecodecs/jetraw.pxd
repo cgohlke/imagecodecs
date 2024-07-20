@@ -7,7 +7,7 @@
 
 from libc.stdint cimport uint16_t, uint32_t, int32_t
 
-cdef extern from 'jetraw/jetraw.h':
+cdef extern from 'jetraw/jetraw.h' nogil:
 
     ctypedef enum dp_status:
         dp_success
@@ -32,7 +32,7 @@ cdef extern from 'jetraw/jetraw.h':
 
     const char* dp_status_description(
         dp_status status
-    ) nogil
+    )
 
     dp_status jetraw_encode(
         const uint16_t* pImgBuffer,
@@ -40,53 +40,53 @@ cdef extern from 'jetraw/jetraw.h':
         uint32_t imgHeight,
         char* pDstBuffer,
         int32_t* pDstLen
-    ) nogil
+    )
 
     dp_status jetraw_decode(
         const char* pSrcBuffer,
         int32_t srcLen,
         uint16_t* pImgBuffer,
         int32_t imgPixels
-    ) nogil
+    )
 
-    const char* jetraw_version() nogil
+    const char* jetraw_version()
 
 
-cdef extern from 'dpcore/dpcore.h':
+cdef extern from 'dpcore/dpcore.h' nogil:
 
     ctypedef char CHARTYPE
 
-    int dpcore_init() nogil
+    int dpcore_init()
 
     void dpcore_set_loglevel(
         int level
-    ) nogil
+    )
 
     dp_status dpcore_set_logfile(
         const CHARTYPE* file_path
-    ) nogil
+    )
 
     dp_status dpcore_load_parameters(
         const CHARTYPE* file_path
-    ) nogil
+    )
 
     dp_status dpcore_prepare_image(
         uint16_t* imgbuf,
         int32_t imgsize,
         const char* identifier,
         float error_bound
-    ) nogil
+    )
 
     dp_status dpcore_embed_meta(
         uint16_t* imgbuf,
         int32_t imgsize,
         const char* identifier,
         float error_bound
-    ) nogil
+    )
 
-    int dpcore_identifier_count() nogil
+    int dpcore_identifier_count()
 
     dp_status dpcore_get_identifiers(
         char* buf,
         int* bufsize
-    ) nogil
+    )
