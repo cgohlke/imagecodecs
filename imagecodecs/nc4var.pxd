@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint32_t
 
-cdef extern from 'nc4var.h':
+cdef extern from 'nc4var.h' nogil:
 
     int NC_NAT
     int NC_BYTE
@@ -61,4 +61,4 @@ cdef extern from 'nc4var.h':
         int strict_nc3,
         int quantize_mode,
         int nsd
-    ) nogil
+    )
