@@ -4,7 +4,7 @@
 # Cython declarations for the `Zopfli 1.0.3` library.
 # https://github.com/google/zopfli
 
-cdef extern from 'zopfli.h':
+cdef extern from 'zopfli.h' nogil:
 
     ctypedef struct ZopfliOptions:
         int verbose
@@ -21,7 +21,7 @@ cdef extern from 'zopfli.h':
 
     void ZopfliInitOptions(
         ZopfliOptions* options
-    ) nogil
+    )
 
     void ZopfliCompress(
         const ZopfliOptions* options,
@@ -30,12 +30,12 @@ cdef extern from 'zopfli.h':
         size_t insize,
         unsigned char** out,
         size_t* outsize
-    ) nogil
+    )
 
 
 # zlib_container.h and gzip_container.h missing in Arch Linux
 #
-# cdef extern from 'zopfli/zlib_container.h':
+# cdef extern from 'zopfli/zlib_container.h' nogil:
 #
 #     void ZopfliZlibCompress(
 #         const ZopfliOptions* options,
@@ -43,10 +43,10 @@ cdef extern from 'zopfli.h':
 #         size_t insize,
 #         unsigned char** out,
 #         size_t* outsize
-#     ) nogil
+#     )
 #
 #
-# cdef extern from 'zopfli/gzip_container.h':
+# cdef extern from 'zopfli/gzip_container.h' nogil:
 #
 #     void ZopfliGzipCompress(
 #         const ZopfliOptions* options,
@@ -54,12 +54,12 @@ cdef extern from 'zopfli.h':
 #         size_t insize,
 #         unsigned char** out,
 #         size_t* outsize
-#     ) nogil
+#     )
 
 
 # zopflipng_lib.h missing in Debian
 #
-# cdef extern from 'zopflipng_lib.h':
+# cdef extern from 'zopflipng_lib.h' nogil:
 #
 #     ctypedef enum ZopfliPNGFilterStrategy:
 #         kStrategyZero
@@ -88,7 +88,7 @@ cdef extern from 'zopfli.h':
 #
 #     void CZopfliPNGSetDefaults(
 #         CZopfliPNGOptions* png_options
-#     ) nogil
+#     )
 #
 #     int CZopfliPNGOptimize(
 #         const unsigned char* origpng,
@@ -97,4 +97,4 @@ cdef extern from 'zopfli.h':
 #         int verbose,
 #         unsigned char** resultpng,
 #         size_t* resultpng_size
-#     ) nogil
+#     )
