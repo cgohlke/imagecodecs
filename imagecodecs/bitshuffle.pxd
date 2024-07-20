@@ -6,26 +6,26 @@
 
 from libc.stdint cimport int64_t
 
-cdef extern from 'bitshuffle.h':
+cdef extern from 'bitshuffle.h' nogil:
 
     int BSHUF_VERSION_MAJOR
     int BSHUF_VERSION_MINOR
     int BSHUF_VERSION_POINT
 
-    int bshuf_using_NEON() nogil
-    int bshuf_using_SSE2() nogil
-    int bshuf_using_AVX2() nogil
-    int bshuf_using_AVX512() nogil
+    int bshuf_using_NEON()
+    int bshuf_using_SSE2()
+    int bshuf_using_AVX2()
+    int bshuf_using_AVX512()
 
     size_t bshuf_default_block_size(
         const size_t elem_size
-    ) nogil
+    )
 
     size_t bshuf_compress_lz4_bound(
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     int64_t bshuf_compress_lz4(
         const void* inp,
@@ -33,7 +33,7 @@ cdef extern from 'bitshuffle.h':
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     int64_t bshuf_decompress_lz4(
         const void* inp,
@@ -41,7 +41,7 @@ cdef extern from 'bitshuffle.h':
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     int64_t bshuf_bitshuffle(
         const void* inp,
@@ -49,7 +49,7 @@ cdef extern from 'bitshuffle.h':
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     int64_t bshuf_bitunshuffle(
         const void* inp,
@@ -57,13 +57,13 @@ cdef extern from 'bitshuffle.h':
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     size_t bshuf_compress_zstd_bound(
         const size_t size,
         const size_t elem_size,
         size_t block_size
-    ) nogil
+    )
 
     int64_t bshuf_compress_zstd(
         const void* inp,
@@ -73,7 +73,7 @@ cdef extern from 'bitshuffle.h':
         elem_size,
         size_t block_size,
         const int comp_lvl
-    ) nogil
+    )
 
     int64_t bshuf_decompress_zstd(
         const void* inp,
@@ -81,4 +81,4 @@ cdef extern from 'bitshuffle.h':
         const size_t size,
         const size_t elem_size,
         size_t block_size
-     ) nogil
+     )
