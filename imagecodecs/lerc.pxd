@@ -4,7 +4,7 @@
 # Cython declarations for the `LERC 4.0.0` library.
 # https://github.com/Esri/lerc
 
-cdef extern from 'Lerc_c_api.h':
+cdef extern from 'Lerc_c_api.h' nogil:
 
     int LERC_VERSION_MAJOR
     int LERC_VERSION_MINOR
@@ -26,7 +26,7 @@ cdef extern from 'Lerc_c_api.h':
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned int* numBytes
-    ) nogil
+    )
 
     lerc_status lerc_encode_c 'lerc_encode'(
         const void* pData,
@@ -41,7 +41,7 @@ cdef extern from 'Lerc_c_api.h':
         unsigned char* pOutBuffer,
         unsigned int outBufferSize,
         unsigned int* nBytesWritten
-    ) nogil
+    )
 
     lerc_status lerc_computeCompressedSizeForVersion(
         const void* pData,
@@ -55,7 +55,7 @@ cdef extern from 'Lerc_c_api.h':
         const unsigned char* pValidBytes,
         double maxZErr,
         unsigned int* numBytes
-    ) nogil
+    )
 
     lerc_status lerc_encodeForVersion(
         const void* pData,
@@ -71,7 +71,7 @@ cdef extern from 'Lerc_c_api.h':
         unsigned char* pOutBuffer,
         unsigned int outBufferSize,
         unsigned int* nBytesWritten
-    ) nogil
+    )
 
     lerc_status lerc_getBlobInfo(
         const unsigned char* pLercBlob,
@@ -80,7 +80,7 @@ cdef extern from 'Lerc_c_api.h':
         double* dataRangeArray,
         int infoArraySize,
         int dataRangeArraySize
-    ) nogil
+    )
 
     lerc_status lerc_getDataRanges(
         const unsigned char* pLercBlob,
@@ -89,7 +89,7 @@ cdef extern from 'Lerc_c_api.h':
         int nBands,
         double* pMins,
         double* pMaxs
-    ) nogil
+    )
 
     lerc_status lerc_decode_c 'lerc_decode'(
         const unsigned char* pLercBlob,
@@ -102,7 +102,7 @@ cdef extern from 'Lerc_c_api.h':
         int nBands,
         unsigned int dataType,
         void* pData
-    ) nogil
+    )
 
     lerc_status lerc_decodeToDouble(
         const unsigned char* pLercBlob,
@@ -114,7 +114,7 @@ cdef extern from 'Lerc_c_api.h':
         int nRows,
         int nBands,
         double* pData
-    ) nogil
+    )
 
     lerc_status lerc_computeCompressedSize_4D(
         const void* pData,
@@ -129,7 +129,7 @@ cdef extern from 'Lerc_c_api.h':
         unsigned int* numBytes,
         const unsigned char* pUsesNoData,
         const double* noDataValues
-    ) nogil
+    )
 
     lerc_status lerc_encode_4D(
         const void* pData,
@@ -146,7 +146,7 @@ cdef extern from 'Lerc_c_api.h':
         unsigned int* nBytesWritten,
         const unsigned char* pUsesNoData,
         const double* noDataValues
-    ) nogil
+    )
 
     lerc_status lerc_decode_4D(
         const unsigned char* pLercBlob,
@@ -161,7 +161,7 @@ cdef extern from 'Lerc_c_api.h':
         void* pData,
         unsigned char* pUsesNoData,
         double* noDataValues
-    ) nogil
+    )
 
     lerc_status lerc_decodeToDouble_4D(
         const unsigned char* pLercBlob,
@@ -175,10 +175,10 @@ cdef extern from 'Lerc_c_api.h':
         double* pData,
         unsigned char* pUsesNoData,
         double* noDataValues
-    ) nogil
+    )
 
 
-# cdef extern from 'Lerc_types.h':  # C++ header
+# cdef extern from 'Lerc_types.h' nogil:  # C++ header
 
 ctypedef enum ErrCode:
     Ok
