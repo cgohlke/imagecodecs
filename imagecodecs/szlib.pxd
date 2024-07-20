@@ -4,7 +4,7 @@
 # Cython declarations for the `szlib 1.0.6` library (part of libaec).
 # https://gitlab.dkrz.de/k202009/libaec
 
-cdef extern from 'szlib.h':
+cdef extern from 'szlib.h' nogil:
 
     int SZ_ALLOW_K13_OPTION_MASK
     int SZ_CHIP_OPTION_MASK
@@ -37,7 +37,7 @@ cdef extern from 'szlib.h':
         const void* source,
         size_t sourceLen,
         SZ_com_t_s* param
-    ) nogil
+    )
 
     int SZ_BufftoBuffDecompress(
         void* dest,
@@ -45,6 +45,6 @@ cdef extern from 'szlib.h':
         const void* source,
         size_t sourceLen,
         SZ_com_t_s* param
-    ) nogil
+    )
 
-    int SZ_encoder_enabled() nogil
+    int SZ_encoder_enabled()
