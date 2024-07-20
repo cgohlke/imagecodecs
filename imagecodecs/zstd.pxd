@@ -4,7 +4,7 @@
 # Cython declarations for the `zstd 1.5.6` library (aka Zstandard).
 # https://github.com/facebook/zstd
 
-cdef extern from 'zstd.h':
+cdef extern from 'zstd.h' nogil:
 
     int ZSTD_VERSION_MAJOR
     int ZSTD_VERSION_MINOR
@@ -13,9 +13,9 @@ cdef extern from 'zstd.h':
 
     const char* ZSTD_VERSION_STRING
 
-    const char* ZSTD_versionString() nogil
+    const char* ZSTD_versionString()
 
-    unsigned ZSTD_versionNumber() nogil
+    unsigned ZSTD_versionNumber()
 
     int ZSTD_CLEVEL_DEFAULT
     int ZSTD_CONTENTSIZE_UNKNOWN
@@ -33,58 +33,58 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_decompress(
         void* dst,
         size_t dstCapacity,
         const void* src,
         size_t compressedSize
-    ) nogil
+    )
 
     unsigned long long ZSTD_getFrameContentSize(
         const void *src,
         size_t srcSize
-    ) nogil
+    )
 
     unsigned long long ZSTD_getDecompressedSize(
         const void* src,
         size_t srcSize
-        ) nogil
+        )
 
     size_t ZSTD_findFrameCompressedSize(
         const void* src,
         size_t srcSize
-        ) nogil
+        )
 
     int ZSTD_MAX_INPUT_SIZE
 
-    int ZSTD_COMPRESSBOUND(srcSize) nogil
+    int ZSTD_COMPRESSBOUND(srcSize)
 
     size_t ZSTD_compressBound(
         size_t srcSize
-    ) nogil
+    )
 
     unsigned ZSTD_isError(
         size_t code
-    ) nogil
+    )
 
     const char* ZSTD_getErrorName(
         size_t code
-    ) nogil
+    )
 
-    int ZSTD_minCLevel() nogil
+    int ZSTD_minCLevel()
 
-    int ZSTD_maxCLevel() nogil
+    int ZSTD_maxCLevel()
 
     ctypedef struct ZSTD_CCtx:
         pass
 
-    ZSTD_CCtx* ZSTD_createCCtx() nogil
+    ZSTD_CCtx* ZSTD_createCCtx()
 
     size_t ZSTD_freeCCtx(
         ZSTD_CCtx* cctx
-    ) nogil
+    )
 
     size_t ZSTD_compressCCtx(
         ZSTD_CCtx* cctx,
@@ -93,16 +93,16 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         int compressionLevel
-    ) nogil
+    )
 
     ctypedef struct ZSTD_DCtx:
         pass
 
-    ZSTD_DCtx* ZSTD_createDCtx() nogil
+    ZSTD_DCtx* ZSTD_createDCtx()
 
     size_t ZSTD_freeDCtx(
         ZSTD_DCtx* dctx
-    ) nogil
+    )
 
     size_t ZSTD_decompressDCtx(
         ZSTD_DCtx* dctx,
@@ -110,7 +110,7 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     ctypedef enum ZSTD_strategy:
         ZSTD_fast
@@ -171,18 +171,18 @@ cdef extern from 'zstd.h':
 
     ZSTD_bounds ZSTD_cParam_getBounds(
         ZSTD_cParameter cParam
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_setParameter(
         ZSTD_CCtx* cctx,
         ZSTD_cParameter param,
         int value
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_setPledgedSrcSize(
         ZSTD_CCtx* cctx,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     ctypedef enum ZSTD_ResetDirective:
         ZSTD_reset_session_only
@@ -192,7 +192,7 @@ cdef extern from 'zstd.h':
     size_t ZSTD_CCtx_reset(
         ZSTD_CCtx* cctx,
         ZSTD_ResetDirective reset
-    ) nogil
+    )
 
     size_t ZSTD_compress2(
         ZSTD_CCtx* cctx,
@@ -200,7 +200,7 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     ctypedef enum ZSTD_dParameter:
         ZSTD_d_windowLogMax
@@ -213,18 +213,18 @@ cdef extern from 'zstd.h':
 
     ZSTD_bounds ZSTD_dParam_getBounds(
         ZSTD_dParameter dParam
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_setParameter(
         ZSTD_DCtx* dctx,
         ZSTD_dParameter param,
         int value
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_reset(
         ZSTD_DCtx* dctx,
         ZSTD_ResetDirective reset
-    ) nogil
+    )
 
     ctypedef struct ZSTD_inBuffer:
         const void* src
@@ -238,11 +238,11 @@ cdef extern from 'zstd.h':
 
     ctypedef ZSTD_CCtx ZSTD_CStream
 
-    ZSTD_CStream* ZSTD_createCStream() nogil
+    ZSTD_CStream* ZSTD_createCStream()
 
     size_t ZSTD_freeCStream(
         ZSTD_CStream* zcs
-    ) nogil
+    )
 
     ctypedef enum ZSTD_EndDirective:
         ZSTD_e_continue
@@ -254,54 +254,54 @@ cdef extern from 'zstd.h':
         ZSTD_outBuffer* output,
         ZSTD_inBuffer* input,
         ZSTD_EndDirective endOp
-    ) nogil
+    )
 
-    size_t ZSTD_CStreamInSize() nogil
+    size_t ZSTD_CStreamInSize()
 
-    size_t ZSTD_CStreamOutSize() nogil
+    size_t ZSTD_CStreamOutSize()
 
     size_t ZSTD_initCStream(
         ZSTD_CStream* zcs,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_compressStream(
         ZSTD_CStream* zcs,
         ZSTD_outBuffer* output,
         ZSTD_inBuffer* input
-    ) nogil
+    )
 
     size_t ZSTD_flushStream(
         ZSTD_CStream* zcs,
         ZSTD_outBuffer* output
-    ) nogil
+    )
 
     size_t ZSTD_endStream(
         ZSTD_CStream* zcs,
         ZSTD_outBuffer* output
-    ) nogil
+    )
 
     ctypedef ZSTD_DCtx ZSTD_DStream
 
-    ZSTD_DStream* ZSTD_createDStream() nogil
+    ZSTD_DStream* ZSTD_createDStream()
 
     size_t ZSTD_freeDStream(
         ZSTD_DStream* zds
-    ) nogil
+    )
 
     size_t ZSTD_initDStream(
         ZSTD_DStream* zds
-    ) nogil
+    )
 
     size_t ZSTD_decompressStream(
         ZSTD_DStream* zds,
         ZSTD_outBuffer* output,
         ZSTD_inBuffer* input
-    ) nogil
+    )
 
-    size_t ZSTD_DStreamInSize() nogil
+    size_t ZSTD_DStreamInSize()
 
-    size_t ZSTD_DStreamOutSize() nogil
+    size_t ZSTD_DStreamOutSize()
 
     size_t ZSTD_compress_usingDict(
         ZSTD_CCtx* ctx,
@@ -312,7 +312,7 @@ cdef extern from 'zstd.h':
         const void* dict,
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_decompress_usingDict(
         ZSTD_DCtx* dctx,
@@ -322,7 +322,7 @@ cdef extern from 'zstd.h':
         size_t srcSize,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     ctypedef struct ZSTD_CDict:
         pass
@@ -331,11 +331,11 @@ cdef extern from 'zstd.h':
         const void* dictBuffer,
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_freeCDict(
         ZSTD_CDict* CDict
-    ) nogil
+    )
 
     size_t ZSTD_compress_usingCDict(
         ZSTD_CCtx* cctx,
@@ -344,7 +344,7 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         const ZSTD_CDict* cdict
-    ) nogil
+    )
 
     ctypedef struct ZSTD_DDict:
         pass
@@ -352,11 +352,11 @@ cdef extern from 'zstd.h':
     ZSTD_DDict* ZSTD_createDDict(
         const void* dictBuffer,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_freeDDict(
         ZSTD_DDict* ddict
-    ) nogil
+    )
 
     size_t ZSTD_decompress_usingDDict(
         ZSTD_DCtx* dctx,
@@ -365,87 +365,87 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     unsigned ZSTD_getDictID_fromDict(
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     unsigned ZSTD_getDictID_fromDDict(
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     unsigned ZSTD_getDictID_fromFrame(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_loadDictionary(
         ZSTD_CCtx* cctx,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_refCDict(
         ZSTD_CCtx* cctx,
         const ZSTD_CDict* cdict
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_refPrefix(
         ZSTD_CCtx* cctx,
         const void* prefix,
         size_t prefixSize
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_loadDictionary(
         ZSTD_DCtx* dctx,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_refDDict(
         ZSTD_DCtx* dctx,
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_refPrefix(
         ZSTD_DCtx* dctx,
         const void* prefix,
         size_t prefixSize
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_CCtx(
         const ZSTD_CCtx* cctx
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_DCtx(
         const ZSTD_DCtx* dctx
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_CStream(
         const ZSTD_CStream* zcs
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_DStream(
         const ZSTD_DStream* zds
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_CDict(
         const ZSTD_CDict* cdict
-    ) nogil
+    )
 
     size_t ZSTD_sizeof_DDict(
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     # endif
 
     # if defined(ZSTD_STATIC_LINKING_ONLY) && !defined(ZSTD_H_ZSTD_STATIC_LINKING_ONLY)
     int ZSTD_H_ZSTD_STATIC_LINKING_ONLY
 
-    int ZSTD_FRAMEHEADERSIZE_PREFIX(format) nogil
-    int ZSTD_FRAMEHEADERSIZE_MIN(format) nogil
+    int ZSTD_FRAMEHEADERSIZE_PREFIX(format)
+    int ZSTD_FRAMEHEADERSIZE_MIN(format)
     int ZSTD_FRAMEHEADERSIZE_MAX
     int ZSTD_SKIPPABLEHEADERSIZE
     int ZSTD_WINDOWLOG_MAX_32
@@ -546,27 +546,27 @@ cdef extern from 'zstd.h':
     unsigned long long ZSTD_findDecompressedSize(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     unsigned long long ZSTD_decompressBound(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_frameHeaderSize(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_decompressionMargin(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     int ZSTD_DECOMPRESSION_MARGIN(
         int originalSize,
         int blockSize
-    ) nogil
+    )
 
     ctypedef enum ZSTD_sequenceFormat_e:
         ZSTD_sf_noBlockDelimiters
@@ -574,7 +574,7 @@ cdef extern from 'zstd.h':
 
     size_t ZSTD_sequenceBound(
         size_t srcSize
-    ) nogil
+    )
 
     # deprecated: will be replaced by ZSTD_extractSequences
     size_t ZSTD_generateSequences(
@@ -583,12 +583,12 @@ cdef extern from 'zstd.h':
         size_t outSeqsSize,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_mergeBlockDelimiters(
         ZSTD_Sequence* sequences,
         size_t seqsSize
-    ) nogil
+    )
 
     size_t ZSTD_compressSequences(
         ZSTD_CCtx* const cctx,
@@ -598,7 +598,7 @@ cdef extern from 'zstd.h':
         size_t inSeqsSize,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_writeSkippableFrame(
         void* dst,
@@ -606,7 +606,7 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         unsigned magicVariant
-    ) nogil
+    )
 
     size_t ZSTD_readSkippableFrame(
         void* dst,
@@ -614,83 +614,83 @@ cdef extern from 'zstd.h':
         unsigned* magicVariant,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     unsigned ZSTD_isSkippableFrame(
         const void* buffer,
         size_t size
-    ) nogil
+    )
 
     size_t ZSTD_estimateCCtxSize(
         int maxCompressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_estimateCCtxSize_usingCParams(
         ZSTD_compressionParameters cParams
-    ) nogil
+    )
 
     size_t ZSTD_estimateCCtxSize_usingCCtxParams(
         const ZSTD_CCtx_params* params
-    ) nogil
+    )
 
-    size_t ZSTD_estimateDCtxSize() nogil
+    size_t ZSTD_estimateDCtxSize()
 
     size_t ZSTD_estimateCStreamSize(
         int maxCompressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_estimateCStreamSize_usingCParams(
         ZSTD_compressionParameters cParams
-    ) nogil
+    )
 
     size_t ZSTD_estimateCStreamSize_usingCCtxParams(
         const ZSTD_CCtx_params* params
-    ) nogil
+    )
 
     size_t ZSTD_estimateDStreamSize(
         size_t maxWindowSize
-    ) nogil
+    )
 
     size_t ZSTD_estimateDStreamSize_fromFrame(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_estimateCDictSize(
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_estimateCDictSize_advanced(
         size_t dictSize,
         ZSTD_compressionParameters cParams,
         ZSTD_dictLoadMethod_e dictLoadMethod
-    ) nogil
+    )
 
     size_t ZSTD_estimateDDictSize(
         size_t dictSize,
         ZSTD_dictLoadMethod_e dictLoadMethod
-    ) nogil
+    )
 
     ZSTD_CCtx* ZSTD_initStaticCCtx(
         void* workspace,
         size_t workspaceSize
-    ) nogil
+    )
 
     ZSTD_CStream* ZSTD_initStaticCStream(
         void* workspace,
         size_t workspaceSize
-    ) nogil
+    )
 
     ZSTD_DCtx* ZSTD_initStaticDCtx(
         void* workspace,
         size_t workspaceSize
-    ) nogil
+    )
 
     ZSTD_DStream* ZSTD_initStaticDStream(
         void* workspace,
         size_t workspaceSize
-    ) nogil
+    )
 
     const ZSTD_CDict* ZSTD_initStaticCDict(
         void* workspace,
@@ -700,7 +700,7 @@ cdef extern from 'zstd.h':
         ZSTD_dictLoadMethod_e dictLoadMethod,
         ZSTD_dictContentType_e dictContentType,
         ZSTD_compressionParameters cParams
-    ) nogil
+    )
 
     const ZSTD_DDict* ZSTD_initStaticDDict(
         void* workspace,
@@ -709,14 +709,14 @@ cdef extern from 'zstd.h':
         size_t dictSize,
         ZSTD_dictLoadMethod_e dictLoadMethod,
         ZSTD_dictContentType_e dictContentType
-    ) nogil
+    )
 
-    ctypedef void* (*ZSTD_allocFunction) (
+    ctypedef void* (*ZSTD_allocFunction)(
         void* opaque,
         size_t size
     ) nogil
 
-    ctypedef void (*ZSTD_freeFunction) (
+    ctypedef void (*ZSTD_freeFunction)(
         void* opaque,
         void* address
     ) nogil
@@ -730,19 +730,19 @@ cdef extern from 'zstd.h':
 
     ZSTD_CCtx* ZSTD_createCCtx_advanced(
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_CStream* ZSTD_createCStream_advanced(
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_DCtx* ZSTD_createDCtx_advanced(
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_DStream* ZSTD_createDStream_advanced(
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_CDict* ZSTD_createCDict_advanced(
         const void* dict,
@@ -751,23 +751,23 @@ cdef extern from 'zstd.h':
         ZSTD_dictContentType_e dictContentType,
         ZSTD_compressionParameters cParams,
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ctypedef struct ZSTD_threadPool:
         pass
 
     ZSTD_threadPool* ZSTD_createThreadPool(
         size_t numThreads
-    ) nogil
+    )
 
     void ZSTD_freeThreadPool(
         ZSTD_threadPool* pool
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_refThreadPool(
         ZSTD_CCtx* cctx,
         ZSTD_threadPool* pool
-    ) nogil
+    )
 
     ZSTD_CDict* ZSTD_createCDict_advanced2(
         const void* dict,
@@ -776,7 +776,7 @@ cdef extern from 'zstd.h':
         ZSTD_dictContentType_e dictContentType,
         const ZSTD_CCtx_params* cctxParams,
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_DDict* ZSTD_createDDict_advanced(
         const void* dict,
@@ -784,44 +784,44 @@ cdef extern from 'zstd.h':
         ZSTD_dictLoadMethod_e dictLoadMethod,
         ZSTD_dictContentType_e dictContentType,
         ZSTD_customMem customMem
-    ) nogil
+    )
 
     ZSTD_CDict* ZSTD_createCDict_byReference(
         const void* dictBuffer,
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     # unsigned ZSTD_getDictID_fromCDict(
     #     const ZSTD_CDict* cdict
-    # ) nogil
+    # )
 
     ZSTD_compressionParameters ZSTD_getCParams(
         int compressionLevel,
         unsigned long long estimatedSrcSize,
         size_t dictSize
-    ) nogil
+    )
 
     ZSTD_parameters ZSTD_getParams(
         int compressionLevel,
         unsigned long long estimatedSrcSize,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_checkCParams(
         ZSTD_compressionParameters params
-    ) nogil
+    )
 
     ZSTD_compressionParameters ZSTD_adjustCParams(
         ZSTD_compressionParameters cPar,
         unsigned long long srcSize,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_setCParams(
         ZSTD_CCtx* cctx,
         ZSTD_compressionParameters cparams
-    ) nogil
+    )
 
     size_t ZSTD_compress_advanced(
         ZSTD_CCtx* cctx,
@@ -832,7 +832,7 @@ cdef extern from 'zstd.h':
         const void* dict,
         size_t dictSize,
         ZSTD_parameters params
-    ) nogil
+    )
 
     size_t ZSTD_compress_usingCDict_advanced(
         ZSTD_CCtx* cctx,
@@ -842,13 +842,13 @@ cdef extern from 'zstd.h':
         size_t srcSize,
         const ZSTD_CDict* cdict,
         ZSTD_frameParameters fParams
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_loadDictionary_byReference(
         ZSTD_CCtx* cctx,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_loadDictionary_advanced(
         ZSTD_CCtx* cctx,
@@ -856,14 +856,14 @@ cdef extern from 'zstd.h':
         size_t dictSize,
         ZSTD_dictLoadMethod_e dictLoadMethod,
         ZSTD_dictContentType_e dictContentType
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_refPrefix_advanced(
         ZSTD_CCtx* cctx,
         const void* prefix,
         size_t prefixSize,
         ZSTD_dictContentType_e dictContentType
-    ) nogil
+    )
 
     int ZSTD_c_rsyncable
     int ZSTD_c_format
@@ -889,44 +889,44 @@ cdef extern from 'zstd.h':
         ZSTD_CCtx* cctx,
         ZSTD_cParameter param,
         int* value
-    ) nogil
+    )
 
-    ZSTD_CCtx_params* ZSTD_createCCtxParams() nogil
+    ZSTD_CCtx_params* ZSTD_createCCtxParams()
 
     size_t ZSTD_freeCCtxParams(
         ZSTD_CCtx_params* params
-    ) nogil
+    )
 
     size_t ZSTD_CCtxParams_reset(
         ZSTD_CCtx_params* params
-    ) nogil
+    )
 
     size_t ZSTD_CCtxParams_init(
         ZSTD_CCtx_params* cctxParams,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_CCtxParams_init_advanced(
         ZSTD_CCtx_params* cctxParams,
         ZSTD_parameters params
-    ) nogil
+    )
 
     size_t ZSTD_CCtxParams_setParameter(
         ZSTD_CCtx_params* params,
         ZSTD_cParameter param,
         int value
-    ) nogil
+    )
 
     size_t ZSTD_CCtxParams_getParameter(
         ZSTD_CCtx_params* params,
         ZSTD_cParameter param,
         int* value
-    ) nogil
+    )
 
     size_t ZSTD_CCtx_setParametersUsingCCtxParams(
         ZSTD_CCtx* cctx,
         const ZSTD_CCtx_params* params
-    ) nogil
+    )
 
     size_t ZSTD_compressStream2_simpleArgs(
         ZSTD_CCtx* cctx,
@@ -937,23 +937,23 @@ cdef extern from 'zstd.h':
         size_t srcSize,
         size_t* srcPos,
         ZSTD_EndDirective endOp
-    ) nogil
+    )
 
     unsigned ZSTD_isFrame(
         const void* buffer,
         size_t size
-    ) nogil
+    )
 
     ZSTD_DDict* ZSTD_createDDict_byReference(
         const void* dictBuffer,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_loadDictionary_byReference(
         ZSTD_DCtx* dctx,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_loadDictionary_advanced(
         ZSTD_DCtx* dctx,
@@ -961,25 +961,25 @@ cdef extern from 'zstd.h':
         size_t dictSize,
         ZSTD_dictLoadMethod_e dictLoadMethod,
         ZSTD_dictContentType_e dictContentType
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_refPrefix_advanced(
         ZSTD_DCtx* dctx,
         const void* prefix,
         size_t prefixSize,
         ZSTD_dictContentType_e dictContentType
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_setMaxWindowSize(
         ZSTD_DCtx* dctx,
         size_t maxWindowSize
-    ) nogil
+    )
 
     size_t ZSTD_DCtx_getParameter(
         ZSTD_DCtx* dctx,
         ZSTD_dParameter param,
         int* value
-    ) nogil
+    )
 
     int ZSTD_d_format
     int ZSTD_d_stableOutBuffer
@@ -991,7 +991,7 @@ cdef extern from 'zstd.h':
     size_t ZSTD_DCtx_setFormat(
         ZSTD_DCtx* dctx,
         ZSTD_format_e format
-    ) nogil
+    )
 
     size_t ZSTD_decompressStream_simpleArgs(
         ZSTD_DCtx* dctx,
@@ -1001,20 +1001,20 @@ cdef extern from 'zstd.h':
         const void* src,
         size_t srcSize,
         size_t* srcPos
-    ) nogil
+    )
 
     size_t ZSTD_initCStream_srcSize(
         ZSTD_CStream* zcs,
         int compressionLevel,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     size_t ZSTD_initCStream_usingDict(
         ZSTD_CStream* zcs,
         const void* dict,
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_initCStream_advanced(
         ZSTD_CStream* zcs,
@@ -1022,24 +1022,24 @@ cdef extern from 'zstd.h':
         size_t dictSize,
         ZSTD_parameters params,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     size_t ZSTD_initCStream_usingCDict(
         ZSTD_CStream* zcs,
         const ZSTD_CDict* cdict
-    ) nogil
+    )
 
     size_t ZSTD_initCStream_usingCDict_advanced(
         ZSTD_CStream* zcs,
         const ZSTD_CDict* cdict,
         ZSTD_frameParameters fParams,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     size_t ZSTD_resetCStream(
         ZSTD_CStream* zcs,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     ctypedef struct ZSTD_frameProgression:
         unsigned long long ingested
@@ -1051,48 +1051,48 @@ cdef extern from 'zstd.h':
 
     ZSTD_frameProgression ZSTD_getFrameProgression(
         const ZSTD_CCtx* cctx
-    ) nogil
+    )
 
     size_t ZSTD_toFlushNow(
         ZSTD_CCtx* cctx
-    ) nogil
+    )
 
     size_t ZSTD_initDStream_usingDict(
         ZSTD_DStream* zds,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_initDStream_usingDDict(
         ZSTD_DStream* zds,
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     size_t ZSTD_resetDStream(
-        ZSTD_DStream* zds) nogil
+        ZSTD_DStream* zds)
 
     size_t ZSTD_compressBegin(
         ZSTD_CCtx* cctx,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_compressBegin_usingDict(
         ZSTD_CCtx* cctx,
         const void* dict,
         size_t dictSize,
         int compressionLevel
-    ) nogil
+    )
 
     size_t ZSTD_compressBegin_usingCDict(
         ZSTD_CCtx* cctx,
         const ZSTD_CDict* cdict
-    ) nogil
+    )
 
     size_t ZSTD_copyCCtx(
         ZSTD_CCtx* cctx,
         const ZSTD_CCtx* preparedCCtx,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     size_t ZSTD_compressContinue(
         ZSTD_CCtx* cctx,
@@ -1100,7 +1100,7 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_compressEnd(
         ZSTD_CCtx* cctx,
@@ -1108,7 +1108,7 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_compressBegin_advanced(
         ZSTD_CCtx* cctx,
@@ -1116,14 +1116,14 @@ cdef extern from 'zstd.h':
         size_t dictSize,
         ZSTD_parameters params,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     size_t ZSTD_compressBegin_usingCDict_advanced(
         ZSTD_CCtx* const cctx,
         const ZSTD_CDict* const cdict,
         ZSTD_frameParameters fParams,
         unsigned long long pledgedSrcSize
-    ) nogil
+    )
 
     ctypedef enum ZSTD_frameType_e:
         ZSTD_frame
@@ -1142,37 +1142,37 @@ cdef extern from 'zstd.h':
         ZSTD_frameHeader* zfhPtr,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_getFrameHeader_advanced(
         ZSTD_frameHeader* zfhPtr,
         const void* src,
         size_t srcSize,
         ZSTD_format_e format
-    ) nogil
+    )
 
     size_t ZSTD_decodingBufferSize_min(
         unsigned long long windowSize,
         unsigned long long frameContentSize
-    ) nogil
+    )
 
     size_t ZSTD_decompressBegin(
-        ZSTD_DCtx* dctx) nogil
+        ZSTD_DCtx* dctx)
 
     size_t ZSTD_decompressBegin_usingDict(
         ZSTD_DCtx* dctx,
         const void* dict,
         size_t dictSize
-    ) nogil
+    )
 
     size_t ZSTD_decompressBegin_usingDDict(
         ZSTD_DCtx* dctx,
         const ZSTD_DDict* ddict
-    ) nogil
+    )
 
     size_t ZSTD_nextSrcSizeToDecompress(
         ZSTD_DCtx* dctx
-    ) nogil
+    )
 
     size_t ZSTD_decompressContinue(
         ZSTD_DCtx* dctx,
@@ -1180,12 +1180,12 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     void ZSTD_copyDCtx(
         ZSTD_DCtx* dctx,
         const ZSTD_DCtx* preparedDCtx
-    ) nogil
+    )
 
     ctypedef enum ZSTD_nextInputType_e:
         ZSTDnit_frameHeader
@@ -1197,10 +1197,10 @@ cdef extern from 'zstd.h':
 
     ZSTD_nextInputType_e ZSTD_nextInputType(
         ZSTD_DCtx* dctx
-    ) nogil
+    )
 
     size_t ZSTD_getBlockSize(
-        const ZSTD_CCtx* cctx) nogil
+        const ZSTD_CCtx* cctx)
 
     size_t ZSTD_compressBlock(
         ZSTD_CCtx* cctx,
@@ -1208,7 +1208,7 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_decompressBlock(
         ZSTD_DCtx* dctx,
@@ -1216,13 +1216,13 @@ cdef extern from 'zstd.h':
         size_t dstCapacity,
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t ZSTD_insertBlock(
         ZSTD_DCtx* dctx,
         const void* blockStart,
         size_t blockSize
-    ) nogil
+    )
 
     int ZSTD_SEQUENCE_PRODUCER_ERROR
 
@@ -1242,10 +1242,10 @@ cdef extern from 'zstd.h':
         ZSTD_CCtx* cctx,
         void* sequenceProducerState,
         ZSTD_sequenceProducer_F sequenceProducer
-    ) nogil
+    )
 
     void ZSTD_CCtxParams_registerSequenceProducer(
         ZSTD_CCtx_params* params,
         void* sequenceProducerState,
         ZSTD_sequenceProducer_F sequenceProducer
-    ) nogil
+    )
