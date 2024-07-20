@@ -4,7 +4,7 @@
 # Cython declarations for the `libjpeg 8d` library.
 # http://libjpeg.sourceforge.net/
 
-cdef extern from 'jpeglib.h':
+cdef extern from 'jpeglib.h' nogil:
 
     int JPEG_LIB_VERSION
     int JPEG_LIB_VERSION_MAJOR
@@ -47,9 +47,9 @@ cdef extern from 'jpeglib.h':
     struct jpeg_error_mgr:
         int msg_code
         const char** jpeg_message_table
-        noreturn_t error_exit(jpeg_common_struct*) nogil
-        void output_message(jpeg_common_struct*) nogil
-        void format_message(jpeg_common_struct* cinfo, char* buffer) nogil
+        noreturn_t error_exit(jpeg_common_struct*)
+        void output_message(jpeg_common_struct*)
+        void format_message(jpeg_common_struct* cinfo, char* buffer)
 
     struct jpeg_common_struct:
         jpeg_error_mgr* err
@@ -116,83 +116,83 @@ cdef extern from 'jpeglib.h':
 
     jpeg_error_mgr* jpeg_std_error(
         jpeg_error_mgr*
-    ) nogil
+    )
 
     void jpeg_create_decompress(
         jpeg_decompress_struct*
-    ) nogil
+    )
 
     void jpeg_destroy_decompress(
         jpeg_decompress_struct*
-    ) nogil
+    )
 
     int jpeg_read_header(
         jpeg_decompress_struct*,
         boolean
-    ) nogil
+    )
 
     boolean jpeg_start_decompress(
         jpeg_decompress_struct*
-    ) nogil
+    )
 
     boolean jpeg_finish_decompress(
         jpeg_decompress_struct*
-    ) nogil
+    )
 
     JDIMENSION jpeg_read_scanlines(
         jpeg_decompress_struct*,
         JSAMPARRAY,
         JDIMENSION
-    ) nogil
+    )
 
     void jpeg_mem_src(
         jpeg_decompress_struct*,
         unsigned char*,
         unsigned long
-    ) nogil
+    )
 
     void jpeg_mem_dest(
         jpeg_compress_struct*,
         unsigned char**,
         unsigned long*
-    ) nogil
+    )
 
     void jpeg_create_compress(
         jpeg_compress_struct*
-    ) nogil
+    )
 
     void jpeg_destroy_compress(
         jpeg_compress_struct*
-    ) nogil
+    )
 
     void jpeg_set_defaults(
         jpeg_compress_struct*
-    ) nogil
+    )
 
     void jpeg_set_quality(
         jpeg_compress_struct*,
         int,
         boolean
-    ) nogil
+    )
 
     void jpeg_start_compress(
         jpeg_compress_struct*,
         boolean
-    ) nogil
+    )
 
     void jpeg_finish_compress(
         jpeg_compress_struct*
-    ) nogil
+    )
 
     JDIMENSION jpeg_write_scanlines(
         jpeg_compress_struct*,
         JSAMPARRAY,
         JDIMENSION
-    ) nogil
+    )
 
     void jpeg_set_colorspace(
         jpeg_compress_struct *cinfo,
         J_COLOR_SPACE colorspace
-    ) nogil
+    )
 
 # TODO: add missing declarations
