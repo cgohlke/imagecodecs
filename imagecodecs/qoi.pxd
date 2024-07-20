@@ -4,7 +4,7 @@
 # Cython declarations for the `qoi 75e7f30` library.
 # https://github.com/phoboslab/qoi
 
-cdef extern from 'qoi.h':
+cdef extern from 'qoi.h' nogil:
     int QOI_SRGB
     int QOI_LINEAR
 
@@ -18,23 +18,23 @@ cdef extern from 'qoi.h':
         const char* filename,
         const void* data,
         const qoi_desc* desc
-    ) nogil
+    )
 
     void* qoi_read(
         const char* filename,
         qoi_desc* desc,
         int channels
-    ) nogil
+    )
 
     void* qoi_encode(
         const void* data,
         const qoi_desc* desc,
         int* out_len
-    ) nogil
+    )
 
     void* qoi_decode(
         const void* data,
         int size,
         qoi_desc* desc,
         int channels
-    ) nogil
+    )
