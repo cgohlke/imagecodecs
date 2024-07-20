@@ -18,7 +18,7 @@ ctypedef uint8_t uint8
 ctypedef uint16_t uint16
 ctypedef uint64_t uint64
 
-cdef extern from 'zfp/version.h':
+cdef extern from 'zfp/version.h' nogil:
 
     char* ZFP_VERSION_STRING
 
@@ -28,7 +28,7 @@ cdef extern from 'zfp/version.h':
     int ZFP_VERSION_TWEAK
 
 
-cdef extern from 'zfp/bitstream.h':
+cdef extern from 'zfp/bitstream.h' nogil:
 
     ctypedef struct bitstream:
         pass
@@ -36,14 +36,14 @@ cdef extern from 'zfp/bitstream.h':
     bitstream* stream_open(
         void* buffer,
         size_t bytes
-    ) nogil
+    )
 
     void stream_close(
         bitstream* stream
-    ) nogil
+    )
 
 
-cdef extern from 'zfp.h':
+cdef extern from 'zfp.h' nogil:
 
     int ZFP_MIN_BITS
     int ZFP_MAX_BITS
@@ -149,40 +149,40 @@ cdef extern from 'zfp.h':
 
     size_t zfp_type_size(
         zfp_type dtype
-    ) nogil
+    )
 
     zfp_stream* zfp_stream_open(
         bitstream* stream
-    ) nogil
+    )
 
     void zfp_stream_close(
         zfp_stream* stream
-    ) nogil
+    )
 
     bitstream* zfp_stream_bit_stream(
         const zfp_stream* stream
-    ) nogil
+    )
 
     zfp_mode zfp_stream_compression_mode(
         const zfp_stream* stream
-    ) nogil
+    )
 
     double zfp_stream_rate(
         const zfp_stream* stream,
         uint dims
-    ) nogil
+    )
 
     uint zfp_stream_precision(
         const zfp_stream* stream
-    ) nogil
+    )
 
     double zfp_stream_accuracy(
         const zfp_stream* stream
-    ) nogil
+    )
 
     uint64 zfp_stream_mode(
         const zfp_stream* stream
-    ) nogil
+    )
 
     void zfp_stream_params(
         const zfp_stream* stream,
@@ -190,29 +190,29 @@ cdef extern from 'zfp.h':
         uint* maxbits,
         uint* maxprec,
         int* minexp
-    ) nogil
+    )
 
     size_t zfp_stream_compressed_size(
         const zfp_stream* stream
-    ) nogil
+    )
 
     size_t zfp_stream_maximum_size(
         const zfp_stream* stream,
         const zfp_field* field
-    ) nogil
+    )
 
     void zfp_stream_rewind(
         zfp_stream* stream
-    ) nogil
+    )
 
     void zfp_stream_set_bit_stream(
         zfp_stream* stream,
         bitstream* bs
-    ) nogil
+    )
 
     void zfp_stream_set_reversible(
         zfp_stream* stream
-    ) nogil
+    )
 
     double zfp_stream_set_rate(
         zfp_stream* stream,
@@ -220,22 +220,22 @@ cdef extern from 'zfp.h':
         zfp_type type,
         uint dims,
         zfp_bool align
-    ) nogil
+    )
 
     uint zfp_stream_set_precision(
         zfp_stream* stream,
         uint precision
-    ) nogil
+    )
 
     double zfp_stream_set_accuracy(
         zfp_stream* stream,
         double tolerance
-    ) nogil
+    )
 
     zfp_mode zfp_stream_set_mode(
         zfp_stream* stream,
         uint64 mode
-    ) nogil
+    )
 
     zfp_bool zfp_stream_set_params(
         zfp_stream* stream,
@@ -243,73 +243,73 @@ cdef extern from 'zfp.h':
         uint maxbits,
         uint maxprec,
         int minexp
-    ) nogil
+    )
 
     zfp_exec_policy zfp_stream_execution(
         const zfp_stream* stream
-    ) nogil
+    )
 
     uint zfp_stream_omp_threads(
         const zfp_stream* stream
-    ) nogil
+    )
 
     uint zfp_stream_omp_chunk_size(
         const zfp_stream* stream
-    ) nogil
+    )
 
     zfp_bool zfp_stream_set_execution(
         zfp_stream* stream,
         zfp_exec_policy policy
-    ) nogil
+    )
 
     zfp_bool zfp_stream_set_omp_threads(
         zfp_stream* stream,
         uint threads
-    ) nogil
+    )
 
     zfp_bool zfp_stream_set_omp_chunk_size(
         zfp_stream* stream,
         uint chunk_size
-    ) nogil
+    )
 
-    zfp_config zfp_config_none() nogil
+    zfp_config zfp_config_none()
 
     zfp_config zfp_config_rate(
         double rate,
         zfp_bool align
-    ) nogil
+    )
 
     zfp_config zfp_config_precision(
         uint precision
-    ) nogil
+    )
 
     zfp_config zfp_config_accuracy(
         double tolerance
-    ) nogil
+    )
 
-    zfp_config zfp_config_reversible() nogil
+    zfp_config zfp_config_reversible()
 
     zfp_config zfp_config_expert(
         uint minbits,
         uint maxbits,
         uint maxprec,
         int minexp
-    ) nogil
+    )
 
-    zfp_field* zfp_field_alloc() nogil
+    zfp_field* zfp_field_alloc()
 
     zfp_field* zfp_field_1d(
         void* pointer,
         zfp_type type,
         size_t nx
-    ) nogil
+    )
 
     zfp_field* zfp_field_2d(
         void* pointer,
         zfp_type type,
         size_t nx,
         size_t ny
-    ) nogil
+    )
 
     zfp_field* zfp_field_3d(
         void* pointer,
@@ -317,7 +317,7 @@ cdef extern from 'zfp.h':
         size_t nx,
         size_t ny,
         size_t nz
-    ) nogil
+    )
 
     zfp_field* zfp_field_4d(
         void* pointer,
@@ -326,85 +326,85 @@ cdef extern from 'zfp.h':
         size_t ny,
         size_t nz,
         size_t nw
-    ) nogil
+    )
 
     void zfp_field_free(
         zfp_field* field
-    ) nogil
+    )
 
     void* zfp_field_pointer(
         const zfp_field* field
-    ) nogil
+    )
 
     void* zfp_field_begin(
         const zfp_field* field
-    ) nogil
+    )
 
     zfp_type zfp_field_type(
         const zfp_field* field
-    ) nogil
+    )
 
     uint zfp_field_precision(
         const zfp_field* field
-    ) nogil
+    )
 
     uint zfp_field_dimensionality(
         const zfp_field* field
-    ) nogil
+    )
 
     size_t zfp_field_size(
         const zfp_field* field,
         size_t* size
-    ) nogil
+    )
 
     size_t zfp_field_size_bytes(
         const zfp_field* field
-    ) nogil
+    )
 
     size_t zfp_field_blocks(
         const zfp_field* field
-    ) nogil
+    )
 
     zfp_bool zfp_field_stride(
         const zfp_field* field,
         ptrdiff_t* stride
-    ) nogil
+    )
 
     zfp_bool zfp_field_is_contiguous(
         const zfp_field* field
-    ) nogil
+    )
 
     uint64 zfp_field_metadata(
         const zfp_field* field
-    ) nogil
+    )
 
     void zfp_field_set_pointer(
         zfp_field* field,
         void* pointer
-    ) nogil
+    )
 
     zfp_type zfp_field_set_type(
         zfp_field* field,
         zfp_type type
-    ) nogil
+    )
 
     void zfp_field_set_size_1d(
         zfp_field* field,
         size_t nx
-    ) nogil
+    )
 
     void zfp_field_set_size_2d(
         zfp_field* field,
         size_t nx,
         size_t ny
-    ) nogil
+    )
 
     void zfp_field_set_size_3d(
         zfp_field* field,
         size_t nx,
         size_t ny,
         size_t nz
-    ) nogil
+    )
 
     void zfp_field_set_size_4d(
         zfp_field* field,
@@ -412,25 +412,25 @@ cdef extern from 'zfp.h':
         size_t ny,
         size_t nz,
         size_t nw
-    ) nogil
+    )
 
     void zfp_field_set_stride_1d(
         zfp_field* field,
         ptrdiff_t sx
-    ) nogil
+    )
 
     void zfp_field_set_stride_2d(
         zfp_field* field,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     void zfp_field_set_stride_3d(
         zfp_field* field,
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     void zfp_field_set_stride_4d(
         zfp_field* field,
@@ -438,134 +438,134 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     zfp_bool zfp_field_set_metadata(
         zfp_field* field,
         uint64 meta
-    ) nogil
+    )
 
     size_t zfp_compress(
         zfp_stream* stream,
         const zfp_field* field
-    ) nogil
+    )
 
     size_t zfp_decompress(
         zfp_stream* stream,
         zfp_field* field
-    ) nogil
+    )
 
     size_t zfp_write_header(
         zfp_stream* stream,
         const zfp_field* field,
         uint mask
-    ) nogil
+    )
 
     size_t zfp_read_header(
         zfp_stream* stream,
         zfp_field* field,
         uint mask
-    ) nogil
+    )
 
     size_t zfp_stream_flush(
         zfp_stream* stream
-    ) nogil
+    )
 
     size_t zfp_stream_align(
         zfp_stream* stream
-    ) nogil
+    )
 
     size_t zfp_encode_block_int32_1(
         zfp_stream* stream,
         const int32* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_int64_1(
         zfp_stream* stream,
         const int64* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_float_1(
         zfp_stream* stream,
         const float* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_double_1(
         zfp_stream* stream,
         const double* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int32_1(
         zfp_stream* stream,
         const int32* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int64_1(
         zfp_stream* stream,
         const int64* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_float_1(
         zfp_stream* stream,
         const float* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_double_1(
         zfp_stream* stream,
         const double* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int32_1(
         zfp_stream* stream,
         const int32* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int64_1(
         zfp_stream* stream,
         const int64* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_float_1(
         zfp_stream* stream,
         const float* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_double_1(
         zfp_stream* stream,
         const double* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_encode_block_int32_2(
         zfp_stream* stream,
         const int32* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_int64_2(
         zfp_stream* stream,
         const int64* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_float_2(
         zfp_stream* stream,
         const float* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_double_2(
         zfp_stream* stream,
         const double* block
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int32_2(
         zfp_stream* stream,
@@ -574,7 +574,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int64_2(
         zfp_stream* stream,
@@ -583,7 +583,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_float_2(
         zfp_stream* stream,
@@ -592,7 +592,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_double_2(
         zfp_stream* stream,
@@ -601,55 +601,55 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int32_2(
         zfp_stream* stream,
         const int32* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int64_2(
         zfp_stream* stream,
         const int64* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_float_2(
         zfp_stream* stream,
         const float* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_double_2(
         zfp_stream* stream,
         const double* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_encode_block_int32_3(
         zfp_stream* stream,
         const int32* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_int64_3(
         zfp_stream* stream,
         const int64* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_float_3(
         zfp_stream* stream,
         const float* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_double_3(
         zfp_stream* stream,
         const double* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int32_3(
         zfp_stream* stream,
@@ -657,7 +657,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int64_3(
         zfp_stream* stream,
@@ -665,7 +665,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_float_3(
         zfp_stream* stream,
@@ -673,7 +673,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_double_3(
         zfp_stream* stream,
@@ -681,7 +681,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int32_3(
         zfp_stream* stream,
@@ -692,7 +692,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int64_3(
         zfp_stream* stream,
@@ -703,7 +703,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_float_3(
         zfp_stream* stream,
@@ -714,7 +714,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_double_3(
         zfp_stream* stream,
@@ -725,27 +725,27 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_encode_block_int32_4(
         zfp_stream* stream,
         const int32* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_int64_4(
         zfp_stream* stream,
         const int64* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_float_4(
         zfp_stream* stream,
         const float* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_double_4(
         zfp_stream* stream,
         const double* block
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int32_4(
         zfp_stream* stream,
@@ -754,7 +754,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_int64_4(
         zfp_stream* stream,
@@ -763,7 +763,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_float_4(
         zfp_stream* stream,
@@ -772,7 +772,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_block_strided_double_4(
         zfp_stream* stream,
@@ -781,7 +781,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int32_4(
         zfp_stream* stream,
@@ -794,7 +794,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_int64_4(
         zfp_stream* stream,
@@ -807,7 +807,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_float_4(
         zfp_stream* stream,
@@ -820,7 +820,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_encode_partial_block_strided_double_4(
         zfp_stream* stream,
@@ -833,127 +833,127 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_block_int32_1(
         zfp_stream* stream,
         int32* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_int64_1(
         zfp_stream* stream,
         int64* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_float_1(
         zfp_stream* stream,
         float* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_double_1(
         zfp_stream* stream,
         double* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int32_1(
         zfp_stream* stream,
         int32* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int64_1(
         zfp_stream* stream,
         int64* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_float_1(
         zfp_stream* stream,
         float* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_double_1(
         zfp_stream* stream,
         double* p,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int32_1(
         zfp_stream* stream,
         int32* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int64_1(
         zfp_stream* stream,
         int64* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_float_1(
         zfp_stream* stream,
         float* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_double_1(
         zfp_stream* stream,
         double* p,
         size_t nx,
         ptrdiff_t sx
-    ) nogil
+    )
 
     size_t zfp_decode_block_int32_2(
         zfp_stream* stream,
         int32* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_int64_2(
         zfp_stream* stream,
         int64* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_float_2(
         zfp_stream* stream,
         float* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_double_2(
         zfp_stream* stream,
         double* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int32_2(
         zfp_stream* stream,
         int32* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int64_2(
         zfp_stream* stream,
         int64* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_float_2(
         zfp_stream* stream,
         float* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_double_2(
         zfp_stream* stream,
         double* p,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int32_2(
         zfp_stream* stream,
@@ -962,7 +962,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int64_2(
         zfp_stream* stream,
@@ -971,7 +971,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_float_2(
         zfp_stream* stream,
@@ -980,7 +980,7 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_double_2(
         zfp_stream* stream,
@@ -989,27 +989,27 @@ cdef extern from 'zfp.h':
         size_t ny,
         ptrdiff_t sx,
         ptrdiff_t sy
-    ) nogil
+    )
 
     size_t zfp_decode_block_int32_3(
         zfp_stream* stream,
         int32* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_int64_3(
         zfp_stream* stream,
         int64* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_float_3(
         zfp_stream* stream,
         float* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_double_3(
         zfp_stream* stream,
         double* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int32_3(
         zfp_stream* stream,
@@ -1017,7 +1017,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int64_3(
         zfp_stream* stream,
@@ -1025,7 +1025,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_float_3(
         zfp_stream* stream,
@@ -1033,7 +1033,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_double_3(
         zfp_stream* stream,
@@ -1041,7 +1041,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int32_3(
         zfp_stream* stream,
@@ -1052,7 +1052,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int64_3(
         zfp_stream* stream,
@@ -1063,7 +1063,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_float_3(
         zfp_stream* stream,
@@ -1074,7 +1074,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_double_3(
         zfp_stream* stream,
@@ -1085,27 +1085,27 @@ cdef extern from 'zfp.h':
         ptrdiff_t sx,
         ptrdiff_t sy,
         ptrdiff_t sz
-    ) nogil
+    )
 
     size_t zfp_decode_block_int32_4(
         zfp_stream* stream,
         int32* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_int64_4(
         zfp_stream* stream,
         int64* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_float_4(
         zfp_stream* stream,
         float* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_double_4(
         zfp_stream* stream,
         double* block
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int32_4(
         zfp_stream* stream,
@@ -1114,7 +1114,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_int64_4(
         zfp_stream* stream,
@@ -1123,7 +1123,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_float_4(
         zfp_stream* stream,
@@ -1132,7 +1132,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_block_strided_double_4(
         zfp_stream* stream,
@@ -1141,7 +1141,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int32_4(
         zfp_stream* stream,
@@ -1154,7 +1154,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_int64_4(
         zfp_stream* stream,
@@ -1167,7 +1167,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_float_4(
         zfp_stream* stream,
@@ -1180,7 +1180,7 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     size_t zfp_decode_partial_block_strided_double_4(
         zfp_stream* stream,
@@ -1193,52 +1193,52 @@ cdef extern from 'zfp.h':
         ptrdiff_t sy,
         ptrdiff_t sz,
         ptrdiff_t sw
-    ) nogil
+    )
 
     void zfp_promote_int8_to_int32(
         int32* oblock,
         const int8* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_promote_uint8_to_int32(
         int32* oblock,
         const uint8* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_promote_int16_to_int32(
         int32* oblock,
         const int16* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_promote_uint16_to_int32(
         int32* oblock,
         const uint16* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_demote_int32_to_int8(
         int8* oblock,
         const int32* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_demote_int32_to_uint8(
         uint8* oblock,
         const int32* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_demote_int32_to_int16(
         int16* oblock,
         const int32* iblock,
         uint dims
-    ) nogil
+    )
 
     void zfp_demote_int32_to_uint16(
         uint16* oblock,
         const int32* iblock,
         uint dims
-    ) nogil
+    )
