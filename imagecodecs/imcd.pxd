@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
-cdef extern from 'imcd.h':
+cdef extern from 'imcd.h' nogil:
 
     char* IMCD_VERSION
 
@@ -37,7 +37,7 @@ cdef extern from 'imcd.h':
         const ssize_t dststride,
         const ssize_t itemsize,
         const bint decode
-    ) nogil
+    )
 
     ssize_t imcd_xor(
         void* src,
@@ -48,7 +48,7 @@ cdef extern from 'imcd.h':
         const ssize_t dststride,
         const ssize_t itemsize,
         const bint decode
-    ) nogil
+    )
 
     ssize_t imcd_byteshuffle(
         void* src,
@@ -62,7 +62,7 @@ cdef extern from 'imcd.h':
         const char byteorder,
         const bint diff,
         const bint decode,
-    ) nogil
+    )
 
     ssize_t imcd_bitorder(
         uint8_t* src,
@@ -72,16 +72,16 @@ cdef extern from 'imcd.h':
         uint8_t* dst,
         const ssize_t dstsize,
         const ssize_t dststride
-    ) nogil
+    )
 
     ssize_t imcd_packbits_decode_size(
         const uint8_t* src,
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_packbits_encode_size(
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_packbits_decode(
         const uint8_t* src,
@@ -89,37 +89,37 @@ cdef extern from 'imcd.h':
         uint8_t* dst,
         const ssize_t dstsize,
         const ssize_t dststride
-    ) nogil
+    )
 
     ssize_t imcd_packbits_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize
-    ) nogil
+    )
 
     ssize_t imcd_ccittrle_decode_size(
         const uint8_t* src,
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_ccittrle_encode_size(
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_ccittrle_decode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize
-    ) nogil
+    )
 
     ssize_t imcd_ccittrle_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize
-    ) nogil
+    )
 
     ssize_t imcd_packints_decode(
         const uint8_t* src,
@@ -127,7 +127,7 @@ cdef extern from 'imcd.h':
         uint8_t* dst,
         const ssize_t dstsize,
         const int bps
-    ) nogil
+    )
 
     ssize_t imcd_packints_encode(
         const uint8_t* src,
@@ -135,14 +135,14 @@ cdef extern from 'imcd.h':
         uint8_t* dst,
         const ssize_t dstsize,
         const int bps
-    ) nogil
+    )
 
     ssize_t imcd_float24_decode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const char byteorder
-    ) nogil
+    )
 
     ssize_t imcd_float24_encode(
         const uint8_t* src,
@@ -150,7 +150,7 @@ cdef extern from 'imcd.h':
         uint8_t* dst,
         const char byteorder,
         int rounding
-    ) nogil
+    )
 
     ssize_t imcd_eer_decode(
         const uint8_t *src,
@@ -162,30 +162,30 @@ cdef extern from 'imcd.h':
         const int horzbits,
         const int vertbits,
         const bint superres
-    ) nogil
+    )
 
     void imcd_swapbytes(
         void* src,
         const ssize_t srcsize,
         const ssize_t itemsize
-    ) nogil
+    )
 
     ctypedef struct imcd_lzw_handle_t:
         pass
 
     imcd_lzw_handle_t* imcd_lzw_new(
         ssize_t buffersize
-    ) nogil
+    )
 
     void imcd_lzw_del(
         imcd_lzw_handle_t* handle
-    ) nogil
+    )
 
     ssize_t imcd_lzw_decode_size(
         imcd_lzw_handle_t* handle,
         const uint8_t* src,
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_lzw_decode(
         imcd_lzw_handle_t* handle,
@@ -193,44 +193,44 @@ cdef extern from 'imcd.h':
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize
-    ) nogil
+    )
 
     bint imcd_lzw_check(
         const uint8_t* src,
         const ssize_t size
-    ) nogil
+    )
 
     ssize_t imcd_lzw_encode_size(
         const ssize_t srcsize
-    ) nogil
+    )
 
     ssize_t imcd_lzw_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize
-    ) nogil
+    )
 
     ssize_t imcd_memsearch(
         const char *src,
         const ssize_t srclen,
         const char *dst,
         const ssize_t dstlen
-    ) nogil
+    )
 
     ssize_t imcd_strsearch(
         const char *src,
         const ssize_t srclen,
         const char *dst,
         const ssize_t dstlen
-    ) nogil
+    )
 
-cdef extern from 'fenv.h':
+cdef extern from 'fenv.h' nogil:
 
     int FE_TONEAREST
     int FE_UPWARD
     int FE_DOWNWARD
     int FE_TOWARDZERO
 
-    int fegetround() nogil
-    int fesetround(int) nogil
+    int fegetround()
+    int fesetround(int)
