@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
-cdef extern from 'lzokay/lzokay-c.h':
+cdef extern from 'lzokay/lzokay-c.h' nogil:
 
     ctypedef enum lzokay_EResult:
         EResult_LookbehindOverrun
@@ -21,4 +21,4 @@ cdef extern from 'lzokay/lzokay-c.h':
         size_t src_size,
         uint8_t* output,
         size_t* output_len
-    ) nogil
+    )
