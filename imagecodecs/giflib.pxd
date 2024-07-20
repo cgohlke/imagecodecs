@@ -4,7 +4,7 @@
 # Cython declarations for the `giflib 5.2.2` library.
 # http://giflib.sourceforge.net
 
-cdef extern from 'gif_lib.h':
+cdef extern from 'gif_lib.h' nogil:
 
     int GIFLIB_MAJOR
     int GIFLIB_MINOR
@@ -58,7 +58,7 @@ cdef extern from 'gif_lib.h':
     int D_GIF_ERR_IMAGE_DEFECT
     int D_GIF_ERR_EOF_TOO_SOON
 
-    # define GIF_ASPECT_RATIO(n) ((n)+15.0/64.0)
+    int GIF_ASPECT_RATIO(int n)  # ((n)+15.0/64.0)
 
     ctypedef unsigned char GifPixelType
     ctypedef unsigned char* GifRowType
@@ -112,13 +112,13 @@ cdef extern from 'gif_lib.h':
         void* UserData
         void* Private
 
-    ctypedef int (*InputFunc) (
+    ctypedef int (*InputFunc)(
         GifFileType*,
         GifByteType*,
         int
     ) nogil
 
-    ctypedef int (*OutputFunc) (
+    ctypedef int (*OutputFunc)(
         GifFileType*,
         const GifByteType*,
         int
@@ -139,7 +139,7 @@ cdef extern from 'gif_lib.h':
 
     extern const char* GifErrorString(
         int ErrorCode
-    ) nogil
+    )
 
     # encoding
 
@@ -147,31 +147,31 @@ cdef extern from 'gif_lib.h':
         const char* GifFileName,
         const bint GifTestExistence,
         int* Error
-    ) nogil
+    )
 
     GifFileType* EGifOpenFileHandle(
         const int GifFileHandle,
         int* Error
-    ) nogil
+    )
 
     GifFileType* EGifOpen(
         void* userPtr,
         OutputFunc writeFunc,
         int* Error
-    ) nogil
+    )
 
     int EGifCloseFile(
         GifFileType* GifFile,
         int* ErrorCode
-    ) nogil
+    )
 
     int EGifSpew(
         GifFileType* ifFile
-    ) nogil
+    )
 
     const char* EGifGetGifVersion(
         GifFileType* GifFile
-    ) nogil
+    )
 
     # encoding legacy
 
@@ -182,7 +182,7 @@ cdef extern from 'gif_lib.h':
         const int GifColorRes,
         const int GifBackGround,
         const ColorMapObject* GifColorMap
-    ) nogil
+    )
 
     int EGifPutImageDesc(
         GifFileType* GifFile,
@@ -192,176 +192,176 @@ cdef extern from 'gif_lib.h':
         const int GifHeight,
         const bint GifInterlace,
         const ColorMapObject* GifColorMap
-    ) nogil
+    )
 
     void EGifSetGifVersion(
         GifFileType* GifFile,
         const bint gif89
-    ) nogil
+    )
 
     int EGifPutLine(
         GifFileType* GifFile,
         GifPixelType* GifLine,
         int GifLineLen
-    ) nogil
+    )
 
     int EGifPutPixel(
         GifFileType* GifFile,
         const GifPixelType GifPixel
-    ) nogil
+    )
 
     int EGifPutComment(
         GifFileType* GifFile,
         const char* GifComment
-    ) nogil
+    )
 
     int EGifPutExtensionLeader(
         GifFileType* GifFile,
         const int GifExtCode
-    ) nogil
+    )
 
     int EGifPutExtensionBlock(
         GifFileType* GifFile,
         const int GifExtLen,
         const void* GifExtension
-    ) nogil
+    )
 
     int EGifPutExtensionTrailer(
         GifFileType* GifFile
-    ) nogil
+    )
 
     int EGifPutExtension(
         GifFileType* GifFile,
         const int GifExtCode,
         const int GifExtLen,
         const void* GifExtension
-    ) nogil
+    )
 
     int EGifPutCode(
         GifFileType* GifFile,
         int GifCodeSize,
         const GifByteType* GifCodeBlock
-    ) nogil
+    )
 
     int EGifPutCodeNext(
         GifFileType* GifFile,
         const GifByteType* GifCodeBlock
-    ) nogil
+    )
 
     # decoding
 
     GifFileType* DGifOpenFileName(
         const char* GifFileName,
         int* Error
-    ) nogil
+    )
 
     GifFileType* DGifOpenFileHandle(
         int GifFileHandle,
         int* Error
-    ) nogil
+    )
 
     int DGifSlurp(
         GifFileType* GifFile
-    ) nogil
+    )
 
     GifFileType* DGifOpen(
         void* userPtr,
         InputFunc readFunc,
         int* Error
-    ) nogil
+    )
 
     int DGifCloseFile(
         GifFileType* GifFile,
         int* ErrorCode
-    ) nogil
+    )
 
     # decoding legacy
     int DGifGetScreenDesc(
         GifFileType* GifFile
-    ) nogil
+    )
 
     int DGifGetRecordType(
         GifFileType* GifFile,
         GifRecordType* GifType
-    ) nogil
+    )
 
     int DGifGetImageHeader(
         GifFileType* GifFile
-    ) nogil
+    )
 
     int DGifGetImageDesc(
         GifFileType* GifFile
-    ) nogil
+    )
 
     int DGifGetLine(
         GifFileType* GifFile,
         GifPixelType* GifLine,
         int GifLineLen
-    ) nogil
+    )
 
     int DGifGetPixel(
         GifFileType* GifFile,
         GifPixelType GifPixel
-    ) nogil
+    )
 
     int DGifGetExtension(
         GifFileType* GifFile,
         int* GifExtCode,
         GifByteType** GifExtension
-    ) nogil
+    )
 
     int DGifGetExtensionNext(
         GifFileType* GifFile,
         GifByteType** GifExtension
-    ) nogil
+    )
 
     int DGifGetCode(
         GifFileType* GifFile,
         int* GifCodeSize,
         GifByteType** GifCodeBlock
-    ) nogil
+    )
 
     int DGifGetCodeNext(
         GifFileType* GifFile,
         GifByteType** GifCodeBlock
-    ) nogil
+    )
 
     int DGifGetLZCodes(
         GifFileType* GifFile,
         int* GifCode
-    ) nogil
+    )
 
     const char* DGifGetGifVersion(
         GifFileType* GifFile
-    ) nogil
+    )
 
     # from gif_alloc.c
 
     ColorMapObject* GifMakeMapObject(
         int ColorCount,
         const GifColorType* ColorMap
-    ) nogil
+    )
 
     void GifFreeMapObject(
         ColorMapObject* Object
-    ) nogil
+    )
 
     ColorMapObject* GifUnionColorMap(
         const ColorMapObject* ColorIn1,
         const ColorMapObject* ColorIn2,
         GifPixelType* ColorTransIn2
-    ) nogil
+    )
 
     int GifBitSize(
         int n
-    ) nogil
+    )
 
     # slurp mode
 
     void GifApplyTranslation(
         SavedImage* Image,
         GifPixelType* Translation
-    ) nogil
+    )
 
     int GifAddExtensionBlock(
         int* ExtensionBlock_Count,
@@ -369,21 +369,21 @@ cdef extern from 'gif_lib.h':
         int Function,
         unsigned int Len,
         unsigned char* ExtData
-    ) nogil
+    )
 
     void GifFreeExtensions(
         int* ExtensionBlock_Count,
         ExtensionBlock** ExtensionBlocks
-    ) nogil
+    )
 
     SavedImage* GifMakeSavedImage(
         GifFileType* GifFile,
         const SavedImage* CopyFrom
-    ) nogil
+    )
 
     void GifFreeSavedImages(
         GifFileType* GifFile
-    ) nogil
+    )
 
     # GIF89 graphics control blocks
 
@@ -391,24 +391,24 @@ cdef extern from 'gif_lib.h':
         const size_t GifExtensionLength,
         const GifByteType* GifExtension,
         GraphicsControlBlock* GCB
-    ) nogil
+    )
 
     size_t EGifGCBToExtension(
         const GraphicsControlBlock* GCB,
         GifByteType* GifExtension
-    ) nogil
+    )
 
     int DGifSavedExtensionToGCB(
         GifFileType* GifFile,
         int ImageIndex,
         GraphicsControlBlock* GCB
-    ) nogil
+    )
 
     int EGifGCBToSavedExtension(
         const GraphicsControlBlock* GCB,
         GifFileType* GifFile,
         int ImageIndex
-    ) nogil
+    )
 
     # internal utility font
 
@@ -423,7 +423,7 @@ cdef extern from 'gif_lib.h':
         const int y,
         const char* legend,
         const int color
-    ) nogil
+    )
 
     void GifDrawBox(
         SavedImage* Image,
@@ -432,7 +432,7 @@ cdef extern from 'gif_lib.h':
         const int w,
         const int d,
         const int color
-    ) nogil
+    )
 
     void GifDrawRectangle(
         SavedImage* Image,
@@ -441,7 +441,7 @@ cdef extern from 'gif_lib.h':
         const int w,
         const int d,
         const int color
-    ) nogil
+    )
 
     void GifDrawBoxedText8x8(
         SavedImage* Image,
@@ -451,4 +451,4 @@ cdef extern from 'gif_lib.h':
         const int border,
         const int bg,
         const int fg
-    ) nogil
+    )
