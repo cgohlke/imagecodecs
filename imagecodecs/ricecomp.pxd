@@ -6,7 +6,7 @@
 # https://heasarc.gsfc.nasa.gov/fitsio/
 
 
-cdef extern from 'ricecomp.h':
+cdef extern from 'ricecomp.h' nogil:
 
     const char* RCOMP_VERSION
 
@@ -17,49 +17,49 @@ cdef extern from 'ricecomp.h':
     int RCOMP_WARN_UNUSED
 
     int rcomp_int(
-        int a[],
+        int[] a,
         int nx,
         unsigned char* c,
         int clen,
         int nblock
-    ) nogil
+    )
 
     int rcomp_short(
-        short a[],
+        short[] a,
         int nx,
         unsigned char* c,
         int clen,
         int nblock
-    ) nogil
+    )
 
     int rcomp_byte(
-        signed char a[],
+        signed char[] a,
         int nx,
         unsigned char* c,
         int clen,
         int nblock
-    ) nogil
+    )
 
     int rdecomp_int(
         unsigned char* c,
         int clen,
-        unsigned int array[],
+        unsigned int[] array,
         int nx,
         int nblock
-    ) nogil
+    )
 
     int rdecomp_short(
         unsigned char* c,
         int clen,
-        unsigned short array[],
+        unsigned short[] array,
         int nx,
         int nblock
-    ) nogil
+    )
 
     int rdecomp_byte(
         unsigned char* c,
         int clen,
-        unsigned char array[],
+        unsigned char[] array,
         int nx,
         int nblock
-    ) nogil
+    )
