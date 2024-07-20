@@ -4,7 +4,7 @@
 # Cython declarations for the `libbzip2 1.0.8` library.
 # https://sourceware.org/bzip2/
 
-cdef extern from 'bzlib.h':
+cdef extern from 'bzlib.h' nogil:
 
     int BZ_RUN
     int BZ_FLUSH
@@ -35,8 +35,8 @@ cdef extern from 'bzlib.h':
         unsigned int total_out_lo32
         unsigned int total_out_hi32
         void* state
-        void* (*bzalloc)(void*, int, int)
-        void (*bzfree)(void*, void*)
+        void* (*bzalloc)(void*, int, int) nogil
+        void (*bzfree)(void*, void*) nogil
         void* opaque
 
     int BZ2_bzCompressInit(
@@ -44,29 +44,29 @@ cdef extern from 'bzlib.h':
         int blockSize100k,
         int verbosity,
         int workFactor
-    ) nogil
+    )
 
     int BZ2_bzCompress(
         bz_stream* strm,
         int action
-    ) nogil
+    )
 
     int BZ2_bzCompressEnd(
         bz_stream* strm
-    ) nogil
+    )
 
     int BZ2_bzDecompressInit(
         bz_stream* strm,
         int verbosity,
         int small
-    ) nogil
+    )
 
     int BZ2_bzDecompress(
         bz_stream* strm
-    ) nogil
+    )
 
     int BZ2_bzDecompressEnd(
         bz_stream* strm
-    ) nogil
+    )
 
-    const char* BZ2_bzlibVersion() nogil
+    const char* BZ2_bzlibVersion()
