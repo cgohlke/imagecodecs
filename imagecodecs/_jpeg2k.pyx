@@ -103,7 +103,7 @@ def jpeg2k_encode(
     resolutions=None,
     reversible=None,
     mct=True,  # multiple component transform: rgb->ycc
-    verbose=0,
+    verbose=None,
     numthreads=None,
     out=None
 ):
@@ -131,7 +131,7 @@ def jpeg2k_encode(
         OPJ_COLOR_SPACE color_space
         OPJ_UINT32 sgnd, prec, width, height, samples
         ssize_t i
-        int verbosity = verbose
+        int verbosity = int(verbose) if verbose else 0
         int tile_width = 0
         int tile_height = 0
         float quality = _default_value(level, 0, 0, None)
@@ -433,7 +433,7 @@ def jpeg2k_encode(
             free(cmptparms)
 
     if out is None:
-        out = _create_output(outtype, memopj.size, <const char *> memopj.data)
+        out = _create_output(outtype, byteswritten, <const char *> memopj.data)
         free(memopj.data)
         return out
 
@@ -444,7 +444,7 @@ def jpeg2k_encode(
 def jpeg2k_decode(
     data,
     planar=None,
-    verbose=0,
+    verbose=None,
     numthreads=None,
     out=None
 ):
@@ -471,7 +471,7 @@ def jpeg2k_decode(
         OPJ_UINT32 sgnd, prec, width, height
         ssize_t i, j, k, bandsize, samples
         int num_threads = <int> _default_threads(numthreads)
-        int verbosity = verbose
+        int verbosity = int(verbose) if verbose else 0
         bytes sig
         bint contig = not planar
 
@@ -494,6 +494,7 @@ def jpeg2k_decode(
         memopj.size = src.size
         memopj.offset = 0
         memopj.written = 0
+        memopj.owner = 0
 
         with nogil:
             stream = opj_memstream_create(&memopj, OPJ_TRUE)
@@ -713,7 +714,7 @@ ctypedef struct memopj_t:
 cdef memopj_t* memopj_new(uint8_t* data, size_t size) noexcept nogil:
     """Return new memopj."""
     cdef:
-        memopj_t* memopj = <memopj_t*> malloc(sizeof(memopj_t))
+        memopj_t* memopj = <memopj_t*> calloc(1, sizeof(memopj_t))
 
     if memopj == NULL:
         return NULL
@@ -763,19 +764,14 @@ cdef OPJ_SIZE_T opj_mem_read(
     """opj_stream_set_read_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
-        OPJ_SIZE_T count = size
 
     if memopj.offset >= memopj.size:
         return <OPJ_SIZE_T> -1
-    if size > memopj.size - memopj.offset:
-        count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-    memcpy(
-        <void*> dst,
-        <const void*> &(memopj.data[memopj.offset]),
-        count
-    )
-    memopj.offset += count
-    return count
+    if memopj.offset + size > memopj.size:
+        size = <OPJ_SIZE_T> (memopj.size - memopj.offset)
+    memcpy(dst, <const void*> &(memopj.data[memopj.offset]), size)
+    memopj.offset += size
+    return size
 
 
 cdef OPJ_SIZE_T opj_mem_write(
@@ -786,40 +782,37 @@ cdef OPJ_SIZE_T opj_mem_write(
     """opj_stream_set_write_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
-        OPJ_SIZE_T count = size
 
-    if not memopj.owner:
-        if memopj.offset >= memopj.size:
+    if memopj.offset + size > memopj.size:
+        if opj_mem_resize(memopj, memopj.offset + size) != OPJ_TRUE:
             return <OPJ_SIZE_T> -1  # error
-        if size > memopj.size - memopj.offset:
-            count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-            memopj.written = memopj.size + 1  # indicates error
-    elif memopj.offset >= memopj.size or size > memopj.size - memopj.offset:
-        if opj_mem_resize(memopj, memopj.offset + count) != OPJ_TRUE:
-            return <OPJ_SIZE_T> -1  # error
-
-    memcpy(
-        <void*> &(memopj.data[memopj.offset]),
-        <const void*> dst,
-        count
-    )
-    memopj.offset += count
+    memcpy(<void*> &(memopj.data[memopj.offset]), <const void*> dst, size)
+    memopj.offset += size
     if memopj.written < memopj.offset:
         memopj.written = memopj.offset
-    return count
+    return size
 
 
-cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T size, void* data) noexcept nogil:
+cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T offset, void* data) noexcept nogil:
     """opj_stream_set_seek_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
 
-    # if size < 0 or size >= <OPJ_OFF_T> memopj.size:
-    #     if not memopj.owner:
-    #         return OPJ_FALSE
-    #     if opj_mem_resize(memopj, <OPJ_SIZE_T> size) != OPJ_TRUE:
-    #         return OPJ_FALSE
-    memopj.offset = <OPJ_SIZE_T> size  # allow seek beyond memopj.size
+    if offset < 0:
+        return OPJ_FALSE
+
+    # if offset > <OPJ_OFF_T> memopj.size:
+    #     if opj_mem_resize(memopj, <OPJ_SIZE_T> offset) != OPJ_TRUE:
+    #         memopj.offset = memopj.size
+    #         if memopj.written < memopj.size:
+    #             memopj.written = memopj.size
+    #         return OPJ_TRUE
+    # memopj.offset = <OPJ_SIZE_T> offset
+    # if memopj.written < memopj.offset:
+    #     memopj.written = memopj.offset
+
+    # allow seek beyond memopj.size; subsequent read or write might fail
+    memopj.offset = <OPJ_SIZE_T> offset
     return OPJ_TRUE
 
 
@@ -827,20 +820,24 @@ cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) noexcept nogil:
     """opj_stream_set_skip_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
-        OPJ_SIZE_T count = <OPJ_SIZE_T> size
-
     if size < 0:
-        return -1
-    # if count > memopj.size - memopj.offset:
-    #     if memopj.owner:
-    #         if opj_mem_resize(
-    #             memopj, <OPJ_SIZE_T> memopj.offset + count
-    #         ) != OPJ_TRUE:
-    #             count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-    #     else:
-    #         count = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-    memopj.offset += count  # allow seek beyond memopj.size
-    return count
+        return <OPJ_OFF_T> -1
+
+    # if memopj.offset + size > memopj.size:
+    #     if opj_mem_resize(
+    #         memopj, <OPJ_SIZE_T> memopj.offset + size
+    #     ) != OPJ_TRUE:
+    #         # return <OPJ_OFF_T> -1  # error
+    #         size = memopj.size - memopj.offset
+    #     memopj.offset = memopj.size
+    # else:
+    #     memopj.offset += size
+    # if memopj.written < memopj.offset:
+    #     memopj.written = memopj.offset
+
+    # allow seek beyond memopj.size; subsequent read or write might fail
+    memopj.offset += size
+    return size
 
 
 cdef void opj_mem_nop(void* data) noexcept nogil:
@@ -861,15 +858,12 @@ cdef opj_stream_t* opj_memstream_create(
         opj_stream_set_read_function(stream, <opj_stream_read_fn> opj_mem_read)
     else:
         opj_stream_set_write_function(
-            stream,
-            <opj_stream_write_fn> opj_mem_write
+            stream, <opj_stream_write_fn> opj_mem_write
         )
     opj_stream_set_seek_function(stream, <opj_stream_seek_fn> opj_mem_seek)
     opj_stream_set_skip_function(stream, <opj_stream_skip_fn> opj_mem_skip)
     opj_stream_set_user_data(
-        stream,
-        memopj,
-        <opj_stream_free_user_data_fn> opj_mem_nop
+        stream, memopj, <opj_stream_free_user_data_fn> opj_mem_nop
     )
     opj_stream_set_user_data_length(stream, memopj.size)
     return stream
