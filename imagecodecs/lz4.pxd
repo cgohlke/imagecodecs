@@ -1,10 +1,10 @@
 # imagecodecs/lz4.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `lz4 1.9.4` library.
+# Cython declarations for the `lz4 1.10.0` library.
 # https://github.com/lz4/lz4
 
-cdef extern from 'lz4.h':
+cdef extern from 'lz4.h' nogil:
 
     int LZ4_VERSION_MAJOR
     int LZ4_VERSION_MINOR
@@ -13,9 +13,9 @@ cdef extern from 'lz4.h':
 
     char* LZ4_VERSION_STRING
 
-    int LZ4_versionNumber() nogil
+    int LZ4_versionNumber()
 
-    const char* LZ4_versionString() nogil
+    const char* LZ4_versionString()
 
     # Tuning parameter
 
@@ -28,14 +28,14 @@ cdef extern from 'lz4.h':
         char* dst,
         int srcSize,
         int dstCapacity
-    ) nogil
+    )
 
     int LZ4_decompress_safe(
         const char* src,
         char* dst,
         int compressedSize,
         int dstCapacity
-    ) nogil
+    )
 
     # Advanced Functions
 
@@ -43,11 +43,11 @@ cdef extern from 'lz4.h':
 
     int LZ4_COMPRESSBOUND(
         int isize
-    ) nogil
+    )
 
     int LZ4_compressBound(
         int inputSize
-    ) nogil
+    )
 
     int LZ4_compress_fast(
         const char* src,
@@ -55,9 +55,9 @@ cdef extern from 'lz4.h':
         int srcSize,
         int dstCapacity,
         int acceleration
-    ) nogil
+    )
 
-    int LZ4_sizeofState() nogil
+    int LZ4_sizeofState()
 
     int LZ4_compress_fast_extState(
         void* state,
@@ -66,14 +66,14 @@ cdef extern from 'lz4.h':
         int srcSize,
         int dstCapacity,
         int acceleration
-    ) nogil
+    )
 
     int LZ4_compress_destSize(
         const char* src,
         char* dst,
         int* srcSizePtr,
         int targetDstSize
-    ) nogil
+    )
 
     int LZ4_decompress_safe_partial(
         const char* src,
@@ -81,28 +81,39 @@ cdef extern from 'lz4.h':
         int srcSize,
         int targetOutputSize,
         int dstCapacity
-    ) nogil
+    )
 
     # Streaming Compression Functions
 
     ctypedef union LZ4_stream_t:
         pass
 
-    LZ4_stream_t* LZ4_createStream() nogil
+    LZ4_stream_t* LZ4_createStream()
 
     int LZ4_freeStream(
         LZ4_stream_t* streamPtr
-    ) nogil
+    )
 
     void LZ4_resetStream_fast(
         LZ4_stream_t* streamPtr
-    ) nogil
+    )
 
     int LZ4_loadDict(
         LZ4_stream_t* streamPtr,
         const char* dictionary,
         int dictSize
-    ) nogil
+    )
+
+    int LZ4_loadDictSlow(
+        LZ4_stream_t* streamPtr,
+        const char* dictionary,
+        int dictSize
+    )
+
+    void LZ4_attach_dictionary(
+        LZ4_stream_t* workingStream,
+        const LZ4_stream_t* dictionaryStream
+    )
 
     int LZ4_compress_fast_continue(
         LZ4_stream_t* streamPtr,
@@ -111,38 +122,38 @@ cdef extern from 'lz4.h':
         int srcSize,
         int dstCapacity,
         int acceleration
-    ) nogil
+    )
 
     int LZ4_saveDict(
         LZ4_stream_t* streamPtr,
         char* safeBuffer,
         int maxDictSize
-    ) nogil
+    )
 
     # Streaming Decompression Functions
 
     ctypedef union LZ4_streamDecode_t:
         pass
 
-    LZ4_streamDecode_t* LZ4_createStreamDecode() nogil
+    LZ4_streamDecode_t* LZ4_createStreamDecode()
 
     int LZ4_freeStreamDecode(
         LZ4_streamDecode_t* LZ4_stream
-    ) nogil
+    )
 
     int LZ4_setStreamDecode(
         LZ4_streamDecode_t* LZ4_streamDecode,
         const char* dictionary,
         int dictSize
-    ) nogil
+    )
 
     int LZ4_decoderRingBufferSize(
         int maxBlockSize
-    ) nogil
+    )
 
     int LZ4_DECODER_RING_BUFFER_SIZE(
         int maxBlockSize
-    ) nogil
+    )
 
     int LZ4_decompress_safe_continue(
         LZ4_streamDecode_t* LZ4_streamDecode,
@@ -150,7 +161,7 @@ cdef extern from 'lz4.h':
         char* dst,
         int srcSize,
         int dstCapacity
-    ) nogil
+    )
 
     int LZ4_decompress_safe_usingDict(
         const char* src,
@@ -159,7 +170,7 @@ cdef extern from 'lz4.h':
         int dstCapcity,
         const char* dictStart,
         int dictSize
-    ) nogil
+    )
 
     int LZ4_decompress_safe_partial_usingDict(
         const char* src,
@@ -169,10 +180,20 @@ cdef extern from 'lz4.h':
         int maxOutputSize,
         const char* dictStart,
         int dictSize
-    ) nogil
+    )
+
+    int LZ4_decompress_safe_partial_usingDict(
+        const char* src,
+        char* dst,
+        int compressedSize,
+        int targetOutputSize,
+        int maxOutputSize,
+        const char* dictStart,
+        int dictSize
+    )
 
 
-cdef extern from 'lz4hc.h':
+cdef extern from 'lz4hc.h' nogil:
 
     int LZ4HC_CLEVEL_MIN
     int LZ4HC_CLEVEL_DEFAULT
@@ -187,9 +208,9 @@ cdef extern from 'lz4hc.h':
         int srcSize,
         int dstCapacity,
         int compressionLevel
-    ) nogil
+    )
 
-    int LZ4_sizeofStateHC() nogil
+    int LZ4_sizeofStateHC()
 
     int LZ4_compress_HC_extStateHC(
         void* stateHC,
@@ -198,7 +219,7 @@ cdef extern from 'lz4hc.h':
         int srcSize,
         int maxDstSize,
         int compressionLevel
-    ) nogil
+    )
 
     int LZ4_compress_HC_destSize(
         void* stateHC,
@@ -207,29 +228,29 @@ cdef extern from 'lz4hc.h':
         int* srcSizePtr,
         int targetDstSize,
         int compressionLevel
-    ) nogil
+    )
 
     # Streaming Compression
 
     ctypedef union LZ4_streamHC_t:
         pass
 
-    LZ4_streamHC_t* LZ4_createStreamHC() nogil
+    LZ4_streamHC_t* LZ4_createStreamHC()
 
     int LZ4_freeStreamHC(
         LZ4_streamHC_t* streamHCPtr
-    ) nogil
+    )
 
     void LZ4_resetStreamHC_fast(
         LZ4_streamHC_t* streamHCPtr,
         int compressionLevel
-    ) nogil
+    )
 
     int LZ4_loadDictHC(
         LZ4_streamHC_t* streamHCPtr,
         const char* dictionary,
         int dictSize
-    ) nogil
+    )
 
     int LZ4_compress_HC_continue(
         LZ4_streamHC_t* streamHCPtr,
@@ -237,7 +258,7 @@ cdef extern from 'lz4hc.h':
         char* dst,
         int srcSize,
         int maxDstSize
-    ) nogil
+    )
 
     int LZ4_compress_HC_continue_destSize(
         LZ4_streamHC_t* LZ4_streamHCPtr,
@@ -245,16 +266,21 @@ cdef extern from 'lz4hc.h':
         char* dst,
         int* srcSizePtr,
         int targetDstSize
-    ) nogil
+    )
 
     int LZ4_saveDictHC(
         LZ4_streamHC_t* streamHCPtr,
         char* safeBuffer,
         int maxDictSize
-    ) nogil
+    )
+
+    void LZ4_attach_HC_dictionary(
+        LZ4_streamHC_t* working_stream,
+        const LZ4_streamHC_t* dictionary_stream
+    )
 
 
-cdef extern from 'lz4frame.h':
+cdef extern from 'lz4frame.h' nogil:
 
     # Error management
 
@@ -262,11 +288,11 @@ cdef extern from 'lz4frame.h':
 
     unsigned LZ4F_isError(
         LZ4F_errorCode_t code
-    ) nogil
+    )
 
     const char* LZ4F_getErrorName(
         LZ4F_errorCode_t code
-    ) nogil
+    )
 
     # Frame compression types
 
@@ -316,7 +342,7 @@ cdef extern from 'lz4frame.h':
         int compressionLevel
         unsigned autoFlush
         unsigned favorDecSpeed
-        unsigned reserved[3]
+        unsigned[3] reserved
 
     # define LZ4F_INIT_PREFERENCES :
     #     LZ4F_INIT_FRAMEINFO,
@@ -327,12 +353,20 @@ cdef extern from 'lz4frame.h':
 
     # Simple compression function
 
-    int LZ4F_compressionLevel_max() nogil
+    size_t LZ4F_compressFrame(
+        void* dstBuffer,
+        size_t dstCapacity,
+        const void* srcBuffer,
+        size_t srcSize,
+        const LZ4F_preferences_t* preferencesPtr
+    )
+
+    int LZ4F_compressionLevel_max()
 
     size_t LZ4F_compressFrameBound(
         size_t srcSize,
         const LZ4F_preferences_t* preferencesPtr
-    ) nogil
+    )
 
     size_t LZ4F_compressFrame(
         void* dstBuffer,
@@ -340,7 +374,7 @@ cdef extern from 'lz4frame.h':
         const void* srcBuffer,
         size_t srcSize,
         const LZ4F_preferences_t* preferencesPtr
-    ) nogil
+    )
 
     # Advanced compression functions
 
@@ -351,22 +385,22 @@ cdef extern from 'lz4frame.h':
 
     ctypedef struct LZ4F_compressOptions_t:
         unsigned stableSrc
-        unsigned reserved[3]
+        unsigned[3] reserved
 
     # Resource Management
 
     int LZ4F_VERSION
 
-    unsigned LZ4F_getVersion() nogil
+    unsigned LZ4F_getVersion()
 
     LZ4F_errorCode_t LZ4F_createCompressionContext(
         LZ4F_cctx** cctxPtr,
         unsigned version
-    ) nogil
+    )
 
     LZ4F_errorCode_t LZ4F_freeCompressionContext(
         LZ4F_cctx* cctx
-    ) nogil
+    )
 
     # Compression
 
@@ -381,12 +415,12 @@ cdef extern from 'lz4frame.h':
         void* dstBuffer,
         size_t dstCapacity,
         const LZ4F_preferences_t* prefsPtr
-    ) nogil
+    )
 
     size_t LZ4F_compressBound(
         size_t srcSize,
         const LZ4F_preferences_t* prefsPtr
-    ) nogil
+    )
 
     size_t LZ4F_compressUpdate(
         LZ4F_cctx* cctx,
@@ -395,21 +429,21 @@ cdef extern from 'lz4frame.h':
         const void* srcBuffer,
         size_t srcSize,
         const LZ4F_compressOptions_t* cOptPtr
-    ) nogil
+    )
 
     size_t LZ4F_flush(
         LZ4F_cctx* cctx,
         void* dstBuffer,
         size_t dstCapacity,
         const LZ4F_compressOptions_t* cOptPtr
-    ) nogil
+    )
 
     size_t LZ4F_compressEnd(
         LZ4F_cctx* cctx,
         void* dstBuffer,
         size_t dstCapacity,
         const LZ4F_compressOptions_t* cOptPtr
-    ) nogil
+    )
 
     # Decompression functions
 
@@ -420,16 +454,16 @@ cdef extern from 'lz4frame.h':
 
     ctypedef struct LZ4F_decompressOptions_t:
         unsigned stableDst
-        unsigned reserved[3]
+        unsigned[3] reserved
 
     LZ4F_errorCode_t LZ4F_createDecompressionContext(
         LZ4F_dctx** dctxPtr,
         unsigned version
-    ) nogil
+    )
 
     LZ4F_errorCode_t LZ4F_freeDecompressionContext(
         LZ4F_dctx* dctx
-    ) nogil
+    )
 
     # Streaming decompression functions
 
@@ -438,14 +472,14 @@ cdef extern from 'lz4frame.h':
     size_t LZ4F_headerSize(
         const void* src,
         size_t srcSize
-    ) nogil
+    )
 
     size_t LZ4F_getFrameInfo(
         LZ4F_dctx* dctx,
         LZ4F_frameInfo_t* frameInfoPtr,
         const void* srcBuffer,
         size_t* srcSizePtr
-    ) nogil
+    )
 
     size_t LZ4F_decompress(
         LZ4F_dctx* dctx,
@@ -454,8 +488,60 @@ cdef extern from 'lz4frame.h':
         const void* srcBuffer,
         size_t* srcSizePtr,
         const LZ4F_decompressOptions_t* dOptPtr
-    ) nogil
+    )
 
     void LZ4F_resetDecompressionContext(
         LZ4F_dctx* dctx
-    ) nogil
+    )
+
+    # Dictionary compression API
+
+    size_t LZ4F_compressBegin_usingDict(
+        LZ4F_cctx* cctx,
+        void* dstBuffer,
+        size_t dstCapacity,
+        const void* dictBuffer,
+        size_t dictSize,
+        const LZ4F_preferences_t* prefsPtr
+    )
+
+    size_t LZ4F_decompress_usingDict(
+        LZ4F_dctx* dctxPtr,
+        void* dstBuffer,
+        size_t* dstSizePtr,
+        const void* srcBuffer,
+        size_t* srcSizePtr,
+        const void* dict,
+        size_t dictSize,
+        const LZ4F_decompressOptions_t* decompressOptionsPtr
+    )
+
+    ctypedef struct LZ4F_CDict:
+        pass
+
+    LZ4F_CDict* LZ4F_createCDict(
+        const void* dictBuffer,
+        size_t dictSize
+    )
+
+    void LZ4F_freeCDict(
+        LZ4F_CDict* CDict
+    )
+
+    LZ4F_compressFrame_usingCDict(
+        LZ4F_cctx* cctx,
+        void* dst,
+        size_t dstCapacity,
+        const void* src,
+        size_t srcSize,
+        const LZ4F_CDict* cdict,
+        const LZ4F_preferences_t* preferencesPtr
+    )
+
+    size_t LZ4F_compressBegin_usingCDict(
+        LZ4F_cctx* cctx,
+        void* dstBuffer,
+        size_t dstCapacity,
+        const LZ4F_CDict* cdict,
+        const LZ4F_preferences_t* prefsPtr
+    )
