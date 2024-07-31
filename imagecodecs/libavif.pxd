@@ -1,12 +1,12 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 1.0.3` library.
+# Cython declarations for the `libavif 1.1.1` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int32_t
 
-cdef extern from 'avif/avif.h':
+cdef extern from 'avif/avif.h' nogil:
 
     int AVIF_VERSION_MAJOR
     int AVIF_VERSION_MINOR
@@ -59,23 +59,23 @@ cdef extern from 'avif/avif.h':
 
     # Version
 
-    const char* avifVersion() nogil
+    const char* avifVersion()
 
-    unsigned int avifLibYUVVersion() nogil
+    unsigned int avifLibYUVVersion()
 
     void avifCodecVersions(
         char* outBuffer
-    ) nogil
+    )
 
     # Memory management
 
     void* avifAlloc(
         size_t size
-    ) nogil
+    )
 
     void avifFree(
         void* p
-    ) nogil
+    )
 
     # avifResult
 
@@ -109,11 +109,21 @@ cdef extern from 'avif/avif.h':
         AVIF_RESULT_OUT_OF_MEMORY
         AVIF_RESULT_CANNOT_CHANGE_SETTING
         AVIF_RESULT_INCOMPATIBLE_IMAGE
+        AVIF_RESULT_INTERNAL_ERROR
+        AVIF_RESULT_ENCODE_GAIN_MAP_FAILED
+        AVIF_RESULT_DECODE_GAIN_MAP_FAILED
+        AVIF_RESULT_INVALID_TONE_MAPPED_IMAGE
+        AVIF_RESULT_ENCODE_SAMPLE_TRANSFORM_FAILED
+        AVIF_RESULT_DECODE_SAMPLE_TRANSFORM_FAILED
         AVIF_RESULT_NO_AV1_ITEMS_FOUND
+
+    ctypedef enum avifHeaderFormat:
+        AVIF_HEADER_FULL
+        AVIF_HEADER_REDUCED
 
     const char* avifResultToString(
         avifResult result
-    ) nogil
+    )
 
     # avifROData/avifRWData: Generic raw memory storage
 
@@ -130,17 +140,17 @@ cdef extern from 'avif/avif.h':
     avifResult avifRWDataRealloc(
         avifRWData* raw,
         size_t newSize
-    ) nogil
+    )
 
     avifResult avifRWDataSet(
         avifRWData* raw,
         const uint8_t* data,
         size_t len
-    ) nogil
+    )
 
     void avifRWDataFree(
         avifRWData* raw
-    ) nogil
+    )
 
     # Metadata
 
@@ -148,13 +158,13 @@ cdef extern from 'avif/avif.h':
         const uint8_t* exif,
         size_t exifSize,
         size_t* offset
-    ) nogil
+    )
 
     avifResult avifGetExifOrientationOffset(
         const uint8_t* exif,
         size_t exifSize,
         size_t* offset
-    ) nogil
+    )
 
     # avifPixelFormat
 
@@ -168,7 +178,7 @@ cdef extern from 'avif/avif.h':
 
     const char* avifPixelFormatToString(
         avifPixelFormat format
-    ) nogil
+    )
 
     ctypedef struct avifPixelFormatInfo:
         avifBool monochrome
@@ -178,7 +188,7 @@ cdef extern from 'avif/avif.h':
     void avifGetPixelFormatInfo(
         avifPixelFormat format,
         avifPixelFormatInfo* info
-    ) nogil
+    )
 
     # avifChromaSamplePosition
 
@@ -186,6 +196,7 @@ cdef extern from 'avif/avif.h':
         AVIF_CHROMA_SAMPLE_POSITION_UNKNOWN
         AVIF_CHROMA_SAMPLE_POSITION_VERTICAL
         AVIF_CHROMA_SAMPLE_POSITION_COLOCATED
+        AVIF_CHROMA_SAMPLE_POSITION_RESERVED
 
     # avifRange
 
@@ -198,6 +209,7 @@ cdef extern from 'avif/avif.h':
     ctypedef enum avifColorPrimaries:
         AVIF_COLOR_PRIMARIES_UNKNOWN
         AVIF_COLOR_PRIMARIES_BT709
+        AVIF_COLOR_PRIMARIES_SRGB
         AVIF_COLOR_PRIMARIES_IEC61966_2_4
         AVIF_COLOR_PRIMARIES_UNSPECIFIED
         AVIF_COLOR_PRIMARIES_BT470M
@@ -206,20 +218,22 @@ cdef extern from 'avif/avif.h':
         AVIF_COLOR_PRIMARIES_SMPTE240
         AVIF_COLOR_PRIMARIES_GENERIC_FILM
         AVIF_COLOR_PRIMARIES_BT2020
+        AVIF_COLOR_PRIMARIES_BT2100
         AVIF_COLOR_PRIMARIES_XYZ
         AVIF_COLOR_PRIMARIES_SMPTE431
         AVIF_COLOR_PRIMARIES_SMPTE432
+        AVIF_COLOR_PRIMARIES_DCI_P3
         AVIF_COLOR_PRIMARIES_EBU3213
 
     void avifColorPrimariesGetValues(
         avifColorPrimaries acp,
-        float outPrimaries[8]
-    ) nogil
+        float[8] outPrimaries
+    )
 
     avifColorPrimaries avifColorPrimariesFind(
-        const float inPrimaries[8],
+        const float[8] inPrimaries,
         const char** outName
-    ) nogil
+    )
 
     ctypedef enum avifTransferCharacteristics:
         AVIF_TRANSFER_CHARACTERISTICS_UNKNOWN
@@ -237,6 +251,7 @@ cdef extern from 'avif/avif.h':
         AVIF_TRANSFER_CHARACTERISTICS_SRGB
         AVIF_TRANSFER_CHARACTERISTICS_BT2020_10BIT
         AVIF_TRANSFER_CHARACTERISTICS_BT2020_12BIT
+        AVIF_TRANSFER_CHARACTERISTICS_PQ
         AVIF_TRANSFER_CHARACTERISTICS_SMPTE2084
         AVIF_TRANSFER_CHARACTERISTICS_SMPTE428
         AVIF_TRANSFER_CHARACTERISTICS_HLG
@@ -244,11 +259,11 @@ cdef extern from 'avif/avif.h':
     avifResult avifTransferCharacteristicsGetGamma(
         avifTransferCharacteristics atc,
         float* gamma
-    ) nogil
+    )
 
     avifTransferCharacteristics avifTransferCharacteristicsFindByGamma(
         float gamma
-    ) nogil
+    )
 
     ctypedef enum avifMatrixCoefficients:
         AVIF_MATRIX_COEFFICIENTS_IDENTITY
@@ -270,9 +285,9 @@ cdef extern from 'avif/avif.h':
         AVIF_MATRIX_COEFFICIENTS_LAST
 
     ctypedef struct avifDiagnostics:
-        char error[256]  # [AVIF_DIAGNOSTICS_ERROR_BUFFER_SIZE]
+        char[256] error  # [AVIF_DIAGNOSTICS_ERROR_BUFFER_SIZE]
 
-    void avifDiagnosticsClearError(avifDiagnostics* diag) nogil
+    void avifDiagnosticsClearError(avifDiagnostics* diag)
 
     # Fraction utility
 
@@ -324,7 +339,7 @@ cdef extern from 'avif/avif.h':
         uint32_t imageH,
         avifPixelFormat yuvFormat,
         avifDiagnostics* diag
-    ) nogil
+    )
 
     avifBool avifCleanApertureBoxConvertCropRect(
         avifCleanApertureBox* clap,
@@ -333,13 +348,72 @@ cdef extern from 'avif/avif.h':
         uint32_t imageH,
         avifPixelFormat yuvFormat,
         avifDiagnostics* diag
-    ) nogil
+    )
 
     ctypedef struct avifContentLightLevelInformationBox:
         uint16_t maxCLL
         uint16_t maxPALL
 
     # avifImage
+
+    ctypedef struct avifGainMapMetadata:
+        int32_t[3] gainMapMinN
+        uint32_t[3] gainMapMinD
+        int32_t[3] gainMapMaxN
+        uint32_t[3] gainMapMaxD
+        uint32_t[3] gainMapGammaN
+        uint32_t[3] gainMapGammaD
+        int32_t[3] baseOffsetN
+        uint32_t[3] baseOffsetD
+        int32_t[3] alternateOffsetN
+        uint32_t[3] alternateOffsetD
+        uint32_t baseHdrHeadroomN
+        uint32_t baseHdrHeadroomD
+        uint32_t alternateHdrHeadroomN
+        uint32_t alternateHdrHeadroomD
+        avifBool useBaseColorSpace
+
+    ctypedef struct avifGainMap:
+        avifImage* image
+        avifRWData altICC
+        avifColorPrimaries altColorPrimaries
+        avifTransferCharacteristics altTransferCharacteristics
+        avifMatrixCoefficients altMatrixCoefficients
+        avifRange altYUVRange
+        uint32_t altDepth
+        uint32_t altPlaneCount
+        avifContentLightLevelInformationBox altCLLI
+
+    avifGainMap* avifGainMapCreate()
+
+    void avifGainMapDestroy(
+        avifGainMap* gainMap
+    )
+
+    ctypedef struct avifGainMapMetadataDouble:
+        double[3] gainMapMin
+        double[3] gainMapMax
+        double[3] gainMapGamma
+        double[3] baseOffset
+        double[3] alternateOffset
+        double baseHdrHeadroom
+        double alternateHdrHeadroom
+        avifBool useBaseColorSpace
+
+    avifBool avifGainMapMetadataDoubleToFractions(
+        avifGainMapMetadata* dst,
+        const avifGainMapMetadataDouble* src
+    )
+
+    avifBool avifGainMapMetadataFractionsToDouble(
+        avifGainMapMetadataDouble* dst,
+        const avifGainMapMetadata* src
+    )
+
+    ctypedef enum avifSampleTransformRecipe:
+        AVIF_SAMPLE_TRANSFORM_NONE
+        AVIF_SAMPLE_TRANSFORM_BIT_DEPTH_EXTENSION_8B_8B
+        AVIF_SAMPLE_TRANSFORM_BIT_DEPTH_EXTENSION_12B_4B
 
     ctypedef struct avifImage:
         uint32_t width
@@ -348,8 +422,8 @@ cdef extern from 'avif/avif.h':
         avifPixelFormat yuvFormat
         avifRange yuvRange
         avifChromaSamplePosition yuvChromaSamplePosition
-        uint8_t* yuvPlanes[3]  # AVIF_PLANE_COUNT_YUV = 3
-        uint32_t yuvRowBytes[3]  # AVIF_PLANE_COUNT_YUV = 3
+        (uint8_t*)[3] yuvPlanes  # AVIF_PLANE_COUNT_YUV = 3
+        uint32_t[3] yuvRowBytes  # AVIF_PLANE_COUNT_YUV = 3
         avifBool imageOwnsYUVPlanes
         uint8_t* alphaPlane
         uint32_t alphaRowBytes
@@ -367,65 +441,73 @@ cdef extern from 'avif/avif.h':
         avifImageMirror imir
         avifRWData exif
         avifRWData xmp
+        avifGainMap* gainMap
 
     avifImage* avifImageCreate(
         uint32_t width,
         uint32_t height,
         uint32_t depth,
         avifPixelFormat yuvFormat
-    ) nogil
+    )
 
-    avifImage* avifImageCreateEmpty() nogil
+    avifImage* avifImageCreateEmpty()
 
     avifResult avifImageCopy(
         avifImage* dstImage,
         const avifImage* srcImage,
         avifPlanesFlags planes
-    ) nogil
+    )
 
     avifResult avifImageSetViewRect(
         avifImage* dstImage,
         const avifImage* srcImage,
         const avifCropRect* rect
-    ) nogil
+    )
 
     void avifImageDestroy(
         avifImage* image
-    ) nogil
+    )
 
     avifResult avifImageSetProfileICC(
         avifImage* image,
         const uint8_t* icc,
         size_t iccSize
-    ) nogil
+    )
 
     avifResult avifImageSetMetadataExif(
         avifImage* image,
         const uint8_t* exif,
         size_t exifSize
-    ) nogil
+    )
 
     avifResult avifImageSetMetadataXMP(
         avifImage* image,
         const uint8_t* xmp,
         size_t xmpSize
-    ) nogil
+    )
 
     avifResult avifImageAllocatePlanes(
         avifImage* image,
         avifPlanesFlags planes
-    ) nogil
+    )
 
     void avifImageFreePlanes(
         avifImage* image,
         avifPlanesFlags planes
-    ) nogil
+    )
 
     void avifImageStealPlanes(
         avifImage* dstImage,
         avifImage* srcImage,
         avifPlanesFlags planes
-    ) nogil
+    )
+
+    avifResult avifImageScale(
+        avifImage* image,
+        uint32_t dstWidth,
+        uint32_t dstHeight,
+        avifDiagnostics* diag
+    )
 
     ctypedef enum avifRGBFormat:
         AVIF_RGB_FORMAT_RGB
@@ -439,11 +521,11 @@ cdef extern from 'avif/avif.h':
 
     uint32_t avifRGBFormatChannelCount(
         avifRGBFormat format
-    ) nogil
+    )
 
     avifBool avifRGBFormatHasAlpha(
         avifRGBFormat format
-    ) nogil
+    )
 
     ctypedef enum avifChromaUpsampling:
         AVIF_CHROMA_UPSAMPLING_AUTOMATIC
@@ -477,65 +559,65 @@ cdef extern from 'avif/avif.h':
     void avifRGBImageSetDefaults(
         avifRGBImage* rgb,
         const avifImage* image
-    ) nogil
+    )
 
     uint32_t avifRGBImagePixelSize(
         const avifRGBImage* rgb
-    ) nogil
+    )
 
     # Convenience functions
 
     avifResult avifRGBImageAllocatePixels(
         avifRGBImage* rgb
-    ) nogil
+    )
 
     void avifRGBImageFreePixels(
         avifRGBImage* rgb
-    ) nogil
+    )
 
     # The main conversion functions
 
     avifResult avifImageRGBToYUV(
         avifImage* image,
         const avifRGBImage* rgb
-    ) nogil
+    )
 
     avifResult avifImageYUVToRGB(
         const avifImage* image,
         avifRGBImage* rgb
-    ) nogil
+    )
 
     # Premultiply handling functions
 
     avifResult avifRGBImagePremultiplyAlpha(
         avifRGBImage* rgb
-    ) nogil
+    )
 
     avifResult avifRGBImageUnpremultiplyAlpha(
         avifRGBImage* rgb
-    ) nogil
+    )
 
     # YUV Utils
 
     int avifFullToLimitedY(
         uint32_t depth,
         int v
-    ) nogil
+    )
 
     int avifFullToLimitedUV(
         uint32_t depth,
         int v
-    ) nogil
+    )
 
     int avifLimitedToFullY(
         uint32_t depth,
         int v
-    ) nogil
+    )
 
     int avifLimitedToFullUV(
         uint32_t depth,
         int v
-    ) nogil
+    )
 
     # Codec selection
 
@@ -557,11 +639,11 @@ cdef extern from 'avif/avif.h':
     const char* avifCodecName(
         avifCodecChoice choice,
         avifCodecFlags requiredFlags
-    ) nogil
+    )
 
     avifCodecChoice avifCodecChoiceFromName(
         const char* name
-    ) nogil
+    )
 
     # avifIO
 
@@ -599,15 +681,15 @@ cdef extern from 'avif/avif.h':
     avifIO* avifIOCreateMemoryReader(
         const uint8_t* data,
         size_t size
-    ) nogil
+    )
 
     avifIO* avifIOCreateFileReader(
         const char* filename
-    ) nogil
+    )
 
     void avifIODestroy(
         avifIO* io
-    ) nogil
+    )
 
     # avifDecoder
 
@@ -645,7 +727,7 @@ cdef extern from 'avif/avif.h':
 
     const char * avifProgressiveStateToString(
         avifProgressiveState progressiveState
-    ) nogil
+    )
 
     ctypedef struct avifDecoder:
         avifCodecChoice codecChoice
@@ -674,88 +756,93 @@ cdef extern from 'avif/avif.h':
         avifDiagnostics diag
         avifIO* io
         avifDecoderData* data
+        avifBool imageSequenceTrackPresent
+        avifBool gainMapPresent
+        avifBool enableDecodingGainMap
+        avifBool enableParsingGainMapMetadata
+        avifBool ignoreColorAndAlpha
 
-    avifDecoder* avifDecoderCreate() nogil
+    avifDecoder* avifDecoderCreate()
 
     void avifDecoderDestroy(
         avifDecoder* decoder
-    ) nogil
+    )
 
     avifResult avifDecoderRead(
         avifDecoder* decoder,
         avifImage* image
-    ) nogil
+    )
 
     avifResult avifDecoderReadMemory(
         avifDecoder* decoder,
         avifImage* image,
         const uint8_t* data,
         size_t size
-    ) nogil
+    )
 
     avifResult avifDecoderReadFile(
         avifDecoder* decoder,
         avifImage* image,
         const char* filename
-    ) nogil
+    )
 
     avifResult avifDecoderSetSource(
         avifDecoder* decoder,
         avifDecoderSource source
-    ) nogil
+    )
 
     void avifDecoderSetIO(
         avifDecoder* decoder,
         avifIO* io
-    ) nogil
+    )
 
     avifResult avifDecoderSetIOMemory(
         avifDecoder* decoder,
         const uint8_t* data,
         size_t size
-    ) nogil
+    )
 
     avifResult avifDecoderSetIOFile(
         avifDecoder* decoder,
         const char* filename
-    ) nogil
+    )
 
     avifResult avifDecoderParse(
         avifDecoder* decoder
-    ) nogil
+    )
 
     avifResult avifDecoderNextImage(
         avifDecoder* decoder
-    ) nogil
+    )
 
     avifResult avifDecoderNthImage(
         avifDecoder* decoder,
         uint32_t frameIndex
-    ) nogil
+    )
 
     avifResult avifDecoderReset(
         avifDecoder* decoder
-    ) nogil
+    )
 
     avifBool avifDecoderIsKeyframe(
         const avifDecoder* decoder,
         uint32_t frameIndex
-    ) nogil
+    )
 
     uint32_t avifDecoderNearestKeyframe(
         const avifDecoder* decoder,
         uint32_t frameIndex
-    ) nogil
+    )
 
     avifResult avifDecoderNthImageTiming(
         const avifDecoder* decoder,
         uint32_t frameIndex,
         avifImageTiming* outTiming
-    ) nogil
+    )
 
     uint32_t avifDecoderDecodedRowCount(
         const avifDecoder* decoder
-    ) nogil
+    )
 
     # avifEncoder
 
@@ -791,18 +878,21 @@ cdef extern from 'avif/avif.h':
         avifDiagnostics diag
         avifEncoderData* data
         avifCodecSpecificOptions* csOptions
+        avifHeaderFormat headerFormat
+        int qualityGainMap
+        avifSampleTransformRecipe sampleTransformRecipe
 
-    avifEncoder* avifEncoderCreate() nogil
+    avifEncoder* avifEncoderCreate()
 
     avifResult avifEncoderWrite(
         avifEncoder* encoder,
         const avifImage* image,
         avifRWData* output
-    ) nogil
+    )
 
     void avifEncoderDestroy(
         avifEncoder* encoder
-    ) nogil
+    )
 
     ctypedef enum avifAddImageFlag:
         AVIF_ADD_IMAGE_FLAG_NONE
@@ -816,7 +906,7 @@ cdef extern from 'avif/avif.h':
         const avifImage* image,
         uint64_t durationInTimescales,
         avifAddImageFlags addImageFlags
-    ) nogil
+    )
 
     avifResult avifEncoderAddImageGrid(
         avifEncoder* encoder,
@@ -824,49 +914,95 @@ cdef extern from 'avif/avif.h':
         uint32_t gridRows,
         const avifImage* const* cellImages,
         avifAddImageFlags addImageFlags
-    ) nogil
+    )
 
     avifResult avifEncoderFinish(
         avifEncoder* encoder,
         avifRWData* output
-    ) nogil
+    )
 
     avifResult avifEncoderSetCodecSpecificOption(
         avifEncoder* encoder,
         const char* key,
         const char* value
-    ) nogil
+    )
+
+    size_t avifEncoderGetGainMapSizeBytes(
+        avifEncoder* encoder
+    )
 
     # Helpers
 
     avifBool avifImageUsesU16(
         const avifImage* image
-    ) nogil
+    )
 
     avifBool avifImageIsOpaque(
         const avifImage* image
-    ) nogil
+    )
 
     uint8_t* avifImagePlane(
         const avifImage* image,
         int channel
-    ) nogil
+    )
 
     uint32_t avifImagePlaneRowBytes(
         const avifImage* image,
         int channel
-    ) nogil
+    )
 
     uint32_t avifImagePlaneWidth(
         const avifImage* image,
         int channel
-    ) nogil
+    )
 
     uint32_t avifImagePlaneHeight(
         const avifImage* image,
         int channel
-    ) nogil
+    )
 
     avifBool avifPeekCompatibleFileType(
         const avifROData* input
-    ) nogil
+    )
+
+    avifResult avifImageApplyGainMap(
+        const avifImage* baseImage,
+        const avifGainMap* gainMap,
+        float hdrHeadroom,
+        avifColorPrimaries outputColorPrimaries,
+        avifTransferCharacteristics outputTransferCharacteristics,
+        avifRGBImage* toneMappedImage,
+        avifContentLightLevelInformationBox* clli,
+        avifDiagnostics* diag
+    )
+
+    avifResult avifRGBImageApplyGainMap(
+        const avifRGBImage* baseImage,
+        avifColorPrimaries baseColorPrimaries,
+        avifTransferCharacteristics baseTransferCharacteristics,
+        const avifGainMap* gainMap,
+        float hdrHeadroom,
+        avifColorPrimaries outputColorPrimaries,
+        avifTransferCharacteristics outputTransferCharacteristics,
+        avifRGBImage* toneMappedImage,
+        avifContentLightLevelInformationBox* clli,
+        avifDiagnostics* diag
+    )
+
+    avifResult avifRGBImageComputeGainMap(
+        const avifRGBImage* baseRgbImage,
+        avifColorPrimaries baseColorPrimaries,
+        avifTransferCharacteristics baseTransferCharacteristics,
+        const avifRGBImage* altRgbImage,
+        avifColorPrimaries altColorPrimaries,
+        avifTransferCharacteristics altTransferCharacteristics,
+        avifGainMap* gainMap,
+        avifDiagnostics* diag
+    )
+
+    avifResult avifImageComputeGainMap(
+        const avifImage* baseImage,
+        const avifImage* altImage,
+        avifGainMap* gainMap,
+        avifDiagnostics* diag
+    )
