@@ -9,7 +9,7 @@ from libc.stdint cimport (
 )
 from libc.stdio cimport FILE
 
-cdef extern from 'openjpeg.h':
+cdef extern from 'openjpeg.h' nogil:
 
     int OPJ_FALSE = 0
     int OPJ_TRUE = 1
@@ -82,15 +82,15 @@ cdef extern from 'openjpeg.h':
     int OPJ_EXTENSION_NONE
     int OPJ_EXTENSION_MCT
 
-    int OPJ_IS_CINEMA(v) nogil
-    int OPJ_IS_STORAGE(v) nogil
-    int OPJ_IS_BROADCAST(v) nogil
-    int OPJ_IS_IMF(v) nogil
-    int OPJ_IS_PART2(v) nogil
+    int OPJ_IS_CINEMA(v)
+    int OPJ_IS_STORAGE(v)
+    int OPJ_IS_BROADCAST(v)
+    int OPJ_IS_IMF(v)
+    int OPJ_IS_PART2(v)
 
-    int OPJ_GET_IMF_PROFILE(v) nogil
-    int OPJ_GET_IMF_MAINLEVEL(v) nogil
-    int OPJ_GET_IMF_SUBLEVEL(v) nogil
+    int OPJ_GET_IMF_PROFILE(v)
+    int OPJ_GET_IMF_MAINLEVEL(v)
+    int OPJ_GET_IMF_SUBLEVEL(v)
 
     int OPJ_IMF_MAINLEVEL_MAX
 
@@ -158,7 +158,7 @@ cdef extern from 'openjpeg.h':
         OPJ_CODEC_JPP
         OPJ_CODEC_JPX
 
-    ctypedef void (*opj_msg_callback) (
+    ctypedef void (*opj_msg_callback)(
         const char* msg,
         void* client_data
     ) nogil
@@ -174,7 +174,7 @@ cdef extern from 'openjpeg.h':
         OPJ_UINT32 precno1
         OPJ_PROG_ORDER prg1
         OPJ_PROG_ORDER prg
-        OPJ_CHAR progorder[5]
+        OPJ_CHAR[5] progorder
         OPJ_UINT32 tile
         OPJ_UINT32_SEMANTICALLY_BUT_INT32 tx0
         OPJ_UINT32_SEMANTICALLY_BUT_INT32 tx1
@@ -214,11 +214,11 @@ cdef extern from 'openjpeg.h':
         char* cp_comment
         int csty
         OPJ_PROG_ORDER prog_order
-        opj_poc_t POC[32]
+        opj_poc_t[32] POC
         OPJ_UINT32 numpocs
         int tcp_numlayers
-        float tcp_rates[100]
-        float tcp_distoratio[100]
+        float[100] tcp_rates
+        float[100] tcp_distoratio
         int numresolution
         int cblockw_init
         int cblockh_init
@@ -227,12 +227,12 @@ cdef extern from 'openjpeg.h':
         int roi_compno
         int roi_shift
         int res_spec
-        int prcw_init[33]  # OPJ_J2K_MAXRLVLS
-        int prch_init[33]  # OPJ_J2K_MAXRLVLS
-        char infile[4096]  # OPJ_PATH_LEN
-        char outfile[4096]  # OPJ_PATH_LEN
+        int[33] prcw_init  # OPJ_J2K_MAXRLVLS
+        int[33] prch_init  # OPJ_J2K_MAXRLVLS
+        char[4096] infile  # OPJ_PATH_LEN
+        char[4096] outfile  # OPJ_PATH_LEN
         int index_on
-        char index[4096]  # OPJ_PATH_LEN
+        char[4096] index  # OPJ_PATH_LEN
         int image_offset_x0
         int image_offset_y0
         int subsampling_dx
@@ -241,17 +241,17 @@ cdef extern from 'openjpeg.h':
         int cod_format
         OPJ_BOOL jpwl_epc_on
         int jpwl_hprot_MH
-        int jpwl_hprot_TPH_tileno[16]  # JPWL_MAX_NO_TILESPECS
-        int jpwl_hprot_TPH[16]  # JPWL_MAX_NO_TILESPECS
-        int jpwl_pprot_tileno[16]  # JPWL_MAX_NO_PACKSPECS
-        int jpwl_pprot_packno[16]  # JPWL_MAX_NO_PACKSPECS
-        int jpwl_pprot[16]  # JPWL_MAX_NO_PACKSPECS
+        int[16] jpwl_hprot_TPH_tileno  # JPWL_MAX_NO_TILESPECS
+        int[16] jpwl_hprot_TPH  # JPWL_MAX_NO_TILESPECS
+        int[16] jpwl_pprot_tileno  # JPWL_MAX_NO_PACKSPECS
+        int[16] jpwl_pprot_packno  # JPWL_MAX_NO_PACKSPECS
+        int[16] jpwl_pprot  # JPWL_MAX_NO_PACKSPECS
         int jpwl_sens_size
         int jpwl_sens_addr
         int jpwl_sens_range
         int jpwl_sens_MH
-        int jpwl_sens_TPH_tileno[16]  # JPWL_MAX_NO_TILESPECS
-        int jpwl_sens_TPH[16]  # JPWL_MAX_NO_TILESPECS
+        int[16] jpwl_sens_TPH_tileno  # JPWL_MAX_NO_TILESPECS
+        int[16] jpwl_sens_TPH  # JPWL_MAX_NO_TILESPECS
         OPJ_CINEMA_MODE cp_cinema
         int max_comp_size
         OPJ_RSIZ_CAPABILITIES cp_rsiz
@@ -269,8 +269,8 @@ cdef extern from 'openjpeg.h':
     ctypedef struct opj_dparameters_t:
         OPJ_UINT32 cp_reduce
         OPJ_UINT32 cp_layer
-        char infile[4096]  # OPJ_PATH_LEN
-        char outfile[4096]  # OPJ_PATH_LEN
+        char[4096] infile  # OPJ_PATH_LEN
+        char[4096] outfile  # OPJ_PATH_LEN
         int decod_format
         int cod_format
         OPJ_UINT32 DA_x0
@@ -290,29 +290,29 @@ cdef extern from 'openjpeg.h':
     int OPJ_STREAM_READ
     int OPJ_STREAM_WRITE
 
-    ctypedef OPJ_SIZE_T (*opj_stream_read_fn) (
+    ctypedef OPJ_SIZE_T (*opj_stream_read_fn)(
         void* p_buffer,
         OPJ_SIZE_T p_nb_bytes,
         void* p_user_data
     ) nogil
 
-    ctypedef OPJ_SIZE_T (*opj_stream_write_fn) (
+    ctypedef OPJ_SIZE_T (*opj_stream_write_fn)(
         void* p_buffer,
         OPJ_SIZE_T p_nb_bytes,
         void* p_user_data
     ) nogil
 
-    ctypedef OPJ_OFF_T (*opj_stream_skip_fn) (
+    ctypedef OPJ_OFF_T (*opj_stream_skip_fn)(
         OPJ_OFF_T p_nb_bytes,
         void* p_user_data
     ) nogil
 
-    ctypedef OPJ_BOOL (*opj_stream_seek_fn) (
+    ctypedef OPJ_BOOL (*opj_stream_seek_fn)(
         OPJ_OFF_T p_nb_bytes,
         void* p_user_data
     ) nogil
 
-    ctypedef void (*opj_stream_free_user_data_fn) (
+    ctypedef void (*opj_stream_free_user_data_fn)(
         void* p_user_data
     ) nogil
 
@@ -379,10 +379,10 @@ cdef extern from 'openjpeg.h':
         int start_pos
         int end_header
         int end_pos
-        int pw[33]
-        int ph[33]
-        int pdx[33]
-        int pdy[33]
+        int[33] pw
+        int[33] ph
+        int[33] pdx
+        int[33] pdy
         opj_packet_info_t* packet
         int numpix
         double distotile
@@ -425,12 +425,12 @@ cdef extern from 'openjpeg.h':
         OPJ_UINT32 cblksty
         OPJ_UINT32 qmfbid
         OPJ_UINT32 qntsty
-        OPJ_UINT32 stepsizes_mant[97]  # OPJ_J2K_MAXBANDS
-        OPJ_UINT32 stepsizes_expn[97]  # OPJ_J2K_MAXBANDS
+        OPJ_UINT32[97] stepsizes_mant  # OPJ_J2K_MAXBANDS
+        OPJ_UINT32[97] stepsizes_expn  # OPJ_J2K_MAXBANDS
         OPJ_UINT32 numgbits
         OPJ_INT32 roishift
-        OPJ_UINT32 prcw[33]  # OPJ_J2K_MAXRLVLS
-        OPJ_UINT32 prch[33]  # OPJ_J2K_MAXRLVLS
+        OPJ_UINT32[33] prcw  # OPJ_J2K_MAXRLVLS
+        OPJ_UINT32[33] prch  # OPJ_J2K_MAXRLVLS
 
     ctypedef struct opj_tile_info_v2_t:
         int tileno
@@ -484,149 +484,149 @@ cdef extern from 'openjpeg.h':
     ctypedef struct opj_jp2_index_t:
         OPJ_INT32 not_used
 
-    const char* opj_version() nogil
+    const char* opj_version()
 
     opj_image_t* opj_image_create(
         OPJ_UINT32 numcmpts,
         opj_image_cmptparm_t* cmptparms,
         OPJ_COLOR_SPACE clrspc
-    ) nogil
+    )
 
     void opj_image_destroy(
         opj_image_t* image
-    ) nogil
+    )
 
     opj_image_t* opj_image_tile_create(
         OPJ_UINT32 numcmpts,
         opj_image_cmptparm_t* cmptparms,
         OPJ_COLOR_SPACE clrspc
-    ) nogil
+    )
 
     void* opj_image_data_alloc(
         OPJ_SIZE_T size
-    ) nogil
+    )
 
     void opj_image_data_free(
         void* ptr
-    ) nogil
+    )
 
     opj_stream_t* opj_stream_default_create(
         OPJ_BOOL p_is_input
-    ) nogil
+    )
 
     opj_stream_t* opj_stream_create(
         OPJ_SIZE_T p_buffer_size,
         OPJ_BOOL p_is_input
-    ) nogil
+    )
 
     void opj_stream_destroy(
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     void opj_stream_set_read_function(
         opj_stream_t* p_stream,
         opj_stream_read_fn p_function
-    ) nogil
+    )
 
     void opj_stream_set_write_function(
         opj_stream_t* p_stream,
         opj_stream_write_fn p_function
-    ) nogil
+    )
 
     void opj_stream_set_skip_function(
         opj_stream_t* p_stream,
         opj_stream_skip_fn p_function
-    ) nogil
+    )
 
     void opj_stream_set_seek_function(
         opj_stream_t* p_stream,
         opj_stream_seek_fn p_function
-    ) nogil
+    )
 
     void opj_stream_set_user_data(
         opj_stream_t* p_stream,
         void* p_data,
         opj_stream_free_user_data_fn p_function
-    ) nogil
+    )
 
     void opj_stream_set_user_data_length(
         opj_stream_t* p_stream,
         OPJ_UINT64 data_length
-    ) nogil
+    )
 
     opj_stream_t* opj_stream_create_default_file_stream(
         const char* fname,
         OPJ_BOOL p_is_read_stream
-    ) nogil
+    )
 
     opj_stream_t* opj_stream_create_file_stream(
         const char* fname,
         OPJ_SIZE_T p_buffer_size,
         OPJ_BOOL p_is_read_stream
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_info_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
         void* p_user_data
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_warning_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
         void* p_user_data
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_error_handler(
         opj_codec_t* p_codec,
         opj_msg_callback p_callback,
         void* p_user_data
-    ) nogil
+    )
 
     opj_codec_t* opj_create_decompress(
         OPJ_CODEC_FORMAT format
-    ) nogil
+    )
 
     void opj_destroy_codec(
         opj_codec_t* p_codec
-    ) nogil
+    )
 
     OPJ_BOOL opj_end_decompress(
         opj_codec_t* p_codec,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     void opj_set_default_decoder_parameters(
         opj_dparameters_t* parameters
-    ) nogil
+    )
 
     OPJ_BOOL opj_setup_decoder(
         opj_codec_t* p_codec,
         opj_dparameters_t* parameters
-    ) nogil
+    )
 
     OPJ_BOOL opj_decoder_set_strict_mode(
         opj_codec_t *p_codec,
         OPJ_BOOL strict
-    ) nogil
+    )
 
     OPJ_BOOL opj_codec_set_threads(
         opj_codec_t* p_codec,
         int num_threads
-    ) nogil
+    )
 
     OPJ_BOOL opj_read_header(
         opj_stream_t* p_stream,
         opj_codec_t* p_codec,
         opj_image_t** p_image
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_decoded_components(
         opj_codec_t* p_codec,
         OPJ_UINT32 numcomps,
         const OPJ_UINT32* comps_indices,
         OPJ_BOOL apply_color_transforms
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_decode_area(
         opj_codec_t* p_codec,
@@ -635,25 +635,25 @@ cdef extern from 'openjpeg.h':
         OPJ_INT32 p_start_y,
         OPJ_INT32 p_end_x,
         OPJ_INT32 p_end_y
-    ) nogil
+    )
 
     OPJ_BOOL opj_decode(
         opj_codec_t* p_decompressor,
         opj_stream_t* p_stream,
         opj_image_t* p_image
-    ) nogil
+    )
 
     OPJ_BOOL opj_get_decoded_tile(
         opj_codec_t* p_codec,
         opj_stream_t* p_stream,
         opj_image_t* p_image,
         OPJ_UINT32 tile_index
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_decoded_resolution_factor(
         opj_codec_t* p_codec,
         OPJ_UINT32 res_factor
-    ) nogil
+    )
 
     OPJ_BOOL opj_write_tile(
         opj_codec_t* p_codec,
@@ -661,7 +661,7 @@ cdef extern from 'openjpeg.h':
         OPJ_BYTE* p_data,
         OPJ_UINT32 p_data_size,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     OPJ_BOOL opj_read_tile_header(
         opj_codec_t* p_codec,
@@ -674,7 +674,7 @@ cdef extern from 'openjpeg.h':
         OPJ_INT32* p_tile_y1,
         OPJ_UINT32* p_nb_comps,
         OPJ_BOOL* p_should_go_on
-    ) nogil
+    )
 
     OPJ_BOOL opj_decode_tile_data(
         opj_codec_t* p_codec,
@@ -682,104 +682,104 @@ cdef extern from 'openjpeg.h':
         OPJ_BYTE* p_data,
         OPJ_UINT32 p_data_size,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     opj_codec_t* opj_create_compress(
         OPJ_CODEC_FORMAT format
-    ) nogil
+    )
 
     void opj_set_default_encoder_parameters(
         opj_cparameters_t* parameters
-    ) nogil
+    )
 
     OPJ_BOOL opj_setup_encoder(
         opj_codec_t* p_codec,
         opj_cparameters_t* parameters,
         opj_image_t* image
-    ) nogil
+    )
 
     OPJ_BOOL opj_encoder_set_extra_options(
         opj_codec_t* p_codec,
         const char** p_options
-    ) nogil
+    )
 
     OPJ_BOOL opj_start_compress(
         opj_codec_t* p_codec,
         opj_image_t* p_image,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     OPJ_BOOL opj_end_compress(
         opj_codec_t* p_codec,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     OPJ_BOOL opj_encode(
         opj_codec_t* p_codec,
         opj_stream_t* p_stream
-    ) nogil
+    )
 
     void opj_destroy_cstr_info(
         opj_codestream_info_v2_t** cstr_info
-    ) nogil
+    )
 
     void opj_dump_codec(
         opj_codec_t* p_codec,
         OPJ_INT32 info_flag,
         FILE* output_stream
-    ) nogil
+    )
 
     opj_codestream_info_v2_t* opj_get_cstr_info(
         opj_codec_t* p_codec
-    ) nogil
+    )
 
     opj_codestream_index_t* opj_get_cstr_index(
         opj_codec_t* p_codec
-    ) nogil
+    )
 
     void opj_destroy_cstr_index(
         opj_codestream_index_t** p_cstr_index
-    ) nogil
+    )
 
     opj_jp2_metadata_t* opj_get_jp2_metadata(
         opj_codec_t* p_codec
-    ) nogil
+    )
 
     opj_jp2_index_t* opj_get_jp2_index(
         opj_codec_t* p_codec
-    ) nogil
+    )
 
     OPJ_BOOL opj_set_MCT(
         opj_cparameters_t* parameters,
         OPJ_FLOAT32* pEncodingMatrix,
         OPJ_INT32* p_dc_shift,
         OPJ_UINT32 pNbComp
-    ) nogil
+    )
 
-    OPJ_BOOL opj_has_thread_support() nogil
+    OPJ_BOOL opj_has_thread_support()
 
-    int opj_get_num_cpus() nogil
+    int opj_get_num_cpus()
 
 
-cdef extern from 'color.h':
+cdef extern from 'color.h' nogil:
     # this header is not part of the public OpenJPEG interface
 
     void color_sycc_to_rgb(
         opj_image_t* img
-    ) nogil
+    )
 
     void color_apply_icc_profile(
         opj_image_t* image
-    ) nogil
+    )
 
     void color_cielab_to_rgb(
         opj_image_t* image
-    ) nogil
+    )
 
     void color_cmyk_to_rgb(
         opj_image_t* image
-    ) nogil
+    )
 
     void color_esycc_to_rgb(
         opj_image_t* image
-    ) nogil
+    )
