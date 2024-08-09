@@ -1,15 +1,14 @@
 # imagecodecs/lcms2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Little 2.16.1` library.
+# Cython declarations for the `Little 2.17.0` library.
 # https://github.com/mm2/Little-CMS
 
-from libc.stdint cimport uint8_t
 from libc.stddef cimport wchar_t
 from libc.stdio cimport FILE
 from libc.time cimport tm
 
-cdef extern from 'lcms2.h':
+cdef extern from 'lcms2.h' nogil:
 
     int LCMS_VERSION
 
@@ -302,7 +301,7 @@ cdef extern from 'lcms2.h':
     ctypedef struct cmsICCData:
         cmsUInt32Number len
         cmsUInt32Number flag
-        cmsUInt8Number data[1]
+        cmsUInt8Number[1] data
 
     ctypedef struct cmsDateTimeNumber:
         cmsUInt16Number year
@@ -318,9 +317,9 @@ cdef extern from 'lcms2.h':
         cmsS15Fixed16Number Z
 
     ctypedef union cmsProfileID:
-        cmsUInt8Number ID8[16]
-        cmsUInt16Number ID16[8]
-        cmsUInt32Number ID32[4]
+        cmsUInt8Number[16] ID8
+        cmsUInt16Number[8] ID16
+        cmsUInt32Number[4] ID32
 
     ctypedef struct cmsICCHeader:
         cmsUInt32Number size
@@ -340,11 +339,11 @@ cdef extern from 'lcms2.h':
         cmsEncodedXYZNumber illuminant
         cmsSignature creator
         cmsProfileID profileID
-        cmsInt8Number reserved[28]
+        cmsInt8Number[28] reserved
 
     ctypedef struct cmsTagBase:
         cmsTagTypeSignature sig
-        cmsInt8Number reserved[4]
+        cmsInt8Number[4] reserved
 
     ctypedef struct cmsTagEntry:
         cmsTagSignature sig
@@ -685,18 +684,18 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number* BlueCurve
         cmsFloat64Number MinLuminance
         cmsFloat64Number PeakLuminance
-        cmsFloat64Number XYZ2XYZmatrix[3][4]
+        cmsFloat64Number[3][4] XYZ2XYZmatrix
 
-    int cmsGetEncodedCMMversion() nogil
+    int cmsGetEncodedCMMversion()
 
     int cmsstrcasecmp(
         const char* s1,
         const char* s2
-    ) nogil
+    )
 
     long int cmsfilelength(
         FILE* f
-    ) nogil
+    )
 
     ctypedef struct cmsContext:
         pass
@@ -704,35 +703,35 @@ cdef extern from 'lcms2.h':
     cmsContext cmsCreateContext(
         void* Plugin,
         void* UserData
-    ) nogil
+    )
 
     void cmsDeleteContext(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsContext cmsDupContext(
         cmsContext ContextID,
         void* NewUserData
-    ) nogil
+    )
 
     void* cmsGetContextUserData(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsBool cmsPlugin(
         void* Plugin
-    ) nogil
+    )
 
     cmsBool cmsPluginTHR(
         cmsContext ContextID,
         void* Plugin
-    ) nogil
+    )
 
-    void cmsUnregisterPlugins() nogil
+    void cmsUnregisterPlugins()
 
     void cmsUnregisterPluginsTHR(
         cmsContext ContextID
-    ) nogil
+    )
 
     int cmsERROR_UNDEFINED
     int cmsERROR_FILE
@@ -757,100 +756,100 @@ cdef extern from 'lcms2.h':
 
     void cmsSetLogErrorHandler(
         cmsLogErrorHandlerFunction Fn
-    ) nogil
+    )
 
     void cmsSetLogErrorHandlerTHR(
         cmsContext ContextID,
         cmsLogErrorHandlerFunction Fn
-    ) nogil
+    )
 
-    const cmsCIEXYZ* cmsD50_XYZ() nogil
+    const cmsCIEXYZ* cmsD50_XYZ()
 
-    const cmsCIExyY* cmsD50_xyY() nogil
+    const cmsCIExyY* cmsD50_xyY()
 
     void cmsXYZ2xyY(
         cmsCIExyY* Dest,
         const cmsCIEXYZ* Source
-    ) nogil
+    )
 
     void cmsxyY2XYZ(
         cmsCIEXYZ* Dest,
         const cmsCIExyY* Source
-    ) nogil
+    )
 
     void cmsXYZ2Lab(
         const cmsCIEXYZ* WhitePoint,
         cmsCIELab* Lab,
         const cmsCIEXYZ* xyz
-    ) nogil
+    )
 
     void cmsLab2XYZ(
         const cmsCIEXYZ* WhitePoint,
         cmsCIEXYZ* xyz,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     void cmsLab2LCh(
         cmsCIELCh*LCh,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     void cmsLCh2Lab(
         cmsCIELab* Lab,
         const cmsCIELCh* LCh
-    ) nogil
+    )
 
     void cmsLabEncoded2Float(
         cmsCIELab* Lab,
-        const cmsUInt16Number wLab[3]
-    ) nogil
+        const cmsUInt16Number[3] wLab
+    )
 
     void cmsLabEncoded2FloatV2(
         cmsCIELab* Lab,
-        const cmsUInt16Number wLab[3]
-    ) nogil
+        const cmsUInt16Number[3] wLab
+    )
 
     void cmsFloat2LabEncoded(
-        cmsUInt16Number wLab[3],
+        cmsUInt16Number[3] wLab,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     void cmsFloat2LabEncodedV2(
-        cmsUInt16Number wLab[3],
+        cmsUInt16Number[3] wLab,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     void cmsXYZEncoded2Float(
         cmsCIEXYZ* fxyz,
-        const cmsUInt16Number XYZ[3]
-    ) nogil
+        const cmsUInt16Number[3] XYZ
+    )
 
     void cmsFloat2XYZEncoded(
-        cmsUInt16Number XYZ[3],
+        cmsUInt16Number[3] XYZ,
         const cmsCIEXYZ* fXYZ
-    ) nogil
+    )
 
     cmsFloat64Number cmsDeltaE(
         const cmsCIELab* Lab1,
         const cmsCIELab* Lab2
-    ) nogil
+    )
 
     cmsFloat64Number cmsCIE94DeltaE(
         const cmsCIELab* Lab1,
         const cmsCIELab* Lab2
-    ) nogil
+    )
 
     cmsFloat64Number cmsBFDdeltaE(
         const cmsCIELab* Lab1,
         const cmsCIELab* Lab2
-    ) nogil
+    )
 
     cmsFloat64Number cmsCMCdeltaE(
         const cmsCIELab* Lab1,
         const cmsCIELab* Lab2,
         cmsFloat64Number l,
         cmsFloat64Number c
-    ) nogil
+    )
 
     cmsFloat64Number cmsCIE2000DeltaE(
         const cmsCIELab* Lab1,
@@ -858,24 +857,24 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number Kl,
         cmsFloat64Number Kc,
         cmsFloat64Number Kh
-    ) nogil
+    )
 
     cmsBool cmsWhitePointFromTemp(
         cmsCIExyY* WhitePoint,
         cmsFloat64Number TempK
-    ) nogil
+    )
 
     cmsBool cmsTempFromWhitePoint(
         cmsFloat64Number* TempK,
         const cmsCIExyY* WhitePoint
-    ) nogil
+    )
 
     cmsBool cmsAdaptToIlluminant(
         cmsCIEXYZ* Result,
         const cmsCIEXYZ* SourceWhitePt,
         const cmsCIEXYZ* Illuminant,
         const cmsCIEXYZ* Value
-    ) nogil
+    )
 
     int AVG_SURROUND
     int DIM_SURROUND
@@ -894,29 +893,29 @@ cdef extern from 'lcms2.h':
     cmsHANDLE cmsCIECAM02Init(
         cmsContext ContextID,
         const cmsViewingConditions* pVC
-    ) nogil
+    )
 
     void cmsCIECAM02Done(
         cmsHANDLE hModel
-    ) nogil
+    )
 
     void cmsCIECAM02Forward(
         cmsHANDLE hModel,
         const cmsCIEXYZ* pIn,
         cmsJCh* pOut
-    ) nogil
+    )
 
     void cmsCIECAM02Reverse(
         cmsHANDLE hModel,
         const cmsJCh* pIn,
         cmsCIEXYZ* pOut
-    ) nogil
+    )
 
     ctypedef struct cmsCurveSegment:
         cmsFloat32Number x0
         cmsFloat32Number x1
         cmsInt32Number Type
-        cmsFloat64Number Params[10]
+        cmsFloat64Number[10] Params
         cmsUInt32Number nGridPoints
         cmsFloat32Number* SampledPoints
 
@@ -926,112 +925,112 @@ cdef extern from 'lcms2.h':
     cmsToneCurve* cmsBuildSegmentedToneCurve(
         cmsContext ContextID,
         cmsUInt32Number nSegments,
-        const cmsCurveSegment Segments[]
-    ) nogil
+        const cmsCurveSegment[] Segments
+    )
 
     cmsToneCurve* cmsBuildParametricToneCurve(
         cmsContext ContextID,
         cmsInt32Number Type,
-        const cmsFloat64Number Params[]
-    ) nogil
+        const cmsFloat64Number[] Params
+    )
 
     cmsToneCurve* cmsBuildGamma(
         cmsContext ContextID,
         cmsFloat64Number Gamma
-    ) nogil
+    )
 
     cmsToneCurve* cmsBuildTabulatedToneCurve16(
         cmsContext ContextID,
         cmsUInt32Number nEntries,
-        const cmsUInt16Number values[]
-    ) nogil
+        const cmsUInt16Number[] values
+    )
 
     cmsToneCurve* cmsBuildTabulatedToneCurveFloat(
         cmsContext ContextID,
         cmsUInt32Number nEntries,
-        const cmsFloat32Number values[]
-    ) nogil
+        const cmsFloat32Number[] values
+    )
 
     void cmsFreeToneCurve(
         cmsToneCurve* Curve
-    ) nogil
+    )
 
     void cmsFreeToneCurveTriple(
-        cmsToneCurve* Curve[3]
-    ) nogil
+        (cmsToneCurve*)[3] Curve
+    )
 
     cmsToneCurve* cmsDupToneCurve(
         const cmsToneCurve* Src
-    ) nogil
+    )
 
     cmsToneCurve* cmsReverseToneCurve(
         const cmsToneCurve* InGamma
-    ) nogil
+    )
 
     cmsToneCurve* cmsReverseToneCurveEx(
         cmsUInt32Number nResultSamples,
         const cmsToneCurve* InGamma
-    ) nogil
+    )
 
     cmsToneCurve* cmsJoinToneCurve(
         cmsContext ContextID,
         const cmsToneCurve* X,
         const cmsToneCurve* Y,
         cmsUInt32Number nPoints
-    ) nogil
+    )
 
     cmsBool cmsSmoothToneCurve(
         cmsToneCurve* Tab,
         cmsFloat64Number lambda_
-    ) nogil
+    )
 
     cmsFloat32Number cmsEvalToneCurveFloat(
         const cmsToneCurve* Curve,
         cmsFloat32Number v
-    ) nogil
+    )
 
     cmsUInt16Number cmsEvalToneCurve16(
         const cmsToneCurve* Curve,
         cmsUInt16Number v
-    ) nogil
+    )
 
     cmsBool cmsIsToneCurveMultisegment(
         const cmsToneCurve* InGamma
-    ) nogil
+    )
 
     cmsBool cmsIsToneCurveLinear(
         const cmsToneCurve* Curve
-    ) nogil
+    )
 
     cmsBool cmsIsToneCurveMonotonic(
         const cmsToneCurve* t
-    ) nogil
+    )
 
     cmsBool cmsIsToneCurveDescending(
         const cmsToneCurve* t
-    ) nogil
+    )
 
     cmsInt32Number cmsGetToneCurveParametricType(
         const cmsToneCurve* t
-    ) nogil
+    )
 
     cmsFloat64Number cmsEstimateGamma(
         const cmsToneCurve* t,
         cmsFloat64Number Precision
-    ) nogil
+    )
 
     const cmsCurveSegment* cmsGetToneCurveSegment(
         cmsInt32Number n,
         const cmsToneCurve* t
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetToneCurveEstimatedTableEntries(
         const cmsToneCurve* t
-    ) nogil
+    )
 
     const cmsUInt16Number* cmsGetToneCurveEstimatedTable(
         const cmsToneCurve* t
-    ) nogil
+    )
 
     ctypedef struct cmsPipeline:
         pass
@@ -1043,68 +1042,68 @@ cdef extern from 'lcms2.h':
         cmsContext ContextID,
         cmsUInt32Number InputChannels,
         cmsUInt32Number OutputChannels
-    ) nogil
+    )
 
     void cmsPipelineFree(
         cmsPipeline* lut
-    ) nogil
+    )
 
     cmsPipeline* cmsPipelineDup(
         const cmsPipeline* Orig
-    ) nogil
+    )
 
     cmsContext cmsGetPipelineContextID(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsUInt32Number cmsPipelineInputChannels(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsUInt32Number cmsPipelineOutputChannels(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsUInt32Number cmsPipelineStageCount(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsStage* cmsPipelineGetPtrToFirstStage(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsStage* cmsPipelineGetPtrToLastStage(
         const cmsPipeline* lut
-    ) nogil
+    )
 
     void cmsPipelineEval16(
-        const cmsUInt16Number In[],
-        cmsUInt16Number Out[],
+        const cmsUInt16Number[] In,
+        cmsUInt16Number[] Out,
         const cmsPipeline* lut
-    ) nogil
+    )
 
     void cmsPipelineEvalFloat(
-        const cmsFloat32Number In[],
-        cmsFloat32Number Out[],
+        const cmsFloat32Number[] In,
+        cmsFloat32Number[] Out,
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsBool cmsPipelineEvalReverseFloat(
-        cmsFloat32Number Target[],
-        cmsFloat32Number Result[],
-        cmsFloat32Number Hint[],
+        cmsFloat32Number[] Target,
+        cmsFloat32Number[] Result,
+        cmsFloat32Number[] Hint,
         const cmsPipeline* lut
-    ) nogil
+    )
 
     cmsBool cmsPipelineCat(
         cmsPipeline* l1,
         const cmsPipeline* l2
-    ) nogil
+    )
 
     cmsBool cmsPipelineSetSaveAs8bitsFlag(
         cmsPipeline* lut,
         cmsBool On
-    ) nogil
+    )
 
     ctypedef enum cmsStageLoc:
         cmsAT_BEGIN
@@ -1114,30 +1113,30 @@ cdef extern from 'lcms2.h':
         cmsPipeline* lut,
         cmsStageLoc loc,
         cmsStage* mpe
-    ) nogil
+    )
 
     void cmsPipelineUnlinkStage(
         cmsPipeline* lut,
         cmsStageLoc loc,
         cmsStage** mpe
-    ) nogil
+    )
 
     cmsBool cmsPipelineCheckAndRetreiveStages(
         const cmsPipeline* Lut,
         cmsUInt32Number n,
         ...
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocIdentity(
         cmsContext ContextID,
         cmsUInt32Number nChannels
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocToneCurves(
         cmsContext ContextID,
         cmsUInt32Number nChannels,
         cmsToneCurve* const Curves[]
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocMatrix(
         cmsContext ContextID,
@@ -1145,7 +1144,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number Cols,
         const cmsFloat64Number* Matrix,
         const cmsFloat64Number* Offset
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocCLut16bit(
         cmsContext ContextID,
@@ -1153,7 +1152,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number inputChan,
         cmsUInt32Number outputChan,
         const cmsUInt16Number* Table
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocCLutFloat(
         cmsContext ContextID,
@@ -1161,65 +1160,65 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number inputChan,
         cmsUInt32Number outputChan,
         const cmsFloat32Number* Table
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocCLut16bitGranular(
         cmsContext ContextID,
-        const cmsUInt32Number clutPoints[],
+        const cmsUInt32Number[] clutPoints,
         cmsUInt32Number inputChan,
         cmsUInt32Number outputChan,
         const cmsUInt16Number* Table
-    ) nogil
+    )
 
     cmsStage* cmsStageAllocCLutFloatGranular(
         cmsContext ContextID,
-        const cmsUInt32Number clutPoints[],
+        const cmsUInt32Number[] clutPoints,
         cmsUInt32Number inputChan,
         cmsUInt32Number outputChan,
         const cmsFloat32Number* Table
-    ) nogil
+    )
 
     cmsStage* cmsStageDup(
         cmsStage* mpe
-    ) nogil
+    )
 
     void cmsStageFree(
         cmsStage* mpe
-    ) nogil
+    )
 
     cmsStage* cmsStageNext(
         const cmsStage* mpe
-    ) nogil
+    )
 
     cmsUInt32Number cmsStageInputChannels(
         const cmsStage* mpe
-    ) nogil
+    )
 
     cmsUInt32Number cmsStageOutputChannels(
         const cmsStage* mpe
-    ) nogil
+    )
 
     cmsStageSignature cmsStageType(
         const cmsStage* mpe
-    ) nogil
+    )
 
     void* cmsStageData(
         const cmsStage* mpe
-    ) nogil
+    )
 
     cmsContext cmsGetStageContextID(
         const cmsStage* mpe
-    ) nogil
+    )
 
     ctypedef cmsInt32Number(* cmsSAMPLER16)(
-        const cmsUInt16Number In[],
-        cmsUInt16Number Out[],
+        const cmsUInt16Number[] In,
+        cmsUInt16Number[] Out,
         void* Cargo
     ) nogil
 
     ctypedef cmsInt32Number(* cmsSAMPLERFLOAT)(
-        const cmsFloat32Number In[],
-        cmsFloat32Number Out[],
+        const cmsFloat32Number[] In,
+        cmsFloat32Number[] Out,
         void* Cargo
     ) nogil
 
@@ -1230,28 +1229,28 @@ cdef extern from 'lcms2.h':
         cmsSAMPLER16 Sampler,
         void* Cargo,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsBool cmsStageSampleCLutFloat(
         cmsStage* mpe,
         cmsSAMPLERFLOAT Sampler,
         void* Cargo,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsBool cmsSliceSpace16(
         cmsUInt32Number nInputs,
-        const cmsUInt32Number clutPoints[],
+        const cmsUInt32Number[] clutPoints,
         cmsSAMPLER16 Sampler,
         void* Cargo
-    ) nogil
+    )
 
     cmsBool cmsSliceSpaceFloat(
         cmsUInt32Number nInputs,
-        const cmsUInt32Number clutPoints[],
+        const cmsUInt32Number[] clutPoints,
         cmsSAMPLERFLOAT Sampler,
         void* Cargo
-    ) nogil
+    )
 
     ctypedef struct cmsMLU:
         pass
@@ -1263,79 +1262,79 @@ cdef extern from 'lcms2.h':
     cmsMLU* cmsMLUalloc(
         cmsContext ContextID,
         cmsUInt32Number nItems
-    ) nogil
+    )
 
     void cmsMLUfree(
         cmsMLU* mlu
-    ) nogil
+    )
 
     cmsMLU* cmsMLUdup(
         const cmsMLU* mlu
-    ) nogil
+    )
 
     cmsBool cmsMLUsetASCII(
         cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         const char* ASCIIString
-    ) nogil
+    )
 
     cmsBool cmsMLUsetWide(
         cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         const wchar_t* WideString
-    ) nogil
+    )
 
     cmsBool cmsMLUsetUTF8(
         cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         const char* UTF8String
-    ) nogil
+    )
 
     cmsUInt32Number cmsMLUgetASCII(
         const cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         char* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsUInt32Number cmsMLUgetWide(
         const cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         wchar_t* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsUInt32Number cmsMLUgetUTF8(
         const cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         char* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsBool cmsMLUgetTranslation(
         const cmsMLU* mlu,
-        const char LanguageCode[3],
-        const char CountryCode[3],
-        char ObtainedLanguage[3],
-        char ObtainedCountry[3]
-    ) nogil
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
+        char[3] ObtainedLanguage,
+        char[3] ObtainedCountry
+    )
 
     cmsUInt32Number cmsMLUtranslationsCount(
         const cmsMLU* mlu
-    ) nogil
+    )
 
     cmsBool cmsMLUtranslationsCodes(
         const cmsMLU* mlu,
         cmsUInt32Number idx,
-        char LanguageCode[3],
-        char CountryCode[3]
-    ) nogil
+        char[3] LanguageCode,
+        char[3] CountryCode
+    )
 
     ctypedef struct cmsUcrBg:
         cmsToneCurve* Ucr
@@ -1363,7 +1362,7 @@ cdef extern from 'lcms2.h':
     ctypedef struct cmsScreening:
         cmsUInt32Number Flag
         cmsUInt32Number nChannels
-        cmsScreeningChannel Channels[16]  # [cmsMAXCHANNELS]
+        cmsScreeningChannel[16] Channels  # [cmsMAXCHANNELS]
 
     ctypedef struct cmsNAMEDCOLORLIST:
         pass
@@ -1374,31 +1373,31 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number ColorantCount,
         const char* Prefix,
         const char* Suffix
-    ) nogil
+    )
 
     void cmsFreeNamedColorList(
         cmsNAMEDCOLORLIST* v
-    ) nogil
+    )
 
     cmsNAMEDCOLORLIST* cmsDupNamedColorList(
         const cmsNAMEDCOLORLIST* v
-    ) nogil
+    )
 
     cmsBool cmsAppendNamedColor(
         cmsNAMEDCOLORLIST* v,
         const char* Name,
-        cmsUInt16Number PCS[3],
-        cmsUInt16Number Colorant[]
-    ) nogil
+        cmsUInt16Number[3] PCS,
+        cmsUInt16Number[] Colorant
+    )
 
     cmsUInt32Number cmsNamedColorCount(
         const cmsNAMEDCOLORLIST* v
-    ) nogil
+    )
 
     cmsInt32Number cmsNamedColorIndex(
         const cmsNAMEDCOLORLIST* v,
         const char* Name
-    ) nogil
+    )
 
     cmsBool cmsNamedColorInfo(
         const cmsNAMEDCOLORLIST* NamedColorList,
@@ -1408,11 +1407,11 @@ cdef extern from 'lcms2.h':
         char* Suffix,
         cmsUInt16Number* PCS,
         cmsUInt16Number* Colorant
-    ) nogil
+    )
 
     cmsNAMEDCOLORLIST* cmsGetNamedColorList(
         cmsHTRANSFORM xform
-    ) nogil
+    )
 
     ctypedef struct cmsPSEQDESC:
         cmsSignature deviceMfg
@@ -1432,15 +1431,15 @@ cdef extern from 'lcms2.h':
     cmsSEQ* cmsAllocProfileSequenceDescription(
         cmsContext ContextID,
         cmsUInt32Number n
-    ) nogil
+    )
 
     cmsSEQ* cmsDupProfileSequenceDescription(
         const cmsSEQ* pseq
-    ) nogil
+    )
 
     void cmsFreeProfileSequenceDescription(
         cmsSEQ* pseq
-    ) nogil
+    )
 
     ctypedef struct cmsDICTentry:
         cmsDICTentry* Next
@@ -1451,15 +1450,15 @@ cdef extern from 'lcms2.h':
 
     cmsHANDLE cmsDictAlloc(
         cmsContext ContextID
-    ) nogil
+    )
 
     void cmsDictFree(
         cmsHANDLE hDict
-    ) nogil
+    )
 
     cmsHANDLE cmsDictDup(
         cmsHANDLE hDict
-    ) nogil
+    )
 
     cmsBool cmsDictAddEntry(
         cmsHANDLE hDict,
@@ -1467,73 +1466,73 @@ cdef extern from 'lcms2.h':
         const wchar_t* Value,
         const cmsMLU *DisplayName,
         const cmsMLU *DisplayValue
-    ) nogil
+    )
 
     const cmsDICTentry* cmsDictGetEntryList(
         cmsHANDLE hDict
-    ) nogil
+    )
 
     const cmsDICTentry* cmsDictNextEntry(
         const cmsDICTentry* e
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateProfilePlaceholder(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsContext cmsGetProfileContextID(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsInt32Number cmsGetTagCount(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsTagSignature cmsGetTagSignature(
         cmsHPROFILE hProfile,
         cmsUInt32Number n
-    ) nogil
+    )
 
     cmsBool cmsIsTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig
-    ) nogil
+    )
 
     void* cmsReadTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig
-    ) nogil
+    )
 
     cmsBool cmsWriteTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig,
         const void* data
-    ) nogil
+    )
 
     cmsBool cmsLinkTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig,
         cmsTagSignature dest
-    ) nogil
+    )
 
     cmsTagSignature cmsTagLinkedTo(
         cmsHPROFILE hProfile,
         cmsTagSignature sig
-    ) nogil
+    )
 
     cmsUInt32Number cmsReadRawTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig,
         void* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsBool cmsWriteRawTag(
         cmsHPROFILE hProfile,
         cmsTagSignature sig,
         const void* data,
         cmsUInt32Number Size
-    ) nogil
+    )
 
     int cmsEmbeddedProfileFalse
     int cmsEmbeddedProfileTrue
@@ -1542,113 +1541,113 @@ cdef extern from 'lcms2.h':
 
     cmsUInt32Number cmsGetHeaderFlags(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsGetHeaderAttributes(
         cmsHPROFILE hProfile,
         cmsUInt64Number* Flags
-    ) nogil
+    )
 
     void cmsGetHeaderProfileID(
         cmsHPROFILE hProfile,
         cmsUInt8Number* ProfileID
-    ) nogil
+    )
 
     cmsBool cmsGetHeaderCreationDateTime(
         cmsHPROFILE hProfile,
         tm *Dest
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetHeaderRenderingIntent(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetHeaderFlags(
         cmsHPROFILE hProfile,
         cmsUInt32Number Flags
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetHeaderManufacturer(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetHeaderManufacturer(
         cmsHPROFILE hProfile,
         cmsUInt32Number manufacturer
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetHeaderCreator(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetHeaderModel(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetHeaderModel(
         cmsHPROFILE hProfile,
         cmsUInt32Number model
-    ) nogil
+    )
 
     void cmsSetHeaderAttributes(
         cmsHPROFILE hProfile,
         cmsUInt64Number Flags
-    ) nogil
+    )
 
     void cmsSetHeaderProfileID(
         cmsHPROFILE hProfile,
         cmsUInt8Number* ProfileID
-    ) nogil
+    )
 
     void cmsSetHeaderRenderingIntent(
         cmsHPROFILE hProfile,
         cmsUInt32Number RenderingIntent
-    ) nogil
+    )
 
     cmsColorSpaceSignature cmsGetPCS(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetPCS(
         cmsHPROFILE hProfile,
         cmsColorSpaceSignature pcs
-    ) nogil
+    )
 
     cmsColorSpaceSignature cmsGetColorSpace(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetColorSpace(
         cmsHPROFILE hProfile,
         cmsColorSpaceSignature sig
-    ) nogil
+    )
 
     cmsProfileClassSignature cmsGetDeviceClass(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetDeviceClass(
         cmsHPROFILE hProfile,
         cmsProfileClassSignature sig
-    ) nogil
+    )
 
     void cmsSetProfileVersion(
         cmsHPROFILE hProfile,
         cmsFloat64Number Version
-    ) nogil
+    )
 
     cmsFloat64Number cmsGetProfileVersion(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetEncodedICCversion(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     void cmsSetEncodedICCversion(
         cmsHPROFILE hProfile,
         cmsUInt32Number Version
-    ) nogil
+    )
 
     int LCMS_USED_AS_INPUT
     int LCMS_USED_AS_OUTPUT
@@ -1658,45 +1657,45 @@ cdef extern from 'lcms2.h':
         cmsHPROFILE hProfile,
         cmsUInt32Number Intent,
         cmsUInt32Number UsedDirection
-    ) nogil
+    )
 
     cmsBool cmsIsMatrixShaper(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsBool cmsIsCLUT(
         cmsHPROFILE hProfile,
         cmsUInt32Number Intent,
         cmsUInt32Number UsedDirection
-    ) nogil
+    )
 
     cmsColorSpaceSignature _cmsICCcolorSpace(
         int OurNotation
-    ) nogil
+    )
 
     int _cmsLCMScolorSpace(
         cmsColorSpaceSignature ProfileSpace
-    ) nogil
+    )
 
     cmsUInt32Number cmsChannelsOf(
         cmsColorSpaceSignature ColorSpace
-    ) nogil
+    )
 
     cmsInt32Number cmsChannelsOfColorSpace(
         cmsColorSpaceSignature ColorSpace
-    ) nogil
+    )
 
     cmsUInt32Number cmsFormatterForColorspaceOfProfile(
         cmsHPROFILE hProfile,
         cmsUInt32Number nBytes,
         cmsBool lIsFloat
-    ) nogil
+    )
 
     cmsUInt32Number cmsFormatterForPCSOfProfile(
         cmsHPROFILE hProfile,
         cmsUInt32Number nBytes,
         cmsBool lIsFloat
-    ) nogil
+    )
 
     ctypedef enum cmsInfoType:
         cmsInfoDescription
@@ -1707,29 +1706,29 @@ cdef extern from 'lcms2.h':
     cmsUInt32Number cmsGetProfileInfo(
         cmsHPROFILE hProfile,
         cmsInfoType Info,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         wchar_t* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetProfileInfoASCII(
         cmsHPROFILE hProfile,
         cmsInfoType Info,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         char* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetProfileInfoUTF8(
         cmsHPROFILE hProfile,
         cmsInfoType Info,
-        const char LanguageCode[3],
-        const char CountryCode[3],
+        const char[3] LanguageCode,
+        const char[3] CountryCode,
         char* Buffer,
         cmsUInt32Number BufferSize
-    ) nogil
+    )
 
     ctypedef struct cmsIOHANDLER:
         pass
@@ -1738,195 +1737,195 @@ cdef extern from 'lcms2.h':
         cmsContext ContextID,
         const char* FileName,
         const char* AccessMode
-    ) nogil
+    )
 
     cmsIOHANDLER* cmsOpenIOhandlerFromStream(
         cmsContext ContextID,
         FILE* Stream
-    ) nogil
+    )
 
     cmsIOHANDLER* cmsOpenIOhandlerFromMem(
         cmsContext ContextID,
         void*Buffer,
         cmsUInt32Number size,
         const char* AccessMode
-    ) nogil
+    )
 
     cmsIOHANDLER* cmsOpenIOhandlerFromNULL(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsIOHANDLER* cmsGetProfileIOhandler(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsBool cmsCloseIOhandler(
         cmsIOHANDLER* io
-    ) nogil
+    )
 
     cmsBool cmsMD5computeID(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromFile(
         const char *ICCProfile,
         const char *sAccess
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromFileTHR(
         cmsContext ContextID,
         const char *ICCProfile,
         const char *sAccess
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromStream(
         FILE* ICCProfile,
         const char* sAccess
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromStreamTHR(
         cmsContext ContextID,
         FILE* ICCProfile,
         const char* sAccess
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromMem(
         const void* MemPtr,
         cmsUInt32Number dwSize
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromMemTHR(
         cmsContext ContextID,
         const void* MemPtr,
         cmsUInt32Number dwSize
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromIOhandlerTHR(
         cmsContext ContextID,
         cmsIOHANDLER* io
-    ) nogil
+    )
 
     cmsHPROFILE cmsOpenProfileFromIOhandler2THR(
         cmsContext ContextID,
         cmsIOHANDLER* io,
         cmsBool write
-    ) nogil
+    )
 
     cmsBool cmsCloseProfile(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsBool cmsSaveProfileToFile(
         cmsHPROFILE hProfile,
         const char* FileName
-    ) nogil
+    )
 
     cmsBool cmsSaveProfileToStream(
         cmsHPROFILE hProfile,
         FILE* Stream
-    ) nogil
+    )
 
     cmsBool cmsSaveProfileToMem(
         cmsHPROFILE hProfile,
         void*MemPtr,
         cmsUInt32Number* BytesNeeded
-    ) nogil
+    )
 
     cmsUInt32Number cmsSaveProfileToIOhandler(
         cmsHPROFILE hProfile,
         cmsIOHANDLER* io
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateRGBProfileTHR(
         cmsContext ContextID,
         const cmsCIExyY* WhitePoint,
         const cmsCIExyYTRIPLE* Primaries,
-        cmsToneCurve* const TransferFunction[3]
-    ) nogil
+        (cmsToneCurve* const)[3] TransferFunction
+    )
 
     cmsHPROFILE cmsCreateRGBProfile(
         const cmsCIExyY* WhitePoint,
         const cmsCIExyYTRIPLE* Primaries,
-        cmsToneCurve* const TransferFunction[3]
-    ) nogil
+        (cmsToneCurve* const)[3] TransferFunction
+    )
 
     cmsHPROFILE cmsCreateGrayProfileTHR(
         cmsContext ContextID,
         const cmsCIExyY* WhitePoint,
         const cmsToneCurve* TransferFunction
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateGrayProfile(
         const cmsCIExyY* WhitePoint,
         const cmsToneCurve* TransferFunction
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateLinearizationDeviceLinkTHR(
         cmsContext ContextID,
         cmsColorSpaceSignature ColorSpace,
-        cmsToneCurve* TransferFunctions[]
-    ) nogil
+        (cmsToneCurve*)[] TransferFunctions
+    )
 
     cmsHPROFILE cmsCreateLinearizationDeviceLink(
         cmsColorSpaceSignature ColorSpace,
-        cmsToneCurve* TransferFunctions[]
-    ) nogil
+        (cmsToneCurve*)[] TransferFunctions
+    )
 
     cmsHPROFILE cmsCreateInkLimitingDeviceLinkTHR(
         cmsContext ContextID,
         cmsColorSpaceSignature ColorSpace,
         cmsFloat64Number Limit
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateInkLimitingDeviceLink(
         cmsColorSpaceSignature ColorSpace,
         cmsFloat64Number Limit
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateDeviceLinkFromCubeFile(
         const char* cFileName
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateDeviceLinkFromCubeFileTHR(
         cmsContext ContextID,
         const char* cFileName
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateLab2ProfileTHR(
         cmsContext ContextID,
         const cmsCIExyY* WhitePoint
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateLab2Profile(
         const cmsCIExyY* WhitePoint
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateLab4ProfileTHR(
         cmsContext ContextID,
         const cmsCIExyY* WhitePoint
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateLab4Profile(
         const cmsCIExyY* WhitePoint
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateXYZProfileTHR(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateXYZProfile(
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreate_sRGBProfileTHR(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreate_sRGBProfile(
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreate_OkLabProfile(
         cmsContext ctx
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateBCHSWabstractProfileTHR(
         cmsContext ContextID,
@@ -1937,7 +1936,7 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number Saturation,
         cmsUInt32Number TempSrc,
         cmsUInt32Number TempDest
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateBCHSWabstractProfile(
         cmsUInt32Number nLUTPoints,
@@ -1947,20 +1946,20 @@ cdef extern from 'lcms2.h':
         cmsFloat64Number Saturation,
         cmsUInt32Number TempSrc,
         cmsUInt32Number TempDest
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateNULLProfileTHR(
         cmsContext ContextID
-    ) nogil
+    )
 
     cmsHPROFILE cmsCreateNULLProfile(
-    ) nogil
+    )
 
     cmsHPROFILE cmsTransform2DeviceLink(
         cmsHTRANSFORM hTransform,
         cmsFloat64Number Version,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     int INTENT_PERCEPTUAL
     int INTENT_RELATIVE_COLORIMETRIC
@@ -1978,14 +1977,14 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number nMax,
         cmsUInt32Number* Codes,
         char** Descriptions
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetSupportedIntentsTHR(
         cmsContext ContextID,
         cmsUInt32Number nMax,
         cmsUInt32Number* Codes,
         char** Descriptions
-    ) nogil
+    )
 
     int cmsFLAGS_NOCACHE
     int cmsFLAGS_NOOPTIMIZE
@@ -2015,7 +2014,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number OutputFormat,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateTransform(
         cmsHPROFILE Input,
@@ -2024,7 +2023,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number OutputFormat,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateProofingTransformTHR(
         cmsContext ContextID,
@@ -2036,7 +2035,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number Intent,
         cmsUInt32Number ProofingIntent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateProofingTransform(
         cmsHPROFILE Input,
@@ -2047,51 +2046,51 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number Intent,
         cmsUInt32Number ProofingIntent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateMultiprofileTransformTHR(
         cmsContext ContextID,
-        cmsHPROFILE hProfiles[],
+        cmsHPROFILE[] hProfiles,
         cmsUInt32Number nProfiles,
         cmsUInt32Number InputFormat,
         cmsUInt32Number OutputFormat,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateMultiprofileTransform(
-        cmsHPROFILE hProfiles[],
+        cmsHPROFILE[] hProfiles,
         cmsUInt32Number nProfiles,
         cmsUInt32Number InputFormat,
         cmsUInt32Number OutputFormat,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsHTRANSFORM cmsCreateExtendedTransform(
         cmsContext ContextID,
         cmsUInt32Number nProfiles,
-        cmsHPROFILE hProfiles[],
-        cmsBool BPC[],
-        cmsUInt32Number Intents[],
-        cmsFloat64Number AdaptationStates[],
+        cmsHPROFILE[] hProfiles,
+        cmsBool[] BPC,
+        cmsUInt32Number[] Intents,
+        cmsFloat64Number[] AdaptationStates,
         cmsHPROFILE hGamutProfile,
         cmsUInt32Number nGamutPCSposition,
         cmsUInt32Number InputFormat,
         cmsUInt32Number OutputFormat,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     void cmsDeleteTransform(
         cmsHTRANSFORM hTransform
-    ) nogil
+    )
 
     void cmsDoTransform(
         cmsHTRANSFORM Transform,
         const void* InputBuffer,
         void* OutputBuffer,
         cmsUInt32Number Size
-    ) nogil
+    )
 
     void cmsDoTransformStride(
         cmsHTRANSFORM Transform,
@@ -2099,7 +2098,7 @@ cdef extern from 'lcms2.h':
         void* OutputBuffer,
         cmsUInt32Number Size,
         cmsUInt32Number Stride
-    ) nogil
+    )
 
     void cmsDoTransformLineStride(
         cmsHTRANSFORM Transform,
@@ -2111,52 +2110,52 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number BytesPerLineOut,
         cmsUInt32Number BytesPerPlaneIn,
         cmsUInt32Number BytesPerPlaneOut
-    ) nogil
+    )
 
     void cmsSetAlarmCodes(
-        const cmsUInt16Number NewAlarm[]
-    ) nogil
+        const cmsUInt16Number[] NewAlarm
+    )
 
     void cmsGetAlarmCodes(
-        cmsUInt16Number NewAlarm[]
-    ) nogil
+        cmsUInt16Number[] NewAlarm
+    )
 
     void cmsSetAlarmCodesTHR(
         cmsContext ContextID,
-        const cmsUInt16Number AlarmCodes[]
-    ) nogil
+        const cmsUInt16Number[] AlarmCodes
+    )
 
     void cmsGetAlarmCodesTHR(
         cmsContext ContextID,
-        cmsUInt16Number AlarmCodes[]
-    ) nogil
+        cmsUInt16Number[] AlarmCodes
+    )
 
     cmsFloat64Number cmsSetAdaptationState(
         cmsFloat64Number d
-    ) nogil
+    )
 
     cmsFloat64Number cmsSetAdaptationStateTHR(
         cmsContext ContextID,
         cmsFloat64Number d
-    ) nogil
+    )
 
     cmsContext cmsGetTransformContextID(
         cmsHTRANSFORM hTransform
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetTransformInputFormat(
         cmsHTRANSFORM hTransform
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetTransformOutputFormat(
         cmsHTRANSFORM hTransform
-    ) nogil
+    )
 
     cmsBool cmsChangeBuffersFormat(
         cmsHTRANSFORM hTransform,
         cmsUInt32Number InputFormat,
         cmsUInt32Number OutputFormat
-    ) nogil
+    )
 
     ctypedef enum cmsPSResourceType:
         cmsPS_RESOURCE_CSA
@@ -2169,7 +2168,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags,
         cmsIOHANDLER* io
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetPostScriptCSA(
         cmsContext ContextID,
@@ -2178,7 +2177,7 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number dwFlags,
         void* Buffer,
         cmsUInt32Number dwBufferLen
-    ) nogil
+    )
 
     cmsUInt32Number cmsGetPostScriptCRD(
         cmsContext ContextID,
@@ -2187,260 +2186,260 @@ cdef extern from 'lcms2.h':
         cmsUInt32Number dwFlags,
         void* Buffer,
         cmsUInt32Number dwBufferLen
-    ) nogil
+    )
 
     cmsHANDLE cmsIT8Alloc(
         cmsContext ContextID
-    ) nogil
+    )
 
     void cmsIT8Free(
         cmsHANDLE hIT8
-    ) nogil
+    )
 
     cmsUInt32Number cmsIT8TableCount(
         cmsHANDLE hIT8
-    ) nogil
+    )
 
     cmsInt32Number cmsIT8SetTable(
         cmsHANDLE hIT8,
         cmsUInt32Number nTable
-    ) nogil
+    )
 
     cmsHANDLE cmsIT8LoadFromFile(
         cmsContext ContextID,
         const char* cFileName
-    ) nogil
+    )
 
     cmsHANDLE cmsIT8LoadFromMem(
         cmsContext ContextID,
         const void*Ptr,
         cmsUInt32Number len
-    ) nogil
+    )
 
     cmsBool cmsIT8SaveToFile(
         cmsHANDLE hIT8,
         const char* cFileName
-    ) nogil
+    )
 
     cmsBool cmsIT8SaveToMem(
         cmsHANDLE hIT8,
         void*MemPtr,
         cmsUInt32Number* BytesNeeded
-    ) nogil
+    )
 
     const char* cmsIT8GetSheetType(
         cmsHANDLE hIT8
-    ) nogil
+    )
 
     cmsBool cmsIT8SetSheetType(
         cmsHANDLE hIT8,
         const char* Type
-    ) nogil
+    )
 
     cmsBool cmsIT8SetComment(
         cmsHANDLE hIT8,
         const char* cComment
-    ) nogil
+    )
 
     cmsBool cmsIT8SetPropertyStr(
         cmsHANDLE hIT8,
         const char* cProp,
         const char *Str
-    ) nogil
+    )
 
     cmsBool cmsIT8SetPropertyDbl(
         cmsHANDLE hIT8,
         const char* cProp,
         cmsFloat64Number Val
-    ) nogil
+    )
 
     cmsBool cmsIT8SetPropertyHex(
         cmsHANDLE hIT8,
         const char* cProp,
         cmsUInt32Number Val
-    ) nogil
+    )
 
     cmsBool cmsIT8SetPropertyMulti(
         cmsHANDLE hIT8,
         const char* Key,
         const char* SubKey,
         const char *Buffer
-    ) nogil
+    )
 
     cmsBool cmsIT8SetPropertyUncooked(
         cmsHANDLE hIT8,
         const char* Key,
         const char* Buffer
-    ) nogil
+    )
 
     const char* cmsIT8GetProperty(
         cmsHANDLE hIT8,
         const char* cProp
-    ) nogil
+    )
 
     cmsFloat64Number cmsIT8GetPropertyDbl(
         cmsHANDLE hIT8,
         const char* cProp
-    ) nogil
+    )
 
     const char* cmsIT8GetPropertyMulti(
         cmsHANDLE hIT8,
         const char* Key,
         const char *SubKey
-    ) nogil
+    )
 
     cmsUInt32Number cmsIT8EnumProperties(
         cmsHANDLE hIT8,
         char ***PropertyNames
-    ) nogil
+    )
 
     cmsUInt32Number cmsIT8EnumPropertyMulti(
         cmsHANDLE hIT8,
         const char* cProp,
         const char ***SubpropertyNames
-    ) nogil
+    )
 
     const char* cmsIT8GetDataRowCol(
         cmsHANDLE hIT8,
         int row,
         int col
-    ) nogil
+    )
 
     cmsFloat64Number cmsIT8GetDataRowColDbl(
         cmsHANDLE hIT8,
         int row,
         int col
-    ) nogil
+    )
 
     cmsBool cmsIT8SetDataRowCol(
         cmsHANDLE hIT8,
         int row,
         int col,
         const char* Val
-    ) nogil
+    )
 
     cmsBool cmsIT8SetDataRowColDbl(
         cmsHANDLE hIT8,
         int row,
         int col,
         cmsFloat64Number Val
-    ) nogil
+    )
 
     const char* cmsIT8GetData(
         cmsHANDLE hIT8,
         const char* cPatch,
         const char* cSample
-    ) nogil
+    )
 
     cmsFloat64Number cmsIT8GetDataDbl(
         cmsHANDLE hIT8,
         const char* cPatch,
         const char* cSample
-    ) nogil
+    )
 
     cmsBool cmsIT8SetData(
         cmsHANDLE hIT8,
         const char* cPatch,
         const char* cSample,
         const char *Val
-    ) nogil
+    )
 
     cmsBool cmsIT8SetDataDbl(
         cmsHANDLE hIT8,
         const char* cPatch,
         const char* cSample,
         cmsFloat64Number Val
-    ) nogil
+    )
 
     int cmsIT8FindDataFormat(
         cmsHANDLE hIT8,
         const char* cSample
-    ) nogil
+    )
 
     cmsBool cmsIT8SetDataFormat(
         cmsHANDLE hIT8,
         int n,
         const char *Sample
-    ) nogil
+    )
 
     int cmsIT8EnumDataFormat(
         cmsHANDLE hIT8,
         char ***SampleNames
-    ) nogil
+    )
 
     const char* cmsIT8GetPatchName(
         cmsHANDLE hIT8,
         int nPatch,
         char* buffer
-    ) nogil
+    )
 
     int cmsIT8GetPatchByName(
         cmsHANDLE hIT8,
         const char *cPatch
-    ) nogil
+    )
 
     int cmsIT8SetTableByLabel(
         cmsHANDLE hIT8,
         const char* cSet,
         const char* cField,
         const char* ExpectedType
-    ) nogil
+    )
 
     cmsBool cmsIT8SetIndexColumn(
         cmsHANDLE hIT8,
         const char* cSample
-    ) nogil
+    )
 
     void cmsIT8DefineDblFormat(
         cmsHANDLE hIT8,
         const char* Formatter
-    ) nogil
+    )
 
     cmsHANDLE cmsGBDAlloc(
         cmsContext ContextID
-    ) nogil
+    )
 
     void cmsGBDFree(
         cmsHANDLE hGBD
-    ) nogil
+    )
 
     cmsBool cmsGDBAddPoint(
         cmsHANDLE hGBD,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     cmsBool cmsGDBCompute(
         cmsHANDLE hGDB,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsBool cmsGDBCheckPoint(
         cmsHANDLE hGBD,
         const cmsCIELab* Lab
-    ) nogil
+    )
 
     cmsBool cmsDetectBlackPoint(
         cmsCIEXYZ* BlackPoint,
         cmsHPROFILE hProfile,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsBool cmsDetectDestinationBlackPoint(
         cmsCIEXYZ* BlackPoint,
         cmsHPROFILE hProfile,
         cmsUInt32Number Intent,
         cmsUInt32Number dwFlags
-    ) nogil
+    )
 
     cmsFloat64Number cmsDetectTAC(
         cmsHPROFILE hProfile
-    ) nogil
+    )
 
     cmsFloat64Number cmsDetectRGBProfileGamma(
         cmsHPROFILE hProfile,
         cmsFloat64Number threshold
-    ) nogil
+    )
 
     cmsBool cmsDesaturateLab(
         cmsCIELab* Lab,
@@ -2448,4 +2447,4 @@ cdef extern from 'lcms2.h':
         double amin,
         double bmax,
         double bmin
-    ) nogil
+    )
