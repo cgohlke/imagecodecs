@@ -1,10 +1,10 @@
 # imagecodecs/sperr.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `SPERR 0.8.1` library.
+# Cython declarations for the `SPERR 0.8.2` library.
 # https://github.com/NCAR/SPERR
 
-cdef extern from 'SPERR_C_API.h':
+cdef extern from 'SPERR_C_API.h' nogil:
 
     int SPERR_VERSION_MAJOR
     int SPERR_VERSION_MINOR
@@ -20,7 +20,7 @@ cdef extern from 'SPERR_C_API.h':
         int out_inc_header,
         void** dst,
         size_t* dst_len
-    ) nogil
+    )
 
     int sperr_decomp_2d(
         const void* src,
@@ -29,7 +29,7 @@ cdef extern from 'SPERR_C_API.h':
         size_t dimx,
         size_t dimy,
         void** dst
-    ) nogil
+    )
 
     void sperr_parse_header(
         const void* src,
@@ -37,7 +37,7 @@ cdef extern from 'SPERR_C_API.h':
         size_t* dimy,
         size_t* dimz,
         int* is_float
-    ) nogil
+    )
 
     int sperr_comp_3d(
         const void* src,
@@ -53,7 +53,7 @@ cdef extern from 'SPERR_C_API.h':
         size_t nthreads,
         void** dst,
         size_t* dst_len
-    ) nogil
+    )
 
     int sperr_decomp_3d(
         const void* src,
@@ -64,7 +64,7 @@ cdef extern from 'SPERR_C_API.h':
         size_t* dimy,
         size_t* dimz,
         void** dst
-    ) nogil
+    )
 
     int sperr_trunc_3d(
         const void* src,
@@ -72,4 +72,4 @@ cdef extern from 'SPERR_C_API.h':
         unsigned int pct,
         void** dst,
         size_t* dst_len
-    ) nogil
+    )
