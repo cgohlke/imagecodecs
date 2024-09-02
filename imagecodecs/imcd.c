@@ -691,7 +691,7 @@ inline uint8_t* _packbits_next_replicate(
     uint8_t* srcptr,
     const uint8_t* srcend)
 {
-    uint8_t value = *srcptr;
+    uint8_t value = (srcptr < srcend) ? *srcptr : 0;
 
     while (++srcptr < srcend)
     {
@@ -711,7 +711,7 @@ inline ssize_t _packbits_replicate_length(
     const uint8_t* srcend)
 {
     uint8_t* srcptr = (uint8_t*)src;
-    const uint8_t value = *srcptr;
+    const uint8_t value = (srcptr < srcend) ? *srcptr : 0;
 
     while ((++srcptr < srcend) && (value == *srcptr)) {;}
     return (ssize_t)(srcptr - src);
@@ -765,9 +765,10 @@ ssize_t imcd_packbits_encode(
             literal = srcend - srcptr;
         }
         else {
+            /* try skip next replicate run < 3 */
             replicate = _packbits_replicate_length(dupptr, srcend);
             if (replicate < 3) {
-                uint8_t* nextsrc = srcptr + replicate;
+                uint8_t* nextsrc = dupptr + replicate;
                 uint8_t* nextdup = _packbits_next_replicate(nextsrc, srcend);
                 if (nextdup > nextsrc) {
                     /* discard 2-byte run */
