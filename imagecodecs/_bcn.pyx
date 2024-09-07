@@ -66,7 +66,7 @@ class BcnError(RuntimeError):
 
 def bcn_version():
     """Return bcdec library version string."""
-    return 'bcdec 026acf9'
+    return f'bcdec {BCDEC_VERSION_MAJOR}.{BCDEC_VERSION_MINOR}'
 
 
 def bcn_check(const uint8_t[::1] data):
