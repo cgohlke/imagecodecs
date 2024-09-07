@@ -1,10 +1,13 @@
 # imagecodecs/bcdec.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `bcdec 026acf9` library.
+# Cython declarations for the `bcdec 3b29f8f` library.
 # https://github.com/iOrange/bcdec
 
-cdef extern from 'bcdec.h':
+cdef extern from 'bcdec.h' nogil:
+
+    int BCDEC_VERSION_MAJOR
+    int BCDEC_VERSION_MINOR
 
     int BCDEC_BC1_BLOCK_SIZE
     int BCDEC_BC2_BLOCK_SIZE
@@ -14,66 +17,66 @@ cdef extern from 'bcdec.h':
     int BCDEC_BC6H_BLOCK_SIZE
     int BCDEC_BC7_BLOCK_SIZE
 
-    int BCDEC_BC1_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC2_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC3_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC4_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC5_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC6H_COMPRESSED_SIZE(int w, int h) nogil
-    int BCDEC_BC7_COMPRESSED_SIZE(int w, int h) nogil
+    int BCDEC_BC1_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC2_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC3_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC4_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC5_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC6H_COMPRESSED_SIZE(int w, int h)
+    int BCDEC_BC7_COMPRESSED_SIZE(int w, int h)
 
     void bcdec_bc1(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
     void bcdec_bc2(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
     void bcdec_bc3(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
     void bcdec_bc4(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
     void bcdec_bc5(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
     void bcdec_bc6h_float(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch,
         int isSigned
-    ) nogil
+    )
 
     void bcdec_bc6h_half(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch,
         int isSigned
-    ) nogil
+    )
 
     void bcdec_bc7(
         const void* compressedBlock,
         void* decompressedBlock,
         int destinationPitch
-    ) nogil
+    )
 
 
-cdef extern from 'bcdec_dds.h':
+cdef extern from 'bcdec_dds.h' nogil:
 
     int DDS_FOURCC_DDS
     int DDS_FOURCC_DXT1
@@ -160,7 +163,7 @@ cdef extern from 'bcdec_dds.h':
         # end union
         unsigned int depth
         unsigned int mipMapCount
-        unsigned int reserved1[11]
+        unsigned int[11] reserved1
         DDS_PIXELFORMAT_t ddspf
         unsigned int caps
         unsigned int caps2
