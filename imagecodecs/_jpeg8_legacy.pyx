@@ -51,6 +51,7 @@ class JPEG8:
 
     available = True
     legacy = True
+    all_precisions = False
 
     class CS(enum.IntEnum):
         """JPEG8 codec color spaces."""
