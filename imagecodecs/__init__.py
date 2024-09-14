@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
-__all__: list[str] = []
-
 from .imagecodecs import (  # jpeg_check,; jpeg_version,; JpegError,; JPEG,
     NONE,
     NUMPY,
     DelayedImportError,
     NoneError,
     NumpyError,
+    __all__,
     __dir__,
     __doc__,
     __getattr__,
