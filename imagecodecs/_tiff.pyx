@@ -179,7 +179,7 @@ def tiff_encode(
     resolution=None,
     subfiletype=0,
     software=None,
-    verbose=0,
+    verbose=None,
     out=None
 ):
     """Return TIFF encoded image (not implemented)."""
@@ -187,7 +187,7 @@ def tiff_encode(
 
 
 def tiff_decode(
-    data, index=0, asrgb=False, verbose=0, out=None
+    data, index=0, asrgb=False, verbose=None, out=None
 ):
     """Return decoded TIFF image.
 
@@ -751,7 +751,7 @@ ctypedef struct dirlist_t:
 cdef dirlist_t* dirlist_new(tdir_t size) nogil:
     """Return new dirlist."""
     cdef:
-        dirlist_t* dirlist = <dirlist_t*> malloc(sizeof(dirlist_t))
+        dirlist_t* dirlist = <dirlist_t*> calloc(1, sizeof(dirlist_t))
 
     if dirlist == NULL:
         return NULL
@@ -759,7 +759,7 @@ cdef dirlist_t* dirlist_new(tdir_t size) nogil:
         size = 1
     dirlist.index = 0
     dirlist.size = size
-    dirlist.data = <tdir_t*> malloc(size * sizeof(tdir_t))
+    dirlist.data = <tdir_t*> calloc(size, sizeof(tdir_t))
     if dirlist.data == NULL:
         free(dirlist)
         return NULL
@@ -829,7 +829,7 @@ cdef memtif_t* memtif_open(
 ) nogil:
     """Return new memtif from existing buffer for reading."""
     cdef:
-        memtif_t* memtif = <memtif_t*> malloc(sizeof(memtif_t))
+        memtif_t* memtif = <memtif_t*> calloc(1, sizeof(memtif_t))
 
     if memtif == NULL:
         return NULL
@@ -851,7 +851,7 @@ cdef memtif_t* memtif_open(
 cdef memtif_t* memtif_new(toff_t size, toff_t inc) noexcept nogil:
     """Return new memtif with new buffer for writing."""
     cdef:
-        memtif_t* memtif = <memtif_t*> malloc(sizeof(memtif_t))
+        memtif_t* memtif = <memtif_t*> calloc(1, sizeof(memtif_t))
 
     if memtif == NULL:
         return NULL
