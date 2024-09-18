@@ -39,7 +39,7 @@ import enum
 import mmap
 import os
 from collections.abc import Sequence
-from typing import Any, BinaryIO, Callable, Literal, overload
+from typing import IO, Any, Callable, Literal, overload
 
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
@@ -124,7 +124,7 @@ def imread(
 
 
 def imwrite(
-    fileobj: str | os.PathLike[Any] | BinaryIO,
+    fileobj: str | os.PathLike[Any] | IO[bytes],
     data: ArrayLike,
     /,
     codec: str | Callable[..., bytes | bytearray] | None = None,
@@ -1590,7 +1590,7 @@ def jpeg2k_encode(
     resolutions: int | None = None,
     reversible: bool | None = None,
     mct: bool = True,
-    verbose: int = 0,
+    verbose: int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
@@ -1602,7 +1602,7 @@ def jpeg2k_decode(
     /,
     *,
     planar: bool | None = None,
-    verbose: int = 0,
+    verbose: int | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
@@ -1617,6 +1617,9 @@ class JPEG8:
 
     legacy: bool
     """JPEG8 codec is not linked to libjpeg-turbo 3."""
+
+    all_precisions: bool
+    """JPEG8 codec supports all precisions from 2 to 16-bit."""
 
     class CS(enum.IntEnum):
         """JPEG8 codec color spaces."""
@@ -1945,6 +1948,47 @@ def jpegxr_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded JPEGXR image."""
+
+
+class JPEGXS:
+    """JPEGXS codec constants."""
+
+    available: bool
+    """JPEGXS codec is available."""
+
+
+class JpegxsError(RuntimeError):
+    """JPEGXS codec exceptions."""
+
+
+def jpegxs_version() -> str:
+    """Return libjxs library version string."""
+
+
+def jpegxs_check(data: BytesLike, /) -> bool:
+    """Return whether data is JPEGXS encoded image."""
+
+
+def jpegxs_encode(
+    data: ArrayLike,
+    /,
+    config: str | None = None,
+    *,
+    bitspersample: int | None = None,
+    verbose: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return JPEGXS encoded image."""
+
+
+def jpegxs_decode(
+    data: BytesLike,
+    /,
+    *,
+    verbose: int | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded JPEGXS image."""
 
 
 class LERC:
@@ -2918,9 +2962,8 @@ def quantize_encode(
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
-):
+) -> NDArray[Any]:
     """Return quantized floating point array."""
-    return None
 
 
 def quantize_decode(
@@ -2933,7 +2976,7 @@ def quantize_decode(
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
-):
+) -> NDArray[Any]:
     """Return data if lossless else raise QuantizeError."""
 
 
@@ -3157,6 +3200,64 @@ def spng_decode(
     """Return decoded PNG image."""
 
 
+class SZ3:
+    """SZ3 codec constants."""
+
+    available: bool
+    """SZ3 codec is available."""
+
+    class MODE(enum.IntEnum):
+        """SZ3 codec error bound modes."""
+
+        ABS: int
+        REL: int
+        ABS_AND_REL: int
+        ABS_OR_REL: int
+        # PSNR: int
+        # NORM: int
+        # PW_REL: int
+        # ABS_AND_PW_REL: int
+        # ABS_OR_PW_REL: int
+        # REL_AND_PW_REL: int
+        # REL_OR_PW_REL: int
+
+
+class Sz3Error(RuntimeError):
+    """SZ3 codec exceptions."""
+
+
+def sz3_version() -> str:
+    """Return SZ3 library version string."""
+
+
+def sz3_check(data: BytesLike, /) -> bool:
+    """Return whether data is SZ3 encoded."""
+
+
+def sz3_encode(
+    data: ArrayLike,
+    /,
+    mode: SZ3.MODE | int | str | None = None,
+    abs: float | None = None,
+    rel: float | None = None,
+    # pwr: float | None = None,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return SZ3 encoded data."""
+
+
+def sz3_decode(
+    data: BytesLike,
+    /,
+    shape: tuple[int, ...],
+    dtype: DTypeLike,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded SZ3 data."""
+
+
 class SZIP:
     """SZIP codec constants."""
 
@@ -3179,11 +3280,11 @@ class SzipError(RuntimeError):
     """SZIP codec exceptions."""
 
 
-def szip_version():
+def szip_version() -> str:
     """Return libaec library version string."""
 
 
-def szip_check(data):
+def szip_check(data: BytesLike, /) -> None:
     """Return whether data is SZIP encoded."""
 
 
@@ -3313,10 +3414,95 @@ def tiff_decode(
     index: int | Sequence[int] | slice | None = 0,
     *,
     asrgb: bool = False,
-    verbose: int = 0,
+    verbose: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded TIFF image."""
+
+
+class ULTRAHDR:
+    """Ultra HDR codec constants."""
+
+    available: bool
+    """Ultra HDR codec is available."""
+
+    class CG(enum.IntEnum):
+        """Ultra HDR color gamut."""
+
+        UNSPECIFIED: int
+        BT_709: int
+        DISPLAY_P3: int
+        BT_2100: int
+
+    class CT(enum.IntEnum):
+        """Ultra HDR color transfer."""
+
+        UNSPECIFIED: int
+        LINEAR: int
+        HLG: int
+        PQ: int
+        SRGB: int
+
+    class CR(enum.IntEnum):
+        """Ultra HDR color range."""
+
+        UNSPECIFIED: int
+        LIMITED_RANGE: int
+        FULL_RANGE: int
+
+    class CODEC(enum.IntEnum):
+        """Ultra HDR codec."""
+
+        JPEG: int
+        HEIF: int
+        AVIF: int
+
+    class USAGE(enum.IntEnum):
+        """Ultra HDR codec."""
+
+        REALTIME: int
+        QUALITY: int
+
+
+class UltrahdrError(RuntimeError):
+    """Ultra HDR codec exceptions."""
+
+
+def ultrahdr_version() -> str:
+    """Return libultrahdr library version string."""
+
+
+def ultrahdr_check(data: BytesLike, /) -> bool:
+    """Return whether data is Ultra HDR encoded image."""
+
+
+def ultrahdr_encode(
+    data: ArrayLike,
+    /,
+    *,
+    level: int | None = None,
+    scale: int | None = None,
+    gamut: ULTRAHDR.CG | int | None = None,
+    transfer: ULTRAHDR.CT | int | None = None,
+    crange: ULTRAHDR.CR | int | None = None,
+    usage: ULTRAHDR.USAGE | int | None = None,
+    codec: ULTRAHDR.CODEC | int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return Ultra HDR encoded image."""
+
+
+def ultrahdr_decode(
+    data: BytesLike,
+    /,
+    *,
+    dtype: DTypeLike | None = None,
+    transfer: ULTRAHDR.CT | int | None = None,
+    boost: float | None = None,
+    gpu: bool = False,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded Ultra HDR image."""
 
 
 class WEBP:
