@@ -39,6 +39,26 @@ The module is intended for testing and reference, not production code.
 
 from __future__ import annotations
 
+__all__ = [
+    'bitshuffle',
+    'blosc',
+    'blosc2',
+    'brotli',
+    'bz2',
+    'czifile',
+    'lz4',
+    'lzf',
+    'lzfse',
+    'lzham',
+    'lzma',
+    'pillow',
+    'snappy',
+    'tifffile',
+    'zlib',
+    'zopfli',
+    'zstd',
+]
+
 import bz2
 import functools
 import gzip
@@ -47,10 +67,29 @@ import lzma
 import struct
 import sys
 import zlib
+from types import ModuleType
 
 import numpy
 
 from .imagecodecs import __version__
+
+pillow: ModuleType | None
+bitshuffle: ModuleType | None
+blosc: ModuleType | None
+blosc2: ModuleType | None
+brotli: ModuleType | None
+czifile: ModuleType | None
+lz4: ModuleType | None
+lzf: ModuleType | None
+lzfse: ModuleType | None
+lzham: ModuleType | None
+snappy: ModuleType | None
+tifffile: ModuleType | None
+zfpy: ModuleType | None
+zopfli: ModuleType | None
+zstd: ModuleType | None
+zarr: ModuleType | None
+numcodecs: ModuleType | None
 
 try:
     import PIL as pillow
@@ -111,7 +150,7 @@ except ImportError:
 
 try:
     import tifffile
-except Exception:
+except ImportError:
     tifffile = None
 
 try:
@@ -122,7 +161,7 @@ except ImportError:
 try:
     import zopfli
 except ImportError:
-    zopfli = None  # type: ignore
+    zopfli = None
 
 try:
     import zstd
@@ -453,7 +492,6 @@ def bitorder_decode(data, out=None, _bitorder=[]):
         return data.translate(_bitorder[0])
     except ValueError as exc:
         raise NotImplementedError('slices of arrays not supported') from exc
-    return None
 
 
 bitorder_encode = bitorder_decode
@@ -934,7 +972,7 @@ def jpeg8_decode(
 
 
 @notimplemented(pillow)
-def jpeg2k_decode(data, verbose=0, out=None):
+def jpeg2k_decode(data, verbose=None, out=None):
     """Decode JPEG 2000."""
     return pil_decode(data)
 
@@ -957,3 +995,6 @@ if __name__ == '__main__':
     print(version())
     numpy.set_printoptions(suppress=True, precision=2)
     doctest.testmod()
+
+# mypy: allow-untyped-defs, allow-untyped-calls
+# mypy: disable-error-code="no-redef, union-attr"
