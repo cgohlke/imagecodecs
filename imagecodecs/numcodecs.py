@@ -866,6 +866,8 @@ class Jetraw(Codec):
         self.identifier = identifier
         self.errorbound = errorbound
         self.squeeze = squeeze
+        if not verbose:
+            verbose = 0
         imagecodecs.jetraw_init(parameters, verbose=verbose)
 
     def encode(self, buf):
@@ -984,7 +986,7 @@ class Jpeg2k(Codec):
         resolutions: int | None = None,
         reversible: bool | None = None,
         mct: bool = True,
-        verbose: int = 0,
+        verbose: int | None = None,
         numthreads: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
@@ -1162,6 +1164,40 @@ class Jpegxr(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.jpegxr_decode(buf, fp2int=self.fp2int, out=out)
+
+
+class Jpegxs(Codec):
+    """JPEG XS codec for numcodecs."""
+
+    codec_id = 'imagecodecs_jpegxs'
+
+    def __init__(
+        self,
+        *,
+        config: str | None = None,
+        bitspersample: int | None = None,
+        verbose: int | None = None,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.JPEGXS.available:
+            raise ValueError('imagecodecs.JPEGXS not available')
+
+        self.config = config
+        self.bitspersample = bitspersample
+        self.verbose = verbose
+        self.squeeze = squeeze
+
+    def encode(self, buf):
+        buf = _image(buf, self.squeeze)
+        return imagecodecs.jpegxs_encode(
+            buf,
+            config=self.config,
+            bitspersample=self.bitspersample,
+            verbose=self.verbose,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.jpegxs_decode(buf, out=out)
 
 
 class Lerc(Codec):
@@ -1485,10 +1521,10 @@ class Packints(Codec):
     def decode(self, buf, out=None):
         return imagecodecs.packints_decode(
             buf,
-            dtype=self.dtype,
-            bitspersample=self.bitspersample,
+            self.dtype,
+            self.bitspersample,
             runlen=self.runlen,
-            out=_flat(out),
+            out=_flat(out),  # type: ignore[arg-type]
         )
 
 
@@ -1767,7 +1803,7 @@ class Sperr(Codec):
             buf,
             level=self.level,
             mode=self.mode,
-            chunks=self.chunks,
+            chunks=self.chunks,  # type: ignore[arg-type]
             header=self.header,
             numthreads=self.numthreads,
         )
@@ -1808,6 +1844,40 @@ class Spng(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.spng_decode(buf, out=out)
+
+
+class Sz3(Codec):
+    """SZ3 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_sz3'
+
+    def __init__(
+        self,
+        *,
+        shape: tuple[int, ...],
+        dtype: DTypeLike,
+        mode: Literal['abs', 'rel', 'abs_or_rel', 'abs_and_rel'] | None = None,
+        abs: float | None = None,
+        rel: float | None = None,
+    ) -> None:
+        if not imagecodecs.SZ3.available:
+            raise ValueError('imagecodecs.SZ3 not available')
+
+        self.shape = tuple(shape)
+        self.dtype = numpy.dtype(dtype).str
+        self.mode = 'abs' if mode is None else mode
+        self.abs = 0.0 if abs is None else abs
+        self.rel = 0.0 if rel is None else rel
+
+    def encode(self, buf):
+        return imagecodecs.sz3_encode(
+            buf, mode=self.mode, abs=self.abs, rel=self.rel
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.sz3_decode(
+            buf, shape=self.shape, dtype=self.dtype, out=out
+        )
 
 
 class Szip(Codec):
@@ -1865,7 +1935,7 @@ class Tiff(Codec):
         *,
         index: int | None = None,
         asrgb: bool = False,
-        verbose: int = 0,
+        verbose: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
         if not imagecodecs.TIFF.available:
@@ -1873,7 +1943,7 @@ class Tiff(Codec):
 
         self.index = index
         self.asrgb = bool(asrgb)
-        self.verbose = int(verbose)
+        self.verbose = verbose
         self.squeeze = squeeze
 
     def encode(self, buf):
@@ -1887,6 +1957,67 @@ class Tiff(Codec):
             index=self.index,
             asrgb=self.asrgb,
             verbose=self.verbose,
+            out=out,
+        )
+
+
+class Ultrahdr(Codec):
+    """Ultra HDR codec for numcodecs."""
+
+    codec_id = 'imagecodecs_ultrahdr'
+
+    def __init__(
+        self,
+        *,
+        # encode
+        level: int | None = None,
+        scale: int | None = None,
+        gamut: int | None = None,
+        crange: int | None = None,
+        transfer: int | None = None,
+        usage: int | None = None,
+        codec: int | None = None,
+        # decode
+        dtype: DTypeLike | None = None,
+        boost: float | None = None,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.ULTRAHDR.available:
+            raise ValueError('imagecodecs.ULTRAHDR not available')
+
+        self.dtype = None if dtype is None else numpy.dtype(dtype).str
+        self.level = level
+        self.scale = scale
+        self.gamut = gamut
+        self.crange = crange
+        self.transfer = transfer
+        self.usage = usage
+        self.codec = codec
+        self.boost = boost
+        self.squeeze = squeeze
+
+    def encode(self, buf):
+        buf = _image(buf, self.squeeze)
+        if self.dtype is not None and buf.dtype != self.dtype:
+            raise ValueError(f'{buf.dtype=} != {self.dtype}')
+
+        return imagecodecs.ultrahdr_encode(
+            buf,
+            scale=self.scale,
+            level=self.level,
+            gamut=self.gamut,
+            crange=self.crange,
+            transfer=self.transfer,
+            usage=self.usage,
+            codec=self.codec,
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.ultrahdr_decode(
+            buf,
+            dtype=self.dtype,
+            transfer=self.transfer,
+            boost=self.boost,
             out=out,
         )
 
@@ -2134,7 +2265,7 @@ def _contiguous(buf: Any, /) -> memoryview:
     """Return buffer as contiguous view of bytes."""
     view = memoryview(buf)
     if not view.contiguous:
-        view = memoryview(numpy.ascontiguousarray(buf))  # type: ignore
+        view = memoryview(numpy.ascontiguousarray(buf))
     return view.cast('B')
 
 
@@ -2145,7 +2276,9 @@ def _image(
 ) -> NDArray[Any]:
     """Return buffer as squeezed numpy array with at least 2 dimensions."""
     if squeeze is None:
-        return numpy.atleast_2d(numpy.squeeze(buf))
+        return numpy.atleast_2d(  # type: ignore[no-any-return]
+            numpy.squeeze(buf)
+        )
     arr = numpy.asarray(buf)
     if not squeeze:
         return arr
@@ -2190,8 +2323,12 @@ def register_codecs(
         register_codec(cls)
 
 
-def log_warning(msg, *args, **kwargs) -> None:
+def log_warning(msg: Any, *args: Any, **kwargs: Any) -> None:
     """Log message with level WARNING."""
     import logging
 
     logging.getLogger(__name__).warning(msg, *args, **kwargs)
+
+
+# mypy: allow-untyped-defs, allow-untyped-calls
+# mypy: disable-error-code="misc"
