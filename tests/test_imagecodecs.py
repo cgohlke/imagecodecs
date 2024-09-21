@@ -32,9 +32,11 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2024.6.1
+:Version: 2024.9.22
 
 """
+
+from __future__ import annotations
 
 import glob
 import importlib
@@ -47,6 +49,7 @@ import platform
 import re
 import sys
 import tempfile
+from typing import Any
 
 import numpy
 import pytest
@@ -137,6 +140,7 @@ def test_module_exist(name):
             or name == 'mozjpeg'
             or name == 'heif'
             or name == 'jetraw'
+            or name == 'jpegxs'
             or name == 'pcodec'
             # or name == 'nvjpeg'
             # or name == 'nvjpeg2k'
@@ -418,6 +422,22 @@ PACKBITS_DATA = [
     ([0, 0] + [1, 2] * 64, b'\xff\x00\x7f' + b'\x01\x02' * 64),
     ([0] * 128 + [1], b'\x81\x00\x00\x01'),
     ([0] * 128 + [1, 2] * 64, b'\x81\x00\x7f' + b'\x01\x02' * 64),
+    (
+        # one literal run is shortest
+        [0, 1, 2, 3, 3, 3, 4, 5, 6, 7, 7, 7, 8],
+        b'\x0c\x00\x01\x02\x03\x03\x03\x04\x05\x06\x07\x07\x07\x08',
+    ),
+    (
+        # use replicate runs
+        [0, 1, 2, 3, 3, 3, 4, 5, 6, 7, 7, 7, 7, 8],
+        b'\x02\x00\x01\x02\xfe\x03\x02\x04\x05\x06\xfd\x07\x00\x08',
+    ),
+    (
+        # skip short replicate run
+        [0, 1, 2, 3, 3, 4, 5, 6, 7, 7, 7, 7, 8],
+        b'\x07\x00\x01\x02\x03\x03\x04\x05\x06\xfd\x07\x00\x08',
+        # not b'\x0c\x00\x01\x02\x03\x03\x04\x05\x06\x07\x07\x07\x07\x08'
+    ),
     (
         b'\xaa\xaa\xaa\x80\x00\x2a\xaa\xaa\xaa\xaa\x80\x00'
         b'\x2a\x22\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa',
@@ -2107,6 +2127,17 @@ def test_zstd_stream():
     assert arr[86, 97, 4] == 1092705
 
 
+@pytest.mark.skipif(not imagecodecs.LZF.available, reason='lzf missing')
+def test_lzf_exceptions():
+    """Test LZF codec exceptions codec."""
+    # https://github.com/cgohlke/imagecodecs/issues/103
+    encoded = imagecodecs.lzf_encode(b'0123456789')
+    with pytest.raises(imagecodecs.LzfError):
+        imagecodecs.lzf_decode(encoded, out=9)
+    with pytest.raises(imagecodecs.LzfError):
+        imagecodecs.lzf_decode(encoded[:2] + encoded[4:], out=10)
+
+
 @pytest.mark.skipif(not imagecodecs.PGLZ.available, reason='pglz missing')
 def test_pglz():
     """Test PGLZ codec."""
@@ -2209,7 +2240,8 @@ def test_jetraw():
 
 @pytest.mark.skipif(not imagecodecs.PCODEC.available, reason='pcodec missing')
 @pytest.mark.parametrize(
-    'dtype', ['uint32', 'int32', 'int64', 'float32', 'float64']  # 'uint64'
+    'dtype',
+    ['uint16', 'uint32', 'int32', 'int64', 'float32', 'float64', 'float16'],
 )
 def test_pcodec(dtype):
     """Test pcodec codec."""
@@ -2922,6 +2954,7 @@ def test_mozjpeg():
 )
 def test_ljpeg(fname, result, codec):
     """Test Lossless JPEG decoders."""
+    kwargs = {}
     if codec == 'jpeg8':
         if not imagecodecs.JPEG8.available:
             pytest.skip('jpeg8 missing')
@@ -2929,21 +2962,29 @@ def test_ljpeg(fname, result, codec):
             pytest.skip('jpeg8 does not support lossless')
         decode = imagecodecs.jpeg8_decode
         check = imagecodecs.jpeg8_check
-        if fname in {
-            '2ch.ljp',  # Unsupported JPEG data precision 14
-            '2dht.ljp',  # Unsupported color conversion request
-            'rgb24.ljp',  # Unsupported color conversion request
-            'linearraw.ljp',  # Unsupported color conversion request
-            'dng0.ljp',  # Invalid progressive/lossless parameters Ss=0 ...
-            # 'dng1.ljp',  # Bogus Huffman table definition
-            # 'dng2.ljp',  # Bogus Huffman table definition
-            # 'dng3.ljp',  # Bogus Huffman table definition
-            # 'dng4.ljp',  # Bogus Huffman table definition
-            # 'dng5.ljp',  # Bogus Huffman table definition
-            # 'dng6.ljp',  # Bogus Huffman table definition
-            # 'dng7.ljp',  # Bogus Huffman table definition
-        }:
+        if fname in {'2dht.ljp', 'linearraw.ljp'}:
+            kwargs["colorspace"] = "YCBCR"
+        elif not imagecodecs.JPEG8.all_precisions:
+            # libjpeg-turbo 3.0.x
+            if fname in {
+                '2ch.ljp',  # Unsupported JPEG data precision 14
+                # '2dht.ljp',  # Unsupported color conversion request
+                'rgb24.ljp',  # Unsupported color conversion request
+                # 'linearraw.ljp',  # Unsupported color conversion request
+                'dng0.ljp',  # Invalid progressive/lossless parameters Ss=0 ...
+                # 'dng1.ljp',  # Bogus Huffman table definition
+                # 'dng2.ljp',  # Bogus Huffman table definition
+                # 'dng3.ljp',  # Bogus Huffman table definition
+                # 'dng4.ljp',  # Bogus Huffman table definition
+                # 'dng5.ljp',  # Bogus Huffman table definition
+                # 'dng6.ljp',  # Bogus Huffman table definition
+                # 'dng7.ljp',  # Bogus Huffman table definition
+            }:
+                pytest.xfail('libjpeg-turbo does not support this case')
+        elif fname in {'rgb24.ljp', 'dng0.ljp'}:
             pytest.xfail('libjpeg-turbo does not support this case')
+        # elif fname in {'2dht.ljp', 'linearraw.ljp'}:
+        #     kwargs["colorspace"] = "YCBCR"
     elif codec == 'ljpeg':
         if not imagecodecs.LJPEG.available:
             pytest.skip('ljpeg missing')
@@ -2967,7 +3008,7 @@ def test_ljpeg(fname, result, codec):
         pytest.skip(f'{fname} not found')
 
     assert check(data) in {None, True}
-    decoded = decode(data)
+    decoded = decode(data, **kwargs)
 
     shape, dtype, index, value = result
     assert decoded.shape == shape
@@ -3043,6 +3084,9 @@ def test_jpegxl_bitspersample():
     image = image_data('rgb', 'uint16')
     image >>= 4
     encoded = imagecodecs.jpegxl_encode(image, bitspersample=12)
+    # TODO: verify that encoded is a 12-bit image
+    # with open('12bit.jxl', 'wb') as fh: fh.write(encoded)
+    # jxlinfo 12bit.jxl -> JPEG XL image, 31x32, lossless, 12-bit RGB
     decoded = imagecodecs.jpegxl_decode(encoded)
     assert_array_equal(image, decoded)
 
@@ -3330,6 +3374,162 @@ def test_zfp(dtype, itype, enout, deout, mode, execution):
         atol = 1e-6
     else:
         atol = 20
+    assert_allclose(data, decoded, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.SZ3.available, reason='sz3 missing')
+@pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', ['rgba', 'view', 'gray', 'line'])
+@pytest.mark.parametrize('dtype', ['float32', 'float64'])
+def test_sz3(dtype, itype, enout, deout):
+    """Test SZ3 codec."""
+    decode = imagecodecs.sz3_decode
+    encode = imagecodecs.sz3_encode
+
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    data = image_data(itype, dtype)
+    shape = data.shape
+    atol = 1e-3
+
+    kwargs = dict(mode=imagecodecs.SZ3.MODE.ABS, abs=atol)
+    encoded = encode(data, **kwargs)
+
+    assert imagecodecs.sz3_check(encoded) is None
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        encoded = numpy.zeros(len(encoded), 'uint8')
+        encode(data, out=encoded, **kwargs)
+    elif enout == 'bytearray':
+        encoded = bytearray(len(encoded))
+        encode(data, out=encoded, **kwargs)
+
+    kwargs = dict(shape=shape, dtype=dtype)
+    if deout == 'new':
+        decoded = decode(encoded, **kwargs)
+    elif deout == 'out':
+        decoded = numpy.zeros(shape, dtype)
+        decode(encoded, out=decoded, **kwargs)
+    elif deout == 'bytearray':
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
+        decoded = decode(encoded, out=decoded, **kwargs)
+        decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
+
+    assert_allclose(data, decoded, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.ULTRAHDR.available, reason='ultrahdr missing'
+)
+@pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
+def test_ultrahdr_decode(output):
+    """Test Ultra HDR decoder with image."""
+    # this image was generated from linear 32bppRGBA1010102
+    # TODO: replace with 64bppRGBAHalfFloat once libultrahdr supports it
+    data = readfile('rgba.uhdr')
+    dtype = numpy.float16
+    shape = 32, 31, 4
+
+    assert imagecodecs.ultrahdr_check(data)
+
+    if output == 'new':
+        decoded = imagecodecs.ultrahdr_decode(data)
+    elif output == 'out':
+        decoded = numpy.zeros(shape, dtype)
+        imagecodecs.ultrahdr_decode(data, out=decoded)
+    elif output == 'bytearray':
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * 2)
+        decoded = imagecodecs.ultrahdr_decode(data, out=decoded)
+
+    assert decoded.dtype == dtype
+    assert decoded.shape == shape
+    assert_allclose(decoded[25, 25, 1], 0.4717, atol=0.01)
+    assert_allclose(decoded[-1, -1, -1], 1.0, atol=0.01)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.ULTRAHDR.available, reason='ultrahdr missing'
+)
+def test_ultrahdr():
+    """Test Ultra HDR codec."""
+    # this image was generated from linear 32bppRGBA1010102
+    # TODO: replace with 64bppRGBAHalfFloat once libultrahdr supports it
+    uhdr = readfile('rgba.uhdr')
+
+    assert imagecodecs.ultrahdr_check(uhdr)
+    rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.float16)
+    assert rgba.dtype == numpy.float16
+    assert rgba.shape == (32, 31, 4)
+    assert_allclose(rgba[0, 0], [0.4941, 0.7524, 0.6313, 1.0], atol=0.01)
+
+    rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint8)
+    assert rgba.dtype == numpy.uint8
+    assert rgba.shape == (32, 31, 4)
+    # TODO: SDR is way too bright
+    # assert_allclose(rgba[0, 0], [128, 196, 160, 255])
+    assert_allclose(rgba[0, 0], [199, 240, 222, 255])
+
+    rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint32, transfer=1)
+    assert rgba.dtype == numpy.uint32
+    assert rgba.shape == (32, 31)
+    assert rgba[0, 0] == 4204736379  # 3894166016
+
+    uhdr = imagecodecs.ultrahdr_encode(rgba, level=100, transfer=1, gamut=1)
+
+    assert imagecodecs.ultrahdr_check(uhdr)
+    rgba = imagecodecs.ultrahdr_decode(uhdr, transfer=0)
+    # TODO: values not identical
+    # assert_allclose(rgba[0, 0], [0.4941, 0.7524, 0.6313, 1.0], atol=0.01)
+    assert_allclose(rgba[0, 0], [0.4907, 0.762, 0.628, 1.0], atol=0.01)
+
+
+@pytest.mark.xfail(reason='ultrahdr roundtrip not working')
+@pytest.mark.skipif(
+    not imagecodecs.ULTRAHDR.available, reason='ultrahdr missing'
+)
+@pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
+@pytest.mark.parametrize('itype', ['rgba', 'view'])
+def test_ultrahdr_roundtrip(itype, enout, deout):
+    """Test Ultra HDR codec."""
+    decode = imagecodecs.ultrahdr_decode
+    encode = imagecodecs.ultrahdr_encode
+
+    dtype = numpy.dtype(numpy.float16)
+    data = image_data(itype, numpy.float32)
+    data /= data.max()
+    data = data.astype(dtype)
+    shape = data.shape
+    atol = 1e-3
+
+    kwargs = {}
+    encoded = encode(data, **kwargs)
+
+    assert imagecodecs.ultrahdr_check(encoded)
+
+    if enout == 'new':
+        pass
+    elif enout == 'out':
+        encoded = numpy.zeros(len(encoded), 'uint8')
+        encode(data, out=encoded, **kwargs)
+    elif enout == 'bytearray':
+        encoded = bytearray(len(encoded))
+        encode(data, out=encoded, **kwargs)
+
+    kwargs = {'dtype': dtype}
+    if deout == 'new':
+        decoded = decode(encoded, **kwargs)
+    elif deout == 'out':
+        decoded = numpy.zeros(shape, dtype)
+        decode(encoded, out=decoded, **kwargs)
+    elif deout == 'bytearray':
+        decoded = bytearray(shape[0] * shape[1] * shape[2] * 2)
+        decoded = decode(encoded, out=decoded, **kwargs)
+        decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
+
     assert_allclose(data, decoded, atol=atol, rtol=0)
 
 
@@ -3697,6 +3897,22 @@ def test_jpeg2k_realloc(caplog):
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
+def test_jpeg2k_trailing_bytes(caplog):
+    """Test JPEG 2000 encoder is not leaving trailing bytes."""
+    # https://github.com/cgohlke/imagecodecs/issues/104
+    data = numpy.ones((146, 2960), dtype=numpy.uint16)
+    jpeg2k = imagecodecs.jpeg2k_encode(data, level=0, verbose=3)
+    assert len(jpeg2k) < 386
+    for _ in range(10):
+        encoded = imagecodecs.jpeg2k_encode(data, level=0, verbose=3)
+        assert not encoded.endswith(b'\x00\x00\x00\x00')
+        assert encoded == jpeg2k
+        decoded = imagecodecs.jpeg2k_decode(encoded, verbose=3)
+        assert 'stream error' not in caplog.text
+        assert_array_equal(decoded, data)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
 @pytest.mark.parametrize('bitspersample', [None, True])
 @pytest.mark.parametrize('dtype', ['u1', 'u2', 'u4', 'i1', 'i2', 'i4'])
 @pytest.mark.parametrize('planar', [False, True])
@@ -3811,6 +4027,31 @@ def test_jpegxr(itype, enout, deout, level):
     else:
         atol = 0.1 if dtype.kind == 'f' else 64 if dtype == 'uint8' else 700
     assert_allclose(data, decoded, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXS.available, reason='jpegxs missing')
+@pytest.mark.parametrize('dtype', ['uint8', 'uint16'])
+@pytest.mark.parametrize('config', [None, 'p=MLS.12;nlx=2;nly=2'])
+def test_jpegxs(dtype, config):
+    """Test JPEGXS codec."""
+    bitspersample = 8 if dtype == 'uint8' else 12
+    data = image_data('rgb', dtype).squeeze()
+    encoded = imagecodecs.jpegxs_encode(
+        data, config=config, bitspersample=bitspersample, verbose=2
+    )
+    assert imagecodecs.jpegxs_check(encoded)
+    decoded = imagecodecs.jpegxs_decode(encoded)
+    assert_array_equal(data, decoded, verbose=True)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXS.available, reason='jpegxs missing')
+def test_jpegxs_fail(capsys):
+    """Test JPEGXS codec with empty config fails."""
+    data = image_data('rgb', numpy.uint8).squeeze()
+    with pytest.raises(imagecodecs.JpegxsError):
+        imagecodecs.jpegxs_encode(data, config='', verbose=2)
+    # captured = capsys.readouterr()
+    # assert 'Error: Image dimensions are not supported' in captured.out
 
 
 @pytest.mark.skipif(not imagecodecs.PNG.available, reason='png missing')
@@ -3942,6 +4183,7 @@ def test_spng_encode(itype, dtype, level):
         'jpegls',
         'jpegxl',
         'jpegxr',
+        'jpegxs',
         'ljpeg',
         'mozjpeg',
         'png',
@@ -4140,6 +4382,15 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         atol = 10
         if level:
             level = (level + 95) / 100
+    elif codec == 'jpegxs':
+        if not imagecodecs.JPEGXS.available:
+            pytest.skip(f'{codec} missing')
+        if itype != 'rgb' or deout == 'view':
+            pytest.xfail('jpegxs does not support this case')
+        level = None
+        decode = imagecodecs.jpegxs_decode
+        encode = imagecodecs.jpegxs_encode
+        check = imagecodecs.jpegxs_check
     elif codec == 'avif':
         if not imagecodecs.AVIF.available:
             pytest.skip(f'{codec} missing')
@@ -4600,6 +4851,7 @@ def test_numcodecs_register(caplog):
         'jpegls',
         'jpegxl',
         'jpegxr',
+        'jpegxs',
         'lerc',
         'ljpeg',
         'lz4',
@@ -4619,8 +4871,10 @@ def test_numcodecs_register(caplog):
         'snappy',
         'sperr',
         'spng',
+        'sz3',
         'szip',
         'tiff',  # no encoder
+        'ultrahdr',
         'webp',
         'xor',
         'zfp',
@@ -4804,6 +5058,25 @@ def test_numcodecs(codec, photometric):
         compressor = numcodecs.Jpegxr(
             level=1.0, photometric='RGB' if photometric == 'rgb' else None
         )  # lossless
+    elif codec == 'jpegxs':
+        if not imagecodecs.JPEGXS.available:
+            pytest.skip(f'{codec} not found')
+        if photometric != 'rgb':
+            pytest.xfail(f'JPEGXS does not support {photometric=}')
+        compressor = numcodecs.Jpegxs(config='p=MLS.12', verbose=1)
+    elif codec == 'ultrahdr':
+        if not imagecodecs.ULTRAHDR.available:
+            pytest.skip(f'{codec} not found')
+        if photometric != 'rgb':
+            pytest.xfail(f'ULTRAHDR does not support {photometric=}')
+        else:
+            pytest.xfail('ultrahdr_encode not working')
+        data = data.astype('float32')
+        data /= data.max()
+        data = data.astype('float16')
+        compressor = numcodecs.Ultrahdr()
+        lossless = False
+        atol = 1e-2
     elif codec == 'lerc':
         if not imagecodecs.LERC.available:
             pytest.skip(f'{codec} not found')
@@ -4923,6 +5196,18 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.SPNG.available:
             pytest.skip(f'{codec} not found')
         compressor = numcodecs.Spng()
+    elif codec == 'sz3':
+        if not imagecodecs.SZ3.available:
+            pytest.skip(f'{codec} not found')
+        data = data.astype('float32')
+        atol = 1e-3
+        compressor = numcodecs.Sz3(
+            mode='abs',
+            abs=atol,
+            shape=chunks[1:],
+            dtype=data.dtype,
+        )
+        lossless = False
     elif codec == 'szip':
         if not imagecodecs.SZIP.available:
             pytest.skip(f'{codec} not found')
@@ -4994,7 +5279,7 @@ def test_numcodecs(codec, photometric):
         assert_array_equal(z[:, :150, :150], data[:, :150, :150])
     else:
         assert_allclose(
-            z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0
+            z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0.001
         )
     try:
         store.close()
@@ -5050,7 +5335,7 @@ class TempFileName:
                 pass
 
 
-def datafiles(pathname, base=None):
+def datafiles(pathname: str, base: str | None = None) -> Any:
     """Return path to data file(s)."""
     if base is None:
         base = osp.dirname(__file__)
@@ -5060,8 +5345,9 @@ def datafiles(pathname, base=None):
     return path
 
 
-def readfile(fname, memmap=False):
+def readfile(fname: str, memmap: bool = False) -> Any:
     """Return content of data file."""
+    data: Any
     with open(datafiles(fname), 'rb') as fh:
         if memmap:
             data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
@@ -5070,7 +5356,12 @@ def readfile(fname, memmap=False):
     return data
 
 
-def image_data(itype, dtype, planar=False, frames=False):
+def image_data(
+    itype: str,
+    dtype: numpy.typing.DTypeLike,
+    planar: bool = False,
+    frames: bool = False,
+) -> numpy.ndarray[Any, Any]:
     """Return test image array."""
     if frames:
         data = DATA
@@ -5140,7 +5431,9 @@ def image_data(itype, dtype, planar=False, frames=False):
     return data
 
 
-DATA = numpy.load(datafiles('testdata.npy'))  # (32, 31, 9) float64
+DATA: numpy.ndarray[Any, Any] = numpy.load(
+    datafiles('testdata.npy')
+)  # (32, 31, 9) float64
 BYTES = readfile('bytes.bin')
 BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
