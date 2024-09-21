@@ -1,9 +1,21 @@
 Revisions
 ---------
 
+2024.9.22
+
+- Pass 7644 tests.
+- Use libjpeg-turbo for all Lossless JPEG bit-depths if possible (#105).
+- Fix PackBits encoder fails to skip short replication blocks (#107).
+- Fix JPEG2K encoder leaving trailing random bytes (#104).
+- Fix encoding and decoding JPEG XL with custom bitspersample (#102).
+- Improve error handling in lzf_decode (#103).
+- Add Ultra HDR (JPEG_R) codec based on libultrahdr library (#108).
+- Add JPEGXS codec based on libjxs library (source only).
+- Add SZ3 codec based on SZ3 library.
+- Deprecate Python 3.9, support Python 3.13.
+
 2024.6.1
 
-- Pass 7486 tests.
 - Fix segfault in sperr_decode.
 - Fix segfault when strided-decoding into buffers with unexpected shapes (#98).
 - Fix jpeg2k_encoder output buffer too small (#101).
