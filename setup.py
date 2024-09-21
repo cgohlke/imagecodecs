@@ -123,7 +123,7 @@ OPTIONS = {
             # ('CYTHON_TRACE_NOGIL', '1'),
             # ('CYTHON_LIMITED_API', '1'),
             # ('Py_LIMITED_API', '1'),
-            ('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION'),
+            ('NPY_NO_DEPRECATED_API', 'NPY_1_20_API_VERSION'),
         ]
         + ([('WIN32', 1)] if sys.platform == 'win32' else [])  # type: ignore
     ),
@@ -171,6 +171,7 @@ EXTENSIONS = {
         include_dirs=['3rdparty/hdf5'],
     ),
     'heif': ext(libraries=['heif']),
+    # 'htj2k': ext(libraries=['openjph']),
     'jetraw': ext(libraries=['jetraw', 'dpcore']),
     'jpeg2k': ext(
         sources=['3rdparty/openjpeg/color.c'],
@@ -183,6 +184,7 @@ EXTENSIONS = {
     ),
     # 'jpegli': ext(libraries=['jpegli']),
     'jpegls': ext(libraries=['charls']),
+    'jpegxs': ext(libraries=['jxs']),
     'jpegsof3': ext(
         sources=['3rdparty/jpegsof3/jpegsof3.cpp'],
         include_dirs=['3rdparty/jpegsof3'],
@@ -239,8 +241,10 @@ EXTENSIONS = {
         define_macros=[('SPNG_STATIC', 1)],
         libraries=['z'],
     ),
+    'sz3': ext(libraries=['SZ3c']),
     'szip': ext(libraries=['sz']),
     'tiff': ext(libraries=['tiff']),
+    'ultrahdr': ext(libraries=['uhdr', 'jpeg']),
     'webp': ext(libraries=['webp', 'webpdemux']),
     'zfp': ext(libraries=['zfp']),
     'zlib': ext(libraries=['z']),
@@ -353,13 +357,16 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'rav1e',
         'SvtAv1Enc',
         'SvtAv1Dec',
-        'libsharpyuv',
+        'yuv',
+        # 'libsharpyuv',
         'Ws2_32',
         'Advapi32',
         'Userenv',
         'Bcrypt',
         'ntdll',
     ]
+
+    EXTENSIONS['sz3']['libraries'] = ['SZ3c', 'zstd_static']
     EXTENSIONS['szip']['libraries'] = ['szip-static']
     EXTENSIONS['cms']['libraries'] = ['lcms2_static']
     EXTENSIONS['aec']['libraries'] = ['aec-static']
@@ -455,10 +462,12 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
 def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
     """Customize build for Czaki's cibuildwheel environment."""
 
-    del EXTENSIONS['heif']  # Win32 only
-    del EXTENSIONS['jetraw']  # commercial
-    del EXTENSIONS['mozjpeg']  # Win32 only
-    # del EXTENSIONS['jpegli']  # Win32 only
+    del EXTENSIONS['heif']
+    # del EXTENSIONS['htj2k']
+    del EXTENSIONS['jetraw']
+    del EXTENSIONS['jpegxs']
+    del EXTENSIONS['mozjpeg']
+    # del EXTENSIONS['jpegli']
     del EXTENSIONS['pcodec']
 
     EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
@@ -506,15 +515,18 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
 
     del EXTENSIONS['apng']
     del EXTENSIONS['heif']
-    del EXTENSIONS['jetraw']  # commercial
-    # del EXTENSIONS['jpegli']  # Win32 only
-    del EXTENSIONS['jpegxl']
+    # del EXTENSIONS['htj2k']
+    del EXTENSIONS['jetraw']
+    del EXTENSIONS['jpegxs']
+    # del EXTENSIONS['jpegli']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
     del EXTENSIONS['lzo']
-    del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['mozjpeg']
     del EXTENSIONS['pcodec']
     del EXTENSIONS['sperr']
+    del EXTENSIONS['sz3']
+    del EXTENSIONS['ultrahdr']
     del EXTENSIONS['zlibng']
 
     EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
@@ -561,19 +573,23 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['brunsli']
     del EXTENSIONS['deflate']
     del EXTENSIONS['heif']
-    del EXTENSIONS['jetraw']  # commercial
-    # del EXTENSIONS['jpegli']  # Win32 only
+    # del EXTENSIONS['htj2k']
+    del EXTENSIONS['jetraw']
+    # del EXTENSIONS['jpegli']
     del EXTENSIONS['jpegls']
     del EXTENSIONS['jpegxl']
     del EXTENSIONS['jpegxr']
+    del EXTENSIONS['jpegxs']
     del EXTENSIONS['lerc']
     del EXTENSIONS['lz4f']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
     del EXTENSIONS['lzo']
-    del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['mozjpeg']
     del EXTENSIONS['pcodec']
     del EXTENSIONS['sperr']
+    del EXTENSIONS['sz3']
+    del EXTENSIONS['ultrahdr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -599,14 +615,18 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
 
     del EXTENSIONS['brunsli']
     del EXTENSIONS['heif']
-    del EXTENSIONS['jetraw']  # commercial
-    # del EXTENSIONS['jpegli']  # Win32 only
+    # del EXTENSIONS['htj2k']
+    del EXTENSIONS['jetraw']
+    # del EXTENSIONS['jpegli']
+    del EXTENSIONS['jpegxs']
     del EXTENSIONS['lzfse']
     del EXTENSIONS['lzham']
     del EXTENSIONS['lzo']
-    del EXTENSIONS['mozjpeg']  # Win32 only
+    del EXTENSIONS['mozjpeg']
     del EXTENSIONS['pcodec']
     del EXTENSIONS['sperr']
+    del EXTENSIONS['sz3']
+    del EXTENSIONS['ultrahdr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -733,28 +753,30 @@ setup(
     python_requires='>=3.9',
     install_requires=['numpy'],
     # setup_requires=['setuptools', 'numpy', 'cython'],
-    extras_require={'all': ['matplotlib', 'tifffile', 'numcodecs']},
-    tests_require=[
-        'pytest',
-        'tifffile',
-        'czifile',
-        'blosc; platform_python_implementation!="PyPy"',
-        'blosc2; platform_python_implementation!="PyPy"',
-        'zstd',
-        'lz4',
-        'pyliblzfse',
-        'python-lzf',
-        'python-snappy',
-        'bitshuffle',  # git+https://github.com/cgohlke/bitshuffle@patch-1
-        'zopflipy',
-        'zarr',
-        'numcodecs',
-        # 'bz2',
-        # 'zfpy',
-        # 'brotli',
-        # 'deflate',
-        # 'pytinyexr',
-    ],
+    extras_require={
+        'all': ['matplotlib', 'tifffile', 'numcodecs'],
+        'test': [
+            'pytest',
+            'tifffile',
+            'czifile',
+            'blosc',
+            'blosc2',
+            'zstd',
+            'lz4',
+            'pyliblzfse',
+            'python-lzf',
+            'python-snappy',
+            'bitshuffle',  # git+https://github.com/cgohlke/bitshuffle@patch-1
+            'zopflipy',
+            'zarr<3',
+            'numcodecs',
+            # 'bz2',
+            # 'zfpy',
+            # 'brotli',
+            # 'deflate',
+            # 'pytinyexr',
+        ],
+    },
     packages=['imagecodecs'],
     package_data={'imagecodecs': ['*.pyi', 'py.typed', 'licenses/*']},
     entry_points={
@@ -773,10 +795,12 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
 )
+
+# mypy: allow-untyped-defs, allow-untyped-calls
