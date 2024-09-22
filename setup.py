@@ -626,7 +626,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['pcodec']
     del EXTENSIONS['sperr']
     del EXTENSIONS['sz3']
-    del EXTENSIONS['ultrahdr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
