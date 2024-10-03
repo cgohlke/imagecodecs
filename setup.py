@@ -7,8 +7,10 @@ import re
 import shutil
 import sys
 
-import Cython  # noqa
 import numpy
+from Cython.Build import cythonize
+from Cython.Compiler.Version import version as cython_version
+from packaging.version import Version
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext as _build_ext
 
@@ -107,7 +109,6 @@ def ext(**kwargs):
         extra_compile_args=[],
         extra_link_args=[],
         depends=[],
-        cython_compile_time_env={},
         py_limited_api=False,
     )
     d.update(kwargs)
@@ -130,14 +131,11 @@ OPTIONS = {
     'extra_compile_args': ['/Zi', '/Od'] if DEBUG else [],
     'extra_link_args': ['-debug:full'] if DEBUG else [],
     'depends': ['imagecodecs/_shared.pxd'],
-    'cython_compile_time_env': {},
     'py_limited_api': False,
 }
 
 EXTENSIONS = {
-    'shared': ext(
-        cython_compile_time_env={'IS_PYPY': 'pypy' in sys.version.lower()},
-    ),
+    'shared': ext(),
     'imcd': ext(sources=['imagecodecs/imcd.c']),
     'aec': ext(libraries=['aec']),
     'apng': ext(libraries=['png']),
@@ -703,6 +701,11 @@ class build_ext(_build_ext):
         self.include_dirs.append(numpy.get_include())
 
 
+compiler_directives = {}
+if Version(cython_version) >= Version("3.1.0a0"):
+    compiler_directives["freethreading_compatible"] = True
+
+
 def extension(name):
     """Return setuptools Extension."""
     opt = EXTENSIONS[name]
@@ -727,10 +730,6 @@ def extension(name):
             )
         },
     )
-    ext.cython_compile_time_env = {
-        **OPTIONS['cython_compile_time_env'],  # type: ignore
-        **opt['cython_compile_time_env'],
-    }
     # ext.force = OPTIONS['cythonize'] or opt['cythonize']
     return ext
 
@@ -782,7 +781,12 @@ setup(
     entry_points={
         'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
     },
-    ext_modules=[extension(name) for name in sorted(EXTENSIONS)],
+    ext_modules=cythonize(
+        [extension(name) for name in sorted(EXTENSIONS)],
+        include_path=["imagecodecs"],
+        compiler_directives=compiler_directives,
+        compile_time_env={'IS_PYPY': 'pypy' in sys.version.lower()},
+    ),
     cmdclass={'build_ext': build_ext},
     zip_safe=False,
     platforms=['any'],
