@@ -870,7 +870,6 @@ cdef extern from 'zstd.h' nogil:
     int ZSTD_c_forceMaxWindow
     int ZSTD_c_forceAttachDict
     int ZSTD_c_literalCompressionMode
-    int ZSTD_c_targetCBlockSize
     int ZSTD_c_srcSizeHint
     int ZSTD_c_enableDedicatedDictSearch
     int ZSTD_c_stableInBuffer
