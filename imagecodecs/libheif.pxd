@@ -1,10 +1,12 @@
 # imagecodecs/libheif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libheif 1.18.1` library.
+# Cython declarations for the `libheif 1.19.3` library.
 # https://github.com/strukturag/libheif
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t, int64_t
+from libc.stdint cimport (
+    uint8_t, uint16_t, uint32_t, int32_t, int64_t, uint64_t
+)
 
 cdef extern from 'libheif/heif.h' nogil:
 
@@ -40,6 +42,7 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_error_Encoding_error
         heif_error_Color_profile_does_not_exist
         heif_error_Plugin_loading_error
+        heif_error_Canceled
 
     enum heif_suberror_code:
         heif_suberror_Unspecified
@@ -86,6 +89,8 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_suberror_Invalid_J2K_codestream
         heif_suberror_No_vvcC_box
         heif_suberror_No_icbr_box
+        heif_suberror_No_avcC_box
+        heif_suberror_Invalid_mini_box
         heif_suberror_Decompression_invalid_data
         heif_suberror_Security_limit_exceeded
         heif_suberror_Compression_initialisation_error
@@ -105,6 +110,7 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_suberror_Unsupported_item_construction_method
         heif_suberror_Unsupported_header_compression_method
         heif_suberror_Unsupported_generic_compression_method
+        heif_suberror_Unsupported_essential_property
         heif_suberror_Unsupported_bit_depth
         heif_suberror_Cannot_write_output_data
         heif_suberror_Encoder_initialization
@@ -160,6 +166,7 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_colorspace_YCbCr
         heif_colorspace_RGB
         heif_colorspace_monochrome
+        heif_colorspace_nonvisual
 
     enum heif_channel:
         heif_channel_Y
@@ -170,6 +177,17 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_channel_B
         heif_channel_Alpha
         heif_channel_interleaved
+        heif_channel_filter_array
+        heif_channel_depth
+        heif_channel_disparity
+
+    enum heif_metadata_compression:
+        heif_metadata_compression_off
+        heif_metadata_compression_auto
+        heif_metadata_compression_unknown
+        heif_metadata_compression_deflate
+        heif_metadata_compression_zlib
+        heif_metadata_compression_brotli
 
     struct heif_init_params:
         int version
@@ -261,6 +279,7 @@ cdef extern from 'libheif/heif.h' nogil:
 
     int heif_brand2_mif1
     int heif_brand2_mif2
+    int heif_brand2_mif3
     int heif_brand2_msf1
     int heif_brand2_vvic
     int heif_brand2_vvis
@@ -276,6 +295,11 @@ cdef extern from 'libheif/heif.h' nogil:
     int heif_brand2_1pic
 
     heif_brand2 heif_read_main_brand(
+        const uint8_t* data,
+        int len
+    )
+
+    heif_brand2 heif_read_minor_version_brand(
         const uint8_t* data,
         int len
     )
@@ -325,6 +349,13 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_reader_grow_status_size_reached
         heif_reader_grow_status_timeout
         heif_reader_grow_status_size_beyond_eof
+        heif_reader_grow_status_error
+
+    struct heif_reader_range_request_result:
+        heif_reader_grow_status status
+        uint64_t range_end
+        int reader_error_code
+        const char* reader_error_msg
 
     struct heif_reader:
         int reader_api_version
@@ -348,6 +379,28 @@ cdef extern from 'libheif/heif.h' nogil:
             int64_t target_size,
             void* userdata
         ) nogil
+
+        heif_reader_range_request_result (*request_range)(
+            uint64_t start_pos,
+            uint64_t end_pos,
+            void* userdata
+        )
+
+        void (*preload_range_hint)(
+            uint64_t start_pos,
+            uint64_t end_pos,
+            void* userdata
+        )
+
+        void (*release_file_range)(
+            uint64_t start_pos,
+            uint64_t end_pos,
+            void* userdata
+        )
+
+        void (*release_error_msg)(
+            const char* msg
+        )
 
     heif_error heif_context_read_from_file(
         heif_context*,
@@ -422,6 +475,32 @@ cdef extern from 'libheif/heif.h' nogil:
         int max_threads
     )
 
+    struct heif_security_limits:
+        uint8_t version
+        uint64_t max_image_size_pixels
+        uint64_t max_number_of_tiles
+        uint32_t max_bayer_pattern_pixels
+        uint32_t max_items
+        uint32_t max_color_profile_size
+        uint64_t max_memory_block_size
+        uint32_t max_components
+        uint32_t max_iloc_extents_per_item
+        uint32_t max_size_entity_group
+        uint32_t max_children_per_box
+
+    const heif_security_limits* heif_get_global_security_limits()
+
+    const heif_security_limits* heif_get_disabled_security_limits()
+
+    heif_security_limits* heif_context_get_security_limits(
+        const heif_context*
+    )
+
+    heif_error heif_context_set_security_limits(
+        heif_context*,
+        const heif_security_limits*
+    )
+
     void heif_image_handle_release(
         const heif_image_handle*
     )
@@ -466,6 +545,66 @@ cdef extern from 'libheif/heif.h' nogil:
 
     heif_context* heif_image_handle_get_context(
         const heif_image_handle* handle
+    )
+
+    struct heif_image_tiling:
+        int version
+        uint32_t num_columns
+        uint32_t num_rows
+        uint32_t tile_width
+        uint32_t tile_height
+        uint32_t image_width
+        uint32_t image_height
+        uint32_t top_offset
+        uint32_t left_offset
+        uint8_t number_of_extra_dimensions
+        uint32_t[8] extra_dimension_size
+
+    heif_error heif_image_handle_get_image_tiling(
+        const heif_image_handle* handle,
+        int process_image_transformations,
+        heif_image_tiling* out_tiling
+    )
+
+    heif_error heif_image_handle_get_grid_image_tile_id(
+        const heif_image_handle* handle,
+        int process_image_transformations,
+        uint32_t tile_x,
+        uint32_t tile_y,
+        heif_item_id* out_tile_item_id
+    )
+
+    struct heif_decoding_options:
+        pass
+
+    heif_error heif_image_handle_decode_image_tile(
+        const heif_image_handle* in_handle,
+        heif_image** out_img,
+        heif_colorspace colorspace,
+        heif_chroma chroma,
+        const heif_decoding_options* options,
+        uint32_t tile_x,
+        uint32_t tile_y
+    )
+
+    ctypedef uint32_t heif_entity_group_id
+
+    struct heif_entity_group:
+        heif_entity_group_id entity_group_id
+        uint32_t entity_group_type
+        heif_item_id* entities
+        uint32_t num_entities
+
+    heif_entity_group* heif_context_get_entity_groups(
+        const heif_context*,
+        uint32_t type_filter,
+        uint32_t item_filter,
+        int* out_num_groups
+    )
+
+    void heif_entity_groups_release(
+        heif_entity_group*,
+        int num_groups
     )
 
     int heif_image_handle_get_ispe_width(
@@ -801,6 +940,10 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_chroma_upsampling_algorithm preferred_chroma_upsampling_algorithm
         uint8_t only_use_preferred_chroma_algorithm
 
+    void heif_color_conversion_options_set_defaults(
+        heif_color_conversion_options*
+    )
+
     struct heif_decoding_options:
         uint8_t version
         uint8_t ignore_transformations
@@ -828,6 +971,7 @@ cdef extern from 'libheif/heif.h' nogil:
         const char* decoder_id
 
         heif_color_conversion_options color_conversion_options
+        int (* cancel_decoding)(void* progress_user_data)
 
     heif_decoding_options* heif_decoding_options_alloc(
     )
@@ -916,6 +1060,12 @@ cdef extern from 'libheif/heif.h' nogil:
         const heif_scaling_options* options
     )
 
+    heif_error heif_image_extend_to_size_fill_with_zero(
+        heif_image* image,
+        uint32_t width,
+        uint32_t height
+    )
+
     heif_error heif_image_set_raw_color_profile(
         heif_image* image,
         const char* profile_type_fourcc_string,
@@ -957,6 +1107,11 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_content_light_level* out
     )
 
+    int heif_image_handle_get_content_light_level(
+        const heif_image_handle*,
+        heif_content_light_level* out
+    )
+
     void heif_image_set_content_light_level(
         const heif_image*,
         const heif_content_light_level* inp
@@ -978,12 +1133,22 @@ cdef extern from 'libheif/heif.h' nogil:
         double max_display_mastering_luminance
         double min_display_mastering_luminance
 
+    struct heif_ambient_viewing_environment:
+        uint32_t ambient_illumination
+        uint16_t ambient_light_x
+        uint16_t ambient_light_y
+
     int heif_image_has_mastering_display_colour_volume(
         const heif_image*
     )
 
     void heif_image_get_mastering_display_colour_volume(
         const heif_image*,
+        heif_mastering_display_colour_volume* out
+    )
+
+    int heif_image_handle_get_mastering_display_colour_volume(
+        const heif_image_handle*,
         heif_mastering_display_colour_volume* out
     )
 
@@ -999,6 +1164,12 @@ cdef extern from 'libheif/heif.h' nogil:
 
     void heif_image_get_pixel_aspect_ratio(
         const heif_image*,
+        uint32_t* aspect_h,
+        uint32_t* aspect_v
+    )
+
+    int heif_image_handle_get_pixel_aspect_ratio(
+        const heif_image_handle*,
         uint32_t* aspect_h,
         uint32_t* aspect_v
     )
@@ -1248,7 +1419,7 @@ cdef extern from 'libheif/heif.h' nogil:
         uint8_t save_alpha_channel
         uint8_t macOS_compatibility_workaround
         uint8_t save_two_colr_boxes_when_ICC_and_nclx_available
-        heif_color_profile_nclx* output_nclx_profile
+        const heif_color_profile_nclx* output_nclx_profile
         uint8_t macOS_compatibility_workaround_no_nclx_profile
         heif_orientation image_orientation
         heif_color_conversion_options color_conversion_options
@@ -1278,6 +1449,35 @@ cdef extern from 'libheif/heif.h' nogil:
         heif_image_handle** out_image_handle
     )
 
+    heif_error heif_context_add_grid_image(
+        heif_context* ctx,
+        uint32_t image_width,
+        uint32_t image_height,
+        uint32_t tile_columns,
+        uint32_t tile_rows,
+        const heif_encoding_options* encoding_options,
+        heif_image_handle** out_grid_image_handle
+    )
+
+    heif_error heif_context_add_image_tile(
+        heif_context* ctx,
+        heif_image_handle* tiled_image,
+        uint32_t tile_x, uint32_t tile_y,
+        const heif_image* image,
+        heif_encoder* encoder
+    )
+
+    heif_error heif_context_add_overlay_image(
+        heif_context* ctx,
+        uint32_t image_width,
+        uint32_t image_height,
+        uint16_t nImages,
+        const heif_item_id* image_ids,
+        int32_t* offsets,
+        const uint16_t background_rgba[4],
+        heif_image_handle** out_iovl_image_handle
+    )
+
     heif_error heif_context_set_primary_image(
         heif_context*,
         heif_image_handle* image_handle
@@ -1292,14 +1492,6 @@ cdef extern from 'libheif/heif.h' nogil:
         int bbox_size,
         heif_image_handle** out_thumb_image_handle
     )
-
-    enum heif_metadata_compression:
-        heif_metadata_compression_off
-        heif_metadata_compression_auto
-        heif_metadata_compression_unknown
-        heif_metadata_compression_deflate
-        heif_metadata_compression_zlib
-        heif_metadata_compression_brotli
 
     heif_error heif_context_assign_thumbnail(
         heif_context*,
