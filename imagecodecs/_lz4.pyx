@@ -248,13 +248,13 @@ def lz4h5_encode(
         raise ValueError('cannot encode in-place')
 
     if blocksize is None:
-        blksize = <ssize_t> 1073741823
-    elif blocksize < 1 or blocksize > LZ4_MAX_INPUT_SIZE:
-        raise ValueError('invalid block size {blocksize}')
-    else:
+        blksize = min(<ssize_t> 1073741823, max(srcsize, 1))
+    elif 0 < blocksize <= LZ4_MAX_INPUT_SIZE:
         blksize = blocksize
+    else:
+        raise ValueError('invalid block size {blocksize}')
 
-    nblocks = (srcsize - 1) // blksize + 1
+    nblocks = max((srcsize - 1) // blksize + 1, 1)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
