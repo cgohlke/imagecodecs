@@ -47,9 +47,9 @@ cdef extern from 'jpeglib.h' nogil:
     struct jpeg_error_mgr:
         int msg_code
         const char** jpeg_message_table
-        noreturn_t error_exit(jpeg_common_struct*)
-        void output_message(jpeg_common_struct*)
-        void format_message(jpeg_common_struct* cinfo, char* buffer)
+        noreturn_t error_exit(jpeg_common_struct*) nogil
+        void output_message(jpeg_common_struct*) nogil
+        void format_message(jpeg_common_struct* cinfo, char* buffer) nogil
 
     struct jpeg_common_struct:
         jpeg_error_mgr* err
