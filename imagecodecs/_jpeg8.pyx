@@ -154,8 +154,7 @@ def jpeg8_encode(
 
     if bitspersample is not None:
         if (
-            not (lossless and 2 <= bitspersample <= 16)
-            or (not lossless and bitspersample not in {8, 12})
+            not 2 <= bitspersample <= 16
             or src.itemsize != (bitspersample + 7) // 8
         ):
             raise ValueError(f'invalid {bitspersample=}')
