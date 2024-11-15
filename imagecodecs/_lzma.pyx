@@ -124,7 +124,7 @@ def lzma_encode(data, level=None, check=None, out=None):
             ret = lzma_easy_encoder(&strm, preset, check_)
             if ret != LZMA_OK:
                 raise LzmaError('lzma_easy_encoder', ret)
-            strm.next_in = &src[0]
+            strm.next_in = <uint8_t *> &src[0]
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> &dst[0]
             strm.avail_out = <size_t> dstsize
@@ -171,7 +171,7 @@ def lzma_decode(data, out=None):
             ret = lzma_stream_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED)
             if ret != LZMA_OK:
                 raise LzmaError('lzma_stream_decoder', ret)
-            strm.next_in = &src[0]
+            strm.next_in = <uint8_t *> &src[0]
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> &dst[0]
             strm.avail_out = <size_t> dstsize
