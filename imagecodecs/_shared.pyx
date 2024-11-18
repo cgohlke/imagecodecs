@@ -145,10 +145,10 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
     """Return numpy array of shape and dtype from output argument."""
     if out is None or isinstance(out, numbers.Integral):
         if zero:
-            out = numpy.zeros(shape, dtype)
-        else:
-            out = numpy.empty(shape, dtype)
-    elif isinstance(out, numpy.ndarray):
+            return numpy.zeros(shape, dtype)
+        return numpy.empty(shape, dtype)
+
+    if isinstance(out, numpy.ndarray):
         if out.itemsize != numpy.dtype(dtype).itemsize:
             raise ValueError(f'invalid {out.dtype=}, {dtype=}')
         if out.shape != shape:
@@ -176,6 +176,9 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
             dstsize *= i
         out = numpy.frombuffer(out, dtype, dstsize)
         out.shape = shape
+
+    if zero:
+        out.fill(0)
     return out
 
 
