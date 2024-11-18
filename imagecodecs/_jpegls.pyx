@@ -89,7 +89,7 @@ def jpegls_encode(data, level=None, out=None):
         charls_frame_info frameinfo
         # charls_jpegls_pc_parameters preset_coding_parameters
         charls_interleave_mode interleave_mode
-        int32_t near_lossless = _default_value(level, 0, 0, 9)
+        int32_t near_lossless = _default_value(level, 0, 0, None)
         uint32_t rowstride = <uint32_t> src.strides[0]
         size_t byteswritten
         size_t size_in_bytes
