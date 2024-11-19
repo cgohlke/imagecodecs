@@ -1,7 +1,7 @@
 # imagecodecs/libultrahdr.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libultrahdr 1.2.0` library.
+# Cython declarations for the `libultrahdr 1.3.0` library.
 # https://github.com/google/libultrahdr
 
 cdef extern from 'ultrahdr_api.h' nogil:
@@ -99,16 +99,16 @@ cdef extern from 'ultrahdr_api.h' nogil:
 
     ctypedef struct uhdr_compressed_image_t:
         void* data
-        unsigned int data_sz
-        unsigned int capacity
+        size_t data_sz
+        size_t capacity
         uhdr_color_gamut_t cg
         uhdr_color_transfer_t ct
         uhdr_color_range_t range
 
     ctypedef struct uhdr_mem_block_t:
         void* data
-        unsigned int data_sz
-        unsigned int capacity
+        size_t data_sz
+        size_t capacity
 
     ctypedef struct uhdr_gainmap_metadata_t:
         float max_content_boost
@@ -178,6 +178,11 @@ cdef extern from 'ultrahdr_api.h' nogil:
         uhdr_codec_private_t* enc,
         float min_boost,
         float max_boost
+    )
+
+    uhdr_error_info_t uhdr_enc_set_target_display_peak_brightness(
+        uhdr_codec_private_t* enc,
+        float nits
     )
 
     uhdr_error_info_t uhdr_enc_set_preset(
