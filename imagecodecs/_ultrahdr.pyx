@@ -115,6 +115,7 @@ def ultrahdr_encode(
     scale=None,
     gamut=None,
     transfer=None,
+    nits=None,
     crange=None,
     usage=None,
     codec=None,
@@ -122,7 +123,7 @@ def ultrahdr_encode(
 ):
     """Return Ultra HDR encoded data.
 
-    Only 32bppRGBA1010102 data is supported.
+    Only 64bppRGBAHalfFloat and 32bppRGBA1010102 data are supported.
 
     """
     cdef:
@@ -131,6 +132,7 @@ def ultrahdr_encode(
         ssize_t dstsize
         int quality = _default_value(level, -1, 0, 100)
         int scale_factor = _default_value(scale, 1, 1, 128)
+        float cnits = _default_value(nits, 0, 203, 10000)
         uhdr_enc_preset_t preset = UHDR_USAGE_BEST_QUALITY
         uhdr_codec_t output_format = UHDR_CODEC_JPG
         uhdr_raw_image_t raw_image
@@ -158,19 +160,16 @@ def ultrahdr_encode(
     memset(&raw_image, 0, sizeof(uhdr_raw_image_t))
     raw_image.h = <int> src.shape[0]
     raw_image.w = <int> src.shape[1]
+    raw_image.range = UHDR_CR_FULL_RANGE
     raw_image.planes[UHDR_PLANE_PACKED] = <void *> src.data
+    raw_image.stride[UHDR_PLANE_PACKED] = <unsigned int> src.shape[1]
 
     if src.ndim == 2:
         raw_image.fmt = UHDR_IMG_FMT_32bppRGBA1010102
         raw_image.ct = UHDR_CT_HLG
-        raw_image.range = UHDR_CR_FULL_RANGE
-        raw_image.stride[UHDR_PLANE_PACKED] = <unsigned int> src.shape[1]
     else:
         raw_image.fmt = UHDR_IMG_FMT_64bppRGBAHalfFloat
         raw_image.ct = UHDR_CT_LINEAR
-        raw_image.stride[UHDR_PLANE_PACKED] = <unsigned int> (
-            src.shape[1] * src.shape[2]
-        )
 
     if gamut is not None:
         raw_image.cg = gamut
@@ -210,6 +209,17 @@ def ultrahdr_encode(
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
                         'uhdr_enc_set_quality', error.error_code, error.detail
+                    )
+
+            if cnits > 0.0:
+                error = uhdr_enc_set_target_display_peak_brightness(
+                    encoder, cnits
+                )
+                if error.error_code != UHDR_CODEC_OK:
+                    raise UltrahdrError(
+                        'uhdr_enc_set_target_display_peak_brightness',
+                        error.error_code,
+                        error.detail
                     )
 
             # error = uhdr_enc_set_exif_data(encoder, &exif)
@@ -266,7 +276,7 @@ def ultrahdr_encode(
         out, dstsize, outgiven, outtype = _parse_output(out)
 
         if out is None:
-            dstsize = compressed_image.data_sz
+            dstsize = <ssize_t> compressed_image.data_sz
             out = _create_output(
                 outtype,
                 compressed_image.data_sz,
@@ -346,8 +356,8 @@ def ultrahdr_decode(
 
     memset(<void *> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
     compressed_image.data = <void *> &src[0]
-    compressed_image.data_sz = <unsigned int> src.size
-    compressed_image.capacity = <unsigned int> src.size
+    compressed_image.data_sz = <size_t> src.size
+    compressed_image.capacity = <size_t> src.size
     compressed_image.cg = UHDR_CG_UNSPECIFIED
     compressed_image.ct = UHDR_CT_UNSPECIFIED
     compressed_image.range = UHDR_CR_UNSPECIFIED
