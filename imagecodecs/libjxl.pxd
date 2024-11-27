@@ -1,7 +1,7 @@
 # imagecodecs/libjxl.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjxl 0.11.0` library.
+# Cython declarations for the `libjxl 0.11.1` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport (
