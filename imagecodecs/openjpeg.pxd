@@ -1,7 +1,7 @@
 # imagecodecs/openjpeg.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `OpenJPEG 2.5.2` library.
+# Cython declarations for the `OpenJPEG 2.5.3` library.
 # https://github.com/uclouvain/openjpeg
 
 from libc.stdint cimport (
