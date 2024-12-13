@@ -1,7 +1,7 @@
 # imagecodecs/libjpeg_turbo.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 3.0.4` library.
+# Cython declarations for the `libjpeg-turbo 3.1.0` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 from libc.stdio cimport FILE
@@ -163,6 +163,9 @@ cdef extern from 'jpeglib.h' nogil:
         int Ah
         int Al
 
+    struct jpeg_marker_struct:
+        pass
+
     ctypedef jpeg_marker_struct* jpeg_saved_marker_ptr
 
     struct jpeg_marker_struct:
@@ -215,10 +218,6 @@ cdef extern from 'jpeglib.h' nogil:
         void* client_data
         boolean is_decompressor
         int global_state
-
-    ctypedef jpeg_common_struct* j_common_ptr
-    ctypedef jpeg_compress_struct* j_compress_ptr
-    ctypedef jpeg_decompress_struct* j_decompress_ptr
 
     struct jpeg_compress_struct:
         # jpeg_common_fields
@@ -398,6 +397,10 @@ cdef extern from 'jpeglib.h' nogil:
         jpeg_color_deconverter* cconvert
         jpeg_color_quantizer* cquantize
 
+    ctypedef jpeg_common_struct* j_common_ptr
+    ctypedef jpeg_compress_struct* j_compress_ptr
+    ctypedef jpeg_decompress_struct* j_decompress_ptr
+
     int JMSG_STR_PARM_MAX
     int JMSG_LENGTH_MAX
 
@@ -493,6 +496,12 @@ cdef extern from 'jpeglib.h' nogil:
     int JPOOL_PERMANENT
     int JPOOL_IMAGE
     int JPOOL_NUMPOOLS
+
+    struct jvirt_sarray_control:
+        long dummy
+
+    struct jvirt_barray_control:
+        long dummy
 
     ctypedef jvirt_sarray_control* jvirt_sarray_ptr
     ctypedef jvirt_barray_control* jvirt_barray_ptr
@@ -934,12 +943,6 @@ cdef extern from 'jpeglib.h' nogil:
     int JPEG_EOI
     int JPEG_APP0
     int JPEG_COM
-
-    struct jvirt_sarray_control:
-        long dummy
-
-    struct jvirt_barray_control:
-        long dummy
 
     struct jpeg_comp_master:
         long dummy
