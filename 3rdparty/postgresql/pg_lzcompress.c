@@ -172,7 +172,7 @@
  *
  *			Jan Wieck
  *
- * Copyright (c) 1999-2023, PostgreSQL Global Development Group
+ * Copyright (c) 1999-2024, PostgreSQL Global Development Group
  *
  * src/common/pg_lzcompress.c
  * ----------
@@ -417,7 +417,7 @@ pglz_find_match(int16 *hstart, const char *input, const char *end,
 		/*
 		 * Stop if the offset does not fit into our tag anymore.
 		 */
-		thisoff = ip - hp;
+		thisoff = (int32)(ip - hp);
 		if (thisoff >= 0x0fff)
 			break;
 
@@ -665,7 +665,7 @@ pglz_compress(const char *source, int32 slen, char *dest,
 	 * output size allowed by the strategy.
 	 */
 	*ctrlp = ctrlb;
-	result_size = bp - bstart;
+	result_size = (int32)(bp - bstart);
 	if (result_size >= result_max)
 		return -1;
 
@@ -747,7 +747,7 @@ pglz_decompress(const char *source, int32 slen, char *dest,
 				/*
 				 * Don't emit more data than requested.
 				 */
-				len = Min(len, destend - dp);
+				len = (int32)Min(len, destend - dp);
 
 				/*
 				 * Now we copy the bytes specified by the tag from OUTPUT to
@@ -822,7 +822,7 @@ pglz_decompress(const char *source, int32 slen, char *dest,
 	/*
 	 * That's it.
 	 */
-	return (char *) dp - dest;
+	return (int32)((char *) dp - dest);
 }
 
 
