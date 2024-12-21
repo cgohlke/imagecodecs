@@ -3,7 +3,7 @@
  *
  * This file is part of Bitshuffle
  * Author: Kiyoshi Masui <kiyo@physics.ubc.ca>
- * Website: http://www.github.com/kiyo-masui/bitshuffle
+ * Website: https://www.github.com/kiyo-masui/bitshuffle
  * Created: 2014
  *
  * See LICENSE file for details about copyright and rights to use.
@@ -48,8 +48,8 @@
 // These are usually set in the setup.py.
 #ifndef BSHUF_VERSION_MAJOR
 #define BSHUF_VERSION_MAJOR 0
-#define BSHUF_VERSION_MINOR 4
-#define BSHUF_VERSION_POINT 0
+#define BSHUF_VERSION_MINOR 5
+#define BSHUF_VERSION_POINT 2
 #endif
 
 #ifdef __cplusplus
