@@ -168,7 +168,7 @@ nc4_convert_type(
 
             } else if (quantize_mode == NC_QUANTIZE_BITROUND) {
                 /* BitRound interprets nsd as number of significant binary digits (bits) */
-                prc_bnr_xpl_rqr = nsd;
+                prc_bnr_xpl_rqr = (unsigned short)nsd;
             }
 
             if (dest_type == NC_FLOAT) {
@@ -237,7 +237,7 @@ nc4_convert_type(
                     for (bp = (signed char *)src, ubp = dest; count < len; count++) {
                         if (*bp < 0)
                             (*range_error)++;
-                        *ubp++ = *bp++;
+                        *ubp++ = (unsigned char)*bp++;
                     }
                     break;
                 case NC_SHORT:
@@ -247,7 +247,7 @@ nc4_convert_type(
                     for (bp = (signed char *)src, usp = dest; count < len; count++) {
                         if (*bp < 0)
                             (*range_error)++;
-                        *usp++ = *bp++;
+                        *usp++ = (unsigned short)*bp++;
                     }
                     break;
                 case NC_INT:
@@ -257,7 +257,7 @@ nc4_convert_type(
                     for (bp = (signed char *)src, uip = dest; count < len; count++) {
                         if (*bp < 0)
                             (*range_error)++;
-                        *uip++ = *bp++;
+                        *uip++ = (unsigned int)*bp++;
                     }
                     break;
                 case NC_INT64:
@@ -267,7 +267,7 @@ nc4_convert_type(
                     for (bp = (signed char *)src, ulip = dest; count < len; count++) {
                         if (*bp < 0)
                             (*range_error)++;
-                        *ulip++ = *bp++;
+                        *ulip++ = (unsigned long long)*bp++;
                     }
                     break;
                 case NC_FLOAT:
@@ -287,7 +287,7 @@ nc4_convert_type(
                     for (ubp = (unsigned char *)src, bp = dest; count < len; count++) {
                         if (!strict_nc3 && *ubp > X_SCHAR_MAX)
                             (*range_error)++;
-                        *bp++ = *ubp++;
+                        *bp++ = (signed char)*ubp++;
                     }
                     break;
                 case NC_SHORT:
@@ -328,14 +328,14 @@ nc4_convert_type(
                     for (sp = (short *)src, ubp = dest; count < len; count++) {
                         if (*sp > X_UCHAR_MAX || *sp < 0)
                             (*range_error)++;
-                        *ubp++ = *sp++;
+                        *ubp++ = (unsigned char)*sp++;
                     }
                     break;
                 case NC_BYTE:
                     for (sp = (short *)src, bp = dest; count < len; count++) {
                         if (*sp > X_SCHAR_MAX || *sp < X_SCHAR_MIN)
                             (*range_error)++;
-                        *bp++ = *sp++;
+                        *bp++ = (signed char)*sp++;
                     }
                     break;
                 case NC_SHORT:
@@ -345,7 +345,7 @@ nc4_convert_type(
                     for (sp = (short *)src, usp = dest; count < len; count++) {
                         if (*sp < 0)
                             (*range_error)++;
-                        *usp++ = *sp++;
+                        *usp++ = (unsigned short)*sp++;
                     }
                     break;
                 case NC_INT:
@@ -355,7 +355,7 @@ nc4_convert_type(
                     for (sp = (short *)src, uip = dest; count < len; count++) {
                         if (*sp < 0)
                             (*range_error)++;
-                        *uip++ = *sp++;
+                        *uip++ = (unsigned int)*sp++;
                     }
                     break;
                 case NC_INT64:
@@ -365,7 +365,7 @@ nc4_convert_type(
                     for (sp = (short *)src, ulip = dest; count < len; count++) {
                         if (*sp < 0)
                             (*range_error)++;
-                        *ulip++ = *sp++;
+                        *ulip++ = (unsigned long long)*sp++;
                     }
                     break;
                 case NC_FLOAT:
@@ -385,21 +385,21 @@ nc4_convert_type(
                     for (usp = (unsigned short *)src, ubp = dest; count < len; count++) {
                         if (*usp > X_UCHAR_MAX)
                             (*range_error)++;
-                        *ubp++ = *usp++;
+                        *ubp++ = (unsigned char)*usp++;
                     }
                     break;
                 case NC_BYTE:
                     for (usp = (unsigned short *)src, bp = dest; count < len; count++) {
                         if (*usp > X_SCHAR_MAX)
                             (*range_error)++;
-                        *bp++ = *usp++;
+                        *bp++ = (signed char)*usp++;
                     }
                     break;
                 case NC_SHORT:
                     for (usp = (unsigned short *)src, sp = dest; count < len; count++) {
                         if (*usp > X_SHORT_MAX)
                             (*range_error)++;
-                        *sp++ = *usp++;
+                        *sp++ = (signed short)*usp++;
                     }
                     break;
                 case NC_USHORT:
@@ -434,28 +434,28 @@ nc4_convert_type(
                     for (ip = (int *)src, ubp = dest; count < len; count++) {
                         if (*ip > X_UCHAR_MAX || *ip < 0)
                             (*range_error)++;
-                        *ubp++ = *ip++;
+                        *ubp++ = (unsigned char)*ip++;
                     }
                     break;
                 case NC_BYTE:
                     for (ip = (int *)src, bp = dest; count < len; count++) {
                         if (*ip > X_SCHAR_MAX || *ip < X_SCHAR_MIN)
                             (*range_error)++;
-                        *bp++ = *ip++;
+                        *bp++ = (signed char)*ip++;
                     }
                     break;
                 case NC_SHORT:
                     for (ip = (int *)src, sp = dest; count < len; count++) {
                         if (*ip > X_SHORT_MAX || *ip < X_SHORT_MIN)
                             (*range_error)++;
-                        *sp++ = *ip++;
+                        *sp++ = (short)*ip++;
                     }
                     break;
                 case NC_USHORT:
                     for (ip = (int *)src, usp = dest; count < len; count++) {
                         if (*ip > X_USHORT_MAX || *ip < 0)
                             (*range_error)++;
-                        *usp++ = *ip++;
+                        *usp++ = (unsigned short)*ip++;
                     }
                     break;
                 case NC_INT: /* src is int */
@@ -469,7 +469,7 @@ nc4_convert_type(
                     for (ip = (int *)src, uip = dest; count < len; count++) {
                         if (*ip > X_UINT_MAX || *ip < 0)
                             (*range_error)++;
-                        *uip++ = *ip++;
+                        *uip++ = (unsigned int)*ip++;
                     }
                     break;
                 case NC_INT64:
@@ -479,14 +479,14 @@ nc4_convert_type(
                     for (ip = (int *)src, ulip = dest; count < len; count++) {
                         if (*ip < 0)
                             (*range_error)++;
-                        *ulip++ = *ip++;
+                        *ulip++ = (unsigned long long)*ip++;
                     }
                     break;
                 case NC_FLOAT:
-                    for (ip = (int *)src, fp = dest; count < len; count++) *fp++ = *ip++;
+                    for (ip = (int *)src, fp = dest; count < len; count++) *fp++ = (float)*ip++;
                     break;
                 case NC_DOUBLE:
-                    for (ip = (int *)src, dp = dest; count < len; count++) *dp++ = *ip++;
+                    for (ip = (int *)src, dp = dest; count < len; count++) *dp++ = (double)*ip++;
                     break;
                 default:
                     return NC_EBADTYPE;
@@ -499,35 +499,35 @@ nc4_convert_type(
                     for (uip = (unsigned int *)src, ubp = dest; count < len; count++) {
                         if (*uip > X_UCHAR_MAX)
                             (*range_error)++;
-                        *ubp++ = *uip++;
+                        *ubp++ = (unsigned char)*uip++;
                     }
                     break;
                 case NC_BYTE:
                     for (uip = (unsigned int *)src, bp = dest; count < len; count++) {
                         if (*uip > X_SCHAR_MAX)
                             (*range_error)++;
-                        *bp++ = *uip++;
+                        *bp++ = (signed char)*uip++;
                     }
                     break;
                 case NC_SHORT:
                     for (uip = (unsigned int *)src, sp = dest; count < len; count++) {
                         if (*uip > X_SHORT_MAX)
                             (*range_error)++;
-                        *sp++ = *uip++;
+                        *sp++ = (signed short)*uip++;
                     }
                     break;
                 case NC_USHORT:
                     for (uip = (unsigned int *)src, usp = dest; count < len; count++) {
                         if (*uip > X_USHORT_MAX)
                             (*range_error)++;
-                        *usp++ = *uip++;
+                        *usp++ = (unsigned short)*uip++;
                     }
                     break;
                 case NC_INT:
                     for (uip = (unsigned int *)src, ip = dest; count < len; count++) {
                         if (*uip > X_INT_MAX)
                             (*range_error)++;
-                        *ip++ = *uip++;
+                        *ip++ = (int)*uip++;
                     }
                     break;
                 case NC_UINT:
@@ -544,7 +544,7 @@ nc4_convert_type(
                     for (uip = (unsigned int *)src, ulip = dest; count < len; count++) *ulip++ = *uip++;
                     break;
                 case NC_FLOAT:
-                    for (uip = (unsigned int *)src, fp = dest; count < len; count++) *fp++ = *uip++;
+                    for (uip = (unsigned int *)src, fp = dest; count < len; count++) *fp++ = (float)*uip++;
                     break;
                 case NC_DOUBLE:
                     for (uip = (unsigned int *)src, dp = dest; count < len; count++) *dp++ = *uip++;
@@ -561,42 +561,42 @@ nc4_convert_type(
                     for (lip = (long long *)src, ubp = dest; count < len; count++) {
                         if (*lip > X_UCHAR_MAX || *lip < 0)
                             (*range_error)++;
-                        *ubp++ = *lip++;
+                        *ubp++ = (unsigned char)*lip++;
                     }
                     break;
                 case NC_BYTE:
                     for (lip = (long long *)src, bp = dest; count < len; count++) {
                         if (*lip > X_SCHAR_MAX || *lip < X_SCHAR_MIN)
                             (*range_error)++;
-                        *bp++ = *lip++;
+                        *bp++ = (signed char)*lip++;
                     }
                     break;
                 case NC_SHORT:
                     for (lip = (long long *)src, sp = dest; count < len; count++) {
                         if (*lip > X_SHORT_MAX || *lip < X_SHORT_MIN)
                             (*range_error)++;
-                        *sp++ = *lip++;
+                        *sp++ = (short)*lip++;
                     }
                     break;
                 case NC_USHORT:
                     for (lip = (long long *)src, usp = dest; count < len; count++) {
                         if (*lip > X_USHORT_MAX || *lip < 0)
                             (*range_error)++;
-                        *usp++ = *lip++;
+                        *usp++ = (unsigned short)*lip++;
                     }
                     break;
                 case NC_UINT:
                     for (lip = (long long *)src, uip = dest; count < len; count++) {
                         if (*lip > X_UINT_MAX || *lip < 0)
                             (*range_error)++;
-                        *uip++ = *lip++;
+                        *uip++ = (unsigned int)*lip++;
                     }
                     break;
                 case NC_INT:
                     for (lip = (long long *)src, ip = dest; count < len; count++) {
                         if (*lip > X_INT_MAX || *lip < X_INT_MIN)
                             (*range_error)++;
-                        *ip++ = *lip++;
+                        *ip++ = (int)*lip++;
                     }
                     break;
                 case NC_INT64:
@@ -606,14 +606,14 @@ nc4_convert_type(
                     for (lip = (long long *)src, ulip = dest; count < len; count++) {
                         if (*lip < 0)
                             (*range_error)++;
-                        *ulip++ = *lip++;
+                        *ulip++ = (unsigned long long)*lip++;
                     }
                     break;
                 case NC_FLOAT:
-                    for (lip = (long long *)src, fp = dest; count < len; count++) *fp++ = *lip++;
+                    for (lip = (long long *)src, fp = dest; count < len; count++) *fp++ = (float)*lip++;
                     break;
                 case NC_DOUBLE:
-                    for (lip = (long long *)src, dp = dest; count < len; count++) *dp++ = *lip++;
+                    for (lip = (long long *)src, dp = dest; count < len; count++) *dp++ = (double)*lip++;
                     break;
                 default:
                     return NC_EBADTYPE;
@@ -626,59 +626,59 @@ nc4_convert_type(
                     for (ulip = (unsigned long long *)src, ubp = dest; count < len; count++) {
                         if (*ulip > X_UCHAR_MAX)
                             (*range_error)++;
-                        *ubp++ = *ulip++;
+                        *ubp++ = (unsigned char)*ulip++;
                     }
                     break;
                 case NC_BYTE:
                     for (ulip = (unsigned long long *)src, bp = dest; count < len; count++) {
                         if (*ulip > X_SCHAR_MAX)
                             (*range_error)++;
-                        *bp++ = *ulip++;
+                        *bp++ = (signed char)*ulip++;
                     }
                     break;
                 case NC_SHORT:
                     for (ulip = (unsigned long long *)src, sp = dest; count < len; count++) {
                         if (*ulip > X_SHORT_MAX)
                             (*range_error)++;
-                        *sp++ = *ulip++;
+                        *sp++ = (short)*ulip++;
                     }
                     break;
                 case NC_USHORT:
                     for (ulip = (unsigned long long *)src, usp = dest; count < len; count++) {
                         if (*ulip > X_USHORT_MAX)
                             (*range_error)++;
-                        *usp++ = *ulip++;
+                        *usp++ = (unsigned short)*ulip++;
                     }
                     break;
                 case NC_UINT:
                     for (ulip = (unsigned long long *)src, uip = dest; count < len; count++) {
                         if (*ulip > X_UINT_MAX)
                             (*range_error)++;
-                        *uip++ = *ulip++;
+                        *uip++ = (unsigned int)*ulip++;
                     }
                     break;
                 case NC_INT:
                     for (ulip = (unsigned long long *)src, ip = dest; count < len; count++) {
                         if (*ulip > X_INT_MAX)
                             (*range_error)++;
-                        *ip++ = *ulip++;
+                        *ip++ = (int)*ulip++;
                     }
                     break;
                 case NC_INT64:
                     for (ulip = (unsigned long long *)src, lip = dest; count < len; count++) {
                         if (*ulip > X_INT64_MAX)
                             (*range_error)++;
-                        *lip++ = *ulip++;
+                        *lip++ = (long long)*ulip++;
                     }
                     break;
                 case NC_UINT64:
                     for (ulip = (unsigned long long *)src, ulip1 = dest; count < len; count++) *ulip1++ = *ulip++;
                     break;
                 case NC_FLOAT:
-                    for (ulip = (unsigned long long *)src, fp = dest; count < len; count++) *fp++ = *ulip++;
+                    for (ulip = (unsigned long long *)src, fp = dest; count < len; count++) *fp++ = (float)*ulip++;
                     break;
                 case NC_DOUBLE:
-                    for (ulip = (unsigned long long *)src, dp = dest; count < len; count++) *dp++ = *ulip++;
+                    for (ulip = (unsigned long long *)src, dp = dest; count < len; count++) *dp++ = (double)*ulip++;
                     break;
                 default:
                     return NC_EBADTYPE;
@@ -691,65 +691,65 @@ nc4_convert_type(
                     for (fp = (float *)src, ubp = dest; count < len; count++) {
                         if (*fp > X_UCHAR_MAX || *fp < 0)
                             (*range_error)++;
-                        *ubp++ = *fp++;
+                        *ubp++ = (unsigned char)*fp++;
                     }
                     break;
                 case NC_BYTE:
                     for (fp = (float *)src, bp = dest; count < len; count++) {
                         if (*fp > (double)X_SCHAR_MAX || *fp < (double)X_SCHAR_MIN)
                             (*range_error)++;
-                        *bp++ = *fp++;
+                        *bp++ = (signed char)*fp++;
                     }
                     break;
                 case NC_SHORT:
                     for (fp = (float *)src, sp = dest; count < len; count++) {
                         if (*fp > (double)X_SHORT_MAX || *fp < (double)X_SHORT_MIN)
                             (*range_error)++;
-                        *sp++ = *fp++;
+                        *sp++ = (short)*fp++;
                     }
                     break;
                 case NC_USHORT:
                     for (fp = (float *)src, usp = dest; count < len; count++) {
                         if (*fp > X_USHORT_MAX || *fp < 0)
                             (*range_error)++;
-                        *usp++ = *fp++;
+                        *usp++ = (unsigned short)*fp++;
                     }
                     break;
                 case NC_UINT:
                     for (fp = (float *)src, uip = dest; count < len; count++) {
-                        if (*fp > X_UINT_MAX || *fp < 0)
+                        if (*fp > (float)X_UINT_MAX || *fp < 0)
                             (*range_error)++;
-                        *uip++ = *fp++;
+                        *uip++ = (unsigned int)*fp++;
                     }
                     break;
                 case NC_INT:
                     for (fp = (float *)src, ip = dest; count < len; count++) {
                         if (*fp > (double)X_INT_MAX || *fp < (double)X_INT_MIN)
                             (*range_error)++;
-                        *ip++ = *fp++;
+                        *ip++ = (int)*fp++;
                     }
                     break;
                 case NC_INT64:
                     for (fp = (float *)src, lip = dest; count < len; count++) {
-                        if (*fp > X_INT64_MAX || *fp < X_INT64_MIN)
+                        if (*fp > (float)X_INT64_MAX || *fp < X_INT64_MIN)
                             (*range_error)++;
-                        *lip++ = *fp++;
+                        *lip++ = (long long)*fp++;
                     }
                     break;
                 case NC_UINT64:
-                    for (fp = (float *)src, lip = dest; count < len; count++) {
-                        if (*fp > X_UINT64_MAX || *fp < 0)
+                    for (fp = (float *)src, ulip = dest; count < len; count++) {
+                        if (*fp > (float)X_UINT64_MAX || *fp < 0)
                             (*range_error)++;
-                        *lip++ = *fp++;
+                        *ulip++ = (unsigned long long)*fp++;
                     }
                     break;
                 case NC_FLOAT:
-                    if (src != dest) {
-                        for (fp = (float *)src, fp1 = dest; count < len; count++) *fp1++ = *fp++;
-                    }
+                    for (fp = (float *)src, fp1 = dest; count < len; count++)
+                        *fp1++ = *fp++;
                     break;
                 case NC_DOUBLE:
-                    for (fp = (float *)src, dp = dest; count < len; count++) *dp++ = *fp++;
+                    for (fp = (float *)src, dp = dest; count < len; count++)
+                        *dp++ = *fp++;
                     break;
                 default:
                     return NC_EBADTYPE;
@@ -762,69 +762,68 @@ nc4_convert_type(
                     for (dp = (double *)src, ubp = dest; count < len; count++) {
                         if (*dp > X_UCHAR_MAX || *dp < 0)
                             (*range_error)++;
-                        *ubp++ = *dp++;
+                        *ubp++ = (unsigned char)*dp++;
                     }
                     break;
                 case NC_BYTE:
                     for (dp = (double *)src, bp = dest; count < len; count++) {
                         if (*dp > X_SCHAR_MAX || *dp < X_SCHAR_MIN)
                             (*range_error)++;
-                        *bp++ = *dp++;
+                        *bp++ = (signed char)*dp++;
                     }
                     break;
                 case NC_SHORT:
                     for (dp = (double *)src, sp = dest; count < len; count++) {
                         if (*dp > X_SHORT_MAX || *dp < X_SHORT_MIN)
                             (*range_error)++;
-                        *sp++ = *dp++;
+                        *sp++ = (short)*dp++;
                     }
                     break;
                 case NC_USHORT:
                     for (dp = (double *)src, usp = dest; count < len; count++) {
                         if (*dp > X_USHORT_MAX || *dp < 0)
                             (*range_error)++;
-                        *usp++ = *dp++;
+                        *usp++ = (unsigned short)*dp++;
                     }
                     break;
                 case NC_UINT:
                     for (dp = (double *)src, uip = dest; count < len; count++) {
                         if (*dp > X_UINT_MAX || *dp < 0)
                             (*range_error)++;
-                        *uip++ = *dp++;
+                        *uip++ = (unsigned int)*dp++;
                     }
                     break;
                 case NC_INT:
                     for (dp = (double *)src, ip = dest; count < len; count++) {
                         if (*dp > X_INT_MAX || *dp < X_INT_MIN)
                             (*range_error)++;
-                        *ip++ = *dp++;
+                        *ip++ = (int)*dp++;
                     }
                     break;
                 case NC_INT64:
                     for (dp = (double *)src, lip = dest; count < len; count++) {
-                        if (*dp > X_INT64_MAX || *dp < X_INT64_MIN)
+                        if (*dp > (double)X_INT64_MAX || *dp < X_INT64_MIN)
                             (*range_error)++;
-                        *lip++ = *dp++;
+                        *lip++ = (long long)*dp++;
                     }
                     break;
                 case NC_UINT64:
-                    for (dp = (double *)src, lip = dest; count < len; count++) {
-                        if (*dp > X_UINT64_MAX || *dp < 0)
+                    for (dp = (double *)src, ulip = dest; count < len; count++) {
+                        if (*dp > (double)X_UINT64_MAX || *dp < 0)
                             (*range_error)++;
-                        *lip++ = *dp++;
+                        *ulip++ = (unsigned long long)*dp++;
                     }
                     break;
                 case NC_FLOAT:
                     for (dp = (double *)src, fp = dest; count < len; count++) {
                         if (isgreater(*dp, X_FLOAT_MAX) || isless(*dp, X_FLOAT_MIN))
                             (*range_error)++;
-                        *fp++ = *dp++;
+                        *fp++ = (float)*dp++;
                     }
                     break;
                 case NC_DOUBLE:
-                    if (src != dest) {
-                        for (dp = (double *)src, dp1 = dest; count < len; count++) *dp1++ = *dp++;
-                    }
+                    for (dp = (double *)src, dp1 = dest; count < len; count++)
+                        *dp1++ = *dp++;
                     break;
                 default:
                     return NC_EBADTYPE;
