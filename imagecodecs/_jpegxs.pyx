@@ -159,7 +159,7 @@ def jpegxs_encode(
 
     itemsize = src.dtype.itemsize
     if bitspersample is None:
-        xs_image.depth = itemsize * 8
+        xs_image.depth = <int> (itemsize * 8)
     elif 8 <= bitspersample < 16:
         xs_image.depth = bitspersample
     else:
@@ -292,7 +292,9 @@ def jpegxs_decode(data, verbose=None, out=None):
     try:
         with nogil:
 
-            ret = xs_dec_probe(&src[0], srcsize, &xs_config, &xs_image)
+            ret = xs_dec_probe(
+                <uint8_t *> &src[0], srcsize, &xs_config, &xs_image
+            )
             if not ret:
                 raise JpegxsError('xs_dec_probe failed')
 
@@ -304,7 +306,7 @@ def jpegxs_decode(data, verbose=None, out=None):
             if ctx == NULL:
                 raise JpegxsError('xs_dec_init failed')
 
-            ret = xs_dec_bitstream(ctx, &src[0], srcsize, &xs_image)
+            ret = xs_dec_bitstream(ctx, <void *> &src[0], srcsize, &xs_image)
             if not ret:
                 raise JpegxsError('xs_dec_bitstream failed')
 
