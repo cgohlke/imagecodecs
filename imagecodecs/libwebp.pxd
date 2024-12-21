@@ -1,7 +1,7 @@
 # imagecodecs/libwebp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libwebp 1.4.0` library.
+# Cython declarations for the `libwebp 1.5.0` library.
 # https://github.com/webmproject/libwebp
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -524,7 +524,11 @@ cdef extern from 'webp/encode.h' nogil:
         int lossless_size
         int lossless_hdr_size
         int lossless_data_size
-        uint32_t[2] pad
+        int cross_color_transform_bits
+        uint32_t[1] pad
+
+    # ctypedef struct WebPPicture:
+    #     pass
 
     ctypedef int (*WebPWriterFunction)(
         const uint8_t* data,
