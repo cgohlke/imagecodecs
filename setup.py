@@ -125,7 +125,7 @@ OPTIONS = {
             # ('Py_LIMITED_API', '1'),
             ('NPY_NO_DEPRECATED_API', 'NPY_1_20_API_VERSION'),
         ]
-        + ([('WIN32', 1)] if sys.platform == 'win32' else [])  # type: ignore
+        + ([('WIN32', 1)] if sys.platform == 'win32' else [])
     ),
     'extra_compile_args': ['/Zi', '/Od'] if DEBUG else [],
     'extra_link_args': ['-debug:full'] if DEBUG else [],
@@ -271,7 +271,10 @@ def customize_build_default(EXTENSIONS, OPTIONS):
         )
     )
     EXTENSIONS['jpegxr']['include_dirs'].append('/usr/include/jxrlib')
-    # EXTENSIONS['jpeg8']['sources'] = []  # requires libjpeg-turbo v3
+
+    if not os.environ.get('IMAGECODECS_JPEG8_LEGACY', False):
+        # use libjpeg-turbo 3 by default
+        EXTENSIONS['jpeg8']['sources'] = []
 
     # these extensions are required by core dependent libraries
     keep = {
@@ -327,7 +330,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     # EXTENSIONS['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
     # EXTENSIONS['exr']['extra_compile_args'] = ['/openmp']
 
-    if not os.environ.get('USE_JPEG8_LEGACY', False):
+    if not os.environ.get('IMAGECODECS_JPEG8_LEGACY', False):
         # use libjpeg-turbo 3
         EXTENSIONS['jpeg8']['sources'] = []
 
@@ -414,7 +417,6 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'lz4',
         'zstd_static',
     ]
-    EXTENSIONS['lzma']['libraries'] = ['liblzma']
     EXTENSIONS['lzma']['define_macros'].append(('LZMA_API_STATIC', 1))
     EXTENSIONS['tiff']['define_macros'].extend(
         (('LZMA_API_STATIC', 1), ('LERC_STATIC', 1))
@@ -427,7 +429,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'libwebp',
         'libsharpyuv',
         'zstd_static',
-        'liblzma',
+        'lzma',
         'deflatestatic',
         'lerc',
     ]
@@ -527,14 +529,12 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
     del EXTENSIONS['sperr']
     del EXTENSIONS['sz3']
     del EXTENSIONS['ultrahdr']
-    del EXTENSIONS['zlibng']
 
     EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
 
     if sys.platform == 'win32':
         del EXTENSIONS['brunsli']  # brunsli not stable on conda-forge
 
-        EXTENSIONS['lz4f']['libraries'] = ['liblz4']
         EXTENSIONS['bz2']['libraries'] = ['bzip2']
         EXTENSIONS['jpeg2k']['include_dirs'] += [
             os.path.join(
@@ -542,8 +542,6 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
             )
         ]
         EXTENSIONS['jpegls']['libraries'] = ['charls-2-x64']
-        EXTENSIONS['lz4']['libraries'] = ['liblz4']
-        EXTENSIONS['lzma']['libraries'] = ['liblzma']
         EXTENSIONS['png']['libraries'] = ['libpng', 'z']
         EXTENSIONS['webp']['libraries'] = ['libwebp', 'libwebpdemux']
         EXTENSIONS['zopfli']['include_dirs'] = [
@@ -554,6 +552,7 @@ def customize_build_condaforge(EXTENSIONS, OPTIONS):
         ]
         EXTENSIONS['jpegxr']['libraries'] = ['libjpegxr', 'libjxrglue']
         EXTENSIONS['szip']['libraries'] = ['szip']
+        EXTENSIONS['zlibng']['libraries'] = ['zlib-ng']
     else:
         EXTENSIONS['zopfli']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'zopfli')
@@ -593,8 +592,7 @@ def customize_build_macports(EXTENSIONS, OPTIONS):
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
-    # uncomment if building with libjpeg-turbo 3
-    # EXTENSIONS['jpeg8']['sources'] = []
+    EXTENSIONS['jpeg8']['sources'] = []  # use libjpeg-turbo 3
 
     EXTENSIONS['szip']['library_dirs'] = ['%PREFIX%/lib/libaec/lib']
     EXTENSIONS['szip']['include_dirs'] = ['%PREFIX%/lib/libaec/include']
@@ -626,7 +624,6 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
     del EXTENSIONS['pcodec']
     del EXTENSIONS['sperr']
     del EXTENSIONS['sz3']
-    del EXTENSIONS['ultrahdr']
     del EXTENSIONS['zfp']
     del EXTENSIONS['zlibng']
 
@@ -644,9 +641,7 @@ def customize_build_mingw(EXTENSIONS, OPTIONS):
 if 'sdist' not in sys.argv:
     # customize builds based on environment
     try:
-        from imagecodecs_distributor_setup import (  # type: ignore
-            customize_build,
-        )
+        from imagecodecs_distributor_setup import customize_build
     except ImportError:
         if os.environ.get('COMPUTERNAME', '').startswith('CG-'):
             customize_build = customize_build_cgohlke
@@ -728,7 +723,7 @@ def extension(name):
         },
     )
     ext.cython_compile_time_env = {
-        **OPTIONS['cython_compile_time_env'],  # type: ignore
+        **OPTIONS['cython_compile_time_env'],  # type: ignore[dict-item]
         **opt['cython_compile_time_env'],
     }
     # ext.force = OPTIONS['cythonize'] or opt['cythonize']
