@@ -1,7 +1,7 @@
 # imagecodecs/bcdec.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `bcdec 3b29f8f` library.
+# Cython declarations for the `bcdec 963c5e5` library.
 # https://github.com/iOrange/bcdec
 
 cdef extern from 'bcdec.h' nogil:
@@ -54,6 +54,36 @@ cdef extern from 'bcdec.h' nogil:
         void* decompressedBlock,
         int destinationPitch
     )
+
+    # BCDEC_BC4BC5_PRECISE
+    #
+    # void bcdec_bc4(
+    #     const void* compressedBlock,
+    #     void* decompressedBlock,
+    #     int destinationPitch,
+    #     int isSigned
+    # )
+    #
+    # void bcdec_bc5(
+    #     const void* compressedBlock,
+    #     void* decompressedBlock,
+    #     int destinationPitch,
+    #     int isSigned
+    # )
+    #
+    # void bcdec_bc4_float(
+    #     const void* compressedBlock,
+    #     void* decompressedBlock,
+    #     int destinationPitch,
+    #     int isSigned
+    # )
+    #
+    # void bcdec_bc5_float(
+    #     const void* compressedBlock,
+    #     void* decompressedBlock,
+    #     int destinationPitch,
+    #     int isSigned
+    # )
 
     void bcdec_bc6h_float(
         const void* compressedBlock,
