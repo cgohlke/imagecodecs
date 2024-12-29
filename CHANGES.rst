@@ -1,9 +1,18 @@
 Revisions
 ---------
 
+2024.12.30
+
+- Pass 7655 tests.
+- Fix out parameter array not zeroed in some cases.
+- Fix ultrahdr_encode with linear rgbaf16 input (#108).
+- Fix jpegls_encode with level greater than 9 (#119).
+- Fix jpeg8_encode with bitspersample and lossless=False (#116).
+- Fix excessive buffer allocation in lz4h5_encode (#112).
+- Fix build error with libjpeg (#111).
+
 2024.9.22
 
-- Pass 7644 tests.
 - Use libjpeg-turbo for all Lossless JPEG bit-depths if possible (#105).
 - Fix PackBits encoder fails to skip short replication blocks (#107).
 - Fix JPEG2K encoder leaving trailing random bytes (#104).
