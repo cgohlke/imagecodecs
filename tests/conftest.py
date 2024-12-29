@@ -1,4 +1,5 @@
 # imagecodecs/tests/conftest.py
+# type: ignore
 
 import os
 import sys
