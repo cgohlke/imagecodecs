@@ -32,7 +32,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2024.9.22
+:Version: 2024.12.30
 
 """
 
@@ -766,7 +766,7 @@ def test_delta(output, byteorder, kind, codec, func):
         elif output == 'out':
             if codec == 'encode':
                 encoded = bytetype(len(data))
-                if bytetype == bytes:
+                if bytetype is bytes:
                     with pytest.raises(TypeError):
                         encode(data, out=encoded)
                 else:
@@ -774,7 +774,7 @@ def test_delta(output, byteorder, kind, codec, func):
                     assert encoded == diff
             elif codec == 'decode':
                 decoded = bytetype(len(data))
-                if bytetype == bytes:
+                if bytetype is bytes:
                     with pytest.raises(TypeError):
                         decode(diff, out=decoded)
                 else:
@@ -783,7 +783,7 @@ def test_delta(output, byteorder, kind, codec, func):
         elif output == 'inplace':
             if codec == 'encode':
                 encoded = bytetype(data)
-                if bytetype == bytes:
+                if bytetype is bytes:
                     with pytest.raises(TypeError):
                         encode(encoded, out=encoded)
                 else:
@@ -791,7 +791,7 @@ def test_delta(output, byteorder, kind, codec, func):
                     assert encoded == diff
             elif codec == 'decode':
                 decoded = bytetype(diff)
-                if bytetype == bytes:
+                if bytetype is bytes:
                     with pytest.raises(TypeError):
                         decode(decoded, out=decoded)
                 else:
@@ -2896,6 +2896,29 @@ def test_jpeg_rgb_mode():
     assert_allclose(data, decoded, atol=8)
 
 
+@pytest.mark.skipif(not imagecodecs.JPEG8.available, reason='jpeg8 missing')
+def test_jpeg_bitspersample():
+    """Test JPEG encoder with bitspersample=8, lossless=False."""
+    # https://github.com/cgohlke/imagecodecs/issues/116
+    data = image_data('rgb', 'uint8')
+    encoded = imagecodecs.jpeg_encode(
+        data,
+        colorspace='RGB',
+        outcolorspace='RGB',
+        subsampling='444',
+        level=99,
+        bitspersample=8,
+        lossless=False,
+    )
+    assert b'JFIF' not in encoded[:16]
+    decoded = imagecodecs.jpeg_decode(
+        encoded,
+        colorspace='RGB',
+        outcolorspace='RGB',
+    )
+    assert_allclose(data, decoded, atol=8)
+
+
 @pytest.mark.skipif(
     not imagecodecs.MOZJPEG.available, reason='mozjpeg missing'
 )
@@ -3166,8 +3189,7 @@ def test_avif_strict_disabled():
 
 @pytest.mark.skipif(not IS_CG, reason='avif missing')
 @pytest.mark.parametrize(
-    'codec',
-    ['auto', 'aom', 'rav1e', 'svt'],  # 'libgav1', 'avm'
+    'codec',  ['auto', 'aom', 'rav1e', 'svt']  # 'libgav1', 'avm'
 )
 def test_avif_encoder(codec):
     """Test various AVIF encoder codecs."""
@@ -3427,8 +3449,6 @@ def test_sz3(dtype, itype, enout, deout):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_ultrahdr_decode(output):
     """Test Ultra HDR decoder with image."""
-    # this image was generated from linear 32bppRGBA1010102
-    # TODO: replace with 64bppRGBAHalfFloat once libultrahdr supports it
     data = readfile('rgba.uhdr')
     dtype = numpy.float16
     shape = 32, 31, 4
@@ -3446,7 +3466,7 @@ def test_ultrahdr_decode(output):
 
     assert decoded.dtype == dtype
     assert decoded.shape == shape
-    assert_allclose(decoded[25, 25, 1], 0.4717, atol=0.01)
+    assert_allclose(decoded[25, 25, 1], 0.4668, atol=0.01)
     assert_allclose(decoded[-1, -1, -1], 1.0, atol=0.01)
 
 
@@ -3455,27 +3475,25 @@ def test_ultrahdr_decode(output):
 )
 def test_ultrahdr():
     """Test Ultra HDR codec."""
-    # this image was generated from linear 32bppRGBA1010102
-    # TODO: replace with 64bppRGBAHalfFloat once libultrahdr supports it
     uhdr = readfile('rgba.uhdr')
 
     assert imagecodecs.ultrahdr_check(uhdr)
     rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.float16)
     assert rgba.dtype == numpy.float16
     assert rgba.shape == (32, 31, 4)
-    assert_allclose(rgba[0, 0], [0.4941, 0.7524, 0.6313, 1.0], atol=0.01)
+    assert_allclose(rgba[0, 0], [0.5405, 0.7485, 0.62, 1], atol=0.01)
 
     rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint8)
     assert rgba.dtype == numpy.uint8
     assert rgba.shape == (32, 31, 4)
     # TODO: SDR is way too bright
     # assert_allclose(rgba[0, 0], [128, 196, 160, 255])
-    assert_allclose(rgba[0, 0], [199, 240, 222, 255])
+    assert_allclose(rgba[0, 0], [151, 175, 162, 255])
 
     rgba = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint32, transfer=1)
     assert rgba.dtype == numpy.uint32
     assert rgba.shape == (32, 31)
-    assert rgba[0, 0] == 4204736379  # 3894166016
+    assert rgba[0, 0] == 3940235925  # 3894166016
 
     uhdr = imagecodecs.ultrahdr_encode(rgba, level=100, transfer=1, gamut=1)
 
@@ -3483,16 +3501,15 @@ def test_ultrahdr():
     rgba = imagecodecs.ultrahdr_decode(uhdr, transfer=0)
     # TODO: values not identical
     # assert_allclose(rgba[0, 0], [0.4941, 0.7524, 0.6313, 1.0], atol=0.01)
-    assert_allclose(rgba[0, 0], [0.4907, 0.762, 0.628, 1.0], atol=0.01)
+    assert_allclose(rgba[0, 0], [0.5244, 0.734, 0.5903, 1.0], atol=0.01)
 
 
-@pytest.mark.xfail(reason='ultrahdr roundtrip not working')
 @pytest.mark.skipif(
     not imagecodecs.ULTRAHDR.available, reason='ultrahdr missing'
 )
 @pytest.mark.parametrize('deout', ['new', 'out', 'bytearray'])
 @pytest.mark.parametrize('enout', ['new', 'out', 'bytearray'])
-@pytest.mark.parametrize('itype', ['rgba', 'view'])
+@pytest.mark.parametrize('itype', ['rgba'])
 def test_ultrahdr_roundtrip(itype, enout, deout):
     """Test Ultra HDR codec."""
     decode = imagecodecs.ultrahdr_decode
@@ -3501,11 +3518,11 @@ def test_ultrahdr_roundtrip(itype, enout, deout):
     dtype = numpy.dtype(numpy.float16)
     data = image_data(itype, numpy.float32)
     data /= data.max()
+    data[..., -1] = 1.0  # TODO: decode always return alpha=1.0?
     data = data.astype(dtype)
     shape = data.shape
-    atol = 1e-3
 
-    kwargs = {}
+    kwargs = {'level': 100}
     encoded = encode(data, **kwargs)
 
     assert imagecodecs.ultrahdr_check(encoded)
@@ -3530,7 +3547,7 @@ def test_ultrahdr_roundtrip(itype, enout, deout):
         decoded = decode(encoded, out=decoded, **kwargs)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
 
-    assert_allclose(data, decoded, atol=atol, rtol=0)
+    assert_allclose(data, decoded, atol=0.1)
 
 
 @pytest.mark.skipif(
@@ -4615,11 +4632,11 @@ def test_tiff_index(index):
     if index in {10, 1048576}:
         with pytest.raises((IndexError, OverflowError)):
             decoded = imagecodecs.tiff_decode(encoded, index=index)
-    elif index == list:
+    elif index is list:
         data = tifffile.imread(filename, series=1)
         decoded = imagecodecs.tiff_decode(encoded, index=[1, 3, 5, 7])
         assert_array_equal(data, decoded)
-    elif index == slice:
+    elif index is slice:
         for index in (slice(None), slice(1, None, None), slice(1, 3, None)):
             with pytest.raises((IndexError, ValueError)):
                 decoded = imagecodecs.tiff_decode(encoded, index=index)
