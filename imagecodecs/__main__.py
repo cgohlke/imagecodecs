@@ -15,7 +15,7 @@ from tifffile import Timer, askopenfilename, imshow
 from .imagecodecs import imread
 
 
-def main(argv=None, verbose: bool = True) -> int:
+def main(argv: list[str] | None = None, verbose: bool = True) -> int:
     """Imagecodecs command line usage main function."""
     if argv is None:
         argv = sys.argv
