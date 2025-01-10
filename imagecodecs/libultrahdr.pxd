@@ -1,7 +1,7 @@
 # imagecodecs/libultrahdr.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libultrahdr 1.3.0` library.
+# Cython declarations for the `libultrahdr 1.4.0` library.
 # https://github.com/google/libultrahdr
 
 cdef extern from 'ultrahdr_api.h' nogil:
@@ -111,13 +111,14 @@ cdef extern from 'ultrahdr_api.h' nogil:
         size_t capacity
 
     ctypedef struct uhdr_gainmap_metadata_t:
-        float max_content_boost
-        float min_content_boost
-        float gamma
-        float offset_sdr
-        float offset_hdr
+        float[3] max_content_boost
+        float[3] min_content_boost
+        float[3] gamma
+        float[3] offset_sdr
+        float[3] offset_hdr
         float hdr_capacity_min
         float hdr_capacity_max
+        int use_base_cg
 
     ctypedef struct uhdr_codec_private_t:
         pass
