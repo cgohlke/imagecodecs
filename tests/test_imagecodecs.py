@@ -5277,7 +5277,7 @@ def test_numcodecs(codec, photometric):
         fname = f'test_{codec}.{photometric}.{data.dtype.str[1:]}.zarr.zip'
         store = zarr.ZipStore(fname, mode='w')
     else:
-        store = zarr.MemoryStore()
+        store = zarr.storage.MemoryStore()
     z = zarr.create(
         store=store,
         overwrite=True,
@@ -5285,6 +5285,7 @@ def test_numcodecs(codec, photometric):
         chunks=chunks,
         dtype=data.dtype.str,
         compressor=compressor,
+        zarr_format=2,
     )
     z[:] = data
     del z
