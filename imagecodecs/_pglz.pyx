@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2021-2024, Christoph Gohlke
+# Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -120,13 +120,14 @@ def pglz_encode(
     if dstsize < PGLZ_MAX_OUTPUT(srcsize):
         raise ValueError('output too small')
 
-    with nogil:
-        ret = pglz_compress(
-            <const char*> &src[0],
-            <int32> srcsize,
-            <char*> &dst[offset],
-            pglz_strategy
-        )
+    # pglz_compress is not thread-safe
+    # with nogil:
+    ret = pglz_compress(
+        <const char*> &src[0],
+        <int32> srcsize,
+        <char*> &dst[offset],
+        pglz_strategy
+    )
     if header:
         pdst = <uint8_t*> &dst[0]
         pdst[0] = srcsize & 255
