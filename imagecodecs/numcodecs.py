@@ -416,6 +416,8 @@ class Byteshuffle(Codec):
     def decode(self, buf, out=None):
         if not isinstance(buf, numpy.ndarray):
             buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
+        else:
+            buf = buf.view(self.dtype).reshape(self.shape, copy=False)
         return imagecodecs.byteshuffle_decode(
             buf,
             axis=self.axis,
@@ -772,6 +774,8 @@ class Floatpred(Codec):
     def decode(self, buf, out=None):
         if not isinstance(buf, numpy.ndarray):
             buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
+        else:
+            buf = buf.view(self.dtype).reshape(self.shape, copy=False)
         return imagecodecs.floatpred_decode(
             buf, axis=self.axis, dist=self.dist, out=out
         )
