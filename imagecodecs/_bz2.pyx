@@ -101,7 +101,7 @@ def bz2_encode(data, level=None, out=None):
     if out is None and dstsize < 0:
         # use Python's bz2 module
         import bz2
-        return bz2.compress(data, compresslevel)
+        return bz2.compress(memoryview(data), compresslevel)
 
     if out is None:
         if dstsize < 0:
@@ -158,7 +158,7 @@ def bz2_decode(data, out=None):
         # use Python's bz2 module
         import bz2
 
-        return bz2.decompress(data)
+        return bz2.decompress(memoryview(data))
 
     if out is None:
         if dstsize < 0:
