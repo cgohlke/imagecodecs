@@ -606,9 +606,9 @@ cdef extern from 'lcms2.h' nogil:
 
     int TYPE_GRAY_HALF_FLT
     int TYPE_RGB_HALF_FLT
-    int TYPE_RGBA_HALF_FLT
     int TYPE_CMYK_HALF_FLT
 
+    int TYPE_RGBA_HALF_FLT
     int TYPE_ARGB_HALF_FLT
     int TYPE_BGR_HALF_FLT
     int TYPE_BGRA_HALF_FLT
