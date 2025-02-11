@@ -1,7 +1,7 @@
 # imagecodecs/zlib_ng.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zlib-ng 2.2.2` library.
+# Cython declarations for the `zlib-ng 2.2.4` library.
 # https://github.com/zlib-ng/zlib-ng
 
 from libc.stdint cimport int32_t, uint8_t, uint32_t
