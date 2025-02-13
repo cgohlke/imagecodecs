@@ -1,7 +1,7 @@
 # imagecodecs/pcodec.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `pcodec 0.3.1` library.
+# Cython declarations for the `pcodec 0.4.2` library.
 # https://github.com/mwlon/pcodec
 
 cdef extern from 'cpcodec.h' nogil:
