@@ -1,8 +1,54 @@
 # imagecodecs/zstd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `zstd 1.5.6` library (aka Zstandard).
+# Cython declarations for the `zstd 1.5.7` library (aka Zstandard).
 # https://github.com/facebook/zstd
+
+cdef extern from 'zstd_errors.h' nogil:
+
+    ctypedef enum ZSTD_ErrorCode:
+        ZSTD_error_no_error
+        ZSTD_error_GENERIC
+        ZSTD_error_prefix_unknown
+        ZSTD_error_version_unsupported
+        ZSTD_error_frameParameter_unsupported
+        ZSTD_error_frameParameter_windowTooLarge
+        ZSTD_error_corruption_detected
+        ZSTD_error_checksum_wrong
+        ZSTD_error_literals_headerWrong
+        ZSTD_error_dictionary_corrupted
+        ZSTD_error_dictionary_wrong
+        ZSTD_error_dictionaryCreation_failed
+        ZSTD_error_parameter_unsupported
+        ZSTD_error_parameter_combination_unsupported
+        ZSTD_error_parameter_outOfBound
+        ZSTD_error_tableLog_tooLarge
+        ZSTD_error_maxSymbolValue_tooLarge
+        ZSTD_error_maxSymbolValue_tooSmall
+        ZSTD_error_cannotProduce_uncompressedBlock
+        ZSTD_error_stabilityCondition_notRespected
+        ZSTD_error_stage_wrong
+        ZSTD_error_init_missing
+        ZSTD_error_memory_allocation
+        ZSTD_error_workSpace_tooSmall
+        ZSTD_error_dstSize_tooSmall
+        ZSTD_error_srcSize_wrong
+        ZSTD_error_dstBuffer_null
+        ZSTD_error_noForwardProgress_destFull
+        ZSTD_error_noForwardProgress_inputEmpty
+        # unstable
+        ZSTD_error_frameIndex_tooLarge
+        ZSTD_error_seekableIO
+        ZSTD_error_dstBuffer_wrong
+        ZSTD_error_srcBuffer_wrong
+        ZSTD_error_sequenceProducer_failed
+        ZSTD_error_externalSequences_invalid
+        ZSTD_error_maxCode
+
+    const char* ZSTD_getErrorString(
+        ZSTD_ErrorCode code
+    )
+
 
 cdef extern from 'zstd.h' nogil:
 
@@ -67,6 +113,10 @@ cdef extern from 'zstd.h' nogil:
 
     unsigned ZSTD_isError(
         size_t code
+    )
+
+    ZSTD_ErrorCode ZSTD_getErrorCode(
+        size_t functionResult
     )
 
     const char* ZSTD_getErrorName(
@@ -163,6 +213,7 @@ cdef extern from 'zstd.h' nogil:
         ZSTD_c_experimentalParam17
         ZSTD_c_experimentalParam18
         ZSTD_c_experimentalParam19
+        ZSTD_c_experimentalParam20
 
     ctypedef struct ZSTD_bounds:
         size_t error
@@ -444,9 +495,9 @@ cdef extern from 'zstd.h' nogil:
     # if defined(ZSTD_STATIC_LINKING_ONLY) && !defined(ZSTD_H_ZSTD_STATIC_LINKING_ONLY)
     int ZSTD_H_ZSTD_STATIC_LINKING_ONLY
 
-    int ZSTD_FRAMEHEADERSIZE_PREFIX(format)
-    int ZSTD_FRAMEHEADERSIZE_MIN(format)
-    int ZSTD_FRAMEHEADERSIZE_MAX
+    int ZSTD_FrameHeaderSIZE_PREFIX(format)
+    int ZSTD_FrameHeaderSIZE_MIN(format)
+    int ZSTD_FrameHeaderSIZE_MAX
     int ZSTD_SKIPPABLEHEADERSIZE
     int ZSTD_WINDOWLOG_MAX_32
     int ZSTD_WINDOWLOG_MAX_64
@@ -553,7 +604,7 @@ cdef extern from 'zstd.h' nogil:
         size_t srcSize
     )
 
-    size_t ZSTD_frameHeaderSize(
+    size_t ZSTD_FrameHeaderSize(
         const void* src,
         size_t srcSize
     )
@@ -580,7 +631,7 @@ cdef extern from 'zstd.h' nogil:
     size_t ZSTD_generateSequences(
         ZSTD_CCtx* zc,
         ZSTD_Sequence* outSeqs,
-        size_t outSeqsSize,
+        size_t outSeqsCapacity,
         const void* src,
         size_t srcSize
     )
@@ -593,11 +644,23 @@ cdef extern from 'zstd.h' nogil:
     size_t ZSTD_compressSequences(
         ZSTD_CCtx* const cctx,
         void* dst,
-        size_t dstSize,
+        size_t dstCapacity,
         const ZSTD_Sequence* inSeqs,
         size_t inSeqsSize,
         const void* src,
         size_t srcSize
+    )
+
+    ZSTD_compressSequencesAndLiterals(
+        ZSTD_CCtx* cctx,
+        void* dst,
+        size_t dstCapacity,
+        const ZSTD_Sequence* inSeqs,
+        size_t nbSequences,
+        const void* literals,
+        size_t litSize,
+        size_t litBufCapacity,
+        size_t decompressedSize
     )
 
     size_t ZSTD_writeSkippableFrame(
@@ -876,12 +939,15 @@ cdef extern from 'zstd.h' nogil:
     int ZSTD_c_stableOutBuffer
     int ZSTD_c_blockDelimiters
     int ZSTD_c_validateSequences
-    int ZSTD_c_useBlockSplitter
+    int ZSTD_c_blockSplitterLevel
+    int ZSTD_c_splitAfterSequences
+    # int ZSTD_c_useBlockSplitter
     int ZSTD_c_useRowMatchFinder
     int ZSTD_c_deterministicRefPrefix
     int ZSTD_c_prefetchCDictTables
     int ZSTD_c_enableSeqProducerFallback
     int ZSTD_c_maxBlockSize
+    int ZSTD_c_repcodeResolution
     int ZSTD_c_searchForExternalRepcodes
 
     size_t ZSTD_CCtx_getParameter(
@@ -1124,27 +1190,27 @@ cdef extern from 'zstd.h' nogil:
         unsigned long long pledgedSrcSize
     )
 
-    ctypedef enum ZSTD_frameType_e:
+    ctypedef enum ZSTD_FrameType_e:
         ZSTD_frame
         ZSTD_skippableFrame
 
-    ctypedef struct ZSTD_frameHeader:
+    ctypedef struct ZSTD_FrameHeader:
         unsigned long long frameContentSize
         unsigned long long windowSize
         unsigned blockSizeMax
-        ZSTD_frameType_e frameType
+        ZSTD_FrameType_e frameType
         unsigned headerSize
         unsigned dictID
         unsigned checksumFlag
 
     size_t ZSTD_getFrameHeader(
-        ZSTD_frameHeader* zfhPtr,
+        ZSTD_FrameHeader* zfhPtr,
         const void* src,
         size_t srcSize
     )
 
     size_t ZSTD_getFrameHeader_advanced(
-        ZSTD_frameHeader* zfhPtr,
+        ZSTD_FrameHeader* zfhPtr,
         const void* src,
         size_t srcSize,
         ZSTD_format_e format
