@@ -1,7 +1,7 @@
 # imagecodecs/libpng.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libpng 1.6.44` library with APNG patch.
+# Cython declarations for the `libpng 1.6.47` library with APNG patch.
 # https://github.com/glennrp/libpng
 # https://sourceforge.net/projects/libpng-apng/
 
