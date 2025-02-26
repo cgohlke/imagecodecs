@@ -1,6 +1,6 @@
 # imagecodecs/_imagecodecs.py
 
-# Copyright (c) 2008-2024, Christoph Gohlke
+# Copyright (c) 2008-2025, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -46,6 +46,7 @@ __all__ = [
     'brotli',
     'bz2',
     'czifile',
+    'liffile',
     'lz4',
     'lzf',
     'lzfse',
@@ -79,6 +80,7 @@ blosc: ModuleType | None
 blosc2: ModuleType | None
 brotli: ModuleType | None
 czifile: ModuleType | None
+liffile: ModuleType | None
 lz4: ModuleType | None
 lzf: ModuleType | None
 lzfse: ModuleType | None
@@ -120,6 +122,11 @@ try:
     import czifile
 except Exception:
     czifile = None
+
+try:
+    import liffile
+except Exception:
+    liffile = None
 
 try:
     import lz4
@@ -208,6 +215,7 @@ def version(astype=None, _versions_=[]):
                 ('zarr', zarr.__version__ if zarr else 'n/a'),
                 ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
                 ('czifile', czifile.__version__ if czifile else 'n/a'),
+                ('liffile', liffile.__version__ if liffile else 'n/a'),
             )
         )
     if astype is str or astype is None:
