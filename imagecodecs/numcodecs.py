@@ -1,6 +1,6 @@
 # imagecodecs/numcodecs.py
 
-# Copyright (c) 2021-2024, Christoph Gohlke
+# Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,73 @@
 
 from __future__ import annotations
 
-__all__ = ['register_codecs']
+__all__ = [
+    'Aec',
+    'Apng',
+    'Avif',
+    'Bitorder',
+    'Bitshuffle',
+    'Blosc',
+    'Blosc2',
+    'Bmp',
+    'Brotli',
+    'Byteshuffle',
+    'Bz2',
+    'Checksum',
+    'Cms',
+    'Codec',
+    'Dds',
+    'Deflate',
+    'Delta',
+    'Dicomrle',
+    'Eer',
+    'Float24',
+    'Floatpred',
+    'Gif',
+    'Heif',
+    'Jetraw',
+    'Jpeg',
+    'Jpeg2k',
+    'Jpegls',
+    'Jpegxl',
+    'Jpegxr',
+    'Jpegxs',
+    'Lerc',
+    'Ljpeg',
+    'Lz4',
+    'Lz4f',
+    'Lz4h5',
+    'Lzf',
+    'Lzfse',
+    'Lzham',
+    'Lzma',
+    'Lzo',
+    'Lzw',
+    'Packbits',
+    'Packints',
+    'Pcodec',
+    'Pglz',
+    'Png',
+    'Qoi',
+    'Quantize',
+    'Rcomp',
+    'Rgbe',
+    'Snappy',
+    'Sperr',
+    'Spng',
+    'Sz3',
+    'Szip',
+    'Tiff',
+    'Ultrahdr',
+    'Webp',
+    'Xor',
+    'Zfp',
+    'Zlib',
+    'Zlibng',
+    'Zopfli',
+    'Zstd',
+    'register_codecs',
+]
 
 from typing import TYPE_CHECKING
 
@@ -414,8 +480,7 @@ class Byteshuffle(Codec):
         ).tobytes()
 
     def decode(self, buf, out=None):
-        if not isinstance(buf, numpy.ndarray):
-            buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
+        buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
         return imagecodecs.byteshuffle_decode(
             buf,
             axis=self.axis,
@@ -770,8 +835,7 @@ class Floatpred(Codec):
         ).tobytes()
 
     def decode(self, buf, out=None):
-        if not isinstance(buf, numpy.ndarray):
-            buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
+        buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(*self.shape)
         return imagecodecs.floatpred_decode(
             buf, axis=self.axis, dist=self.dist, out=out
         )
@@ -2276,9 +2340,7 @@ def _image(
 ) -> NDArray[Any]:
     """Return buffer as squeezed numpy array with at least 2 dimensions."""
     if squeeze is None:
-        return numpy.atleast_2d(  # type: ignore[no-any-return]
-            numpy.squeeze(buf)
-        )
+        return numpy.atleast_2d(numpy.squeeze(buf))
     arr = numpy.asarray(buf)
     if not squeeze:
         return arr
