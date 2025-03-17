@@ -1,7 +1,7 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 1.1.1` library.
+# Cython declarations for the `libavif 1.2.1` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int32_t
@@ -118,8 +118,13 @@ cdef extern from 'avif/avif.h' nogil:
         AVIF_RESULT_NO_AV1_ITEMS_FOUND
 
     ctypedef enum avifHeaderFormat:
+        AVIF_HEADER_DEFAULT
+        AVIF_HEADER_MINI
+        AVIF_HEADER_EXTENDED_PIXI
+        # deprecated
         AVIF_HEADER_FULL
-        AVIF_HEADER_REDUCED
+
+    ctypedef int avifHeaderFormatFlags
 
     const char* avifResultToString(
         avifResult result
@@ -295,6 +300,24 @@ cdef extern from 'avif/avif.h' nogil:
         int32_t n
         int32_t d
 
+    ctypedef struct avifSignedFraction:
+        int32_t n
+        uint32_t d
+
+    ctypedef struct avifUnsignedFraction:
+        uint32_t n
+        uint32_t d
+
+    avifBool avifDoubleToSignedFraction(
+        double v,
+        avifSignedFraction* fraction
+    )
+
+    avifBool avifDoubleToUnsignedFraction(
+        double v,
+        avifUnsignedFraction* fraction
+    )
+
     # Optional transformation structs
 
     ctypedef enum avifTransformFlag:
@@ -332,6 +355,27 @@ cdef extern from 'avif/avif.h' nogil:
         uint32_t width
         uint32_t height
 
+    avifBool avifCropRectFromCleanApertureBox(
+        avifCropRect* cropRect,
+        const avifCleanApertureBox* clap,
+        uint32_t imageW,
+        uint32_t imageH,
+        avifDiagnostics* diag
+    )
+
+    avifBool avifCleanApertureBoxFromCropRect(
+        avifCleanApertureBox* clap,
+        const avifCropRect* cropRect,
+        uint32_t imageW,
+        uint32_t imageH,
+        avifDiagnostics* diag
+    )
+
+    avifBool avifCropRectRequiresUpsampling(
+        const avifCropRect* cropRect,
+        avifPixelFormat yuvFormat
+    )
+
     avifBool avifCropRectConvertCleanApertureBox(
         avifCropRect* cropRect,
         const avifCleanApertureBox* clap,
@@ -356,25 +400,15 @@ cdef extern from 'avif/avif.h' nogil:
 
     # avifImage
 
-    ctypedef struct avifGainMapMetadata:
-        int32_t[3] gainMapMinN
-        uint32_t[3] gainMapMinD
-        int32_t[3] gainMapMaxN
-        uint32_t[3] gainMapMaxD
-        uint32_t[3] gainMapGammaN
-        uint32_t[3] gainMapGammaD
-        int32_t[3] baseOffsetN
-        uint32_t[3] baseOffsetD
-        int32_t[3] alternateOffsetN
-        uint32_t[3] alternateOffsetD
-        uint32_t baseHdrHeadroomN
-        uint32_t baseHdrHeadroomD
-        uint32_t alternateHdrHeadroomN
-        uint32_t alternateHdrHeadroomD
-        avifBool useBaseColorSpace
-
     ctypedef struct avifGainMap:
         avifImage* image
+        avifSignedFraction[3] gainMapMin
+        avifSignedFraction[3] gainMapMax
+        avifUnsignedFraction[3] gainMapGamma
+        avifSignedFraction[3] baseOffset
+        avifSignedFraction[3] alternateOffset
+        avifUnsignedFraction baseHdrHeadroom
+        avifUnsignedFraction alternateHdrHeadroom
         avifRWData altICC
         avifColorPrimaries altColorPrimaries
         avifTransferCharacteristics altTransferCharacteristics
@@ -390,30 +424,16 @@ cdef extern from 'avif/avif.h' nogil:
         avifGainMap* gainMap
     )
 
-    ctypedef struct avifGainMapMetadataDouble:
-        double[3] gainMapMin
-        double[3] gainMapMax
-        double[3] gainMapGamma
-        double[3] baseOffset
-        double[3] alternateOffset
-        double baseHdrHeadroom
-        double alternateHdrHeadroom
-        avifBool useBaseColorSpace
-
-    avifBool avifGainMapMetadataDoubleToFractions(
-        avifGainMapMetadata* dst,
-        const avifGainMapMetadataDouble* src
-    )
-
-    avifBool avifGainMapMetadataFractionsToDouble(
-        avifGainMapMetadataDouble* dst,
-        const avifGainMapMetadata* src
-    )
-
     ctypedef enum avifSampleTransformRecipe:
         AVIF_SAMPLE_TRANSFORM_NONE
         AVIF_SAMPLE_TRANSFORM_BIT_DEPTH_EXTENSION_8B_8B
         AVIF_SAMPLE_TRANSFORM_BIT_DEPTH_EXTENSION_12B_4B
+        AVIF_SAMPLE_TRANSFORM_BIT_DEPTH_EXTENSION_12B_8B_OVERLAP_4B
+
+    ctypedef struct avifImageItemProperty:
+        uint8_t[4] boxtype
+        uint8_t[16] usertype
+        avifRWData boxPayload
 
     ctypedef struct avifImage:
         uint32_t width
@@ -441,6 +461,8 @@ cdef extern from 'avif/avif.h' nogil:
         avifImageMirror imir
         avifRWData exif
         avifRWData xmp
+        avifImageItemProperty* properties
+        size_t numProperties
         avifGainMap* gainMap
 
     avifImage* avifImageCreate(
@@ -500,6 +522,20 @@ cdef extern from 'avif/avif.h' nogil:
         avifImage* dstImage,
         avifImage* srcImage,
         avifPlanesFlags planes
+    )
+
+    avifResult avifImageAddOpaqueProperty(
+        avifImage* image,
+        const uint8_t[4] boxtype,
+        const uint8_t* data,
+        size_t dataSize
+    )
+
+    avifResult avifImageAddUUIDProperty(
+        avifImage* image,
+        const uint8_t[16] uuid,
+        const uint8_t* data,
+        size_t dataSize
     )
 
     avifResult avifImageScale(
@@ -729,6 +765,15 @@ cdef extern from 'avif/avif.h' nogil:
         avifProgressiveState progressiveState
     )
 
+    ctypedef enum avifImageContentTypeFlag:
+        AVIF_IMAGE_CONTENT_NONE
+        AVIF_IMAGE_CONTENT_COLOR_AND_ALPHA
+        AVIF_IMAGE_CONTENT_GAIN_MAP
+        AVIF_IMAGE_CONTENT_ALL
+        AVIF_IMAGE_CONTENT_DECODE_DEFAULT
+
+    ctypedef uint32_t avifImageContentTypeFlags
+
     ctypedef struct avifDecoder:
         avifCodecChoice codecChoice
         int maxThreads
@@ -757,10 +802,7 @@ cdef extern from 'avif/avif.h' nogil:
         avifIO* io
         avifDecoderData* data
         avifBool imageSequenceTrackPresent
-        avifBool gainMapPresent
-        avifBool enableDecodingGainMap
-        avifBool enableParsingGainMapMetadata
-        avifBool ignoreColorAndAlpha
+        avifImageContentTypeFlags imageContentToDecode
 
     avifDecoder* avifDecoderCreate()
 
@@ -878,7 +920,7 @@ cdef extern from 'avif/avif.h' nogil:
         avifDiagnostics diag
         avifEncoderData* data
         avifCodecSpecificOptions* csOptions
-        avifHeaderFormat headerFormat
+        avifHeaderFormatFlags headerFormat
         int qualityGainMap
         avifSampleTransformRecipe sampleTransformRecipe
 
