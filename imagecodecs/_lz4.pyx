@@ -6,7 +6,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 
-# Copyright (c) 2018-2024, Christoph Gohlke
+# Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -289,6 +289,18 @@ def lz4h5_encode(
                 <int> (dstsize - dstpos),
                 acceleration
             )
+            if (
+                # compression succeeded, but no space savings
+                lz4size >= blksize
+                or (
+                    # compression failed, not enough output space
+                    lz4size <= 0
+                    and blksize == srcsize - srcpos
+                    and blksize <= dstsize - dstpos
+                )
+            ):
+                memcpy(&dst[dstpos], <const char*> &src[srcpos], blksize)
+                lz4size = blksize
             if lz4size <= 0:
                 raise Lz4h5Error(f'LZ4_compress_fast returned {lz4size}')
 
@@ -321,7 +333,7 @@ def lz4h5_decode(data, out=None):
         raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 16')
 
     orisize = <ssize_t> read_i8be(&src[0])
-    blksize = <int> read_i4be(&src[8])
+    blksize = <int> min(read_i4be(&src[8]), orisize)
 
     if orisize < 0 or blksize < 0 or blksize > LZ4_MAX_INPUT_SIZE:
         raise Lz4h5Error('invalid values in LZ4H5 header')
@@ -353,19 +365,27 @@ def lz4h5_decode(data, out=None):
                     f'invalid block size {lz4size} @{srcpos} of {srcsize}'
                 )
 
-            blksize = <int >min(
-                <int64_t> blksize,
-                <int64_t> (dstsize - dstpos)
+            blksize = <int> min(
+                <int64_t> blksize, <int64_t> (dstsize - dstpos)
             )
 
-            ret = LZ4_decompress_safe(
-                <char*> &src[srcpos],
-                <char*> &dst[dstpos],
-                lz4size,
-                blksize
-            )
-            if ret < 0:
-                raise Lz4h5Error(f'LZ4_decompress_safe returned {ret}')
+            if blksize == lz4size:
+                memcpy(
+                    <char*> &dst[dstpos],
+                    <char*> &src[srcpos],
+                    <size_t> blksize
+                )
+                ret = blksize
+
+            else:
+                ret = LZ4_decompress_safe(
+                    <char*> &src[srcpos],
+                    <char*> &dst[dstpos],
+                    lz4size,
+                    blksize
+                )
+                if ret < 0:
+                    raise Lz4h5Error(f'LZ4_decompress_safe returned {ret}')
 
             srcpos += lz4size
             dstpos += ret
