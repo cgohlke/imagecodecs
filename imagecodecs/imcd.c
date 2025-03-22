@@ -1,7 +1,7 @@
 /* imagecodecs/imcd.c */
 
 /*
-Copyright (c) 2008-2024, Christoph Gohlke.
+Copyright (c) 2008-2025, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -693,10 +693,8 @@ inline uint8_t* _packbits_next_replicate(
 {
     uint8_t value = (srcptr < srcend) ? *srcptr : 0;
 
-    while (++srcptr < srcend)
-    {
-        if (value == *srcptr)
-        {
+    while (++srcptr < srcend) {
+        if (value == *srcptr) {
             return srcptr - 1;
         }
         value = *srcptr;
@@ -744,8 +742,7 @@ ssize_t imcd_packbits_encode(
     while (srcptr < srcend)
     {
         dupptr = _packbits_next_replicate(srcptr, srcend);
-        if (srcptr == dupptr)
-        {
+        if (srcptr == dupptr) {
             /* replicate */
             replicate = _packbits_replicate_length(dupptr, srcend);
             replicate = MIN_(128, replicate);
@@ -770,10 +767,8 @@ ssize_t imcd_packbits_encode(
             if (replicate < 3) {
                 uint8_t* nextsrc = dupptr + replicate;
                 uint8_t* nextdup = _packbits_next_replicate(nextsrc, srcend);
-                if (nextdup > nextsrc) {
-                    /* discard 2-byte run */
-                    dupptr = nextdup;
-                }
+                /* discard 2-byte run? */
+                dupptr = (nextdup > nextsrc) ? nextdup : dupptr;
             }
             literal = dupptr - srcptr;
         }
@@ -783,6 +778,9 @@ ssize_t imcd_packbits_encode(
             while (literal--) {
                 *dstptr++ = *srcptr++;
             }
+            /* memcpy(dstptr, srcptr, literal); */
+            /* dstptr += literal; */
+            /* srcptr += literal; */
         }
         else {
             dstptr = NULL;
@@ -791,8 +789,7 @@ ssize_t imcd_packbits_encode(
     }
 
     if (dstptr == NULL) {
-        if (dstsize < maxdst)
-        {
+        if (dstsize < maxdst) {
             return IMCD_OUTPUT_TOO_SMALL;
         }
         /* encoding exceeded maximum literal-only length */
@@ -800,13 +797,15 @@ ssize_t imcd_packbits_encode(
         literal = srcsize;
         srcptr = (uint8_t*)src;
         dstptr = dst;
-        while (srcptr < srcend)
-        {
+        while (srcptr < srcend) {
             literal = MIN_(128, srcend - srcptr);
             *dstptr++ = (uint8_t)(literal - 1);
             while (literal--) {
                 *dstptr++ = *srcptr++;
             }
+            /* memcpy(dstptr, srcptr, literal); */
+            /* dstptr += literal; */
+            /* srcptr += literal; */
         }
     }
     return (ssize_t)(dstptr - dst);
@@ -1714,17 +1713,23 @@ void imcd_lzw_del(imcd_lzw_handle_t* handle)
 {  \
     if ((bitcount + bitw) <= srcbitsize)  \
     {  \
-        const uint8_t* bytes = (uint8_t*)((void*)(src + (bitcount >> 3)));  \
-        code = (uint32_t) bytes[0];  \
-        code <<= 8;  \
-        code |= (uint32_t) bytes[1];  \
-        code <<= 8;  \
-        if ((bitcount + 24) <= srcbitsize)  \
-            code |= (uint32_t) bytes[2];  \
-        code <<= 8;  \
-        code <<= (uint32_t)(bitcount % 8);  \
-        code &= mask;  \
-        code >>= shr;  \
+        const uint32_t bitoffset = bitcount & 0x7;  \
+        const uint8_t* bytes = src + (bitcount >> 3);  \
+        if (bitoffset == 0 && bitw <= 24) {  \
+            code = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];  \
+            code >>= (24 - bitw);  \
+        } else {  \
+            code = (uint32_t) bytes[0];  \
+            code <<= 8;  \
+            code |= (uint32_t) bytes[1];  \
+            code <<= 8;  \
+            if ((bitcount + 24) <= srcbitsize)  \
+                code |= (uint32_t) bytes[2];  \
+            code <<= 8;  \
+            code <<= bitoffset;  \
+            code &= mask;  \
+            code >>= shr;  \
+        }  \
         bitcount += bitw;  \
     }  \
     else {code = LZW_EOI;}  \
@@ -2032,11 +2037,8 @@ ssize_t imcd_lzw_decode(
                 const uint8_t* oldbuffer = handle->buffer;
                 const ssize_t bufferlen = buffer - oldbuffer;
 
-                if (
-                    _lzw_alloc_buffer(handle, handle->buffersize - buffersize)
-                    <= 0
-                    )
-                {
+                if (_lzw_alloc_buffer(
+                        handle, handle->buffersize - buffersize) <= 0) {
                     return IMCD_MEMORY_ERROR;
                 }
                 if (handle->buffer != oldbuffer) {
@@ -2065,13 +2067,13 @@ ssize_t imcd_lzw_decode(
             else {
                 uint8_t* pstr = table[code].buf;
                 ssize_t len = table[code].len;
-                if (len > remaining) {
-                    len = remaining;
-                }
+                len = (len > remaining) ? remaining : len;
                 remaining -= len;
                 for (i = 0; i < len; i++) {
                     *dst++ = *pstr++;
                 }
+                /* memcpy(dst, table[code].buf, len); */
+                /* dst += len; */
             }
             /* table.append(table[oldcode] + table[code][0]) */
             table[tablesize].buf = buffer;
@@ -2083,13 +2085,11 @@ ssize_t imcd_lzw_decode(
                 for (i = 0; i < table[oldcode].len; i++) {
                     *buffer++ = *pstr++;
                 }
+                /* const ssize_t len = table[oldcode].len; */
+                /* memcpy(buffer, table[oldcode].buf, len); */
+                /* buffer += len; */
             }
-            if (code < 256) {
-                *buffer++ = (uint8_t) code;
-            }
-            else {
-                *buffer++ = table[code].buf[0];
-            }
+            *buffer++ = (code < 256) ? (uint8_t) code : table[code].buf[0];
         }
         else if (code > tablesize) {
             /* return dstsize - remaining; */
@@ -2110,13 +2110,13 @@ ssize_t imcd_lzw_decode(
             else {
                 uint8_t* pstr = table[oldcode].buf;
                 ssize_t len = table[oldcode].len;
-                if (len > remaining) {
-                    len = remaining;
-                }
+                len = (len > remaining) ? remaining : len;
                 remaining -= len;
                 for (i = 0; i < len; i++) {
                     *dst++ = *pstr++;
                 }
+                /* memcpy(dst, table[oldcode].buf, len); */
+                /* dst += len; */
                 if (--remaining < 0) break;
                 *dst++ = table[oldcode].buf[0];
             }
@@ -2244,7 +2244,7 @@ ssize_t imcd_lzw_encode(
 
         while (hash_keys[hashcode] >= 0) {
             if (hash_keys[hashcode] == hashkey) {
-                // Omega+K in table
+                /* Omega+K in table */
                 omega = hash_values[hashcode];
                 goto OUTER;
             }
@@ -2254,7 +2254,7 @@ ssize_t imcd_lzw_encode(
             }
         }
 
-        // Omega+K not in table
+        /* Omega+K not in table */
         /* add entry to table */
         hash_keys[hashcode] = hashkey;
         hash_values[hashcode] = nextcode++;
