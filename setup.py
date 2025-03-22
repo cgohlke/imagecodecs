@@ -19,7 +19,7 @@ DEBUG = bool(os.environ.get('IMAGECODECS_DEBUG', False))
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 
-def search(pattern, string, flags=0):
+def search(pattern: str, string: str, flags: int = 0) -> str:
     """Return first match of pattern in string."""
     match = re.search(pattern, string, flags)
     if match is None:
@@ -27,7 +27,7 @@ def search(pattern, string, flags=0):
     return match.groups()[0]
 
 
-def fix_docstring_examples(docstring):
+def fix_docstring_examples(docstring: str) -> str:
     """Return docstring with examples fixed for GitHub."""
     start = True
     indent = False
@@ -344,6 +344,9 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     ]
     EXTENSIONS['mozjpeg']['libraries'] = ['mozjpeg-static']
 
+    # if 'AMD64' in sys.version:
+    #     EXTENSIONS['bitshuffle']['extra_compile_args'].append('/DUSESSE2')
+
     EXTENSIONS['pcodec']['libraries'] = [
         'cpcodec',
         'Ws2_32',
@@ -362,6 +365,8 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
         'SvtAv1Dec',
         'yuv',
         # 'libsharpyuv',
+        'libxml2',
+        'iconv',
         'Ws2_32',
         'Advapi32',
         'Userenv',
@@ -733,7 +738,7 @@ def extension(name):
 setup(
     name='imagecodecs',
     version=version,
-    license='BSD',
+    license='BSD-3-Clause',
     description=description,
     long_description=readme,
     long_description_content_type='text/x-rst',
@@ -745,7 +750,7 @@ setup(
         'Source Code': 'https://github.com/cgohlke/imagecodecs',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.9',
+    python_requires='>=3.10',
     install_requires=['numpy'],
     # setup_requires=['setuptools', 'numpy', 'cython'],
     extras_require={
@@ -783,7 +788,6 @@ setup(
     platforms=['any'],
     classifiers=[
         'Development Status :: 4 - Beta',
-        'License :: OSI Approved :: BSD License',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
