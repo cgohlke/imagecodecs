@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.15.2` library.
+# Cython declarations for the `c-blosc2 2.17.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport (
@@ -1261,9 +1261,22 @@ cdef extern from 'b2nd.h' nogil:
         int8_t* dtype_format
     )
 
+    # deprecated: b2nd_copy_buffer
     int b2nd_copy_buffer(
         int8_t ndim,
         uint8_t itemsize,
+        const void *src,
+        const int64_t *src_pad_shape,
+        const int64_t *src_start,
+        const int64_t *src_stop,
+        void *dst,
+        const int64_t *dst_pad_shape,
+        const int64_t *dst_start
+    )
+
+    int b2nd_copy_buffer2(
+        int8_t ndim,
+        int32_t itemsize,
         const void *src,
         const int64_t *src_pad_shape,
         const int64_t *src_start,
