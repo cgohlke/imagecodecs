@@ -1,5 +1,5 @@
 # imagecodecs/pyproject.toml
 
 [build-system]
-requires = ["setuptools", "numpy", "Cython>=3.0.11"]
+requires = ["setuptools", "numpy>2", "Cython>=3.0.12"]
 build-backend = "setuptools.build_meta"
