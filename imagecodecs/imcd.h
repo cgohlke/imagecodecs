@@ -1,7 +1,7 @@
 /* imagecodecs/imcd.h */
 
 /*
-Copyright (c) 2008-2024, Christoph Gohlke.
+Copyright (c) 2008-2025, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2024.6.1"
+#define IMCD_VERSION "2025.3.30"
 
 #include <stdint.h>
 #include <stdbool.h>
