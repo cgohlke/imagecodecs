@@ -1,27 +1,29 @@
 # test_imagecodecs.py
 
-# Copyright (c) 2018-2024, Christoph Gohlke
+# Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
-# * Redistributions of source code must retain the above copyright
-#   notice, this list of conditions and the following disclaimer.
-# * Redistributions in binary form must reproduce the above copyright
-#   notice, this list of conditions and the following disclaimer in the
-#   documentation and/or other materials provided with the distribution.
-# * Neither the name of the copyright holders nor the names of any
-#   contributors may be used to endorse or promote products derived
-#   from this software without specific prior written permission.
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
 # LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
 # CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, TEST_DATA, OR PROFITS; OR BUSINESS
 # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
@@ -32,7 +34,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2024.12.30
+:Version: 2025.3.30
 
 """
 
@@ -43,7 +45,6 @@ import importlib
 import io
 import mmap
 import os
-import os.path as osp
 import pathlib
 import platform
 import re
@@ -65,6 +66,7 @@ try:
         brotli,
         bz2,
         czifile,
+        liffile,
         lz4,
         lzf,
         lzfse,
@@ -90,8 +92,8 @@ else:
 
     numcodecs.register_codecs()
 
+DATA_PATH = pathlib.Path(os.path.dirname(__file__)) / 'data'
 
-TEST_DIR = osp.dirname(__file__)
 IS_32BIT = sys.maxsize < 2**32
 IS_WIN = sys.platform == 'win32'
 IS_MAC = sys.platform == 'darwin'
@@ -159,6 +161,7 @@ def test_module_exist(name):
         'blosc2',
         'brotli',
         'czifile',
+        'liffile',
         'lz4',
         'lzf',
         'liblzfse',
@@ -177,7 +180,7 @@ def test_dependency_exist(name):
     mayfail = not IS_CG and not IS_CIBW
     if SKIP_NUMCODECS and IS_PYPY:
         mayfail = True
-    elif name in {'blosc', 'blosc2', 'snappy'}:
+    elif name in {'blosc', 'blosc2', 'snappy', 'liffile'}:
         if IS_PYPY or not IS_CG:
             mayfail = True
     try:
@@ -186,6 +189,15 @@ def test_dependency_exist(name):
         if mayfail:
             pytest.skip(f'{name} may be missing')
         raise
+
+
+def test_module_attributes():
+    """Test __module__ attributes are set to 'imagecodecs'."""
+    assert imagecodecs.NoneError.__module__ == 'imagecodecs'
+    assert imagecodecs.JPEG.__module__ == 'imagecodecs'
+    assert imagecodecs.LZW.__module__ == 'imagecodecs'
+    assert imagecodecs.jpeg_decode.__module__ == 'imagecodecs'
+    assert imagecodecs.lzw_decode.__module__ == 'imagecodecs'
 
 
 def test_version_functions():
@@ -1444,6 +1456,33 @@ def test_lzw_decode_image_noeoi():
     assert len(decoded) == 100
 
 
+@pytest.mark.skipif(not imagecodecs.LZ4H5.available, reason='LZ4H5 missing')
+def test_lz4h5():
+    """Test lz4h5 codec with input from HDF5."""
+    # https://github.com/cgohlke/imagecodecs/issues/126
+    # with (
+    #     h5py.File('h5ex_d_nplz4.h5', 'r') as h5,
+    #     open('lz4h5.bin', 'wb') as fh,
+    # ):
+    #     filter_mask, chunk = ds.id.read_direct_chunk(
+    #         ds.id.get_chunk_info(0).chunk_offset
+    #     )
+    #     fh.write(chunk)
+    with open(datafiles('lz4h5.bin'), 'rb') as fh:
+        data = fh.read()
+    assert len(data) == 4792  # why this large?
+
+    decoded = imagecodecs.lz4h5_decode(data)
+    assert len(decoded) == 2048  # 16x32 uint32
+    assert decoded[:8] == b'\x00\x00\x00\x00\xff\xff\xff\xff'
+    encoded = imagecodecs.lz4h5_encode(decoded)
+    assert len(encoded) == 1508
+    decoded == imagecodecs.lz4h5_decode(encoded)
+
+    with pytest.raises(imagecodecs.Lz4h5Error):
+        imagecodecs.lz4h5_decode(data[:-1])
+
+
 @pytest.mark.filterwarnings('ignore: PY_SSIZE_T_CLEAN')
 @pytest.mark.parametrize(
     'output', ['new', 'bytearray', 'out', 'size', 'excess', 'trunc']
@@ -1864,17 +1903,17 @@ def test_blosc_roundtrip(version, compressor, shuffle, level, numthreads):
 
 
 # test data from libaec https://gitlab.dkrz.de/k202009/libaec/tree/master/data
-AEC_TEST_DIR = osp.join(TEST_DIR, 'libaec/121B2TestData')
+AEC_PATH = DATA_PATH / 'libaec/121B2TestData'
 
-AEC_TEST_OPTIONS = list(
-    osp.split(f)[-1][5:-3]
-    for f in glob.glob(osp.join(AEC_TEST_DIR, 'AllOptions', '*.rz'))
-)
+AEC_TEST_OPTIONS = [
+    os.path.split(f)[-1][5:-3]
+    for f in glob.glob(str(AEC_PATH / 'AllOptions' / '*.rz'))
+]
 
-AEC_TEST_EXTENDED = list(
-    osp.split(f)[-1][:-3]
-    for f in glob.glob(osp.join(AEC_TEST_DIR, 'ExtendedParameters', '*.rz'))
-)
+AEC_TEST_EXTENDED = [
+    os.path.split(f)[-1][:-3]
+    for f in glob.glob(str(AEC_PATH / 'ExtendedParameters' / '*.rz'))
+]
 
 
 @pytest.mark.skipif(not imagecodecs.AEC.available, reason='aec missing')
@@ -1898,12 +1937,12 @@ def test_aec_extended(name, dtype):
     blocksize = int(matches[0])
     rsi = int(matches[1])
 
-    filename = osp.join(AEC_TEST_DIR, 'ExtendedParameters', f'{name}.rz')
+    filename = AEC_PATH / 'ExtendedParameters' / f'{name}.rz'
     with open(filename, 'rb') as fh:
         rz = fh.read()
 
-    filename = osp.join(
-        AEC_TEST_DIR, 'ExtendedParameters', '{}.dat'.format(name.split('.')[0])
+    filename = (
+        AEC_PATH / 'ExtendedParameters' / '{}.dat'.format(name.split('.')[0])
     )
     if dtype == 'bytes':
         with open(filename, 'rb') as fh:
@@ -1976,7 +2015,7 @@ def test_aec_options(name):
     if bitspersample > 16:
         size *= 2
 
-    filename = osp.join(AEC_TEST_DIR, 'AllOptions', f'test_{name}.rz')
+    filename = str(AEC_PATH / 'AllOptions' / f'test_{name}.rz')
     with open(filename, 'rb') as fh:
         rz = fh.read()
 
@@ -2036,7 +2075,7 @@ def test_aec_options(name):
 )
 def test_bcn(name, format, shape):
     """Test BCN and DDS codecs."""
-    fname = osp.join(TEST_DIR, f'bcn/{name}.dds')
+    fname = DATA_PATH / f'bcn/{name}.dds'
     if not os.path.exists(fname):
         pytest.skip(f'{fname!r} not found')
     with open(fname, 'rb') as fh:
@@ -2744,17 +2783,17 @@ def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
 
 
 # test data from https://entropymine.com/jason/bmpsuite
-BMP_TEST_DIR = osp.join(TEST_DIR, 'bmpsuite/g')
-BMP_FILES = list(
-    osp.split(f)[-1][:-4] for f in glob.glob(osp.join(BMP_TEST_DIR, '*.bmp'))
-)
+BMP_PATH = DATA_PATH / 'bmpsuite/g'
+BMP_FILES = [
+    os.path.split(f)[-1][:-4] for f in glob.glob(str(BMP_PATH / '*.bmp'))
+]
 
 
 @pytest.mark.skipif(not imagecodecs.BMP.available, reason='bmp missing')
 @pytest.mark.parametrize('name', BMP_FILES)
 def test_bmpsuite(name):
     """Test BMP codec with bmpsuite files."""
-    filename = osp.join(BMP_TEST_DIR, f'{name}.bmp')
+    filename = BMP_PATH / f'{name}.bmp'
     with open(filename, 'rb') as fh:
         encoded = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
 
@@ -3189,7 +3228,7 @@ def test_avif_strict_disabled():
 
 @pytest.mark.skipif(not IS_CG, reason='avif missing')
 @pytest.mark.parametrize(
-    'codec',  ['auto', 'aom', 'rav1e', 'svt']  # 'libgav1', 'avm'
+    'codec', ['auto', 'aom', 'rav1e', 'svt']  # 'libgav1', 'avm'
 )
 def test_avif_encoder(codec):
     """Test various AVIF encoder codecs."""
@@ -3449,6 +3488,7 @@ def test_sz3(dtype, itype, enout, deout):
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
 def test_ultrahdr_decode(output):
     """Test Ultra HDR decoder with image."""
+    # TODO: fails on Apple ARM and AArch64, but not win-arm64
     data = readfile('rgba.uhdr')
     dtype = numpy.float16
     shape = 32, 31, 4
@@ -4567,10 +4607,10 @@ def test_png_rgba_palette():
         assert tuple(image[6, 16]) == (141, 37, 52, 255)
 
 
-TIFF_TEST_DIR = osp.join(TEST_DIR, 'tiff/')
-TIFF_FILES = list(
-    osp.split(f)[-1][:-4] for f in glob.glob(osp.join(TIFF_TEST_DIR, '*.tif'))
-)
+TIFF_PATH = DATA_PATH / 'tiff/'
+TIFF_FILES = [
+    os.path.split(f)[-1][:-4] for f in glob.glob(str(TIFF_PATH / '*.tif'))
+]
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -4591,7 +4631,7 @@ def test_tiff_files(name, asrgb):
     ):
         pytest.xfail('not supported by libtiff or tiff_decode')
 
-    filename = osp.join(TIFF_TEST_DIR, f'{name}.tif')
+    filename = TIFF_PATH / f'{name}.tif'
     with open(filename, 'rb') as fh:
         encoded = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
 
@@ -4626,7 +4666,7 @@ def test_tiff_files(name, asrgb):
 @pytest.mark.parametrize('index', [0, 3, 10, 1048576, None, list, slice])
 def test_tiff_index(index):
     """Test TIFF decoder index arguments."""
-    filename = osp.join(TIFF_TEST_DIR, 'gray.series.u1.tif')
+    filename = TIFF_PATH / 'gray.series.u1.tif'
     with open(filename, 'rb') as fh:
         encoded = fh.read()
     if index in {10, 1048576}:
@@ -4658,7 +4698,7 @@ def test_tiff_index(index):
 @pytest.mark.skipif(tifffile is None, reason='tifffile missing')
 def test_tiff_asrgb():
     """Test TIFF decoder asrgb arguments."""
-    filename = osp.join(TIFF_TEST_DIR, 'gray.series.u1.tif')
+    filename = TIFF_PATH / 'gray.series.u1.tif'
     with open(filename, 'rb') as fh:
         encoded = fh.read()
 
@@ -4804,7 +4844,7 @@ def test_tifffile_ljpeg(dtype):
 def test_czifile():
     """Test JpegXR compressed CZI file."""
     fname = datafiles('jpegxr.czi')
-    if not osp.exists(fname):
+    if not os.path.exists(fname):
         pytest.skip('large file not included with source distribution')
     if not imagecodecs.JPEGXR.available:
         pytest.xfail('jpegxr missing')
@@ -4818,6 +4858,43 @@ def test_czifile():
         assert data.shape == (1, 1, 15, 404, 356, 1)
         assert data.dtype == 'uint16'
         assert data[0, 0, 14, 256, 146, 0] == 38086
+
+
+@pytest.mark.skipif(liffile is None, reason='liffile missing')
+def test_liffile():
+    """Test reading TIFF-chunked XLIF dataset with liffile."""
+    filename = DATA_PATH / 'lif' / 'Metadata' / 'ImageXYZ10C2.xlif'
+
+    with liffile.LifFile(filename, mode='r', squeeze=True) as xlif:
+        assert xlif.type == liffile.LifFileType.XLIF
+        str(xlif)
+        assert xlif.name == 'ImageXYZ10C2'
+        assert xlif.version == 2
+        assert len(xlif.children) == 0
+
+        series = xlif.images
+        str(series)
+        assert len(series) == 1
+        im = series[0]
+        str(im)
+        assert im.dtype == numpy.uint8
+        assert im.itemsize == 1
+        assert im.shape == (10, 2, 512, 512)
+        assert im.dims == ('Z', 'C', 'Y', 'X')
+        assert im.sizes == {'Z': 10, 'C': 2, 'Y': 512, 'X': 512}
+        assert 'C' not in im.coords
+        assert_allclose(
+            im.coords['Z'][[0, -1]], [-2.345302e-05, 1.786591e-05], atol=1e-4
+        )
+        assert len(im.timestamps) == 20
+        assert im.timestamps[0] == numpy.datetime64('2015-01-27T10:14:30.304')
+        assert im.size == 5242880
+        assert im.nbytes == 5242880
+        assert im.ndim == 4
+
+        data = im.asarray(mode='r', out='memmap')
+        assert isinstance(data, numpy.memmap), type(data)
+        assert data.sum(dtype=numpy.uint64) == 80177798
 
 
 @pytest.mark.skipif(SKIP_NUMCODECS, reason='numcodecs missing')
@@ -5277,7 +5354,13 @@ def test_numcodecs(codec, photometric):
         fname = f'test_{codec}.{photometric}.{data.dtype.str[1:]}.zarr.zip'
         store = zarr.ZipStore(fname, mode='w')
     else:
-        store = zarr.MemoryStore()
+        try:
+            store = zarr.MemoryStore()
+            store_args = {}
+        except AttributeError:
+            # zarr 3
+            store = zarr.storage.MemoryStore()
+            store_args = {'zarr_format': 2}
     z = zarr.create(
         store=store,
         overwrite=True,
@@ -5285,6 +5368,7 @@ def test_numcodecs(codec, photometric):
         chunks=chunks,
         dtype=data.dtype.str,
         compressor=compressor,
+        **store_args,
     )
     z[:] = data
     del z
@@ -5339,7 +5423,9 @@ class TempFileName:
             ) as temp:
                 self.name = temp.name
         else:
-            self.name = osp.join(tempfile.gettempdir(), f'test_{name}{suffix}')
+            self.name = os.path.join(
+                tempfile.gettempdir(), f'test_{name}{suffix}'
+            )
 
     def __enter__(self):
         return self.name
@@ -5355,8 +5441,8 @@ class TempFileName:
 def datafiles(pathname: str, base: str | None = None) -> Any:
     """Return path to data file(s)."""
     if base is None:
-        base = osp.dirname(__file__)
-    path = osp.join(base, *pathname.split('/'))
+        base = str(DATA_PATH)
+    path = os.path.join(base, *pathname.split('/'))
     if any(i in path for i in '*?'):
         return glob.glob(path)
     return path
@@ -5380,10 +5466,7 @@ def image_data(
     frames: bool = False,
 ) -> numpy.ndarray[Any, Any]:
     """Return test image array."""
-    if frames:
-        data = DATA
-    else:
-        data = DATA[0]
+    data = TEST_DATA if frames else TEST_DATA[0]
 
     if itype in {'rgb', 'view'}:
         data = data[..., [0, 2, 4]]
@@ -5448,9 +5531,8 @@ def image_data(
     return data
 
 
-DATA: numpy.ndarray[Any, Any] = numpy.load(
-    datafiles('testdata.npy')
-)  # (32, 31, 9) float64
+# (32, 31, 9) float64
+TEST_DATA: numpy.ndarray[Any, Any] = numpy.load(datafiles('testdata.npy'))
 BYTES = readfile('bytes.bin')
 BYTESIMG = numpy.frombuffer(BYTES, 'uint8').reshape(16, 16)
 WORDS = readfile('words.bin')
