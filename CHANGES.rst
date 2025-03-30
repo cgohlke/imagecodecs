@@ -1,9 +1,17 @@
 Revisions
 ---------
 
+2025.3.30
+
+- Pass 7659 tests.
+- Fix some codecs for use with Zarr 3, zarr_format=2 (#123).
+- Fix lz4h5 codec when block size is less than compressed size (#126).
+- Fix pglz_compress is not thread-safe.
+- Set __module__ attribute on public objects.
+- Drop support for Python 3.9, deprecate Python 3.10.
+
 2024.12.30
 
-- Pass 7655 tests.
 - Fix out parameter array not zeroed in some cases.
 - Fix ultrahdr_encode with linear rgbaf16 input (#108).
 - Fix jpegls_encode with level greater than 9 (#119).
