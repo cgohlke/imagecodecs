@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -556,7 +557,7 @@ def jpegxl_encode(
 
         if output.owner:
             out = _create_output(
-                out, output.used, <const char *> output.data
+                out, output.used, <const char*> output.data
             )
         else:
             out = _return_output(
@@ -1001,7 +1002,7 @@ def jpegxl_encode_jpeg(
 
         if output.owner:
             out = _create_output(
-                out, output.used, <const char *> output.data
+                out, output.used, <const char*> output.data
             )
         else:
             out = _return_output(
@@ -1144,7 +1145,7 @@ def jpegxl_decode_jpeg(
 
         if output.owner:
             out = _create_output(
-                out, output.used, <const char *> output.data
+                out, output.used, <const char*> output.data
             )
         else:
             out = _return_output(
