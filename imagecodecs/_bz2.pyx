@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -111,7 +112,7 @@ def bz2_encode(data, level=None, out=None):
     dst = out
     dstsize = dst.size
 
-    memset(&strm, 0, sizeof(bz_stream))
+    memset(<void*> &strm, 0, sizeof(bz_stream))
     ret = BZ2_bzCompressInit(&strm, compresslevel, 0, 0)
     if ret != BZ_OK:
         raise Bz2Error('BZ2_bzCompressInit', ret)
@@ -168,7 +169,7 @@ def bz2_decode(data, out=None):
     dst = out
     dstsize = dst.size
 
-    memset(&strm, 0, sizeof(bz_stream))
+    memset(<void*> &strm, 0, sizeof(bz_stream))
     ret = BZ2_bzDecompressInit(&strm, 0, 0)
     if ret != BZ_OK:
         raise Bz2Error('BZ2_bzDecompressInit', ret)
