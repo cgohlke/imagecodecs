@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2020-2025, Christoph Gohlke
 # All rights reserved.
@@ -105,7 +106,7 @@ def lz4f_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    memset(&prefs, 0, sizeof(LZ4F_preferences_t))
+    memset(<void*> &prefs, 0, sizeof(LZ4F_preferences_t))
     prefs.frameInfo.contentSize = srcsize
     if level:
         prefs.compressionLevel = _default_value(level, 0, -1, LZ4HC_CLEVEL_MAX)
