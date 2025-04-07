@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -429,7 +430,7 @@ def heif_encode(
 
         if compressed.owner:
             out = _create_output(
-                out, compressed.used, <const char *> compressed.data
+                out, compressed.used, <const char*> compressed.data
             )
         else:
             out = _return_output(
