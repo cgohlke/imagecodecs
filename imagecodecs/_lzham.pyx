@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -165,7 +166,7 @@ def lzham_decode(data, out=None):
         ret = lzham_z_uncompress(
             <unsigned char*> &dst[0],
             &dstlen,
-            <const unsigned char *> &src[0],
+            <const unsigned char*> &src[0],
             srclen
         )
     if ret != LZHAM_Z_OK:
@@ -240,7 +241,7 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
                 raise LzhamError('lzham_z_inflate', ret)
 
         out = _create_output(
-            outtype, stream.total_out, <const char *> output.data
+            outtype, stream.total_out, <const char*> output.data
         )
 
     finally:
