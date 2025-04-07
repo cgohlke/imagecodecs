@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2016-2025, Christoph Gohlke
 # All rights reserved.
@@ -1032,8 +1033,8 @@ cdef _pixelformat_str(PKPixelFormatGUID* pf):
     """Return PKPixelFormatGUID as string."""
     return (
         'PKPixelFormatGUID '
-        f'{(<unsigned long *> pf)[0]:#08x}, '
-        f'{(<unsigned long *> pf)[1]:#08x}, '
-        f'{(<unsigned long *> pf)[2]:#08x}, '
-        f'{(<unsigned long *> pf)[3]:#08x}'
+        f'{(<unsigned long*> pf)[0]:#08x}, '
+        f'{(<unsigned long*> pf)[1]:#08x}, '
+        f'{(<unsigned long*> pf)[2]:#08x}, '
+        f'{(<unsigned long*> pf)[3]:#08x}'
     )
