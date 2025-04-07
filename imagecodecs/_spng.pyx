@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -171,7 +172,7 @@ def spng_encode(data, level=None, out=None):
 
             err = spng_encode_image(
                 ctx,
-                <const void *> src.data,
+                <const void*> src.data,
                 srcsize,
                 SPNG_FMT_PNG,
                 SPNG_ENCODE_FINALIZE
@@ -301,7 +302,7 @@ def spng_decode(data, out=None):
 
         with nogil:
             err = spng_decode_image(
-                ctx, <void *> dst.data, out_size, fmt, flags
+                ctx, <void*> dst.data, out_size, fmt, flags
             )
             if err != SPNG_OK:
                 raise SpngError('spng_decode_image', err)
