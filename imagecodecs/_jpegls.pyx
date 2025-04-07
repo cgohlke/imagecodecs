@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -111,14 +112,18 @@ def jpegls_encode(data, level=None, out=None):
         dst = out
         dstsize = dst.nbytes
 
-    # memset(&preset_coding_parameters, 0, sizeof(charls_jpegls_pc_parameters))
+    # memset(
+    #     <void*> &preset_coding_parameters,
+    #     0,
+    #     sizeof(charls_jpegls_pc_parameters)
+    # )
     # preset_coding_parameters.maximum_sample_value = 0
     # preset_coding_parameters.threshold1 = 0
     # preset_coding_parameters.threshold2 = 0
     # preset_coding_parameters.threshold3 = 0
     # preset_coding_parameters.reset_value = 0
 
-    # memset(&frameinfo, 0, sizeof(charls_frame_info))
+    # memset(<void*> &frameinfo, 0, sizeof(charls_frame_info))
     frameinfo.width = <uint32_t> src.shape[1]
     frameinfo.height = <uint32_t> src.shape[0]
     frameinfo.bits_per_sample = <int32_t> (src.itemsize * 8)
