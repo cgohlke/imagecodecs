@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -115,7 +116,7 @@ def snappy_encode(data, out=None):
             if <size_t> dstsize < output_length:
                 free(buffer)
                 raise SnappyError('snappy_compress', SNAPPY_BUFFER_TOO_SMALL)
-            memcpy(<void*> &dst[0], buffer, output_length)
+            memcpy(<void*> &dst[0], <const void*> buffer, output_length)
             free(buffer)
     else:
         with nogil:
