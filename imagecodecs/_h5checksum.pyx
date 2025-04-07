@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2023-2025, Christoph Gohlke
 # All rights reserved.
@@ -61,7 +62,7 @@ def h5checksum_fletcher32(data, value=None):
         uint32_t val = 0  # if value is None else value
 
     with nogil:
-        val = H5_checksum_fletcher32(<const void *> &src[0], srcsize)
+        val = H5_checksum_fletcher32(<const void*> &src[0], srcsize)
     return int(val)
 
 
@@ -73,7 +74,7 @@ def h5checksum_lookup3(data, value=None):
         uint32_t val = 0 if value is None else value
 
     with nogil:
-        val = H5_checksum_lookup3(<const void *> &src[0], srcsize, val)
+        val = H5_checksum_lookup3(<const void*> &src[0], srcsize, val)
     return int(val)
 
 
@@ -85,7 +86,7 @@ def h5checksum_crc(data, value=None):
         uint32_t val = 0  # if value is None else value
 
     with nogil:
-        val = H5_checksum_crc(<const void *> &src[0], srcsize)
+        val = H5_checksum_crc(<const void*> &src[0], srcsize)
     return int(val)
 
 
@@ -97,7 +98,7 @@ def h5checksum_metadata(data, value=None):
         uint32_t val = 0 if value is None else value
 
     with nogil:
-        val = H5_checksum_metadata(<const void *> &src[0], srcsize, val)
+        val = H5_checksum_metadata(<const void*> &src[0], srcsize, val)
     return int(val)
 
 
