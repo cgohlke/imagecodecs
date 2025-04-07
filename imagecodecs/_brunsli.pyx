@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -145,7 +146,7 @@ def brunsli_encode(
             dstsize = dst.size
             if <size_t> dstsize < sink.byteswritten:
                 raise ValueError('output too small')
-            memcpy(<void*> &dst[0], <void*> sink.data, sink.byteswritten)
+            memcpy(<void*> &dst[0], <const void*> sink.data, sink.byteswritten)
             del dst
             out = _return_output(out, dstsize, sink.byteswritten, outgiven)
     finally:
