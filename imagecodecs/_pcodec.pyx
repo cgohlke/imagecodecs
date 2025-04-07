@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2024-2025, Christoph Gohlke
 # All rights reserved.
@@ -118,7 +119,7 @@ def pcodec_encode(data, level=None, out=None):
                 raise ValueError(
                     f'output buffer too small {dstsize=} < {dst_len=}'
                 )
-            memcpy(<void*> &dst[0], pcovec.ptr, dst_len)
+            memcpy(<void*> &dst[0], <const void*> pcovec.ptr, dst_len)
             del dst
     finally:
         pco_free_pcovec(&pcovec)
@@ -169,7 +170,7 @@ def pcodec_decode(data, shape=None, dtype=None, out=None):
             raise ValueError(
                 f'invalid output size {out.size=} != {pcovec.len=}'
             )
-        memcpy(<void*> &dst.data[0], pcovec.ptr, dst.nbytes)
+        memcpy(<void*> &dst.data[0], <const void*> pcovec.ptr, dst.nbytes)
     finally:
         pco_free_pcovec(&pcovec)
 
