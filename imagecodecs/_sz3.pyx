@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2024-2025, Christoph Gohlke
 # All rights reserved.
@@ -167,7 +168,7 @@ def sz3_encode(data, mode=None, abs=None, rel=None, out=None):
     with nogil:
         buffer = SZ_compress_args(
             dataType,
-            <void *> src.data,
+            <void*> src.data,
             &outSize,
             errBoundMode,
             absErrBound,
