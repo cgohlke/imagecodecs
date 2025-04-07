@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2023-2025, Christoph Gohlke
 # All rights reserved.
@@ -135,8 +136,8 @@ def bmp_encode(data, ppm=None, out=None):
 
     # copy to output
     with nogil:
-        memcpy(<void*> dstptr, <void*> &fileheader, 14)
-        memcpy(<void*> (dstptr + 14), <void*> &infoheader, 40)
+        memcpy(<void*> dstptr, <const void*> &fileheader, 14)
+        memcpy(<void*> (dstptr + 14), <const void*> &infoheader, 40)
 
         if samples == 1:
             # write palette
