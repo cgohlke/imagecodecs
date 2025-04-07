@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2023-2025, Christoph Gohlke
 # All rights reserved.
@@ -186,7 +187,7 @@ def sperr_encode(
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
             dstsize = <ssize_t> dst_len
-            out = _create_output(outtype, dstsize, <const char *> dst_ptr)
+            out = _create_output(outtype, dstsize, <const char*> dst_ptr)
         else:
             dst = out
             dstsize = dst.nbytes
@@ -194,7 +195,7 @@ def sperr_encode(
                 raise ValueError(
                     f'output buffer too small {dstsize} < {dst.nbytes}'
                 )
-            memcpy(<void*> &dst[0], dst_ptr, dst_len)
+            memcpy(<void*> &dst[0], <const void*> dst_ptr, dst_len)
             del dst
     finally:
         free(dst_ptr)
@@ -326,7 +327,7 @@ def sperr_decode(
                 dimx * dimy * dimz * (4 if is_float else 8)
             ):
                 raise ValueError(f'invalid output size {out.nbytes=}')
-            memcpy(<void*> &dst.data[0], dst_ptr, dstlen)
+            memcpy(<void*> &dst.data[0], <const void*> dst_ptr, dstlen)
         finally:
             free(dst_ptr)
 
