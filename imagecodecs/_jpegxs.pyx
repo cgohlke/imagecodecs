@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2024-2025, Christoph Gohlke
 # All rights reserved.
@@ -137,8 +138,8 @@ def jpegxs_encode(
         xs_config_t xs_config
         bint ret = False
 
-    memset(&xs_image, 0, sizeof(xs_image))
-    memset(&xs_config, 0, sizeof(xs_config))
+    memset(<void*> &xs_image, 0, sizeof(xs_image))
+    memset(<void*> &xs_config, 0, sizeof(xs_config))
 
     xs_config.verbose = int(verbose) if verbose else 0
 
@@ -284,8 +285,8 @@ def jpegxs_decode(data, verbose=None, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    memset(&xs_image, 0, sizeof(xs_image))
-    memset(&xs_config, 0, sizeof(xs_config))
+    memset(<void*> &xs_image, 0, sizeof(xs_image))
+    memset(<void*> &xs_config, 0, sizeof(xs_config))
 
     xs_config.verbose = int(verbose) if verbose else 0
 
@@ -293,7 +294,7 @@ def jpegxs_decode(data, verbose=None, out=None):
         with nogil:
 
             ret = xs_dec_probe(
-                <uint8_t *> &src[0], srcsize, &xs_config, &xs_image
+                <uint8_t*> &src[0], srcsize, &xs_config, &xs_image
             )
             if not ret:
                 raise JpegxsError('xs_dec_probe failed')
@@ -306,7 +307,7 @@ def jpegxs_decode(data, verbose=None, out=None):
             if ctx == NULL:
                 raise JpegxsError('xs_dec_init failed')
 
-            ret = xs_dec_bitstream(ctx, <void *> &src[0], srcsize, &xs_image)
+            ret = xs_dec_bitstream(ctx, <void*> &src[0], srcsize, &xs_image)
             if not ret:
                 raise JpegxsError('xs_dec_bitstream failed')
 
