@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -332,8 +333,8 @@ def gif_decode(data, index=None, asrgb=True, out=None):
                         # restore area of previous frame to background
                         previous = i
                         memcpy(
-                            &dstptr[imagesize * i],
-                            &dstptr[imagesize * (i - 1)],
+                            <void*> &dstptr[imagesize * i],
+                            <const void*> &dstptr[imagesize * (i - 1)],
                             imagesize
                         )
                         for h in range(descr.Height):
@@ -360,16 +361,16 @@ def gif_decode(data, index=None, asrgb=True, out=None):
                         # use previous frame as background
                         previous = i - 1
                         memcpy(
-                            &dstptr[imagesize * i],
-                            &dstptr[imagesize * previous],
+                            <void*> &dstptr[imagesize * i],
+                            <const void*> &dstptr[imagesize * previous],
                             imagesize
                         )
 
                     elif disposal == DISPOSE_PREVIOUS:
                         # restore to previous, undisposed frame
                         memcpy(
-                            &dstptr[imagesize * i],
-                            &dstptr[imagesize * previous],
+                            <void*> &dstptr[imagesize * i],
+                            <const void*> &dstptr[imagesize * previous],
                             imagesize
                         )
 
