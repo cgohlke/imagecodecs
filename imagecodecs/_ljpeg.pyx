@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -156,7 +157,9 @@ def ljpeg_encode(
         dstsize = dst.nbytes
 
         memcpy(
-            <void *> &dst[0], <void *> encoded, min(dstsize, encoded_length)
+            <void*> &dst[0],
+            <const void*> encoded,
+            min(dstsize, encoded_length)
         )
     finally:
         free(encoded)
