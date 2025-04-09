@@ -200,7 +200,7 @@ def lz4_decode(data, header=False, out=None):
 ###############################################################################
 
 # LZ4H5 implements H5Z_FILTER_LZ4
-# https://support.hdfgroup.org/services/filters/HDF5_LZ4.pdf
+# https://github.com/HDFGroup/hdf5_plugins/blob/master/LZ4/LZ4_HDF5_format.md
 #
 # file header: orisize: >i8,  blksize: >i4
 # block: lz4size: >i4, data: bytes(lz4size)
@@ -254,7 +254,7 @@ def lz4h5_encode(
     else:
         raise ValueError('invalid block size {blocksize}')
 
-    nblocks = max((srcsize - 1) // blksize + 1, 1)
+    nblocks = (srcsize - 1) // blksize + 1
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -275,18 +275,17 @@ def lz4h5_encode(
         write_i8be(<uint8_t*> &dst[0], <uint64_t> srcsize)
         write_i4be(<uint8_t*> &dst[8], <uint32_t> blksize)
 
-        if srcsize == 0:
-            write_i4be(<uint8_t*> &dst[dstpos], <uint32_t> 0)
-            dstpos += 4
+        while srcpos < srcsize:
+            if dstsize - dstpos < 5:
+                raise Lz4h5Error('output too small')
 
-        while srcpos < srcsize and dstpos < dstsize:
             dstpos += 4
             blksize = min(blksize, srcsize - srcpos)
             lz4size = LZ4_compress_fast(
                 <const char*> &src[srcpos],
                 <char*> &dst[dstpos],
                 <int> blksize,
-                <int> (dstsize - dstpos),
+                <int> (min(dstsize - dstpos, 2147483647)),
                 acceleration
             )
             if (
@@ -295,13 +294,12 @@ def lz4h5_encode(
                 or (
                     # compression failed, not enough output space
                     lz4size <= 0
-                    and blksize == srcsize - srcpos
                     and blksize <= dstsize - dstpos
                 )
             ):
                 memcpy(&dst[dstpos], <const char*> &src[srcpos], blksize)
                 lz4size = blksize
-            if lz4size <= 0:
+            elif lz4size <= 0:
                 raise Lz4h5Error(f'LZ4_compress_fast returned {lz4size}')
 
             write_i4be(<uint8_t*> &dst[dstpos - 4], <uint32_t> lz4size)
@@ -329,13 +327,13 @@ def lz4h5_decode(data, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size < 16:
-        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 16')
+    if src.size < 12:
+        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 12')
 
     orisize = <ssize_t> read_i8be(&src[0])
     blksize = <int> min(read_i4be(&src[8]), orisize)
 
-    if orisize < 0 or blksize < 0 or blksize > LZ4_MAX_INPUT_SIZE:
+    if orisize < 0 or blksize <= 0 or blksize > LZ4_MAX_INPUT_SIZE:
         raise Lz4h5Error('invalid values in LZ4H5 header')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -355,12 +353,15 @@ def lz4h5_decode(data, out=None):
 
     with nogil:
         while srcpos < srcsize and dstpos < dstsize:
+            if srcsize - srcpos < 4:
+                raise Lz4h5Error('LZ4H5 data too short')
+
             lz4size = <int> read_i4be(&src[srcpos])
             srcpos += 4
 
             if lz4size == 0:
                 break
-            if lz4size < 0 or srcpos + lz4size > srcsize:
+            if lz4size < 0 or srcsize - srcpos < lz4size:
                 raise Lz4h5Error(
                     f'invalid block size {lz4size} @{srcpos} of {srcsize}'
                 )
