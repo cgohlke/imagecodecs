@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -109,7 +110,7 @@ def brotli_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use streaming interface with dynamic buffer
-            dstsize = <ssize_t> BrotliEncoderMaxCompressedSize(<size_t>srcsize)
+            dstsize = <ssize_t> BrotliEncoderMaxCompressedSize(<size_t> srcsize)
         out = _create_output(outtype, dstsize)
 
     dst = out
