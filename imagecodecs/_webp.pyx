@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -199,7 +200,7 @@ def webp_encode(
                 raise WebpError('WebPEncode', 0)
 
             output = writer.mem
-            output_size = <ssize_t>writer.size
+            output_size = <ssize_t> writer.size
 
         out, dstsize, outgiven, outtype = _parse_output(out)
 
