@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -60,7 +61,7 @@ class QoiError(RuntimeError):
 
 def qoi_version():
     """Return QOI library version string."""
-    return 'qoi 36190eb'
+    return 'qoi 4461cc3'
 
 
 def qoi_check(const uint8_t[::1] data):
