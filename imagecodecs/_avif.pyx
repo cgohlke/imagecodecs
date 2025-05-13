@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2020-2025, Christoph Gohlke
 # All rights reserved.
@@ -96,7 +97,7 @@ class AVIF:
 class AvifError(RuntimeError):
     """AVIF codec exceptions."""
 
-    def __init__(self, func, err):
+    def __init__(self, func, err, char* diag=NULL):
         cdef:
             char* errormessage
             int errorcode
@@ -110,6 +111,8 @@ class AvifError(RuntimeError):
         except Exception:
             msg = 'NULL' if err is None else f'unknown error {err!r}'
         msg = f'{func} returned {msg!r}'
+        if diag != NULL and len(diag) > 0:
+            msg = f'{msg} ({diag.decode()})'
         super().__init__(msg)
 
 
@@ -158,13 +161,10 @@ def avif_encode(
         int keyframeinterval = 0
         int maxthreads = <int> _default_threads(numthreads)
         uint32_t imagecount, width, height, samples, depth
-        ssize_t i, j, k, srcindex
         size_t rawsize
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
-        uint8_t temp
-        uint8_t* dstptr = NULL
-        uint8_t* srcptr = NULL
+        # bint isfloat = 0
         avifEncoder* encoder = NULL
         avifImage* image = NULL
         avifRGBImage rgb
@@ -176,7 +176,6 @@ def avif_encode(
 
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
-        # and numpy.PyArray_ISCONTIGUOUS(src)
         and src.ndim in {2, 3, 4}
         and src.shape[0] <= 2147483647
         and src.shape[1] <= 2147483647
@@ -211,6 +210,10 @@ def avif_encode(
     monochrome = samples < 3
     hasalpha = samples == 2 or samples == 4
 
+    # TODO: float16 is not yet implemented in libavif
+    # if src.dtype == numpy.float16:
+    #     isfloat = 1
+    #     depth = 16
     if bitspersample is None:
         depth = <uint32_t> itemsize * 8
     else:
@@ -267,14 +270,17 @@ def avif_encode(
 
             image = avifImageCreate(width, height, depth, yuvformat)
             if image == NULL:
-                raise AvifError('avifImageCreate', 'NULL')
+                raise AvifError('avifImageCreate', 'NULL', encoder.diag.error)
 
             if monochrome or quality == AVIF_QUALITY_LOSSLESS:
                 if codecchoice == AVIF_CODEC_CHOICE_AUTO:
                     encoder.codecChoice = AVIF_CODEC_CHOICE_AOM
                 else:
                     encoder.codecChoice = codecchoice
-                image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_IDENTITY
+                if yuvformat == AVIF_PIXEL_FORMAT_YUV444:
+                    image.matrixCoefficients = (
+                        AVIF_MATRIX_COEFFICIENTS_IDENTITY
+                    )
             else:
                 encoder.codecChoice = codecchoice
                 image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601
@@ -286,107 +292,45 @@ def avif_encode(
             # )
 
             avifRGBImageSetDefaults(&rgb, image)
+
             if monochrome:
-                res = avifRGBImageAllocatePixels(&rgb)
-                if res != AVIF_RESULT_OK:
-                    raise AvifError('avifRGBImageAllocatePixels', res)
-                if rgb.format != AVIF_RGB_FORMAT_RGBA:
-                    raise RuntimeError('rgb.format != AVIF_RGB_FORMAT_RGBA')
-                srcptr = <uint8_t *> src.data
-                size = 0
+                if hasalpha:
+                    rgb.format = AVIF_RGB_FORMAT_GRAYA
+                else:
+                    rgb.format = AVIF_RGB_FORMAT_GRAY
+            elif hasalpha:
+                rgb.format = AVIF_RGB_FORMAT_RGBA
             else:
-                rgb.format = (
-                    AVIF_RGB_FORMAT_RGBA if hasalpha else AVIF_RGB_FORMAT_RGB
-                )
-                rgb.depth = depth
-                rgb.pixels = <uint8_t *> src.data
-                rgb.rowBytes = <uint32_t> (width * samples * itemsize)
-                size = height * width * samples * itemsize
+                rgb.format = AVIF_RGB_FORMAT_RGB
+            rgb.depth = depth
+            rgb.pixels = <uint8_t*> src.data
+            rgb.rowBytes = <uint32_t> (width * samples * itemsize)
+            # rgb.isFloat = isfloat
+            # rgb.maxThreads = maxthreads
+            size = height * width * samples * itemsize
 
             if imagecount == 1:
                 flags = AVIF_ADD_IMAGE_FLAG_SINGLE
 
-            srcindex = 0
             for i in range(imagecount):
-
-                if monochrome:
-                    # TODO: do not copy array to avifRGBImage first
-                    dstptr = <uint8_t *> rgb.pixels
-                    if itemsize == 1:
-                        # uint8
-                        if hasalpha:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    temp = srcptr[srcindex]
-                                    dstptr[k] = temp
-                                    dstptr[k + 1] = temp
-                                    dstptr[k + 2] = temp
-                                    dstptr[k + 3] = srcptr[srcindex + 1]
-                                    k += 4
-                                    srcindex += 2
-                        else:
-                            rgb.ignoreAlpha = AVIF_TRUE
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    temp = srcptr[srcindex]
-                                    dstptr[k] = temp
-                                    dstptr[k + 1] = temp
-                                    dstptr[k + 2] = temp
-                                    dstptr[k + 3] = 0
-                                    k += 4
-                                    srcindex += 1
-                    else:
-                        # uint16
-                        if hasalpha:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    temp = srcptr[srcindex]
-                                    dstptr[k] = temp
-                                    dstptr[k + 2] = temp
-                                    dstptr[k + 4] = temp
-                                    temp = srcptr[srcindex + 1]
-                                    dstptr[k + 1] = temp
-                                    dstptr[k + 3] = temp
-                                    dstptr[k + 5] = temp
-                                    dstptr[k + 6] = srcptr[srcindex + 2]
-                                    dstptr[k + 7] = srcptr[srcindex + 3]
-                                    k += 8
-                                    srcindex += 4
-                        else:
-                            rgb.ignoreAlpha = AVIF_TRUE
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    temp = srcptr[srcindex]
-                                    dstptr[k] = temp
-                                    dstptr[k + 2] = temp
-                                    dstptr[k + 4] = temp
-                                    temp = srcptr[srcindex + 1]
-                                    dstptr[k + 1] = temp
-                                    dstptr[k + 3] = temp
-                                    dstptr[k + 5] = temp
-                                    dstptr[k + 6] = 0
-                                    dstptr[k + 7] = 0
-                                    k += 8
-                                    srcindex += 2
 
                 res = avifImageRGBToYUV(image, &rgb)
                 if res != AVIF_RESULT_OK:
-                    raise AvifError('avifImageRGBToYUV', res)
+                    raise AvifError(
+                        'avifImageRGBToYUV', res, encoder.diag.error
+                    )
 
                 res = avifEncoderAddImage(encoder, image, 1, flags)
                 if res != AVIF_RESULT_OK:
-                    raise AvifError('avifEncoderAddImage', res)
+                    raise AvifError(
+                        'avifEncoderAddImage', res, encoder.diag.error
+                    )
 
-                if not monochrome:
-                    rgb.pixels += size
+                rgb.pixels += size
 
             res = avifEncoderFinish(encoder, &raw)
             if res != AVIF_RESULT_OK:
-                raise AvifError('avifEncoderFinish', res)
+                raise AvifError('avifEncoderFinish', res, encoder.diag.error)
 
     except Exception:
         avifRWDataFree(&raw)
@@ -397,8 +341,6 @@ def avif_encode(
             avifEncoderDestroy(encoder)
         if image != NULL:
             avifImageDestroy(image)
-        if monochrome:
-            avifRGBImageFreePixels(&rgb)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
@@ -412,7 +354,7 @@ def avif_encode(
     dstsize = dst.size
     if <size_t> dstsize < raw.size:
         raise ValueError('output too small')
-    memcpy(<void*> &dst[0], <void*> raw.data, raw.size)
+    memcpy(<void*> &dst[0], <const void*> raw.data, raw.size)
 
     rawsize = raw.size
     avifRWDataFree(&raw)
@@ -428,12 +370,10 @@ def avif_decode(data, index=None, numthreads=None, out=None):
         const uint8_t[::1] src = data
         ssize_t srcsize = src.size
         ssize_t frameindex = -1 if index is None else index
-        ssize_t samples, size, itemsize, i, j, k, dstindex, imagecount
+        ssize_t samples, size, itemsize, i, imagecount
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
         int maxthreads = <int> _default_threads(numthreads)
-        uint8_t* dstptr = NULL
-        uint8_t* srcptr = NULL
         avifDecoder* decoder = NULL
         avifImage* image = NULL
         avifRGBImage rgb
@@ -455,7 +395,9 @@ def avif_decode(data, index=None, numthreads=None, out=None):
 
             res = avifDecoderSetSource(decoder, AVIF_DECODER_SOURCE_AUTO)
             if res != AVIF_RESULT_OK:
-                raise AvifError('avifDecoderSetSource', res)
+                raise AvifError(
+                    'avifDecoderSetSource', res, decoder.diag.error
+                )
 
             res = avifDecoderSetIOMemory(
                 decoder,
@@ -463,11 +405,13 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                 <size_t> srcsize
             )
             if res != AVIF_RESULT_OK:
-                raise AvifError('avifDecoderSetIOMemory', res)
+                raise AvifError(
+                    'avifDecoderSetIOMemory', res, decoder.diag.error
+                )
 
             res = avifDecoderParse(decoder)
             if res != AVIF_RESULT_OK:
-                raise AvifError('avifDecoderParse', res)
+                raise AvifError('avifDecoderParse', res, decoder.diag.error)
 
             image = decoder.image
 
@@ -483,7 +427,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                 decoder, <uint32_t> (frameindex if frameindex > 0 else 0)
             )
             if res != AVIF_RESULT_OK:
-                raise AvifError('avifDecoderNthImage', res)
+                raise AvifError('avifDecoderNthImage', res, decoder.diag.error)
 
             hasalpha = image.alphaPlane != NULL and image.alphaRowBytes > 0
             monochrome = (
@@ -495,10 +439,12 @@ def avif_decode(data, index=None, numthreads=None, out=None):
             avifRGBImageSetDefaults(&rgb, image)
 
             if monochrome:
-                samples = 2 if hasalpha else 1
-                avifRGBImageAllocatePixels(&rgb)
-                if rgb.format != AVIF_RGB_FORMAT_RGBA:
-                    raise RuntimeError('rgb.format != AVIF_RGB_FORMAT_RGBA')
+                if hasalpha:
+                    rgb.format = AVIF_RGB_FORMAT_GRAYA
+                    samples = 2
+                else:
+                    rgb.format = AVIF_RGB_FORMAT_GRAY
+                    samples = 1
             elif hasalpha:
                 samples = 4
                 rgb.format = AVIF_RGB_FORMAT_RGBA
@@ -518,15 +464,11 @@ def avif_decode(data, index=None, numthreads=None, out=None):
         out = _create_array(out, shape, dtype)
         dst = out
 
-        if monochrome:
-            dstptr = <uint8_t *> dst.data
-        else:
-            rgb.pixels = <uint8_t *> dst.data
-            rgb.rowBytes = <uint32_t> (rgb.width * samples * itemsize)
-            size = image.height * image.width * samples * itemsize
+        rgb.pixels = <uint8_t*> dst.data
+        rgb.rowBytes = <uint32_t> (rgb.width * samples * itemsize)
+        size = image.height * image.width * samples * itemsize
 
         with nogil:
-            dstindex = 0
             for i in range(imagecount):
                 # TODO: verify that images have same shape and dtype
                 if i > 0:
@@ -534,74 +476,18 @@ def avif_decode(data, index=None, numthreads=None, out=None):
                     if res == AVIF_RESULT_NO_IMAGES_REMAINING:
                         break
                     if res != AVIF_RESULT_OK:
-                        raise AvifError('avifDecoderNextImage', res)
+                        raise AvifError(
+                            'avifDecoderNextImage', res, decoder.diag.error
+                        )
 
                 res = avifImageYUVToRGB(decoder.image, &rgb)
                 if res != AVIF_RESULT_OK:
-                    raise AvifError('avifImageYUVToRGB', res)
+                    raise AvifError('avifImageYUVToRGB', res, decoder.diag.error)
 
-                if monochrome:
-                    # TODO: do not to decode to avifRGBImage first
-                    # Copying Y and A directly is not sufficient
-                    srcptr = <uint8_t *> rgb.pixels
-                    if itemsize == 1:
-                        # uint8
-                        if hasalpha:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    # red
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 3
-                                    # alpha
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 1
-                        else:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 4  # requires RGBA buffer
-                    else:
-                        # uint16
-                        if hasalpha:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    # red
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 1
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 5
-                                    # alpha
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 1
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 1
-                        else:
-                            for j in range(<ssize_t> rgb.height):
-                                k = j * <ssize_t> rgb.rowBytes
-                                while k < (j + 1) * <ssize_t> rgb.rowBytes:
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 1
-                                    dstptr[dstindex] = srcptr[k]
-                                    dstindex += 1
-                                    k += 7  # requires RGBA buffer
-                else:
-                    rgb.pixels += size
+                rgb.pixels += size
     finally:
         if decoder != NULL:
             avifDecoderDestroy(decoder)
-        if monochrome:
-            avifRGBImageFreePixels(&rgb)
 
     return out
 
