@@ -171,9 +171,12 @@ except ImportError:
     zopfli = None
 
 try:
-    import zstd
+    from compression import zstd  # Python >= 3.14
 except ImportError:
-    zstd = None
+    try:
+        import zstd
+    except ImportError:
+        zstd = None
 
 try:
     import zarr
@@ -189,6 +192,15 @@ except ImportError:
 def version(astype=None, _versions_=[]):
     """Return detailed version information about test dependencies."""
     if not _versions_:
+        try:
+            zstd_version = zstd.version()
+        except Exception:
+            try:
+                import compression  # noqa
+
+                zstd_version = f'{sys.version_info[0]}.{sys.version_info[1]}'
+            except ImportError:
+                zstd_version = 'n/a'
         _versions_.extend(
             (
                 ('imagecodecs.py', __version__),
@@ -198,7 +210,7 @@ def version(astype=None, _versions_=[]):
                 ('lzma', getattr(lzma, '__version__', 'stdlib')),
                 ('blosc', blosc.__version__ if blosc else 'n/a'),
                 ('blosc2', blosc2.__version__ if blosc2 else 'n/a'),
-                ('zstd', zstd.version() if zstd else 'n/a'),
+                ('zstd', zstd_version),
                 ('lz4', lz4.VERSION if lz4 else 'n/a'),
                 ('lzf', 'unknown' if lzf else 'n/a'),
                 ('lzham', 'unknown' if lzham else 'n/a'),
