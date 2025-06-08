@@ -4,6 +4,15 @@
 # Cython declarations for the `szlib 1.0.6` library (part of libaec).
 # https://gitlab.dkrz.de/k202009/libaec
 
+
+cdef extern from 'libaec.h' nogil:
+
+    int AEC_VERSION_MAJOR
+    int AEC_VERSION_MINOR
+    int AEC_VERSION_PATCH
+    char* AEC_VERSION_STR
+
+
 cdef extern from 'szlib.h' nogil:
 
     int SZ_ALLOW_K13_OPTION_MASK
