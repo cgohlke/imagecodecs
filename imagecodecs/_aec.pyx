@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -148,7 +149,8 @@ def aec_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize + srcsize // 21 + 256 + 1
+            # https://gitlab.dkrz.de/k202009/libaec/-/tree/master#output
+            dstsize = (srcsize * 67) // 64 + 256 + 1
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -156,7 +158,7 @@ def aec_encode(
 
     try:
         with nogil:
-            memset(&strm, 0, sizeof(aec_stream))
+            memset(<void*> &strm, 0, sizeof(aec_stream))
             strm.next_in = <unsigned char*> &src[0]
             strm.avail_in = srcsize
             strm.next_out = <unsigned char*> &dst[0]
@@ -248,7 +250,7 @@ def aec_decode(
 
     try:
         with nogil:
-            memset(&strm, 0, sizeof(aec_stream))
+            memset(<void*> &strm, 0, sizeof(aec_stream))
             strm.next_in = <unsigned char*> &src[0]
             strm.avail_in = srcsize
             strm.next_out = <unsigned char*> &dst[0]
