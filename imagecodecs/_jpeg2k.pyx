@@ -5,8 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
-# cython: profile=False
-# cython: linetrace=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -41,9 +40,8 @@
 
 include '_shared.pxi'
 
-from openjpeg cimport *
-
 from libc.math cimport log
+from openjpeg cimport *
 
 
 class JPEG2K:
@@ -433,7 +431,7 @@ def jpeg2k_encode(
             free(cmptparms)
 
     if out is None:
-        out = _create_output(outtype, byteswritten, <const char *> memopj.data)
+        out = _create_output(outtype, byteswritten, <const char*> memopj.data)
         free(memopj.data)
         return out
 
@@ -675,8 +673,8 @@ def jpeg2k_decode(
             elif not contig:
                 for i in range(samples):
                     memcpy(
-                        <void *> &dst.data[i * bandsize * 4],
-                        <void *> image.comps[i].data,
+                        <void*> &dst.data[i * bandsize * 4],
+                        <const void*> image.comps[i].data,
                         bandsize * 4
                     )
             elif sgnd:
@@ -769,7 +767,7 @@ cdef OPJ_SIZE_T opj_mem_read(
         return <OPJ_SIZE_T> -1
     if memopj.offset + size > memopj.size:
         size = <OPJ_SIZE_T> (memopj.size - memopj.offset)
-    memcpy(dst, <const void*> &(memopj.data[memopj.offset]), size)
+    memcpy(<void*> dst, <const void*> &(memopj.data[memopj.offset]), size)
     memopj.offset += size
     return size
 
