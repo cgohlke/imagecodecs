@@ -3,7 +3,7 @@
 
 # Cython declarations for the BMP file format.
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t
+from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t
 
 ctypedef enum bmp_colorspace_t:
     LCS_CALIBRATED_RGB = 0
