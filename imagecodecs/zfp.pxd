@@ -6,7 +6,13 @@
 
 from libc.stddef cimport ptrdiff_t
 from libc.stdint cimport (
-    int8_t, int16_t, int32_t, int64_t, uint64_t, uint8_t, uint16_t
+    int8_t,
+    int16_t,
+    int32_t,
+    int64_t,
+    uint8_t,
+    uint16_t,
+    uint64_t,
 )
 
 ctypedef unsigned int uint
