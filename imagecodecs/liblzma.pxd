@@ -1,10 +1,11 @@
 # imagecodecs/liblzma.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `liblzma 5.6.2` library.
+# Cython declarations for the `liblzma 5.8.1` library.
 # https://github.com/tukaani-project/xz
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
+
 
 cdef extern from 'lzma.h' nogil:
 
