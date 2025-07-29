@@ -4,7 +4,8 @@
 # Cython declarations for the `PostgreSQL 13.2 pg_lzcompress` library.
 # https://github.com/postgres/postgres/
 
-from libc.stdint cimport int16_t, int32_t, int
+from libc.stdint cimport int, int16_t, int32_t
+
 
 cdef extern from 'pg_lzcompress.h' nogil:
 
