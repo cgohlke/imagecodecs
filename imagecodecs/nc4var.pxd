@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint32_t
 
+
 cdef extern from 'nc4var.h' nogil:
 
     int NC_NAT
