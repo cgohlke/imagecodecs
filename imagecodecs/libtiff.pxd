@@ -4,11 +4,19 @@
 # Cython declarations for the `libtiff 4.7.0` library.
 # https://gitlab.com/libtiff/libtiff
 
-from libc.stdio cimport FILE
 from libc.stddef cimport wchar_t
 from libc.stdint cimport (
-    uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
+    int8_t,
+    int16_t,
+    int32_t,
+    int64_t,
+    uint8_t,
+    uint16_t,
+    uint32_t,
+    uint64_t,
 )
+from libc.stdio cimport FILE
+
 
 cdef extern from '<stdarg.h>' nogil:
     ctypedef struct va_list:
