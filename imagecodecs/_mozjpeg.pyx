@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,11 +40,9 @@
 
 include '_shared.pxi'
 
-from mozjpeg cimport *
-
 from cython.operator cimport dereference as deref
-
-from libc.setjmp cimport setjmp, longjmp, jmp_buf
+from libc.setjmp cimport jmp_buf, longjmp, setjmp
+from mozjpeg cimport *
 
 
 class MOZJPEG:
