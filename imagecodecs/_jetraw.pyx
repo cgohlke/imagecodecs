@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -40,9 +41,15 @@
 include '_shared.pxi'
 
 import sys
+
 cimport jetraw
 
+import cython
+
 from cpython.mem cimport PyMem_Free
+
+
+cdef cython.pymutex global_lock
 
 cdef extern from 'Python.h':
     jetraw.CHARTYPE* PyUnicode_AsWideCharString(object, Py_ssize_t*)
@@ -88,23 +95,27 @@ def jetraw_init(parameters=None, verbose=None):
         jetraw.dp_status status = jetraw.dp_success
 
     if verbose is not None:
-        jetraw.dpcore_set_loglevel(verbose)
+        with global_lock:
+            jetraw.dpcore_set_loglevel(verbose)
 
     if parameters is None:
-        jetraw.dpcore_init()
+        with global_lock:
+            jetraw.dpcore_init()
     elif sys.platform == 'win32':
         # TODO: conditional compilation
         wcharp = PyUnicode_AsWideCharString(parameters, NULL)
         if wcharp == NULL:
             raise ValueError('PyUnicode_AsWideCharString returned NULL')
-        status = jetraw.dpcore_load_parameters(wcharp)
+        with global_lock:
+            status = jetraw.dpcore_load_parameters(wcharp)
         if status != jetraw.dp_success:
             raise JetrawError('dpcore_load_parameters', status)
         PyMem_Free(<void*> wcharp)
     else:
         bytestr = parameters.encode()
         charp = bytestr
-        jetraw.dpcore_load_parameters(charp)
+        with global_lock:
+            jetraw.dpcore_load_parameters(charp)
 
 
 def jetraw_encode(
