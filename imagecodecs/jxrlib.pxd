@@ -9,6 +9,7 @@
 
 from libc.stdio cimport FILE
 
+
 cdef extern from 'windowsmediaphoto.h' nogil:
 
     ctypedef long ERR
