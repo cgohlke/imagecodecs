@@ -6,6 +6,7 @@
 
 from libc.stdint cimport int64_t
 
+
 cdef extern from 'bitshuffle.h' nogil:
 
     int BSHUF_VERSION_MAJOR
