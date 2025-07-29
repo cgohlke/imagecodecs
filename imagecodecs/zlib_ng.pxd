@@ -6,6 +6,7 @@
 
 from libc.stdint cimport int32_t, uint8_t, uint32_t
 
+
 cdef extern from 'zlib-ng.h' nogil:
 
     char* ZLIBNG_VERSION
