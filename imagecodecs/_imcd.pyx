@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -40,8 +41,8 @@
 include '_shared.pxi'
 
 from imcd cimport *
-
 from libc.math cimport ceil
+
 
 cdef extern from 'numpy/arrayobject.h':
     int NPY_VERSION
@@ -866,7 +867,7 @@ def dicomrle_check(const uint8_t[::1] data):
 
     if data.size < 64:
         return False
-    memcpy(&header, &data[0], 64)
+    memcpy(<void*> &header, <const void*> &data[0], 64)
     if header.segments == 0 or header.segments > 15 or header.offset[0] != 64:
         return False
     for segment in range(header.segments):
@@ -895,7 +896,7 @@ def dicomrle_decode(data, dtype, out=None):
     if srcsize < 64:
         raise ValueError(f'invalid DICOM RLE size {srcsize} < 64')
 
-    memcpy(&header, &src[0], 64)
+    memcpy(<void*> &header, <const void*> &src[0], 64)
     if header.segments == 0 or header.segments > 15 or header.offset[0] != 64:
         raise ValueError(f'invalid DICOM RLE {header.segments=}')
 
