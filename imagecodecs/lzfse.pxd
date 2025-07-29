@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
+
 cdef extern from 'lzfse.h' nogil:
 
     size_t lzfse_encode_scratch_size()
