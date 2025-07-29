@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,9 +40,9 @@
 
 include '_shared.pxi'
 
-from libc.setjmp cimport setjmp
-
 from zlib cimport *
+
+from libc.setjmp cimport setjmp
 from libpng cimport *
 
 
@@ -591,8 +592,8 @@ def apng_decode(data, index=None, out=None):
                 # and has PNG_BLEND_OP_SOURCE
                 if frame_dispose_op == PNG_DISPOSE_OP_NONE:
                     memcpy(
-                        <void *> (dataptr + (frame + 1) * framesize),
-                        <const void *> (dataptr + frame * framesize),
+                        <void*> (dataptr + (frame + 1) * framesize),
+                        <const void*> (dataptr + frame * framesize),
                         framesize
                     )
 
@@ -601,21 +602,21 @@ def apng_decode(data, index=None, out=None):
                     or frame == 0
                 ):
                     memcpy(
-                        <void *> (dataptr + (frame + 1) * framesize),
-                        <const void *> (dataptr + frame * framesize),
+                        <void*> (dataptr + (frame + 1) * framesize),
+                        <const void*> (dataptr + frame * framesize),
                         framesize
                     )
                     for row in range(frame_height):
                         memset(
-                            <void *> (rowpointers[row] + framesize),
+                            <void*> (rowpointers[row] + framesize),
                             0,
                             <size_t> (frame_width * samples * itemsize),
                         )
 
                 elif frame_dispose_op == PNG_DISPOSE_OP_PREVIOUS:
                     memcpy(
-                        <void *> (dataptr + (frame + 1) * framesize),
-                        <const void *> (dataptr + (frame - 1) * framesize),
+                        <void*> (dataptr + (frame + 1) * framesize),
+                        <const void*> (dataptr + (frame - 1) * framesize),
                         framesize
                     )
 
