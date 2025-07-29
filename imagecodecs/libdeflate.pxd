@@ -1,10 +1,11 @@
 # imagecodecs/libdeflate.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libdeflate 1.23` library.
+# Cython declarations for the `libdeflate 1.24` library.
 # https://github.com/ebiggers/libdeflate
 
 from libc.stdint cimport uint32_t
+
 
 cdef extern from 'libdeflate.h' nogil:
 
