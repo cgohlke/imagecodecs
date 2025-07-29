@@ -5,7 +5,8 @@
 # https://github.com/Jetraw/Jetraw
 
 
-from libc.stdint cimport uint16_t, uint32_t, int32_t
+from libc.stdint cimport int32_t, uint16_t, uint32_t
+
 
 cdef extern from 'jetraw/jetraw.h' nogil:
 
