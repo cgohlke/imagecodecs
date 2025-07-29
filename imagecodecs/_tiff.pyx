@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,11 +40,10 @@
 
 include '_shared.pxi'
 
+from cpython.pycapsule cimport PyCapsule_GetPointer, PyCapsule_New
+from libc.stdio cimport SEEK_CUR, SEEK_END, SEEK_SET
 from libtiff cimport *
 
-from libc.stdio cimport SEEK_SET, SEEK_CUR, SEEK_END
-
-from cpython.pycapsule cimport PyCapsule_New, PyCapsule_GetPointer
 
 cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
@@ -726,7 +726,7 @@ cdef int tiff_decode_tiled(
                 if sizeleft >= 0:
                     i = tp * sp + (td + d) * sd + (tl + h) * sl + tw * sw
                     j = h * tilewidth * samplesize
-                    memcpy(&dst[i], &tile[j], size)
+                    memcpy(<void*> &dst[i], <const void*> &tile[j], size)
     return 1
 
 
@@ -889,7 +889,7 @@ cdef tsize_t memtif_TIFFReadProc(
 
     if memtif.flen < memtif.fpos + size:
         size = <tmsize_t> (memtif.flen - memtif.fpos)
-    memcpy(buf, &memtif.data[memtif.fpos], size)
+    memcpy(buf, <const void*> &memtif.data[memtif.fpos], size)
     memtif.fpos += size
     return size
 
@@ -914,7 +914,7 @@ cdef tmsize_t memtif_TIFFWriteProc(
             return -1
         memtif.data = tmp
         memtif.size = newsize
-    memcpy(&memtif.data[memtif.fpos], buf, size)
+    memcpy(<void*> &memtif.data[memtif.fpos], <const void*> buf, size)
     memtif.fpos += size
     if memtif.fpos > memtif.flen:
         memtif.flen = memtif.fpos
