@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
+
 cdef extern from 'imcd.h' nogil:
 
     char* IMCD_VERSION
