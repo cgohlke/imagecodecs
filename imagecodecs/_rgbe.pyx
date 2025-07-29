@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,8 +40,8 @@
 
 include '_shared.pxi'
 
-from rgbe cimport *
 from imcd cimport imcd_strsearch
+from rgbe cimport *
 
 
 class RGBE:
@@ -121,7 +122,7 @@ def rgbe_encode(
             if stream == NULL:
                 raise MemoryError('rgbe_stream_new failed')
             ret = RGBE_WritePixels(
-                stream, <float *> src.data, <int> (size // 4)
+                stream, <float*> src.data, <int> (size // 4)
             )
             rgbe_stream_del(stream)
         if ret != RGBE_RETURN_SUCCESS:
@@ -153,7 +154,7 @@ def rgbe_encode(
     dst = out
     dstsize = dst.nbytes
 
-    stream = rgbe_stream_new(dstsize, <char *> &dst[0])
+    stream = rgbe_stream_new(dstsize, <char*> &dst[0])
     if stream == NULL:
         raise MemoryError('rgbe_stream_new failed')
 
@@ -165,13 +166,13 @@ def rgbe_encode(
                     raise RgbeError('RGBE_WriteHeader', ret)
             if dorle:
                 ret = RGBE_WritePixels_RLE(
-                    stream, <float *> src.data, width, height
+                    stream, <float*> src.data, width, height
                 )
                 if ret != RGBE_RETURN_SUCCESS:
                     raise RgbeError('RGBE_WritePixels_RLE', ret)
             else:
                 ret = RGBE_WritePixels(
-                    stream, <float *> src.data, width * height
+                    stream, <float*> src.data, width * height
                 )
                 if ret != RGBE_RETURN_SUCCESS:
                     raise RgbeError('RGBE_WritePixels', ret)
@@ -249,7 +250,7 @@ def rgbe_decode(
             if src[0] == 35 and src[1] == 63:
                 header = True
             elif imcd_strsearch(
-                <const char *> &src[0],
+                <const char*> &src[0],
                 <ssize_t> min(srcsize, 8192),
                 "FORMAT=32-bit_rle_",
                 18
