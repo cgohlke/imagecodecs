@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2023-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,9 +40,8 @@
 
 include '_shared.pxi'
 
+from libc.math cimport ceil, floor, log2, log10, pow, round
 from nc4var cimport *
-
-from libc.math cimport log10, log2, floor, ceil, round, pow
 
 
 class QUANTIZE:
@@ -91,7 +91,7 @@ def quantize_encode(data, mode, int nsd, out=None):
 
     data = numpy.ascontiguousarray(data)
     src = data
-    src_size = <size_t>src.size
+    src_size = <size_t> src.size
 
     if src.dtype.kind != b'f' and src.itemsize not in {4, 8}:
         raise ValueError('not a floating-point array')
@@ -132,22 +132,22 @@ def quantize_encode(data, mode, int nsd, out=None):
         if quantize_mode == 100:
             if src_type == NC_FLOAT:
                 quantize_scale_f(
-                    <float*>src.data,
-                    <float*>dst.data,
+                    <float*> src.data,
+                    <float*> dst.data,
                     src_size,
                     nsd
                 )
             else:
                 quantize_scale_d(
-                    <double*>src.data,
-                    <double*>dst.data,
+                    <double*> src.data,
+                    <double*> dst.data,
                     src_size,
                     nsd
                 )
         else:
             ret = nc4_convert_type(
-                <const void *>src.data,
-                <void *>dst.data,
+                <const void*> src.data,
+                <void*> dst.data,
                 src_type,
                 src_type,
                 src_size,
