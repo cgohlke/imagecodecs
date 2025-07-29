@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint16_t
 
+
 cdef extern from 'lj92.h' nogil:
 
     char* LJ92_VERSION
