@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t
 
+
 cdef extern from 'brunsli/decode.h' nogil:
 
     ctypedef size_t (*DecodeBrunsliSink)(
