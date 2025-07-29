@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -42,15 +43,13 @@ import numbers
 import numpy
 
 cimport numpy
-
-from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_Check
-
 from cpython.bytearray cimport (
-    PyByteArray_FromStringAndSize, PyByteArray_Check, PyByteArray_Resize
+    PyByteArray_Check,
+    PyByteArray_FromStringAndSize,
+    PyByteArray_Resize,
 )
-
+from cpython.bytes cimport PyBytes_Check, PyBytes_FromStringAndSize
 from libc.stdint cimport uint8_t
-
 
 numpy.import_array()
 
