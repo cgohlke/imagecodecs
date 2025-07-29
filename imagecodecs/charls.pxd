@@ -6,6 +6,7 @@
 
 from libc.stdint cimport int32_t, uint32_t
 
+
 cdef extern from 'charls/charls.h' nogil:
 
     int CHARLS_VERSION_MAJOR
