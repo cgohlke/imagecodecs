@@ -6,6 +6,7 @@
 
 from libc.stdio cimport FILE
 
+
 cdef extern from 'mozjpeg/jpeglib.h' nogil:
 
     # jconfig.h
