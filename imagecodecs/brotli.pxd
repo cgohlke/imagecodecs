@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t
 
+
 cdef extern from 'brotli/types.h' nogil:
 
     ctypedef int BROTLI_BOOL
