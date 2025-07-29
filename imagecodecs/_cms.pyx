@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,11 +40,13 @@
 
 include '_shared.pxi'
 
-from lcms2 cimport *
-
 from cpython.bytes cimport (
-    PyBytes_Check, PyBytes_Size, PyBytes_AsString, PyBytes_FromStringAndSize
+    PyBytes_AsString,
+    PyBytes_Check,
+    PyBytes_FromStringAndSize,
+    PyBytes_Size,
 )
+from lcms2 cimport *
 
 
 class CMS:
@@ -264,7 +267,7 @@ def cms_transform(
             cmsDoTransform(
                 hTransform,
                 <const void*> src.data,
-                <void *> dst.data,
+                <void*> dst.data,
                 numpixels
             )
 
