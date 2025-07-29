@@ -6,6 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint32_t
 
+
 cdef extern from 'snappy-c.h' nogil:
 
     ctypedef enum snappy_status:
