@@ -1,10 +1,11 @@
 # imagecodecs/libwebp.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libwebp 1.5.0` library.
+# Cython declarations for the `libwebp 1.6.0` library.
 # https://github.com/webmproject/libwebp
 
 from libc.stdint cimport uint8_t, uint32_t
+
 
 cdef extern from 'webp/decode.h' nogil:
 
@@ -340,6 +341,10 @@ cdef extern from 'webp/decode.h' nogil:
     int WebPInitDecoderConfigInternal(
         WebPDecoderConfig*,
         int
+    )
+
+    int WebPValidateDecoderConfig(
+        const WebPDecoderConfig* config
     )
 
     int WebPInitDecoderConfig(
