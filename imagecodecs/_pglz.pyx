@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,7 +40,11 @@
 
 include '_shared.pxi'
 
+cimport cython
 from pg_lzcompress cimport *
+
+
+cdef cython.pymutex global_lock
 
 
 class PGLZ:
@@ -121,13 +126,15 @@ def pglz_encode(
         raise ValueError('output too small')
 
     # pglz_compress is not thread-safe
-    # with nogil:
-    ret = pglz_compress(
-        <const char*> &src[0],
-        <int32> srcsize,
-        <char*> &dst[offset],
-        pglz_strategy
-    )
+
+    with global_lock:
+        ret = pglz_compress(
+            <const char*> &src[0],
+            <int32> srcsize,
+            <char*> &dst[offset],
+            pglz_strategy
+        )
+
     if header:
         pdst = <uint8_t*> &dst[0]
         pdst[0] = srcsize & 255
@@ -138,7 +145,7 @@ def pglz_encode(
             # copy uncompressed
             if srcsize > dstsize:
                 raise ValueError('output too small')
-            memcpy(<void*> &dst[offset], &src[0], srcsize)
+            memcpy(<void*> &dst[offset], <const void*> &src[0], srcsize)
             ret = <int32> srcsize
     elif ret < 0:
         raise PglzError(f'pglz_compress returned {ret}')
@@ -193,7 +200,7 @@ def pglz_decode(
         # copy uncompressed
         if rawsize > dstsize:
             raise ValueError('output too small')
-        memcpy(<void*> &dst[0], &src[offset], rawsize)
+        memcpy(<void*> &dst[0], <const void*> &src[offset], rawsize)
         ret = <int32> rawsize
 
     else:
