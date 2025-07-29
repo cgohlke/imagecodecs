@@ -4,7 +4,7 @@
 # Cython declarations for the `libjxs 2.0.2` library.
 # https://jpeg.org/jpegxs/software.html
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t
+from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t
 
 ctypedef bint bool
 
