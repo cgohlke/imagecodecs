@@ -1,12 +1,13 @@
 # imagecodecs/libpng.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libpng 1.6.47` library with APNG patch.
+# Cython declarations for the `libpng 1.6.50` library with APNG patch.
 # https://github.com/glennrp/libpng
 # https://sourceforge.net/projects/libpng-apng/
 
-from libc.stdio cimport FILE
 from libc.setjmp cimport jmp_buf
+from libc.stdio cimport FILE
+
 
 cdef extern from 'png.h' nogil:
 
@@ -270,7 +271,7 @@ cdef extern from 'png.h' nogil:
     ctypedef png_fixed_point* png_const_fixed_point_p
     ctypedef size_t* png_size_tp
     ctypedef size_t* png_const_size_tp
-    ctypedef FILE* png_FILE_p
+    ctypedef FILE* png_FILE_p  # deprecated
     ctypedef double* png_doublep
     ctypedef double* png_const_doublep
     ctypedef png_byte** png_bytepp
@@ -940,7 +941,7 @@ cdef extern from 'png.h' nogil:
 
     void png_init_io(
         png_structrp png_ptr,
-        png_FILE_p fp
+        FILE* fp
     )
 
     void png_set_error_fn(
