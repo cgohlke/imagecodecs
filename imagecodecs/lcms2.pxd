@@ -8,6 +8,7 @@ from libc.stddef cimport wchar_t
 from libc.stdio cimport FILE
 from libc.time cimport tm
 
+
 cdef extern from 'lcms2.h' nogil:
 
     int LCMS_VERSION
