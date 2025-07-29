@@ -1,10 +1,11 @@
 # imagecodecs/libavif.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libavif 1.2.1` library.
+# Cython declarations for the `libavif 1.3.0` library.
 # https://github.com/AOMediaCodec/libavif
 
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int32_t
+from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t, uint64_t
+
 
 cdef extern from 'avif/avif.h' nogil:
 
@@ -553,6 +554,9 @@ cdef extern from 'avif/avif.h' nogil:
         AVIF_RGB_FORMAT_BGRA
         AVIF_RGB_FORMAT_ABGR
         AVIF_RGB_FORMAT_RGB_565
+        AVIF_RGB_FORMAT_GRAY,
+        AVIF_RGB_FORMAT_GRAYA,
+        AVIF_RGB_FORMAT_AGRAY,
         AVIF_RGB_FORMAT_COUNT
 
     uint32_t avifRGBFormatChannelCount(
@@ -560,6 +564,10 @@ cdef extern from 'avif/avif.h' nogil:
     )
 
     avifBool avifRGBFormatHasAlpha(
+        avifRGBFormat format
+    )
+
+    avifBool avifRGBFormatIsGray(
         avifRGBFormat format
     )
 
