@@ -4,8 +4,9 @@
 # Cython declarations for the `libspng 0.7.3` library.
 # https://github.com/randy408/libspng/
 
+from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t
 from libc.stdio cimport FILE
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, int32_t
+
 
 cdef extern from 'spng.h' nogil:
 
