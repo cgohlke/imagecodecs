@@ -1,12 +1,10 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.17.1` library.
+# Cython declarations for the `c-blosc2 2.18.0` library.
 # https://github.com/Blosc/c-blosc2
 
-from libc.stdint cimport (
-    int8_t, uint8_t, int16_t, uint16_t, int32_t, int64_t
-)
+from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
 from libc.stdio cimport FILE
 
 ctypedef bint bool
@@ -1188,6 +1186,15 @@ cdef extern from 'b2nd.h' nogil:
         b2nd_context_t* ctx,
         const b2nd_array_t* src,
         b2nd_array_t** array
+    )
+
+    int b2nd_concatenate(
+        b2nd_context_t *ctx,
+        const b2nd_array_t *src1,
+        const b2nd_array_t *src2,
+        int8_t axis,
+        bool copy,
+        b2nd_array_t **array
     )
 
     int b2nd_print_meta(
