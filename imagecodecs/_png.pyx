@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,9 +40,9 @@
 
 include '_shared.pxi'
 
-from libc.setjmp cimport setjmp
-
 from zlib cimport *
+
+from libc.setjmp cimport setjmp
 from libpng cimport *
 
 
