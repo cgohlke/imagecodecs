@@ -5,6 +5,7 @@
 
 from libc.stdint cimport uint8_t
 
+
 cdef const uint8_t[::1] _readable_input(object data)
 
 cdef const uint8_t[::1] _writable_input(object data)
