@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2022-2025, Christoph Gohlke
 # All rights reserved.
@@ -39,10 +40,9 @@
 
 include '_shared.pxi'
 
-from lzfse cimport *
 from imcd cimport imcd_memsearch
-
 from libc.stdint cimport uint32_t
+from lzfse cimport *
 
 
 class LZFSE:
@@ -97,9 +97,9 @@ def lzfse_encode(data, out=None):
 
     with nogil:
         dst_size = lzfse_encode_buffer(
-            <uint8_t *> &dst[0],
+            <uint8_t*> &dst[0],
             <size_t> dstsize,
-            <const uint8_t *> &src[0],
+            <const uint8_t*> &src[0],
             <size_t> srcsize,
             NULL
         )
@@ -143,9 +143,9 @@ def lzfse_decode(data, out=None):
 
     with nogil:
         dst_size = lzfse_decode_buffer(
-            <uint8_t *> &dst[0],
+            <uint8_t*> &dst[0],
             <size_t> dstsize,
-            <const uint8_t *> &src[0],
+            <const uint8_t*> &src[0],
             <size_t> srcsize,
             NULL
         )
