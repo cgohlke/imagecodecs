@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2023-2025, Christoph Gohlke
 # All rights reserved.
@@ -79,8 +80,9 @@ class SzipError(RuntimeError):
 
 def szip_version():
     """Return libaec library version string."""
-    # f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
-    return 'libaec 1.0.x'
+    return (
+        f'libaec {AEC_VERSION_MAJOR}.{AEC_VERSION_MINOR}.{AEC_VERSION_PATCH}'
+    )
 
 
 def szip_check(data):
@@ -131,7 +133,13 @@ def szip_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize + srcsize // 21 + 256 + 1 + offset
+            dstsize = szip_encode_size(
+                srcsize,
+                param.bits_per_pixel,
+                param.pixels_per_block,
+                param.pixels_per_scanline,
+                offset,
+            )
         if dstsize < offset:
             dstsize = offset
         out = _create_output(outtype, dstsize)
@@ -287,3 +295,57 @@ def szip_params(data, int options_mask=4, int pixels_per_block=32):
             pixels_per_scanline, pixels_per_block * SZ_MAX_BLOCKS_PER_SCANLINE
         )
     }
+
+
+def szip_encode_size(
+    ssize_t srcsize,
+    ssize_t bits_per_pixel,
+    ssize_t pixels_per_block,
+    ssize_t pixels_per_scanline,
+    ssize_t headersize
+):
+    """Return maximum SZIP encoded size."""
+    # https://github.com/cgohlke/imagecodecs/issues/128
+    cdef:
+        ssize_t bytes_per_pixel
+        ssize_t n_pixels
+        ssize_t n_scanlines
+        ssize_t n_blocks
+        ssize_t blocks_per_scanline
+        ssize_t max_bits_per_block
+        ssize_t max_output_bits
+
+    blocks_per_scanline = ceildiv(pixels_per_scanline, pixels_per_block)
+    # adjust bits_per_pixel for 32 and 64 bit cases
+    if bits_per_pixel == 32 or bits_per_pixel == 64:
+        real_bits_per_pixel = 8
+    else:
+        real_bits_per_pixel = bits_per_pixel
+    # calculate bytes per pixel
+    if real_bits_per_pixel <= 8:
+        bytes_per_pixel = 1
+        block_overhead = 3
+    elif real_bits_per_pixel <= 16:
+        bytes_per_pixel = 2
+        block_overhead = 4
+    elif real_bits_per_pixel <= 32:
+        bytes_per_pixel = 4
+        block_overhead = 5
+    else:
+        raise ValueError(f'invalid {bits_per_pixel=}')
+    n_pixels = max(srcsize // bytes_per_pixel, 1)
+    n_scanlines = ceildiv(n_pixels, pixels_per_scanline)
+    n_blocks = blocks_per_scanline * n_scanlines
+    # overhead from https://ccsds.org/Pubs/121x0b3.pdf Table 5-1
+    max_bits_per_block = (
+        pixels_per_block * real_bits_per_pixel + block_overhead
+    )
+    max_output_bits = max_bits_per_block * n_blocks
+    return ceildiv(max_output_bits, 8) + headersize
+
+
+cdef ssize_t ceildiv(ssize_t a, ssize_t b):
+    """Return ceiling of integer division."""
+    if b <= 0:
+        raise ValueError('division by zero')
+    return (a + b - 1) // b if a > 0 else 0
