@@ -6,14 +6,13 @@ include pyproject.toml
 include imagecodecs/py.typed
 
 include imagecodecs/*.c
-exclude imagecodecs/_*.c
-
 include imagecodecs/*.h
-include imagecodecs/*.cpp
 include imagecodecs/*.pyi
 include imagecodecs/*.pyx
 include imagecodecs/*.pxd
 include imagecodecs/*.pxi
+
+exclude imagecodecs/_*.c
 
 include imagecodecs/licenses/*
 include imagecodecs/patches/*
@@ -68,3 +67,5 @@ recursive-exclude * *.py[co]
 recursive-exclude * *-
 recursive-exclude * *.html
 recursive-exclude * *Copy*.*
+
+recursive-exclude * numpy/*.h
