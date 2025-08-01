@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2024-2025, Christoph Gohlke
 # All rights reserved.
@@ -157,11 +158,11 @@ def ultrahdr_encode(
     if codec is not None:
         output_format = codec
 
-    memset(&raw_image, 0, sizeof(uhdr_raw_image_t))
+    memset(<void*> &raw_image, 0, sizeof(uhdr_raw_image_t))
     raw_image.h = <int> src.shape[0]
     raw_image.w = <int> src.shape[1]
     raw_image.range = UHDR_CR_FULL_RANGE
-    raw_image.planes[UHDR_PLANE_PACKED] = <void *> src.data
+    raw_image.planes[UHDR_PLANE_PACKED] = <void*> src.data
     raw_image.stride[UHDR_PLANE_PACKED] = <unsigned int> src.shape[1]
 
     if src.ndim == 2:
@@ -280,18 +281,18 @@ def ultrahdr_encode(
             out = _create_output(
                 outtype,
                 compressed_image.data_sz,
-                <const char *> compressed_image.data
+                <const char*> compressed_image.data
             )
         else:
             dst = out
             dstsize = dst.nbytes
-            if dstsize < compressed_image.data_sz:
+            if dstsize < <ssize_t> compressed_image.data_sz:
                 raise ValueError(
                     f'output too small {dstsize} < {compressed_image.data_sz}'
                 )
             memcpy(
-                <void *> &dst[0],
-                <const void *> compressed_image.data,
+                <void*> &dst[0],
+                <const void*> compressed_image.data,
                 compressed_image.data_sz
             )
             del dst
@@ -354,8 +355,8 @@ def ultrahdr_decode(
     if transfer is not None:
         otf = transfer
 
-    memset(<void *> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
-    compressed_image.data = <void *> &src[0]
+    memset(<void*> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
+    compressed_image.data = <void*> &src[0]
     compressed_image.data_sz = <size_t> src.size
     compressed_image.capacity = <size_t> src.size
     compressed_image.cg = UHDR_CG_UNSPECIFIED
@@ -450,7 +451,7 @@ def ultrahdr_decode(
                     f' != ({height}, {width})'
                 )
 
-            inptr = <char *> raw_image.planes[UHDR_PLANE_PACKED]
+            inptr = <char*> raw_image.planes[UHDR_PLANE_PACKED]
             instride = raw_image.stride[UHDR_PLANE_PACKED] * bpp
             outstride = width * bpp
 
@@ -460,20 +461,26 @@ def ultrahdr_decode(
                 instride /= 2
                 for i in range(raw_image.h):
                     for j in range(raw_image.w):
-                        memcpy(&temp, <const void *> inptr[j * 4], 4)
+                        memcpy(<void*> &temp, <const void*> inptr[j * 4], 4)
                         j *= 8
                         # 10 bit red
                         color = <uint16_t> (temp & 4095)
-                        memcpy(outptr + j, <const void *> &color, 2)
+                        memcpy(<void*> (outptr + j), <const void*> &color, 2)
                         # 10 bit green
                         color = <uint16_t> ((temp >> 10) & 4095)
-                        memcpy(outptr + j + 2, <const void *> &color, 2)
+                        memcpy(
+                            <void*> (outptr + j + 2), <const void*> &color, 2
+                        )
                         # 10 bit blue
                         color = <uint16_t> ((temp >> 20) & 4095)
-                        memcpy(outptr + j + 4, <const void *> &color, 2)
+                        memcpy(
+                            <void*> (outptr + j + 4), <const void*> &color, 2
+                        )
                         # 2 bit alpha
                         color = <uint16_t> ((temp >> 30) & 3)
-                        memcpy(outptr + j + 6, <const void *> &color, 2)
+                        memcpy(
+                            <void*> (outptr + j + 6), <const void*> &color, 2
+                        )
                     inptr += instride
                     outptr += outstride
             else:
