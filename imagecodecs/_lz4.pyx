@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
 # All rights reserved.
@@ -200,7 +201,7 @@ def lz4_decode(data, header=False, out=None):
 ###############################################################################
 
 # LZ4H5 implements H5Z_FILTER_LZ4
-# https://support.hdfgroup.org/services/filters/HDF5_LZ4.pdf
+# https://github.com/HDFGroup/hdf5_plugins/blob/master/LZ4/LZ4_HDF5_format.md
 #
 # file header: orisize: >i8,  blksize: >i4
 # block: lz4size: >i4, data: bytes(lz4size)
@@ -211,7 +212,13 @@ class LZ4H5:
 
     available = True
 
-    CLEVEL = LZ4.CLEVEL
+    class CLEVEL(enum.IntEnum):
+        """LZ4 codec compression levels."""
+
+        DEFAULT = LZ4HC_CLEVEL_DEFAULT
+        MIN = LZ4HC_CLEVEL_MIN
+        MAX = LZ4HC_CLEVEL_MAX
+        OPT_MIN = LZ4HC_CLEVEL_OPT_MIN
 
 
 class Lz4h5Error(RuntimeError):
@@ -240,27 +247,27 @@ def lz4h5_encode(
         ssize_t dstpos = 12
         ssize_t srcpos = 0
         ssize_t nblocks
-        ssize_t blksize
-        int lz4size
+        int blksize
+        int lz4size, lz4dstsize
         int acceleration = _default_value(level, 1, 1, 65537)
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
     if blocksize is None:
-        blksize = min(<ssize_t> 1073741823, max(srcsize, 1))
+        blksize = <int> min(1073741823, max(srcsize, 1))
     elif 0 < blocksize <= LZ4_MAX_INPUT_SIZE:
         blksize = blocksize
     else:
         raise ValueError('invalid block size {blocksize}')
 
-    nblocks = max((srcsize - 1) // blksize + 1, 1)
+    nblocks = (srcsize - 1) // blksize + 1
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            dstsize = LZ4_compressBound(<int> blksize)
+            dstsize = LZ4_compressBound(blksize)
             if dstsize < 0:
                 raise Lz4h5Error(f'LZ4_compressBound returned {dstsize}')
             dstsize = nblocks * dstsize + nblocks * 4 + 12
@@ -275,33 +282,30 @@ def lz4h5_encode(
         write_i8be(<uint8_t*> &dst[0], <uint64_t> srcsize)
         write_i4be(<uint8_t*> &dst[8], <uint32_t> blksize)
 
-        if srcsize == 0:
-            write_i4be(<uint8_t*> &dst[dstpos], <uint32_t> 0)
-            dstpos += 4
+        while srcpos < srcsize:
+            if dstsize - dstpos < 5:
+                raise Lz4h5Error('output too small')
 
-        while srcpos < srcsize and dstpos < dstsize:
             dstpos += 4
-            blksize = min(blksize, srcsize - srcpos)
+            lz4dstsize = <int> min(dstsize - dstpos, 2147483647)
+            blksize = <int> min(blksize, srcsize - srcpos)
             lz4size = LZ4_compress_fast(
                 <const char*> &src[srcpos],
                 <char*> &dst[dstpos],
-                <int> blksize,
-                <int> (dstsize - dstpos),
+                blksize,
+                lz4dstsize,
                 acceleration
             )
             if (
-                # compression succeeded, but no space savings
-                lz4size >= blksize
-                or (
-                    # compression failed, not enough output space
-                    lz4size <= 0
-                    and blksize == srcsize - srcpos
-                    and blksize <= dstsize - dstpos
-                )
+                # compression succeeded without space savings
+                # or compression failed, likely due to not enough output space
+                lz4size >= blksize or (lz4size <= 0 and blksize <= lz4dstsize)
             ):
-                memcpy(&dst[dstpos], <const char*> &src[srcpos], blksize)
+                memcpy(
+                    <void*> &dst[dstpos], <const void*> &src[srcpos], blksize
+                )
                 lz4size = blksize
-            if lz4size <= 0:
+            elif lz4size <= 0:
                 raise Lz4h5Error(f'LZ4_compress_fast returned {lz4size}')
 
             write_i4be(<uint8_t*> &dst[dstpos - 4], <uint32_t> lz4size)
@@ -329,14 +333,18 @@ def lz4h5_decode(data, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size < 16:
-        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 16')
+    if src.size < 12:
+        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 12')
 
     orisize = <ssize_t> read_i8be(&src[0])
-    blksize = <int> min(read_i4be(&src[8]), orisize)
+    blksize = <int> read_i4be(&src[8])
 
-    if orisize < 0 or blksize < 0 or blksize > LZ4_MAX_INPUT_SIZE:
-        raise Lz4h5Error('invalid values in LZ4H5 header')
+    if orisize < 0 or blksize <= 0 or blksize > LZ4_MAX_INPUT_SIZE:
+        raise Lz4h5Error(
+            f'invalid values in LZ4H5 header: {orisize=}, {blksize=}'
+        )
+
+    blksize = <int> min(blksize, orisize)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -355,12 +363,15 @@ def lz4h5_decode(data, out=None):
 
     with nogil:
         while srcpos < srcsize and dstpos < dstsize:
+            if srcsize - srcpos < 4:
+                raise Lz4h5Error('LZ4H5 data too short')
+
             lz4size = <int> read_i4be(&src[srcpos])
             srcpos += 4
 
             if lz4size == 0:
                 break
-            if lz4size < 0 or srcpos + lz4size > srcsize:
+            if lz4size < 0 or srcsize - srcpos < lz4size:
                 raise Lz4h5Error(
                     f'invalid block size {lz4size} @{srcpos} of {srcsize}'
                 )
@@ -371,8 +382,8 @@ def lz4h5_decode(data, out=None):
 
             if blksize == lz4size:
                 memcpy(
-                    <char*> &dst[dstpos],
-                    <char*> &src[srcpos],
+                    <void*> &dst[dstpos],
+                    <const void*> &src[srcpos],
                     <size_t> blksize
                 )
                 ret = blksize
