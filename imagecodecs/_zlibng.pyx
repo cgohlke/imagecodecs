@@ -5,6 +5,7 @@
 # cython: wraparound=False
 # cython: cdivision=True
 # cython: nonecheck=False
+# cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
 # All rights reserved.
@@ -256,7 +257,7 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
                 raise ZlibngError('zng_inflate', ret)
 
         out = _create_output(
-            outtype, stream.total_out, <const char *> output.data
+            outtype, stream.total_out, <const char*> output.data
         )
 
     finally:
