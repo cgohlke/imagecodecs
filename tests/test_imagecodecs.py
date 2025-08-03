@@ -34,7 +34,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2025.3.30
+:Version: 2025.8.2
 
 """
 
@@ -47,8 +47,10 @@ import mmap
 import os
 import pathlib
 import platform
+import random
 import re
 import sys
+import sysconfig
 import tempfile
 from typing import Any
 
@@ -104,6 +106,7 @@ IS_PYPY = 'pypy' in sys.version.lower()
 IS_CG = os.environ.get('COMPUTERNAME', '').startswith('CG-')
 # running in cibuildwheel environment?
 IS_CIBW = bool(os.environ.get('IMAGECODECS_CIBW', False))
+IS_FREETHREADED = sysconfig.get_config_var('Py_GIL_DISABLED')
 SKIP_DEBUG = bool(os.environ.get('IMAGECODECS_DEBUG', False))
 
 numpy.set_printoptions(suppress=True, precision=5)
@@ -135,17 +138,27 @@ def test_module_exist(name):
             pytest.xfail(f'imagecodecs._{name} may be missing')
         elif IS_ARM64 and name == 'jetraw':
             pytest.xfail(f'imagecodecs._{name} may be missing')
+        elif name in {'brunsli', 'pcodec', 'sperr', 'sz3'}:
+            pytest.xfail(f'imagecodecs._{name} may be missing')
     elif IS_CIBW:
         if (
             (name == 'jpegxl' and (IS_MAC or IS_32BIT or IS_AARCH64))
             or (name == 'lzham' and IS_MAC)
-            or name == 'mozjpeg'
-            or name == 'heif'
-            or name == 'jetraw'
-            or name == 'jpegxs'
-            or name == 'pcodec'
-            # or name == 'nvjpeg'
-            # or name == 'nvjpeg2k'
+            or name
+            in {
+                'brunsli',  # unstable
+                'pcodec',  # unstable
+                'sperr',  # unstable
+                'sz3',  # unstable
+                'brunsli',  # unstable
+                'mozjpeg',  # not available
+                'jpegli',  # not available
+                'jetraw',  # commercial, closed source
+                'heif',  # GPL
+                'jpegxs',  # patented?
+                # 'nvjpeg',
+                # 'nvjpeg2k',
+            }
         ):
             pytest.xfail(f'imagecodecs._{name} may be missing')
     else:
@@ -159,7 +172,7 @@ def test_module_exist(name):
         'bitshuffle',
         'blosc',
         'blosc2',
-        'brotli',
+        # 'brotli',
         'czifile',
         'liffile',
         'lz4',
@@ -209,6 +222,8 @@ def test_version_functions():
     assert 'imagecodecs.py' in _imagecodecs.version(dict)
 
 
+@pytest.mark.parallel_threads(1)
+@pytest.mark.iterations(1)
 def test_stubs():
     """Test stub attributes for non-existing extension."""
     with pytest.raises(AttributeError):
@@ -2156,6 +2171,26 @@ def test_szip_params():
     }
 
 
+@pytest.mark.skipif(not imagecodecs.SZIP.available, reason='szip missing')
+def test_szip_encode_bounds():
+    """Test szip_encode output bounds."""
+    # https://github.com/cgohlke/imagecodecs/issues/128
+    data = random.randbytes(4000)
+    kwargs = {
+        'options_mask': 0,
+        'pixels_per_block': 32,
+        'bits_per_pixel': 8,
+        'pixels_per_scanline': 33,
+        'header': True,
+    }
+    encoded = imagecodecs.szip_encode(data, **kwargs)
+    assert imagecodecs.szip_decode(encoded, **kwargs) == data
+
+    out = bytearray(len(encoded))
+    imagecodecs.szip_encode(data, out=out, **kwargs)
+    assert bytes(out) == encoded
+
+
 @pytest.mark.skipif(not imagecodecs.ZSTD.available, reason='zstd missing')
 def test_zstd_stream():
     """Test ZSTD decoder on stream with unknown decoded size."""
@@ -2890,7 +2925,7 @@ def test_jpeg8_decode(output):
 
 
 @pytest.mark.skipif(
-    imagecodecs.JPEG.legacy or not imagecodecs.JPEG8.available,
+    not imagecodecs.JPEG.available or imagecodecs.JPEG.legacy,
     reason='jpeg12 missing',
 )
 @pytest.mark.parametrize('output', ['new', 'out', 'bytearray'])
@@ -4815,8 +4850,8 @@ def test_tifffile(byteorder, dtype, codec, predictor):
 
 
 @pytest.mark.skipif(
-    imagecodecs.JPEG.legacy
-    or not imagecodecs.LJPEG.available
+    not imagecodecs.LJPEG.available
+    or imagecodecs.JPEG.legacy
     or tifffile is None,
     reason='tifffile module or LJPEG missing',
 )
@@ -4897,6 +4932,8 @@ def test_liffile():
         assert data.sum(dtype=numpy.uint64) == 80177798
 
 
+@pytest.mark.parallel_threads(1)
+@pytest.mark.iterations(1)
 @pytest.mark.skipif(SKIP_NUMCODECS, reason='numcodecs missing')
 def test_numcodecs_register(caplog):
     """Test register_codecs function."""
