@@ -1,7 +1,7 @@
 # imagecodecs/sz3.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `sz3 3.1.8` library.
+# Cython declarations for the `sz3 3.3.0` library.
 # https://github.com/szcompressor/SZ3
 
 cdef extern from 'SZ3c/sz3c.h' nogil:
