@@ -1,10 +1,10 @@
 # imagecodecs/_bitshuffle.pyx
 # distutils: language = c
 # cython: language_level = 3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: cdivision=True
-# cython: nonecheck=False
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
+# cython: nonecheck = False
 # cython: freethreading_compatible = True
 
 # Copyright (c) 2019-2025, Christoph Gohlke
@@ -114,7 +114,8 @@ def bitshuffle_encode(
     srcsize = src.size
     elem_size = itemsize
 
-    if elem_size != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
+    if elem_size < 1:
+        # != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
         raise ValueError('invalid item size')
     if srcsize % elem_size != 0:
         raise ValueError('data size not a multiple of item size')
@@ -136,7 +137,7 @@ def bitshuffle_encode(
         ret = bshuf_bitshuffle(
             <void*> &src[0],
             <void*> &dst[0],
-            <size_t> srcsize / elem_size,
+            srcsize / elem_size,
             elem_size,
             block_size
         )
@@ -184,7 +185,8 @@ def bitshuffle_decode(
     srcsize = src.size
     elem_size = itemsize
 
-    if elem_size != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
+    if elem_size < 1:
+        # != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
         raise ValueError('invalid item size')
     if srcsize % elem_size != 0:
         raise ValueError('data size not a multiple of item size')
@@ -206,7 +208,7 @@ def bitshuffle_decode(
         ret = bshuf_bitunshuffle(
             <void*> &src[0],
             <void*> &dst[0],
-            <size_t> srcsize / elem_size,
+            srcsize // elem_size,
             elem_size,
             block_size
         )
