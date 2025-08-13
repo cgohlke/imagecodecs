@@ -7,40 +7,39 @@ import enum
 
 import numpy
 
-cimport numpy
 cimport cython
+cimport numpy
 
 from ._shared import _log_warning
 
-from ._shared cimport (
-    _parse_output,
-    _create_output,
-    _return_output,
-    _create_array,
-    _readable_input,
-    _writable_input,
-    _inplace_input,
-    _squeeze_shape,
-    _default_value,
-    _default_threads
-)
-
-from libc.string cimport memset, memcpy, memmove
-from libc.stdlib cimport malloc, free, realloc, calloc
-
 from libc.stdint cimport (
-    int8_t,
-    uint8_t,
-    int16_t,
-    uint16_t,
-    int32_t,
-    uint32_t,
-    int64_t,
-    uint64_t,
+    SIZE_MAX,
     UINT16_MAX,
     UINT32_MAX,
     UINT64_MAX,
-    SIZE_MAX,
+    int8_t,
+    int16_t,
+    int32_t,
+    int64_t,
+    uint8_t,
+    uint16_t,
+    uint32_t,
+    uint64_t,
+)
+from libc.stdlib cimport calloc, free, malloc, realloc
+from libc.string cimport memcpy, memmove, memset
+
+from ._shared cimport (
+    _create_array,
+    _create_output,
+    _default_threads,
+    _default_value,
+    _inplace_input,
+    _parse_output,
+    _readable_input,
+    _return_output,
+    _squeeze_shape,
+    _writable_input,
 )
 
 numpy.import_array()
