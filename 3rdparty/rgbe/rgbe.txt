@@ -1,7 +1,7 @@
 <HTML>
 The rgbe image file format was invented by Greg Ward to reduce the precision
 problems inherent in normal 24bit file formats.  Many programs including
-photorealistic renderers produce pixels with a wide range of values.  
+photorealistic renderers produce pixels with a wide range of values.
 Internally the programs usually handle this by representing colors by
 floating point values.  However writing out the floating point values
 directly would produce very large files (~96 bits/pixel).  The rgbe format
@@ -24,7 +24,7 @@ sample minimal writing code:
   RGBE_WriteHeader(f,image_width,image_height,NULL);
   RGBE_WritePixels(f,image,image_width*image_height);
   fclose(f);
-For run length encoding instead of RGBE_WritePixels, use 
+For run length encoding instead of RGBE_WritePixels, use
 RGBE_WritePixels_RLE(f,image,image_width,image_height).
 
 sample minimal reading code:
@@ -37,7 +37,7 @@ You can use RGBE_Read_Pixels instead but it will not handle run length
 encoded file correctly.  For more information see the rgbe.c file.
 (Note: these files are available at http://www.graphics.cornell.edu/~bjw/ )
 
-Please note: By definition of the rgbe format, all pixels should be in 
+Please note: By definition of the rgbe format, all pixels should be in
 units of watts/steradian/meter^2 unless otherwise noted in the header.
 If the header contains an exposure field then dividing pixels values by
 the <exposure value> should result in values in watts/steradian/meter^2.
@@ -51,11 +51,10 @@ checking is done to see that an image contains the correct number of pixels.
 The return codes for routines are defined by RGBE_RETURN_SUCCESS and
 RGBE_RETURN_FAILURE and these can be modified to be compatible with whatever
 error convention you are using.  Error reporting is handled by the rgbe_error
-routine.  You can easily modify this if you want errors to be reported 
+routine.  You can easily modify this if you want errors to be reported
 somewhere other than STDERR.
 
 /* THIS CODE CARRIES NO GUARANTEE OF USABILITY OR FITNESS FOR ANY PURPOSE.
  * WHILE THE AUTHORS HAVE TRIED TO ENSURE THE PROGRAM WORKS CORRECTLY,
  * IT IS STRICTLY USE AT YOUR OWN RISK.  */
 </HTML>
-
