@@ -1,7 +1,7 @@
 # imagecodecs/libtiff.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `libtiff 4.7.0` library.
+# Cython declarations for the `libtiff 4.7.1` library.
 # https://gitlab.com/libtiff/libtiff
 
 from libc.stddef cimport wchar_t
@@ -991,6 +991,11 @@ cdef extern from 'tiffio.h' nogil:
         tmsize_t max_cumulated_mem_alloc
     )
 
+    void TIFFOpenOptionsSetWarnAboutUnknownTags(
+        TIFFOpenOptions *opts,
+        int warn_about_unknown_tags
+    )
+
     void TIFFOpenOptionsSetErrorHandlerExtR(
         TIFFOpenOptions* opts,
         TIFFErrorHandlerExtR handler,
@@ -1370,7 +1375,7 @@ cdef extern from 'tiffio.h' nogil:
     )
 
     # ctypedef struct TIFFFieldInfo:
-    #     ttag_t field_tag
+    #     uint32_t field_tag
     #     short field_readcount
     #     short field_writecount
     #     TIFFDataType field_type
@@ -1430,6 +1435,7 @@ cdef extern from 'tiffio.h' nogil:
     int     COMPRESSION_ZSTD
     int     COMPRESSION_WEBP
     int     COMPRESSION_JXL
+    int     COMPRESSION_JXL_DNG_1_7
     int TIFFTAG_PHOTOMETRIC
     int     PHOTOMETRIC_MINISWHITE
     int     PHOTOMETRIC_MINISBLACK
