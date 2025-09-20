@@ -1,7 +1,7 @@
 # imagecodecs/sperr.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `SPERR 0.8.2` library.
+# Cython declarations for the `SPERR 0.8.4` library.
 # https://github.com/NCAR/SPERR
 
 cdef extern from 'SPERR_C_API.h' nogil:
