@@ -31,3 +31,8 @@ from .imagecodecs import (  # jpeg_check,; jpeg_version,; JpegError,; JPEG,
     numpy_version,
     version,
 )
+
+# constants are repeated for documentation
+
+__version__ = __version__
+"""Imagecodecs version string."""
