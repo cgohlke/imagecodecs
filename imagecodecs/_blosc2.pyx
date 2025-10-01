@@ -1,10 +1,10 @@
 # imagecodecs/_blosc2.pyx
 # distutils: language = c
 # cython: language_level = 3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: cdivision=True
-# cython: nonecheck=False
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
+# cython: nonecheck = False
 # cython: freethreading_compatible = True
 
 # Copyright (c) 2021-2025, Christoph Gohlke
@@ -81,7 +81,7 @@ class Blosc2Error(RuntimeError):
 
     def __init__(self, func, err=None, ret=None):
         if err is not None:
-            msg = f'{func} returned {print_error(err).decode()!r}'
+            msg = f'{func} returned {blosc2_error_string(err).decode()!r}'
         elif ret is not None:
             msg = f'{func} returned {ret!r}'
         else:
