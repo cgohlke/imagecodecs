@@ -31,7 +31,6 @@
 
 # Public interface for the imagecodecs package.
 # This interface document is updated manually and considered experimental.
-# Requires Python 3.10 and numpy 1.20.
 
 """Image transformation, compression, and decompression codecs."""
 
@@ -47,18 +46,13 @@ BytesLike = bytes | bytearray | mmap.mmap
 
 __version__: str
 
-
 def __dir__() -> list[str]: ...
-
-
 def __getattr__(name: str, /) -> Any: ...
-
 
 class DelayedImportError(ImportError):
     """Delayed ImportError."""
 
     def __init__(self, name: str, /) -> None: ...
-
 
 def version(
     astype: type | None = None,
@@ -67,7 +61,6 @@ def version(
 
     All extension modules are imported into the process.
     """
-
 
 @overload
 def imread(
@@ -86,7 +79,6 @@ def imread(
 ) -> NDArray[Any]:
     """Return image array from file."""
 
-
 @overload
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
@@ -103,7 +95,6 @@ def imread(
     **kwargs: Any,
 ) -> tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
     """Return image array and decode function from file."""
-
 
 @overload
 def imread(
@@ -122,7 +113,6 @@ def imread(
 ) -> NDArray[Any] | tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
     """Return image array and decode function from file."""
 
-
 def imwrite(
     fileobj: str | os.PathLike[Any] | IO[bytes],
     data: ArrayLike,
@@ -132,26 +122,20 @@ def imwrite(
 ) -> None:
     """Write image array to file."""
 
-
-def imagefileext() -> list[str]:
+def imagefileext() -> tuple[str, ...]:
     """Return list of image file extensions handled by imread and imwrite."""
-
 
 def cython_version() -> str:
     """Return Cython version string."""
 
-
 def numpy_abi_version() -> str:
     """Return Numpy ABI version string."""
-
 
 def imcd_version() -> str:
     """Return imcd library version string."""
 
-
 class ImcdError(RuntimeError):
     """IMCD codec exceptions."""
-
 
 class AEC:
     """AEC codec constants."""
@@ -169,18 +153,14 @@ class AEC:
         PAD_RSI = ...
         NOT_ENFORCE = ...
 
-
 class AecError(RuntimeError):
     """AEC codec exceptions."""
-
 
 def aec_version() -> str:
     """Return libaec library version string."""
 
-
 def aec_check(data: BytesLike, /) -> None:
     """Return whether data is AEC encoded."""
-
 
 def aec_encode(
     data: BytesLike | ArrayLike,
@@ -194,7 +174,6 @@ def aec_encode(
 ) -> bytes | bytearray:
     """Return AEC encoded data."""
 
-
 @overload
 def aec_decode(
     data: BytesLike,
@@ -208,7 +187,6 @@ def aec_decode(
 ) -> bytes | bytearray:
     """Return decoded AEC data."""
 
-
 @overload
 def aec_decode(
     data: BytesLike,
@@ -221,7 +199,6 @@ def aec_decode(
     out: NDArray[Any],
 ) -> NDArray[Any]:
     """Return decoded AEC data."""
-
 
 class APNG:
     """APNG codec constants."""
@@ -266,18 +243,14 @@ class APNG:
         FAST = ...
         ALL = ...
 
-
 class ApngError(RuntimeError):
     """APNG codec exceptions."""
-
 
 def apng_version() -> str:
     """Return libpng-apng library version string."""
 
-
 def apng_check(data: BytesLike, /) -> bool:
     """Return whether data is APNG encoded image."""
-
 
 def apng_encode(
     data: ArrayLike,
@@ -292,7 +265,6 @@ def apng_encode(
 ) -> bytes | bytearray:
     """Return APNG encoded image."""
 
-
 def apng_decode(
     data: BytesLike,
     /,
@@ -301,7 +273,6 @@ def apng_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded APNG image."""
-
 
 class AVIF:
     """AVIF codec constants."""
@@ -353,18 +324,78 @@ class AVIF:
         SVT = ...
         AVM = ...
 
+    class COLOR_PRIMARIES(enum.IntEnum):
+        """AVIF color primaries."""
+
+        UNKNOWN = ...
+        BT709 = ...
+        SRGB = ...
+        IEC61966_2_4 = ...
+        UNSPECIFIED = ...
+        BT470M = ...
+        BT470BG = ...
+        BT601 = ...
+        SMPTE240 = ...
+        GENERIC_FILM = ...
+        BT2020 = ...
+        BT2100 = ...
+        XYZ = ...
+        SMPTE431 = ...
+        SMPTE432 = ...
+        DCI_P3 = ...
+        EBU3213 = ...
+
+    class TRANSFER_CHARACTERISTICS(enum.IntEnum):
+        """AVIF transfer characteristics."""
+
+        UNKNOWN = ...
+        BT709 = ...
+        UNSPECIFIED = ...
+        BT470M = ...
+        BT470BG = ...
+        BT601 = ...
+        SMPTE240 = ...
+        LINEAR = ...
+        LOG100 = ...
+        LOG100_SQRT10 = ...
+        IEC61966 = ...
+        BT1361 = ...
+        SRGB = ...
+        BT2020_10BIT = ...
+        BT2020_12BIT = ...
+        PQ = ...
+        SMPTE2084 = ...
+        SMPTE428 = ...
+        HLG = ...
+
+    class MATRIX_COEFFICIENTS(enum.IntEnum):
+        """AVIF matrix coefficients."""
+
+        IDENTITY = ...
+        BT709 = ...
+        UNSPECIFIED = ...
+        FCC = ...
+        BT470BG = ...
+        BT601 = ...
+        SMPTE240 = ...
+        YCGCO = ...
+        BT2020_NCL = ...
+        BT2020_CL = ...
+        SMPTE2085 = ...
+        CHROMA_DERIVED_NCL = ...
+        CHROMA_DERIVED_CL = ...
+        ICTCP = ...
+        YCGCO_RE = ...
+        YCGCO_RO = ...
 
 class AvifError(RuntimeError):
     """AVIF codec exceptions."""
 
-
 def avif_version() -> str:
     """Return libavif library version string."""
 
-
 def avif_check(data: BytesLike, /) -> bool | None:
     """Return whether data is AVIF encoded image."""
-
 
 def avif_encode(
     data: ArrayLike,
@@ -376,11 +407,13 @@ def avif_encode(
     bitspersample: int | None = None,
     pixelformat: AVIF.PIXEL_FORMAT | int | str | None = None,
     codec: AVIF.CODEC_CHOICE | int | str | None = None,
+    primaries: AVIF.COLOR_PRIMARIES | int | None = None,
+    transfer: AVIF.TRANSFER_CHARACTERISTICS | int | None = None,
+    matrix: AVIF.MATRIX_COEFFICIENTS | int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return AVIF encoded image."""
-
 
 def avif_decode(
     data: BytesLike,
@@ -391,7 +424,6 @@ def avif_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded AVIF image."""
-
 
 class BCN:
     """BCn codec constants."""
@@ -411,18 +443,14 @@ class BCN:
         BC6HS = -6  # BC6H_SF16
         BC7 = 7  # BC7_UNORM
 
-
 class BcnError(RuntimeError):
     """BCn codec exceptions."""
-
 
 def bcn_version() -> str:
     """Return bcdec library version string."""
 
-
 def bcn_check(data: BytesLike, /) -> None:
     """Return whether data is BCn encoded."""
-
 
 def bcn_encode(
     data: BytesLike,
@@ -431,7 +459,6 @@ def bcn_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return BCn encoded data (not implemented)."""
-
 
 def bcn_decode(
     data: BytesLike,
@@ -443,6 +470,44 @@ def bcn_decode(
 ) -> bytes | bytearray:
     """Return decoded BCn data."""
 
+class BFLOAT16:
+    """BFLOAT16 codec constants."""
+
+    available: bool
+    """BFLOAT16 codec is available."""
+
+    class ROUND(enum.IntEnum):
+        """BFLOAT16 codec rounding types."""
+
+        TONEAREST = ...
+        UPWARD = ...
+        DOWNWARD = ...
+        TOWARDZERO = ...
+
+Bfloat16Error = ImcdError
+bfloat16_version = imcd_version
+
+def bfloat16_check(data: BytesLike, /) -> bool | None:
+    """Return whether data is BFLOAT16 encoded."""
+
+def bfloat16_encode(
+    data: ArrayLike,
+    /,
+    *,
+    byteorder: Literal['>', '<', '='] | None = None,
+    rounding: BFLOAT16.ROUND | int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray:
+    """Return BFLOAT16 encoded array."""
+
+def bfloat16_decode(
+    data: BytesLike,
+    /,
+    *,
+    byteorder: Literal['>', '<', '='] | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
+    """Return decoded BFLOAT16 array."""
 
 class BITORDER:
     """BITORDER codec constants."""
@@ -450,14 +515,11 @@ class BITORDER:
     available: bool
     """BITORDER codec is available."""
 
-
 BitorderError = ImcdError
 bitorder_version = imcd_version
 
-
 def bitorder_check(data: BytesLike, /) -> None:
     """Return whether data is BITORDER encoded."""
-
 
 @overload
 def bitorder_encode(
@@ -468,7 +530,6 @@ def bitorder_encode(
 ) -> bytes | bytearray:
     """Return data with reversed bit-order in each byte."""
 
-
 @overload
 def bitorder_encode(
     data: NDArray[Any],
@@ -478,9 +539,7 @@ def bitorder_encode(
 ) -> NDArray[Any]:
     """Return data with reversed bit-order in each byte."""
 
-
 bitorder_decode = bitorder_encode
-
 
 class BITSHUFFLE:
     """BITSHUFFLE codec constants."""
@@ -488,18 +547,14 @@ class BITSHUFFLE:
     available: bool
     """BITSHUFFLE codec is available."""
 
-
 class BitshuffleError(RuntimeError):
     """BITSHUFFLE codec exceptions."""
-
 
 def bitshuffle_version() -> str:
     """Return Bitshuffle library version string."""
 
-
 def bitshuffle_check(data: BytesLike, /) -> bool | None:
     """Return whether data is BITSHUFFLE encoded."""
-
 
 @overload
 def bitshuffle_encode(
@@ -512,7 +567,6 @@ def bitshuffle_encode(
 ) -> bytes | bytearray:
     """Return BITSHUFFLE encoded data."""
 
-
 @overload
 def bitshuffle_encode(
     data: NDArray[Any],
@@ -523,7 +577,6 @@ def bitshuffle_encode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return BITSHUFFLE encoded data."""
-
 
 @overload
 def bitshuffle_decode(
@@ -536,7 +589,6 @@ def bitshuffle_decode(
 ) -> bytes | bytearray:
     """Return decoded BITSHUFFLE data."""
 
-
 @overload
 def bitshuffle_decode(
     data: NDArray[Any],
@@ -547,7 +599,6 @@ def bitshuffle_decode(
     out: NDArray[Any] | None = None,
 ) -> bytes | bytearray:
     """Return decoded BITSHUFFLE data."""
-
 
 class BLOSC:
     """BLOSC codec constants."""
@@ -572,18 +623,14 @@ class BLOSC:
         ZLIB = ...
         ZSTD = ...
 
-
 class BloscError(RuntimeError):
     """BLOSC coec exceptions."""
-
 
 def blosc_version() -> str:
     """Return C-Blosc library version string."""
 
-
 def blosc_check(data: BytesLike, /) -> None:
     """Return whether data is BLOSC encoded."""
-
 
 def blosc_encode(
     data: BytesLike,
@@ -599,7 +646,6 @@ def blosc_encode(
 ) -> bytes | bytearray:
     """Return BLOSC encoded data."""
 
-
 def blosc_decode(
     data: BytesLike,
     /,
@@ -608,7 +654,6 @@ def blosc_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded BLOSC data."""
-
 
 class BLOSC2:
     """BLOSC2 codec constants."""
@@ -643,18 +688,14 @@ class BLOSC2:
         AUTO = ...
         FORWARD_COMPAT = ...
 
-
 class Blosc2Error(RuntimeError):
     """BLOSC2 codec exceptions."""
-
 
 def blosc2_version() -> str:
     """Return C-Blosc2 library version string."""
 
-
 def blosc2_check(data: BytesLike, /) -> None:
     """Return whether data is BLOSC2 encoded."""
-
 
 def blosc2_encode(
     data: BytesLike,
@@ -671,7 +712,6 @@ def blosc2_encode(
 ) -> bytes | bytearray:
     """Return decoded BLOSC2 data."""
 
-
 def blosc2_decode(
     data: BytesLike,
     /,
@@ -681,25 +721,20 @@ def blosc2_decode(
 ) -> bytes | bytearray:
     """Return BLOSC2 encoded data."""
 
-
 class BMP:
     """BMP codec constants."""
 
     available: bool
     """BMP codec is available."""
 
-
 class BmpError(RuntimeError):
     """BMP codec exceptions."""
-
 
 def bmp_version() -> str:
     """Return EasyBMP library version string."""
 
-
 def bmp_check(data: BytesLike, /) -> bool:
     """Return whether data is BMP encoded image."""
-
 
 def bmp_encode(
     data: ArrayLike,
@@ -710,7 +745,6 @@ def bmp_encode(
 ) -> bytes | bytearray:
     """Return BMP encoded image."""
 
-
 def bmp_decode(
     data: BytesLike,
     /,
@@ -719,7 +753,6 @@ def bmp_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded BMP image."""
-
 
 class BROTLI:
     """BROTLI codec constants."""
@@ -734,18 +767,14 @@ class BROTLI:
         TEXT = ...
         FONT = ...
 
-
 class BrotliError(RuntimeError):
     """BROTLI codec exceptions."""
-
 
 def brotli_version() -> str:
     """Return Brotli library version string."""
 
-
 def brotli_check(data: BytesLike, /) -> None:
     """Return whether data is BROTLI encoded."""
-
 
 def brotli_encode(
     data: BytesLike,
@@ -758,7 +787,6 @@ def brotli_encode(
 ) -> bytes | bytearray:
     """Return BROTLI encoded data."""
 
-
 def brotli_decode(
     data: BytesLike,
     /,
@@ -767,25 +795,20 @@ def brotli_decode(
 ) -> bytes | bytearray:
     """Return decoded BROTLI data."""
 
-
 class BRUNSLI:
     """BRUNSLI codec constants."""
 
     available: bool
     """BRUNSLI codec is available."""
 
-
 class BrunsliError(RuntimeError):
     """BRUNSLI codec exceptions."""
-
 
 def brunsli_version() -> str:
     """Return Brunsli library version string."""
 
-
 def brunsli_check(data: BytesLike, /) -> bool | None:
     """Return whether data is BRUNSLI/JPEG encoded."""
-
 
 def brunsli_encode(
     data: BytesLike,
@@ -802,7 +825,6 @@ def brunsli_encode(
 ) -> bytes | bytearray:
     """Return BRUNSLI/JPEG encoded image."""
 
-
 def brunsli_decode(
     data: BytesLike,
     /,
@@ -814,21 +836,17 @@ def brunsli_decode(
 ) -> bytes | bytearray:
     """Return decoded BRUNSLI/JPEG image."""
 
-
 class BYTESHUFFLE:
     """BYTESHUFFLE codec constants."""
 
     available: bool
     """BYTESHUFFLE codec is available."""
 
-
 ByteshuffleError = ImcdError
 byteshuffle_version = imcd_version
 
-
 def byteshuffle_check(data: BytesLike, /) -> None:
     """Return whether data is BYTESHUFFLE encoded."""
-
 
 def byteshuffle_encode(
     data: NDArray[Any],
@@ -842,7 +860,6 @@ def byteshuffle_encode(
 ) -> NDArray[Any]:
     """Return byte-shuffled data."""
 
-
 def byteshuffle_decode(
     data: NDArray[Any],
     /,
@@ -855,25 +872,20 @@ def byteshuffle_decode(
 ) -> NDArray[Any]:
     """Return un-byte-shuffled data."""
 
-
 class BZ2:
     """BZ2 codec constants."""
 
     available: bool
     """BZ2 codec is available."""
 
-
 class Bz2Error(RuntimeError):
     """BZ2 codec exceptions."""
-
 
 def bz2_version() -> str:
     """Return libbzip2 library version string."""
 
-
 def bz2_check(data: BytesLike, /) -> None:
     """Return whether data is BZ2 encoded."""
-
 
 def bz2_encode(
     data: BytesLike,
@@ -884,7 +896,6 @@ def bz2_encode(
 ) -> bytes | bytearray:
     """Return BZ2 encoded data."""
 
-
 def bz2_decode(
     data: BytesLike,
     /,
@@ -892,7 +903,6 @@ def bz2_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded BZ2 data."""
-
 
 class CMS:
     """CMS codec constants."""
@@ -961,18 +971,14 @@ class CMS:
         MCH14 = ...
         MCH15 = ...
 
-
 class CmsError(RuntimeError):
     """CMS codec exceptions."""
-
 
 def cms_version() -> str:
     """Return Little-CMS library version string."""
 
-
 def cms_check(data: BytesLike, /) -> bool:
     """Return whether data is ICC profile."""
-
 
 def cms_transform(
     data: ArrayLike,
@@ -992,10 +998,8 @@ def cms_transform(
 ) -> NDArray[Any]:
     """Return color-transformed array (experimental)."""
 
-
 cms_encode = cms_transform
 cms_decode = cms_transform
-
 
 def cms_profile(
     profile: str,
@@ -1008,7 +1012,6 @@ def cms_profile(
 ) -> bytes:
     """Return ICC profile."""
 
-
 def cms_profile_validate(
     profile: bytes,
     /,
@@ -1017,25 +1020,20 @@ def cms_profile_validate(
 ) -> None:
     """Raise CmsError if ICC profile is invalid."""
 
-
 class DDS:
     """DDS codec constants."""
 
     available: bool
     """DDS codec is available."""
 
-
 class DdsError(RuntimeError):
     """DDS codec exceptions."""
-
 
 def dds_version() -> str:
     """Return bcdec library version string."""
 
-
 def dds_check(data: BytesLike, /) -> bool | None:
     """Return whether data is DDS encoded."""
-
 
 def dds_encode(
     data: BytesLike,
@@ -1044,7 +1042,6 @@ def dds_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return DDS encoded data (not implemented)."""
-
 
 def dds_decode(
     data: BytesLike,
@@ -1055,25 +1052,20 @@ def dds_decode(
 ) -> bytes | bytearray:
     """Return decoded DDS data."""
 
-
 class DEFLATE:
     """DEFLATE codec constants."""
 
     available: bool
     """DEFLATE codec is available."""
 
-
 class DeflateError(RuntimeError):
     """DEFLATE codec exceptions."""
-
 
 def deflate_version() -> str:
     """Return libdeflate library version string."""
 
-
 def deflate_check(data: BytesLike, /) -> bool | None:
     """Return whether data is Zlib/Deflate encoded."""
-
 
 def deflate_encode(
     data: BytesLike,
@@ -1085,7 +1077,6 @@ def deflate_encode(
 ) -> bytes | bytearray:
     """Return DEFLATE encoded data."""
 
-
 def deflate_decode(
     data: BytesLike,
     /,
@@ -1095,14 +1086,11 @@ def deflate_decode(
 ) -> bytes | bytearray:
     """Return decoded DEFLATE data."""
 
-
 def deflate_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
-
 def deflate_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
-
 
 class DELTA:
     """DELTA codec constants."""
@@ -1110,14 +1098,11 @@ class DELTA:
     available: bool
     """DELTA codec is available."""
 
-
 DeltaError = ImcdError
 delta_version = imcd_version
 
-
 def delta_check(data: BytesLike, /) -> None:
     """Return whether data is DELTA encoded."""
-
 
 @overload
 def delta_encode(
@@ -1130,7 +1115,6 @@ def delta_encode(
 ) -> bytes | bytearray:
     """Return DELTA encoded data."""
 
-
 @overload
 def delta_encode(
     data: NDArray[Any],
@@ -1141,7 +1125,6 @@ def delta_encode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return DELTA encoded data."""
-
 
 @overload
 def delta_decode(
@@ -1154,7 +1137,6 @@ def delta_decode(
 ) -> bytes | bytearray:
     """Return decoded DELTA data."""
 
-
 @overload
 def delta_decode(
     data: NDArray[Any],
@@ -1166,21 +1148,17 @@ def delta_decode(
 ) -> NDArray[Any]:
     """Return decoded DELTA data."""
 
-
 class EER:
     """EER codec constants."""
 
     available: bool
     """EER codec is available."""
 
-
 EerError = ImcdError
 eer_version = imcd_version
 
-
 def eer_check(data: BytesLike, /) -> None:
     """Return whether data is EER encoded."""
-
 
 def eer_encode(
     data: ArrayLike,
@@ -1190,20 +1168,18 @@ def eer_encode(
 ) -> None:
     """Return EER encoded image (not implemented)."""
 
-
 def eer_decode(
     data: BytesLike,
     /,
     shape: tuple[int, int],
-    rlebits: int,
+    skipbits: int,
     horzbits: int,
     vertbits: int,
     *,
-    superres: bool = False,
+    superres: int = 0,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded EER image."""
-
 
 class DICOMRLE:
     """DICOMRLE codec constants."""
@@ -1211,14 +1187,11 @@ class DICOMRLE:
     available: bool
     """DICOMRLE codec is available."""
 
-
 DicomrleError = ImcdError
 dicomrle_version = imcd_version
 
-
 def dicomrle_check(data: BytesLike, /) -> bool:
     """Return whether data is DICOMRLE encoded."""
-
 
 def dicomrle_encode(
     data: BytesLike,
@@ -1229,7 +1202,6 @@ def dicomrle_encode(
     """Return DICOMRLE encoded data (not implemented)."""
     raise NotImplementedError('dicomrle_encode')
 
-
 def dicomrle_decode(
     data: BytesLike,
     /,
@@ -1238,7 +1210,6 @@ def dicomrle_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded DICOMRLE data."""
-
 
 class FLOAT24:
     """FLOAT24 codec constants."""
@@ -1254,14 +1225,11 @@ class FLOAT24:
         DOWNWARD = ...
         TOWARDZERO = ...
 
-
 Float24Error = ImcdError
 float24_version = imcd_version
 
-
 def float24_check(data: BytesLike, /) -> bool | None:
     """Return whether data is FLOAT24 encoded."""
-
 
 def float24_encode(
     data: ArrayLike,
@@ -1273,7 +1241,6 @@ def float24_encode(
 ) -> bytes | bytearray:
     """Return FLOAT24 encoded array."""
 
-
 def float24_decode(
     data: BytesLike,
     /,
@@ -1283,21 +1250,17 @@ def float24_decode(
 ) -> NDArray[Any]:
     """Return decoded FLOAT24 array."""
 
-
 class FLOATPRED:
     """FLOATPRED codec constants."""
 
     available: bool
     """FLOATPRED codec is available."""
 
-
 FloatpredError = ImcdError
 floatpred_version = imcd_version
 
-
 def floatpred_check(data: BytesLike, /) -> bool | None:
     """Return whether data is FLOATPRED encoded."""
-
 
 def floatpred_encode(
     data: NDArray[Any],
@@ -1309,7 +1272,6 @@ def floatpred_encode(
 ) -> NDArray[Any]:
     """Return floating-point predicted array."""
 
-
 def floatpred_decode(
     data: NDArray[Any],
     /,
@@ -1320,25 +1282,20 @@ def floatpred_decode(
 ) -> NDArray[Any]:
     """Return un-predicted floating-point array."""
 
-
 class GIF:
     """GIF codec constants."""
 
     available: bool
     """GIF codec is available."""
 
-
 class GifError(RuntimeError):
     """GIF codec exceptions."""
-
 
 def gif_version() -> str:
     """Return giflib library version string."""
 
-
 def gif_check(data: BytesLike, /) -> bool | None:
     """Return whether data is GIF encoded image."""
-
 
 def gif_encode(
     data: ArrayLike,
@@ -1348,7 +1305,6 @@ def gif_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return GIF encoded image."""
-
 
 def gif_decode(
     data: BytesLike,
@@ -1360,21 +1316,17 @@ def gif_decode(
 ) -> NDArray[Any]:
     """Return decoded GIF image."""
 
-
 class GZIP:
     """GZIP codec constants."""
 
     available: bool
     """GZIP codec is available."""
 
-
 GzipError = DeflateError
 gzip_version = deflate_version
 
-
 def gzip_check(data: BytesLike, /) -> bool:
     """Return whether data is GZIP encoded."""
-
 
 def gzip_encode(
     data: BytesLike,
@@ -1385,7 +1337,6 @@ def gzip_encode(
 ) -> bytes | bytearray:
     """Return GZIP encoded data."""
 
-
 def gzip_decode(
     data: BytesLike,
     /,
@@ -1394,39 +1345,31 @@ def gzip_decode(
 ) -> bytes | bytearray:
     """Return decoded GZIP data."""
 
-
 class H5CHECKSUM:
     """H5checksum codec constants."""
 
     available: bool
     """H5checksum codec is available."""
 
-
 def h5checksum_version() -> str:
     """Return h5checksum library version string."""
-
 
 def h5checksum_fletcher32(data: BytesLike, /, value: int | None = None) -> int:
     """Return fletcher32 checksum of data (value is ignored)."""
 
-
 def h5checksum_lookup3(data: BytesLike, /, value: int | None = None) -> int:
     """Return Jenkins lookup3 checksum of data."""
-
 
 def h5checksum_crc(data: BytesLike, /, value: int | None = None) -> int:
     """Return crc checksum of data (value is ignored)."""
 
-
 def h5checksum_metadata(data: BytesLike, /, value: int | None = None) -> int:
     """Return checksum of metadata."""
-
 
 def h5checksum_hash_string(
     data: BytesLike, /, value: int | None = None
 ) -> int:
     """Return hash of bytes string (value is ignored)."""
-
 
 class HEIF:
     """HEIF codec constants."""
@@ -1455,18 +1398,14 @@ class HEIF:
         RGB = ...
         MONOCHROME = ...
 
-
 class HeifError(RuntimeError):
     """HEIF codec exceptions."""
-
 
 def heif_version() -> str:
     """Return libheif library version string."""
 
-
 def heif_check(data: BytesLike, /) -> bool | None:
     """Return whether data is HEIF encoded image."""
-
 
 def heif_encode(
     data: ArrayLike,
@@ -1480,7 +1419,6 @@ def heif_encode(
 ) -> bytes | bytearray:
     """Return HEIF encoded image."""
 
-
 def heif_decode(
     data: BytesLike,
     /,
@@ -1491,25 +1429,20 @@ def heif_decode(
 ) -> NDArray[Any]:
     """Return decoded HEIF image."""
 
-
 class JETRAW:
     """JETRAW codec constants."""
 
     available: bool
     """JETRAW codec is available."""
 
-
 class JetrawError(RuntimeError):
     """JETRAW codec exceptions."""
-
 
 def jetraw_version() -> str:
     """Return Jetraw library version string."""
 
-
 def jetraw_check(data: BytesLike, /) -> None:
     """Return whether data is JETRAW encoded image."""
-
 
 def jetraw_encode(
     data: ArrayLike,
@@ -1521,7 +1454,6 @@ def jetraw_encode(
 ) -> bytes | bytearray:
     """Return JETRAW encoded image."""
 
-
 def jetraw_decode(
     data: BytesLike,
     /,
@@ -1530,14 +1462,12 @@ def jetraw_decode(
 ) -> NDArray[Any]:
     """Return decoded JETRAW image."""
 
-
 def jetraw_init(
     parameters: str | None = None,
     *,
     verbose: int | None = None,
 ) -> None:
     """Initialize JETRAW codec."""
-
 
 class JPEG2K:
     """JPEG2K codec constants."""
@@ -1564,18 +1494,14 @@ class JPEG2K:
         EYCC = ...
         CMYK = ...
 
-
 class Jpeg2kError(RuntimeError):
     """JPEG2K codec exceptions."""
-
 
 def jpeg2k_version() -> str:
     """Return OpenJPEG library version string."""
 
-
 def jpeg2k_check(data: BytesLike, /) -> bool | None:
     """Return whether data is JPEG 2000 encoded image."""
-
 
 def jpeg2k_encode(
     data: ArrayLike,
@@ -1596,7 +1522,6 @@ def jpeg2k_encode(
 ) -> bytes | bytearray:
     """Return JPEG 2000 encoded image."""
 
-
 def jpeg2k_decode(
     data: BytesLike,
     /,
@@ -1607,7 +1532,6 @@ def jpeg2k_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded JPEG 2000 image."""
-
 
 class JPEG8:
     """JPEG8 codec constants."""
@@ -1642,18 +1566,14 @@ class JPEG8:
         EXT_ARGB = ...
         RGB565 = ...
 
-
 class Jpeg8Error(RuntimeError):
     """JPEG8 codec exceptions."""
-
 
 def jpeg8_version() -> str:
     """Return libjpeg-turbo library version string."""
 
-
 def jpeg8_check(data: BytesLike, /) -> bool:
     """Return whether data is JPEG encoded image."""
-
 
 def jpeg8_encode(
     data: ArrayLike,
@@ -1672,7 +1592,6 @@ def jpeg8_encode(
 ) -> bytes | bytearray:
     """Return JPEG encoded image."""
 
-
 def jpeg8_decode(
     data: BytesLike,
     /,
@@ -1685,7 +1604,6 @@ def jpeg8_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEG image."""
 
-
 JPEG = JPEG8
 
 JpegError = Jpeg8Error
@@ -1693,7 +1611,6 @@ JpegError = Jpeg8Error
 jpeg_version = jpeg8_version
 
 jpeg_check = jpeg8_check
-
 
 def jpeg_encode(
     data: ArrayLike,
@@ -1712,7 +1629,6 @@ def jpeg_encode(
 ) -> bytes | bytearray:
     """Return JPEG encoded image."""
 
-
 def jpeg_decode(
     data: BytesLike,
     /,
@@ -1727,25 +1643,20 @@ def jpeg_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEG image."""
 
-
 class JPEGLS:
     """JPEGLS codec constants."""
 
     available: bool
     """JPEGLS codec is available."""
 
-
 class JpeglsError(RuntimeError):
     """JPEGLS codec exceptions."""
-
 
 def jpegls_version() -> str:
     """Return CharLS library version string."""
 
-
 def jpegls_check(data: BytesLike, /) -> None:
     """Return whether data is JPEGLS encoded image."""
-
 
 def jpegls_encode(
     data: ArrayLike,
@@ -1756,7 +1667,6 @@ def jpegls_encode(
 ) -> bytes | bytearray:
     """Return JPEGLS encoded image."""
 
-
 def jpegls_decode(
     data: BytesLike,
     /,
@@ -1765,25 +1675,20 @@ def jpegls_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEGLS image."""
 
-
 class JPEGSOF3:
     """JPEGSOF3 codec constants."""
 
     available: bool
     """JPEGSOF3 codec is available."""
 
-
 class Jpegsof3Error(RuntimeError):
     """JPEGSOF3 codec exceptions."""
-
 
 def jpegsof3_version() -> str:
     """Return jpegsof3 library version string."""
 
-
 def jpegsof3_check(data: BytesLike, /) -> None:
     """Return whether data is Lossless JPEG encoded image."""
-
 
 def jpegsof3_encode(
     data: ArrayLike,
@@ -1793,7 +1698,6 @@ def jpegsof3_encode(
 ) -> None:
     """Return Lossless JPEG encoded image (not implemented)."""
 
-
 def jpegsof3_decode(
     data: BytesLike,
     /,
@@ -1801,7 +1705,6 @@ def jpegsof3_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded Lossless JPEG image."""
-
 
 class JPEGXL:
     """JPEGXL codec constants."""
@@ -1830,18 +1733,14 @@ class JPEGXL:
         THERMAL = ...
         OPTIONAL = ...
 
-
 class JpegxlError(RuntimeError):
     """JPEGXL codec exceptions."""
-
 
 def jpegxl_version() -> str:
     """Return libjxl library version string."""
 
-
 def jpegxl_check(data: BytesLike, /) -> bool:
     """Return whether data is JPEGXL encoded image."""
-
 
 def jpegxl_encode(
     data: ArrayLike,
@@ -1862,7 +1761,6 @@ def jpegxl_encode(
 ) -> bytes | bytearray:
     """Return JPEGXL encoded image."""
 
-
 def jpegxl_decode(
     data: BytesLike,
     /,
@@ -1874,7 +1772,6 @@ def jpegxl_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEGXL image."""
 
-
 def jpegxl_encode_jpeg(
     data: BytesLike,
     /,
@@ -1884,7 +1781,6 @@ def jpegxl_encode_jpeg(
 ) -> bytes | bytearray:
     """Return JPEGXL encoded image from JPEG stream."""
 
-
 def jpegxl_decode_jpeg(
     data: BytesLike,
     /,
@@ -1892,7 +1788,6 @@ def jpegxl_decode_jpeg(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return JPEG encoded image from JPEG XL stream."""
-
 
 class JPEGXR:
     """JPEGXR codec constants."""
@@ -1914,18 +1809,14 @@ class JPEGXR:
         NCH = ...
         RGBE = ...
 
-
 class JpegxrError(RuntimeError):
     """JPEGXR codec exceptions."""
-
 
 def jpegxr_version() -> str:
     """Return jxrlib library version string."""
 
-
 def jpegxr_check(data: BytesLike, /) -> bool | None:
     """Return whether data is JPEGXR encoded image."""
-
 
 def jpegxr_encode(
     data: ArrayLike,
@@ -1939,7 +1830,6 @@ def jpegxr_encode(
 ) -> bytes | bytearray:
     """Return JPEGXR encoded image."""
 
-
 def jpegxr_decode(
     data: BytesLike,
     /,
@@ -1949,25 +1839,20 @@ def jpegxr_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEGXR image."""
 
-
 class JPEGXS:
     """JPEGXS codec constants."""
 
     available: bool
     """JPEGXS codec is available."""
 
-
 class JpegxsError(RuntimeError):
     """JPEGXS codec exceptions."""
-
 
 def jpegxs_version() -> str:
     """Return libjxs library version string."""
 
-
 def jpegxs_check(data: BytesLike, /) -> bool:
     """Return whether data is JPEGXS encoded image."""
-
 
 def jpegxs_encode(
     data: ArrayLike,
@@ -1980,7 +1865,6 @@ def jpegxs_encode(
 ) -> bytes | bytearray:
     """Return JPEGXS encoded image."""
 
-
 def jpegxs_decode(
     data: BytesLike,
     /,
@@ -1990,25 +1874,20 @@ def jpegxs_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEGXS image."""
 
-
 class LERC:
     """LERC codec constants."""
 
     available: bool
     """LERC codec is available."""
 
-
 class LercError(RuntimeError):
     """LERC codec exceptions."""
-
 
 def lerc_version() -> str:
     """Return LERC library version string."""
 
-
 def lerc_check(data: BytesLike, /) -> bool:
     """Return whether data is LERC encoded."""
-
 
 def lerc_encode(
     data: ArrayLike,
@@ -2024,7 +1903,6 @@ def lerc_encode(
 ) -> bytes | bytearray:
     """Return LERC encoded image."""
 
-
 @overload
 def lerc_decode(
     data: BytesLike,
@@ -2034,7 +1912,6 @@ def lerc_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded LERC image."""
-
 
 @overload
 def lerc_decode(
@@ -2046,25 +1923,20 @@ def lerc_decode(
 ) -> tuple[NDArray[Any], NDArray[Any]]:
     """Return LERC encoded image."""
 
-
 class LJPEG:
     """LJPEG codec constants."""
 
     available: bool
     """LJPEG codec is available."""
 
-
 class LjpegError(RuntimeError):
     """LJPEG codec exceptions."""
-
 
 def ljpeg_version() -> str:
     """Return liblj92 library version string."""
 
-
 def ljpeg_check(data: BytesLike, /) -> None:
     """Return whether data is Lossless JPEG encoded image."""
-
 
 def ljpeg_encode(
     data: ArrayLike,
@@ -2076,7 +1948,6 @@ def ljpeg_encode(
 ) -> bytes | bytearray:
     """Return Lossless JPEG encoded image."""
 
-
 def ljpeg_decode(
     data: BytesLike,
     /,
@@ -2085,7 +1956,6 @@ def ljpeg_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded Lossless JPEG image."""
-
 
 class LZ4:
     """LZ4 codec constants."""
@@ -2101,18 +1971,14 @@ class LZ4:
         MAX = ...
         OPT_MIN = ...
 
-
 class Lz4Error(RuntimeError):
     """LZ4 codec exceptions."""
-
 
 def lz4_version() -> str:
     """Return LZ4 library version string."""
 
-
 def lz4_check(data: BytesLike, /) -> None:
     """Return whether data is LZ4 encoded."""
-
 
 def lz4_encode(
     data: BytesLike,
@@ -2125,7 +1991,6 @@ def lz4_encode(
 ) -> bytes | bytearray:
     """Return LZ4 encoded data."""
 
-
 def lz4_decode(
     data: BytesLike,
     /,
@@ -2134,7 +1999,6 @@ def lz4_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded LZ4 data."""
-
 
 class LZ4F:
     """LZ4F codec constants."""
@@ -2145,18 +2009,14 @@ class LZ4F:
     VERSION: int
     """LZ4F file version."""
 
-
 class Lz4fError(RuntimeError):
     """LZ4F codec exceptions."""
-
 
 def lz4f_version() -> str:
     """Return LZ4 library version string."""
 
-
 def lz4f_check(data: BytesLike, /) -> bool:
     """Return whether data is LZ4F encoded."""
-
 
 def lz4f_encode(
     data: BytesLike,
@@ -2170,7 +2030,6 @@ def lz4f_encode(
 ) -> bytes | bytearray:
     """Return LZ4F encoded data."""
 
-
 def lz4f_decode(
     data: BytesLike,
     /,
@@ -2178,7 +2037,6 @@ def lz4f_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded LZ4F data."""
-
 
 class LZ4H5:
     """LZ4H5 codec constants."""
@@ -2189,18 +2047,14 @@ class LZ4H5:
     CLEVEL: LZ4.CLEVEL
     """LZ4 codec compression levels."""
 
-
 class Lz4h5Error(RuntimeError):
     """LZ4H5 codec exceptions."""
-
 
 def lz4h5_version() -> str:
     """Return LZ4 library version string."""
 
-
 def lz4h5_check(data: BytesLike, /) -> bool | None:
     """Return whether data is LZ4H5 encoded."""
-
 
 def lz4h5_encode(
     data: BytesLike,
@@ -2212,7 +2066,6 @@ def lz4h5_encode(
 ) -> bytes | bytearray:
     """Return LZ4H5 encoded data."""
 
-
 def lz4h5_decode(
     data: BytesLike,
     /,
@@ -2221,25 +2074,20 @@ def lz4h5_decode(
 ) -> bytes | bytearray:
     """Return decoded LZ4H5 data."""
 
-
 class LZF:
     """LZF codec constants."""
 
     available: bool
     """LZF codec is available."""
 
-
 class LzfError(RuntimeError):
     """LZF codec exceptions."""
-
 
 def lzf_version() -> str:
     """Return LibLZF library version string."""
 
-
 def lzf_check(data: BytesLike, /) -> None:
     """Return whether data is LZF encoded."""
-
 
 def lzf_encode(
     data: BytesLike,
@@ -2250,7 +2098,6 @@ def lzf_encode(
 ) -> bytes | bytearray:
     """Return LZF encoded data."""
 
-
 def lzf_decode(
     data: BytesLike,
     /,
@@ -2260,25 +2107,20 @@ def lzf_decode(
 ) -> bytes | bytearray:
     """Return decoded LZF data."""
 
-
 class LZFSE:
     """LZFSE codec constants."""
 
     available: bool
     """LZFSE codec is available."""
 
-
 class LzfseError(RuntimeError):
     """LZFSE codec exceptions."""
-
 
 def lzfse_version() -> str:
     """Return LZFSE library version string."""
 
-
 def lzfse_check(data: BytesLike, /) -> bool:
     """Return whether data is LZFSE encoded."""
-
 
 def lzfse_encode(
     data: BytesLike,
@@ -2288,7 +2130,6 @@ def lzfse_encode(
 ) -> bytes | bytearray:
     """Return LZFSE encoded data."""
 
-
 def lzfse_decode(
     data: BytesLike,
     /,
@@ -2296,7 +2137,6 @@ def lzfse_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded LZFSE data."""
-
 
 class LZHAM:
     """LZHAM codec constants."""
@@ -2322,18 +2162,14 @@ class LZHAM:
         RLE = ...
         FIXED = ...
 
-
 class LzhamError(RuntimeError):
     """LZHAM codec exceptions."""
-
 
 def lzham_version() -> str:
     """Return LZHAM library version string."""
 
-
 def lzham_check(data: BytesLike, /) -> None:
     """Return whether data is LZHAM encoded."""
-
 
 def lzham_encode(
     data: BytesLike,
@@ -2344,7 +2180,6 @@ def lzham_encode(
 ) -> bytes | bytearray:
     """Return LZHAM encoded data."""
 
-
 def lzham_decode(
     data: BytesLike,
     /,
@@ -2352,7 +2187,6 @@ def lzham_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded LZHAM data."""
-
 
 class LZMA:
     """LZMA codec constants."""
@@ -2368,18 +2202,14 @@ class LZMA:
         CRC64 = ...
         SHA256 = ...
 
-
 class LzmaError(RuntimeError):
     """LZMA codec exceptions."""
-
 
 def lzma_version() -> str:
     """Return liblzma library version string."""
 
-
 def lzma_check(data: BytesLike, /) -> None:
     """Return whether data is LZMA encoded."""
-
 
 def lzma_encode(
     data: BytesLike,
@@ -2391,7 +2221,6 @@ def lzma_encode(
 ) -> bytes | bytearray:
     """Return LZMA encoded data."""
 
-
 def lzma_decode(
     data: BytesLike,
     /,
@@ -2400,25 +2229,20 @@ def lzma_decode(
 ) -> bytes | bytearray:
     """Return decoded LZMA data."""
 
-
 class LZO:
     """LZO codec constants."""
 
     available: bool
     """LZO codec is available."""
 
-
 class LzoError(RuntimeError):
     """LZO codec exceptions."""
-
 
 def lzo_version() -> str:
     """Return lzokay library version string."""
 
-
 def lzo_check(data: BytesLike, /) -> bool | None:
     """Return whether data is LZO encoded."""
-
 
 def lzo_encode(
     data: BytesLike,
@@ -2430,7 +2254,6 @@ def lzo_encode(
 ) -> bytes | bytearray:
     """Return LZO encoded data (not implemented)."""
 
-
 def lzo_decode(
     data: BytesLike,
     /,
@@ -2440,22 +2263,18 @@ def lzo_decode(
 ) -> bytes | bytearray:
     """Return decoded LZO data."""
 
-
 class LZW:
     """LZW codec constants."""
 
     available: bool
     """LZW codec is available."""
 
-
 LzwError = ImcdError
 
 lzw_version = imcd_version
 
-
 def lzw_check(data: BytesLike, /) -> bool:
     """Return whether data is LZW encoded."""
-
 
 def lzw_encode(
     data: BytesLike,
@@ -2464,7 +2283,6 @@ def lzw_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return LZW encoded data."""
-
 
 def lzw_decode(
     data: BytesLike,
@@ -2475,22 +2293,18 @@ def lzw_decode(
 ) -> bytes | bytearray:
     """Return decoded LZW data."""
 
-
 # class MONO12P:
 #     """MONO12P codec constants."""
 
 #     available: bool
 #     """MONO12P codec is available."""
 
-
 # Mono12pError = ImcdError
 
 # mono12p_version = imcd_version
 
-
 # def mono12p_check(data: BytesLike, /) -> None:
 #     """Return whether data is MONO12P encoded."""
-
 
 # def mono12p_encode(
 #     data: ArrayLike,
@@ -2502,7 +2316,6 @@ def lzw_decode(
 # ) -> bytes | bytearray:
 #     """Return MONO12P packed integers."""
 
-
 # def mono12p_decode(
 #     data: BytesLike,
 #     /,
@@ -2512,7 +2325,6 @@ def lzw_decode(
 #     out: NDArray[Any] | None = None,
 # ) -> NDArray[Any]:
 #     """Return unpacked MONO12P integers."""
-
 
 class MOZJPEG:
     """MOZJPEG codec constants."""
@@ -2541,18 +2353,14 @@ class MOZJPEG:
         EXT_ARGB = ...
         RGB565 = ...
 
-
 class MozjpegError(RuntimeError):
     """MOZJPEG codec exceptions."""
-
 
 def mozjpeg_version() -> str:
     """Return mozjpeg library version string."""
 
-
 def mozjpeg_check(data: BytesLike, /) -> bool:
     """Return whether data is JPEG encoded image."""
-
 
 def mozjpeg_encode(
     data: ArrayLike,
@@ -2571,7 +2379,6 @@ def mozjpeg_encode(
 ) -> bytes | bytearray:
     """Return JPEG encoded image."""
 
-
 def mozjpeg_decode(
     data: BytesLike,
     /,
@@ -2584,32 +2391,25 @@ def mozjpeg_decode(
 ) -> NDArray[Any]:
     """Return decoded JPEG image."""
 
-
 class NONE:
     """NONE codec constants."""
 
     available: bool
     """NONE codec is available."""
 
-
 NoneError = RuntimeError
-
 
 def none_version() -> str:
     """Return empty version string."""
 
-
 def none_check(data: Any, /) -> None:
     """Return None."""
-
 
 def none_decode(data: Any, *args: Any, **kwargs: Any) -> Any:
     """Return data unchanged."""
 
-
 def none_encode(data: Any, *args: Any, **kwargs: Any) -> Any:
     """Return data unchanged."""
-
 
 class NUMPY:
     """NUMPY codec constants."""
@@ -2617,17 +2417,13 @@ class NUMPY:
     available: bool
     """NUMPY codec is available."""
 
-
 NumpyError = RuntimeError
-
 
 def numpy_version() -> str:
     """Return Numpy library version string."""
 
-
 def numpy_check(data: BytesLike, /) -> bool:
     """Return whether data is NPY or NPZ encoded."""
-
 
 def numpy_encode(
     data: ArrayLike,
@@ -2637,7 +2433,6 @@ def numpy_encode(
     out: int | bytearray | None = None,
 ) -> bytes:
     """Return NPY or NPZ encoded data."""
-
 
 def numpy_decode(
     data: BytesLike,
@@ -2649,25 +2444,21 @@ def numpy_decode(
 ) -> NDArray[Any]:
     """Return decoded NPY or NPZ data."""
 
-
 class PACKBITS:
     """PACKBITS codec constants."""
 
     available: bool
     """PACKBITS codec is available."""
 
-
 PackbitsError = ImcdError
 
 packbits_version = imcd_version
-
 
 def packbits_check(
     data: BytesLike,
     /,
 ) -> bool | None:
     """Return whether data is PACKBITS encoded."""
-
 
 def packbits_encode(
     data: BytesLike | ArrayLike,
@@ -2678,7 +2469,6 @@ def packbits_encode(
 ) -> bytes | bytearray:
     """Return PACKBITS encoded data."""
 
-
 def packbits_decode(
     data: BytesLike,
     /,
@@ -2687,22 +2477,18 @@ def packbits_decode(
 ) -> bytes | bytearray:
     """Return decoded PACKBITS data."""
 
-
 class PACKINTS:
     """PACKINTS codec constants."""
 
     available: bool
     """PACKINTS codec is available."""
 
-
 PackintsError = ImcdError
 
 packints_version = imcd_version
 
-
 def packints_check(data: BytesLike, /) -> None:
     """Return whether data is PACKINTS encoded."""
-
 
 def packints_encode(
     data: ArrayLike,
@@ -2713,7 +2499,6 @@ def packints_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return packed integers (not implemented)."""
-
 
 def packints_decode(
     data: BytesLike,
@@ -2726,25 +2511,20 @@ def packints_decode(
 ) -> NDArray[Any]:
     """Return unpacked integers."""
 
-
 class PCODEC:
     """Pcodec codec constants."""
 
     available: bool
     """Pcodec codec is available."""
 
-
 class PcodecError(RuntimeError):
     """Pcodec codec exceptions."""
-
 
 def pcodec_version() -> str:
     """Return pcodec library version string."""
 
-
 def pcodec_check(data: BytesLike, /) -> None:
     """Return whether data is pcodec encoded."""
-
 
 def pcodec_encode(
     data: ArrayLike,
@@ -2754,7 +2534,6 @@ def pcodec_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return pcodec encoded data."""
-
 
 def pcodec_decode(
     data: BytesLike,
@@ -2766,25 +2545,20 @@ def pcodec_decode(
 ) -> NDArray[Any]:
     """Return decoded pcodec data."""
 
-
 class PGLZ:
     """PGLZ codec constants."""
 
     available: bool
     """PGLZ codec is available."""
 
-
 class PglzError(RuntimeError):
     """PGLZ codec exceptions."""
-
 
 def pglz_version() -> str:
     """Return PostgreSQL library version string."""
 
-
 def pglz_check(data: BytesLike, /) -> bool | None:
     """Return whether data is PGLZ encoded."""
-
 
 def pglz_encode(
     data: BytesLike,
@@ -2796,7 +2570,6 @@ def pglz_encode(
 ) -> bytes | bytearray:
     """Return PGLZ encoded data."""
 
-
 def pglz_decode(
     data: BytesLike,
     /,
@@ -2806,7 +2579,6 @@ def pglz_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded PGLZ data."""
-
 
 class PNG:
     """PNG codec constants."""
@@ -2851,18 +2623,14 @@ class PNG:
         FAST = ...
         ALL = ...
 
-
 class PngError(RuntimeError):
     """PNG codec exceptions."""
-
 
 def png_version() -> str:
     """Return libpng library version string."""
 
-
 def png_check(data: BytesLike, /) -> bool:
     """Return whether data is PNG encoded image."""
-
 
 def png_encode(
     data: ArrayLike,
@@ -2875,7 +2643,6 @@ def png_encode(
 ) -> bytes | bytearray:
     """Return PNG encoded image."""
 
-
 def png_decode(
     data: BytesLike,
     /,
@@ -2883,7 +2650,6 @@ def png_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded PNG image."""
-
 
 class QOI:
     """QOI codec constants."""
@@ -2897,18 +2663,14 @@ class QOI:
         SRGB = ...
         LINEAR = ...
 
-
 class QoiError(RuntimeError):
     """QOI codec exceptions."""
-
 
 def qoi_version() -> str:
     """Return QOI library version string."""
 
-
 def qoi_check(data: BytesLike, /) -> bool:
     """Return whether data is QOI encoded image."""
-
 
 def qoi_encode(
     data: ArrayLike,
@@ -2918,7 +2680,6 @@ def qoi_encode(
 ) -> bytes | bytearray:
     """Return QOI encoded image."""
 
-
 def qoi_decode(
     data: BytesLike,
     /,
@@ -2926,7 +2687,6 @@ def qoi_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded QOI image."""
-
 
 class QUANTIZE:
     """Quantize codec constants."""
@@ -2943,14 +2703,11 @@ class QUANTIZE:
         BITROUND = ...
         SCALE = ...
 
-
 class QuantizeError(RuntimeError):
     """Quantize codec exceptions."""
 
-
 def quantize_version() -> str:
     """Return nc4var library version string."""
-
 
 def quantize_encode(
     data: NDArray[Any],
@@ -2965,7 +2722,6 @@ def quantize_encode(
 ) -> NDArray[Any]:
     """Return quantized floating point array."""
 
-
 def quantize_decode(
     data: NDArray[Any],
     /,
@@ -2979,25 +2735,20 @@ def quantize_decode(
 ) -> NDArray[Any]:
     """Return data if lossless else raise QuantizeError."""
 
-
 class RCOMP:
     """RCOMP codec constants."""
 
     available: bool
     """RCOMP codec is available."""
 
-
 class RcompError(RuntimeError):
     """RCOMP codec exceptions."""
-
 
 def rcomp_version() -> str:
     """Return cfitsio library version string."""
 
-
 def rcomp_check(data: BytesLike, /) -> bool:
     """Return whether data is RCOMP encoded."""
-
 
 def rcomp_encode(
     data: ArrayLike,
@@ -3007,7 +2758,6 @@ def rcomp_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return RCOMP encoded data."""
-
 
 def rcomp_decode(
     data: BytesLike,
@@ -3020,25 +2770,20 @@ def rcomp_decode(
 ) -> ArrayLike:
     """Return decoded RCOMP data."""
 
-
 class RGBE:
     """RGBE codec constants."""
 
     available: bool
     """RGBE codec is available."""
 
-
 class RgbeError(RuntimeError):
     """RBGE codec exceptions."""
-
 
 def rgbe_version() -> str:
     """Return RGBE library version string."""
 
-
 def rgbe_check(data: BytesLike, /) -> bool:
     """Return whether data is RGBE encoded image."""
-
 
 def rgbe_encode(
     data: ArrayLike,
@@ -3050,7 +2795,6 @@ def rgbe_encode(
 ) -> bytes | bytearray:
     """Return RGBE encoded image."""
 
-
 def rgbe_decode(
     data: BytesLike,
     /,
@@ -3061,25 +2805,20 @@ def rgbe_decode(
 ) -> NDArray[Any]:
     """Return decoded RGBE image."""
 
-
 class SNAPPY:
     """SNAPPY codec constants."""
 
     available: bool
     """SNAPPY codec is available."""
 
-
 class SnappyError(RuntimeError):
     """SNAPPY codec exceptions."""
-
 
 def snappy_version() -> str:
     """Return Snappy library version string."""
 
-
 def snappy_check(data: BytesLike, /) -> None:
     """Return whether data is SNAPPY encoded."""
-
 
 def snappy_encode(
     data: BytesLike,
@@ -3089,7 +2828,6 @@ def snappy_encode(
 ) -> bytes | bytearray:
     """Return SNAPPY encoded data."""
 
-
 def snappy_decode(
     data: BytesLike,
     /,
@@ -3097,7 +2835,6 @@ def snappy_decode(
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray:
     """Return decoded SNAPPY data."""
-
 
 class SPERR:
     """SPERR codec constants."""
@@ -3112,18 +2849,14 @@ class SPERR:
         PSNR = ...
         PWE = ...
 
-
 class SperrError(RuntimeError):
     """SPERR codec exceptions."""
-
 
 def sperr_version() -> str:
     """Return SPERR library version string."""
 
-
 def sperr_check(data: BytesLike, /) -> None:
     """Return whether data is SPERR encoded."""
-
 
 def sperr_encode(
     data: ArrayLike,
@@ -3138,7 +2871,6 @@ def sperr_encode(
 ) -> bytes | bytearray:
     """Return SPERR encoded data."""
 
-
 def sperr_decode(
     data: BytesLike,
     /,
@@ -3150,7 +2882,6 @@ def sperr_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded SPERR data."""
-
 
 class SPNG:
     """SPNG codec constants."""
@@ -3168,18 +2899,14 @@ class SPNG:
         GA16 = ...
         G8 = ...
 
-
 class SpngError(RuntimeError):
     """SPNG codec exceptions."""
-
 
 def spng_version() -> str:
     """Return libspng library version string."""
 
-
 def spng_check(data: BytesLike, /) -> bool:
     """Return whether data is PNG encoded image."""
-
 
 def spng_encode(
     data: ArrayLike,
@@ -3190,7 +2917,6 @@ def spng_encode(
 ) -> bytes | bytearray:
     """Return PNG encoded image."""
 
-
 def spng_decode(
     data: BytesLike,
     /,
@@ -3198,7 +2924,6 @@ def spng_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded PNG image."""
-
 
 class SZ3:
     """SZ3 codec constants."""
@@ -3221,18 +2946,14 @@ class SZ3:
         # REL_AND_PW_REL = ...
         # REL_OR_PW_REL = ...
 
-
 class Sz3Error(RuntimeError):
     """SZ3 codec exceptions."""
-
 
 def sz3_version() -> str:
     """Return SZ3 library version string."""
 
-
 def sz3_check(data: BytesLike, /) -> bool:
     """Return whether data is SZ3 encoded."""
-
 
 def sz3_encode(
     data: ArrayLike,
@@ -3246,7 +2967,6 @@ def sz3_encode(
 ) -> bytes | bytearray:
     """Return SZ3 encoded data."""
 
-
 def sz3_decode(
     data: BytesLike,
     /,
@@ -3256,7 +2976,6 @@ def sz3_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded SZ3 data."""
-
 
 class SZIP:
     """SZIP codec constants."""
@@ -3275,18 +2994,14 @@ class SZIP:
         NN = ...
         RAW = ...
 
-
 class SzipError(RuntimeError):
     """SZIP codec exceptions."""
-
 
 def szip_version() -> str:
     """Return libaec library version string."""
 
-
 def szip_check(data: BytesLike, /) -> None:
     """Return whether data is SZIP encoded."""
-
 
 def szip_encode(
     data: BytesLike,
@@ -3301,7 +3016,6 @@ def szip_encode(
 ) -> bytes | bytearray:
     """Return SZIP encoded data."""
 
-
 def szip_decode(
     data: BytesLike,
     /,
@@ -3315,12 +3029,10 @@ def szip_decode(
 ) -> bytes | bytearray:
     """Return decoded SZIP data."""
 
-
 def szip_params(
     data: NDArray[Any], /, options_mask: int = 4, pixels_per_block: int = 32
 ) -> dict[str, int]:
     """Return SZIP parameters for numpy array."""
-
 
 class TIFF:
     """TIFF codec constants."""
@@ -3386,18 +3098,14 @@ class TIFF:
         ASSOCALPHA = ...
         UNASSALPHA = ...
 
-
 class TiffError(RuntimeError):
     """TIFF codec exceptions."""
-
 
 def tiff_version() -> str:
     """Return libtiff library version string."""
 
-
 def tiff_check(data: BytesLike, /) -> bool:
     """Return whether data is TIFF encoded image."""
-
 
 def tiff_encode(
     data: ArrayLike,
@@ -3406,7 +3114,6 @@ def tiff_encode(
     out: int | bytearray | None = None,
 ) -> None:
     """Return TIFF encoded image (not implemented)."""
-
 
 def tiff_decode(
     data: BytesLike,
@@ -3418,7 +3125,6 @@ def tiff_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded TIFF image."""
-
 
 class ULTRAHDR:
     """Ultra HDR codec constants."""
@@ -3463,18 +3169,14 @@ class ULTRAHDR:
         REALTIME = ...
         QUALITY = ...
 
-
 class UltrahdrError(RuntimeError):
     """Ultra HDR codec exceptions."""
-
 
 def ultrahdr_version() -> str:
     """Return libultrahdr library version string."""
 
-
 def ultrahdr_check(data: BytesLike, /) -> bool:
     """Return whether data is Ultra HDR encoded image."""
-
 
 def ultrahdr_encode(
     data: ArrayLike,
@@ -3491,7 +3193,6 @@ def ultrahdr_encode(
 ) -> bytes | bytearray:
     """Return Ultra HDR encoded image."""
 
-
 def ultrahdr_decode(
     data: BytesLike,
     /,
@@ -3504,25 +3205,20 @@ def ultrahdr_decode(
 ) -> NDArray[Any]:
     """Return decoded Ultra HDR image."""
 
-
 class WEBP:
     """WEBP codec constants."""
 
     available: bool
     """WEBP codec is available."""
 
-
 class WebpError(RuntimeError):
     """WEBP codec exceptions."""
-
 
 def webp_version() -> str:
     """Return libwebp library version string."""
 
-
 def webp_check(data: BytesLike, /) -> bool:
     """Return whether data is WebP encoded image."""
-
 
 def webp_encode(
     data: ArrayLike,
@@ -3536,7 +3232,6 @@ def webp_encode(
 ) -> bytes | bytearray:
     """Return WebP encoded image."""
 
-
 def webp_decode(
     data: BytesLike,
     /,
@@ -3547,22 +3242,18 @@ def webp_decode(
 ) -> NDArray[Any]:
     """Return decoded WebP image."""
 
-
 class XOR:
     """XOR codec constants."""
 
     available: bool
     """XOR codec is available."""
 
-
 XorError = ImcdError
 
 xor_version = imcd_version
 
-
 def xor_check(data: Any, /) -> None:
     """Return whether data is XOR encoded."""
-
 
 @overload
 def xor_encode(
@@ -3574,7 +3265,6 @@ def xor_encode(
 ) -> bytes | bytearray:
     """Return XOR encoded data."""
 
-
 @overload
 def xor_encode(
     data: NDArray[Any],
@@ -3584,7 +3274,6 @@ def xor_encode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded XOR data."""
-
 
 @overload
 def xor_decode(
@@ -3596,7 +3285,6 @@ def xor_decode(
 ) -> bytes | bytearray:
     """Return decoded XOR data."""
 
-
 @overload
 def xor_decode(
     data: NDArray[Any],
@@ -3606,7 +3294,6 @@ def xor_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded XOR data."""
-
 
 class ZFP:
     """ZFP codec constants."""
@@ -3639,18 +3326,14 @@ class ZFP:
         MODE = ...
         FULL = ...
 
-
 class ZfpError(RuntimeError):
     """ZFP codec exceptions."""
-
 
 def zfp_version() -> str:
     """Return zfp library version string."""
 
-
 def zfp_check(data: BytesLike, /) -> bool:
     """Return whether data is ZFP encoded."""
-
 
 def zfp_encode(
     data: ArrayLike,
@@ -3666,7 +3349,6 @@ def zfp_encode(
 ) -> bytes | bytearray:
     """Return ZFP encoded data."""
 
-
 def zfp_decode(
     data: BytesLike,
     /,
@@ -3678,7 +3360,6 @@ def zfp_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]:
     """Return decoded ZFP data."""
-
 
 class ZLIB:
     """ZLIB codec constants."""
@@ -3703,18 +3384,14 @@ class ZLIB:
         RLE = ...
         FIXED = ...
 
-
 class ZlibError(RuntimeError):
     """ZLIB codec exceptions."""
-
 
 def zlib_version() -> str:
     """Return zlib library version string."""
 
-
 def zlib_check(data: BytesLike, /) -> bool | None:
     """Return whether data is DEFLATE encoded."""
-
 
 def zlib_encode(
     data: BytesLike,
@@ -3725,7 +3402,6 @@ def zlib_encode(
 ) -> bytes | bytearray:
     """Return DEFLATE encoded data."""
 
-
 def zlib_decode(
     data: BytesLike,
     /,
@@ -3734,14 +3410,11 @@ def zlib_decode(
 ) -> bytes | bytearray:
     """Return decoded DEFLATE data."""
 
-
 def zlib_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
-
 def zlib_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
-
 
 class ZLIBNG:
     """ZLIBNG codec constants."""
@@ -3766,18 +3439,14 @@ class ZLIBNG:
         RLE = ...
         FIXED = ...
 
-
 class ZlibngError(RuntimeError):
     """ZLIBNG codec exceptions."""
-
 
 def zlibng_version() -> str:
     """Return zlibng library version string."""
 
-
 def zlibng_check(data: BytesLike, /) -> bool | None:
     """Return whether data is DEFLATE encoded."""
-
 
 def zlibng_encode(
     data: BytesLike,
@@ -3788,7 +3457,6 @@ def zlibng_encode(
 ) -> bytes | bytearray:
     """Return DEFLATE encoded data."""
 
-
 def zlibng_decode(
     data: BytesLike,
     /,
@@ -3797,14 +3465,11 @@ def zlibng_decode(
 ) -> bytes | bytearray:
     """Return decoded DEFLATE data."""
 
-
 def zlibng_crc32(data: BytesLike, /, value: int | None = None) -> int:
     """Return CRC32 checksum of data."""
 
-
 def zlibng_adler32(data: BytesLike, /, value: int | None = None) -> int:
     """Return Adler-32 checksum of data."""
-
 
 class ZOPFLI:
     """ZOPFLI codec constants."""
@@ -3819,17 +3484,13 @@ class ZOPFLI:
         ZLIB = ...
         DEFLATE = ...
 
-
 class ZopfliError(RuntimeError):
     """ZOPFLI codec exceptions."""
-
 
 def zopfli_version() -> str:
     """Return Zopfli library version string."""
 
-
 zopfli_check = zlib_check
-
 
 def zopfli_encode(
     data: BytesLike,
@@ -3841,9 +3502,7 @@ def zopfli_encode(
 ) -> bytes | bytearray:
     """Return DEFLATE encoded data."""
 
-
 zopfli_decode = zlib_decode
-
 
 class ZSTD:
     """ZSTD codec constants."""
@@ -3851,18 +3510,14 @@ class ZSTD:
     available: bool
     """ZSTD codec is available."""
 
-
 class ZstdError(RuntimeError):
     """ZSTD codec exceptions."""
-
 
 def zstd_version() -> str:
     """Return Zstandard library version string."""
 
-
 def zstd_check(data: BytesLike, /) -> bool:
     """Return whether data is ZSTD encoded."""
-
 
 def zstd_encode(
     data: BytesLike,
@@ -3872,7 +3527,6 @@ def zstd_encode(
     out: int | bytearray | None = None,
 ) -> bytes | bytearray:
     """Return ZSTD encoded data."""
-
 
 def zstd_decode(
     data: BytesLike,
