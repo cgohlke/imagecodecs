@@ -103,10 +103,11 @@ __all__ = [
 
 from typing import TYPE_CHECKING
 
-import imagecodecs
 import numpy
 from numcodecs.abc import Codec
 from numcodecs.registry import get_codec, register_codec
+
+import imagecodecs
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -210,6 +211,9 @@ class Avif(Codec):
         bitspersample: int | None = None,
         pixelformat: int | str | None = None,
         codec: int | str | None = None,
+        primaries: int | None = None,
+        transfer: int | None = None,
+        matrix: int | None = None,
         numthreads: int | None = None,
         index: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -223,6 +227,9 @@ class Avif(Codec):
         self.bitspersample = bitspersample
         self.pixelformat = pixelformat
         self.codec = codec
+        self.primaries = primaries
+        self.transfer = transfer
+        self.matrix = matrix
         self.numthreads = numthreads
         self.index = index
         self.squeeze = squeeze
@@ -237,12 +244,43 @@ class Avif(Codec):
             bitspersample=self.bitspersample,
             pixelformat=self.pixelformat,
             codec=self.codec,
+            primaries=self.primaries,
+            transfer=self.transfer,
+            matrix=self.matrix,
             numthreads=self.numthreads,
         )
 
     def decode(self, buf, out=None):
         return imagecodecs.avif_decode(
             buf, index=self.index, numthreads=self.numthreads, out=out
+        )
+
+
+class Bfloat16(Codec):
+    """Bfloat16 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_bfloat16'
+
+    def __init__(
+        self,
+        byteorder: Literal['>', '<', '='] | None = None,
+        rounding: int | None = None,
+    ) -> None:
+        if not imagecodecs.BFLOAT16.available:
+            raise ValueError('imagecodecs.BFLOAT16 not available')
+
+        self.byteorder = byteorder
+        self.rounding = rounding
+
+    def encode(self, buf):
+        buf = numpy.asarray(buf)
+        return imagecodecs.bfloat16_encode(
+            buf, byteorder=self.byteorder, rounding=self.rounding
+        )
+
+    def decode(self, buf, out=None):
+        return imagecodecs.bfloat16_decode(
+            buf, byteorder=self.byteorder, out=out
         )
 
 
@@ -746,19 +784,19 @@ class Eer(Codec):
         self,
         *,
         shape: tuple[int, int],
-        rlebits: int,
+        skipbits: int,
         horzbits: int,
         vertbits: int,
-        superres: bool = False,
+        superres: int = 0,
     ) -> None:
         if not imagecodecs.EER.available:
             raise ValueError('imagecodecs.EER not available')
 
         self.shape = shape
-        self.rlebits = rlebits
+        self.skipbits = skipbits
         self.horzbits = horzbits
         self.vertbits = vertbits
-        self.superres = bool(superres)
+        self.superres = superres
 
     def encode(self, buf):
         raise NotImplementedError
@@ -767,9 +805,9 @@ class Eer(Codec):
         return imagecodecs.eer_decode(
             buf,
             self.shape,
-            rlebits=self.rlebits,
-            horzbits=self.horzbits,
-            vertbits=self.vertbits,
+            self.skipbits,
+            self.horzbits,
+            self.vertbits,
             superres=self.superres,
             out=out,
         )
