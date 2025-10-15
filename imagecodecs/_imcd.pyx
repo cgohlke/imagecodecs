@@ -1,10 +1,10 @@
 # imagecodecs/_imcd.pyx
 # distutils: language = c
 # cython: language_level = 3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: cdivision=True
-# cython: nonecheck=False
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
+# cython: nonecheck = False
 # cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
@@ -1234,7 +1234,7 @@ def float24_encode(
             &src[0],
             srcsize * 4,
             <uint8_t*> &dst[0],
-            boc,
+            boc == b'<',
             feround
         )
 
@@ -1290,11 +1290,152 @@ def float24_decode(data, byteorder=None, out=None):
             srcptr,
             srcsize,
             dstptr,
-            boc
+            boc == b'<'
         )
 
     if ret < 0:
         raise Float24Error('imcd_float24_decode', ret)
+    return out
+
+
+# 16-bit Brain Floating Point #######################################################
+
+# https://en.wikipedia.org/wiki/Bfloat16_floating-point_format
+
+Bfloat16Error = ImcdError
+bfloat16_version = imcd_version
+bfloat16_check = imcd_check
+
+
+class BFLOAT16:
+    """BFLOAT16 codec constants."""
+
+    available = True
+
+    class ROUND(enum.IntEnum):
+        """BFLOAT16 codec rounding types."""
+
+        TONEAREST = FE_TONEAREST
+        UPWARD = FE_UPWARD
+        DOWNWARD = FE_DOWNWARD
+        TOWARDZERO = FE_TOWARDZERO
+
+
+def bfloat16_encode(
+    data, byteorder=None, rounding=None, out=None
+):
+    """Return BFLOAT16 encoded array."""
+    cdef:
+        const uint8_t[::1] src
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize
+        ssize_t dstsize
+        ssize_t ret = 0
+        char boc
+        int feround = FE_TONEAREST if rounding is None else rounding
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if feround != FE_TONEAREST:
+        raise ValueError(f'{rounding=} not supported')
+
+    data = numpy.asarray(data)
+    if not data.dtype == numpy.float32:
+        raise ValueError('not a numpy.float32 array with native byte order')
+
+    srcsize = data.size
+
+    if byteorder is None or byteorder == '=':
+        boc = IMCD_BOC
+    elif byteorder == '<':
+        boc = b'<'
+    elif byteorder == '>':
+        boc = b'>'
+    else:
+        raise ValueError('invalid byteorder')
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+
+    if out is None:
+        if dstsize < 0:
+            dstsize = srcsize * 2
+        out = _create_output(outtype, dstsize)
+
+    dst = out
+    dstsize = dst.size
+
+    if dst.size < srcsize * 2:
+        raise ValueError('output buffer too short')
+
+    src = _readable_input(data)  # TODO: use numpy iterator?
+
+    with nogil:
+        ret = imcd_bfloat16_encode(
+            &src[0],
+            srcsize * 4,
+            <uint8_t*> &dst[0],
+            boc == b'<',
+            feround
+        )
+
+    if ret < 0:
+        raise Bfloat16Error('imcd_bfloat16_encode', ret)
+
+    del dst
+    return _return_output(out, dstsize, ret, outgiven)
+
+
+def bfloat16_decode(data, byteorder=None, out=None):
+    """Return decoded BFLOAT16 array."""
+    cdef:
+        const uint8_t[::1] src = data
+        const uint8_t* srcptr = &src[0]
+        uint8_t* dstptr = NULL
+        ssize_t srcsize = src.size
+        ssize_t ret = 0
+        char boc
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
+    if srcsize % 2 != 0:
+        raise ValueError('data size not a multiple of 2')
+
+    if byteorder is None or byteorder == '=':
+        boc = IMCD_BOC
+    elif byteorder == '<':
+        boc = b'<'
+    elif byteorder == '>':
+        boc = b'>'
+    else:
+        raise ValueError('invalid byteorder')
+
+    if out is None:
+        out = numpy.empty(srcsize // 2, numpy.float32)
+    elif (
+        not isinstance(out, numpy.ndarray)
+        or out.dtype != numpy.float32  # must be native
+        or out.size < srcsize // 2
+    ):
+        raise ValueError('invalid output type, size, or dtype')
+    elif not numpy.PyArray_ISCONTIGUOUS(out):
+        raise ValueError('output array is not contiguous')
+    if srcsize == 0:
+        return out
+
+    dstptr = <uint8_t*> numpy.PyArray_DATA(out)
+
+    with nogil:
+        ret = imcd_bfloat16_decode(
+            srcptr,
+            srcsize,
+            dstptr,
+            boc == b'<'
+        )
+
+    if ret < 0:
+        raise Bfloat16Error('imcd_bfloat16_decode', ret)
     return out
 
 
@@ -1315,10 +1456,10 @@ def eer_check(const uint8_t[::1] data):
 def eer_decode(
     data,
     shape,
-    int rlebits,
-    int horzbits,
-    int vertbits,
-    bint superres=False,
+    uint32_t skipbits,
+    uint32_t horzbits,
+    uint32_t vertbits,
+    uint32_t superres=0,
     out=None
 ):
     """Return decoded EER image."""
@@ -1335,42 +1476,64 @@ def eer_decode(
         raise ValueError('cannot decode in-place')
 
     if not (
-        1 < rlebits < 15
+        1 < skipbits < 15
         and 0 < horzbits < 5
         and 0 < vertbits < 5
-        and 8 < rlebits + horzbits + vertbits < 17
+        and 8 < skipbits + horzbits + vertbits < 17
     ):
-        raise ValueError(
-            f'compression scheme {rlebits}_{horzbits}_{vertbits} not supported'
-        )
+        raise ValueError(f'invalid {skipbits=}, {horzbits=}, or {vertbits=}')
 
     if (
         superres
-        and (
-            height % (2 ** <uint32_t> vertbits)
-            or width % (2 ** <uint32_t> horzbits)
-        )
+        and (height % (2 ** vertbits) or width % (2 ** horzbits))
     ):
         raise ValueError('shape not compatible with superresolution')
 
-    out = _create_array(out, shape, numpy.bool_, strides=None, zero=True)
+    if (
+        out is None
+        or not (isinstance(out, numpy.ndarray) and out.dtype.char == 'H')
+    ):
+        out = _create_array(
+            out, shape, numpy.bool_, strides=None, zero=out is None
+        )
+    else:
+        out = _create_array(
+            out, shape, numpy.uint16, strides=None, zero=False
+        )
+
     dst = out
     dstptr = <uint8_t*> dst.data
 
-    with nogil:
-        ret = imcd_eer_decode(
-            &src[0],
-            srcsize,
-            dstptr,
-            height,
-            width,
-            rlebits,
-            horzbits,
-            vertbits,
-            superres
-        )
-    if ret < 0:
-        raise EerError('imcd_eer_decode', ret)
+    if out.itemsize == 1:
+        with nogil:
+            ret = imcd_eer_decode(
+                &src[0],
+                srcsize,
+                dstptr,
+                height,
+                width,
+                skipbits,
+                horzbits,
+                vertbits,
+                superres
+            )
+        if ret < 0:
+            raise EerError('imcd_eer_decode', ret)
+    else:
+        with nogil:
+            ret = imcd_eer_decode_u2(
+                &src[0],
+                srcsize,
+                <uint16_t*> dstptr,
+                height,
+                width,
+                skipbits,
+                horzbits,
+                vertbits,
+                superres
+            )
+        if ret < 0:
+            raise EerError('imcd_eer_decode_u2', ret)
 
     return out
 
