@@ -1,10 +1,10 @@
 # imagecodecs/_pcodec.pyx
 # distutils: language = c
 # cython: language_level = 3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: cdivision=True
-# cython: nonecheck=False
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
+# cython: nonecheck = False
 # cython: freethreading_compatible = True
 
 # Copyright (c) 2024-2025, Christoph Gohlke
@@ -80,7 +80,7 @@ def pcodec_encode(data, level=None, out=None):
         numpy.ndarray src = numpy.asarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize, dst_len
-        unsigned int len = <unsigned int> src.size
+        size_t len = src.size
         unsigned int pcolevel = _default_value(level, 8, 0, 12)
         unsigned char pcotype
         PcoFfiVec pcovec
@@ -132,7 +132,7 @@ def pcodec_decode(data, shape=None, dtype=None, out=None):
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        unsigned int src_len = <unsigned int> src.size
+        size_t src_len = src.size
         unsigned char pcotype
         PcoFfiVec pcovec
         PcoError ret
