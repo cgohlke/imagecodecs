@@ -1,10 +1,10 @@
 # imagecodecs/_shared.pyx
 # distutils: language = c
 # cython: language_level = 3
-# cython: boundscheck=False
-# cython: wraparound=False
-# cython: cdivision=True
-# cython: nonecheck=False
+# cython: boundscheck = False
+# cython: wraparound = False
+# cython: cdivision = True
+# cython: nonecheck = False
 # cython: freethreading_compatible = True
 
 # Copyright (c) 2018-2025, Christoph Gohlke
@@ -229,7 +229,7 @@ cdef const uint8_t[::1] _writable_input(data):
         else:
             try:
                 # numpy array
-                src_writable = data.reshape(-1).view(numpy.uint8)
+                writable = data.reshape(-1).view(numpy.uint8)
                 src = writable
             except Exception:
                 # buffer protocol
@@ -259,7 +259,7 @@ cdef const uint8_t[::1] _inplace_input(data):
         view = memoryview(data)
         if not view.contiguous:
             raise ValueError('input data is not writable and contiguous')
-        src_writable = view.cast('B')
+        writable = view.cast('B')
         src = writable
 
     return src
