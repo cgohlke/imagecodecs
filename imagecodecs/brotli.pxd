@@ -1,7 +1,7 @@
 # imagecodecs/brotli.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `Brotli 1.1.0` library.
+# Cython declarations for the `Brotli 1.2.0` library.
 # https://github.com/google/brotli
 
 from libc.stdint cimport uint8_t, uint32_t
@@ -254,5 +254,4 @@ cdef extern from 'brotli/encode.h' nogil:
         const BrotliEncoderPreparedDictionary* dictionary
     )
 
-    uint32_t BrotliEncoderVersion(
-    )
+    uint32_t BrotliEncoderVersion()
