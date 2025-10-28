@@ -1,7 +1,7 @@
 # imagecodecs/blosc2.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `c-blosc2 2.18.0` library.
+# Cython declarations for the `c-blosc2 2.22.0` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
@@ -197,6 +197,10 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC2_ERROR_INVALID_INDEX
     int BLOSC2_ERROR_METALAYER_NOT_FOUND
     int BLOSC2_ERROR_MAX_BUFSIZE_EXCEEDED
+
+    const char* blosc2_error_string(
+        int error_code
+    )
 
     char* print_error(
         int rc
@@ -672,6 +676,7 @@ cdef extern from 'blosc2.h' nogil:
         int tuner_id
         int8_t ndim
         int64_t* blockshape
+        bool view
 
     blosc2_schunk* blosc2_schunk_new(
         blosc2_storage* storage
@@ -1018,6 +1023,34 @@ cdef extern from 'blosc2.h' nogil:
         int64_t** chunks_idx
     )
 
+    int32_t blosc2_shuffle(
+        const int32_t typesize,
+        const int32_t blocksize,
+        const void* src,
+        void* dest
+    )
+
+    int32_t blosc2_unshuffle(
+        const int32_t typesize,
+        const int32_t blocksize,
+        const void* src,
+        void* dest
+    )
+
+    int32_t blosc2_bitshuffle(
+        const int32_t typesize,
+        const int32_t blocksize,
+        const void* src,
+        void* dest
+    )
+
+    int32_t blosc2_bitunshuffle(
+        const int32_t typesize,
+        const int32_t blocksize,
+        const void* src,
+        void* dest
+    )
+
 
 cdef extern from 'b2nd.h' nogil:
 
@@ -1134,6 +1167,11 @@ cdef extern from 'b2nd.h' nogil:
         char* urlpath
     )
 
+    int64_t b2nd_save_append(
+        const b2nd_array_t *array,
+        const char *urlpath
+    )
+
     int b2nd_from_cbuffer(
         b2nd_context_t* ctx,
         b2nd_array_t** array,
@@ -1157,11 +1195,19 @@ cdef extern from 'b2nd.h' nogil:
 
     int b2nd_squeeze_index(
         b2nd_array_t* array,
+        b2nd_array_t** view,
         const bool* index
     )
 
     int b2nd_squeeze(
-        b2nd_array_t* array
+        b2nd_array_t* array,
+        b2nd_array_t** view
+    )
+
+    int b2nd_expand_dims(
+        const b2nd_array_t* array,
+        b2nd_array_t** view,
+        const int8_t axis
     )
 
     int b2nd_get_slice_cbuffer(
