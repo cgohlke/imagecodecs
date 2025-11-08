@@ -1,10 +1,10 @@
 # imagecodecs/imcd.pxd
 # cython: language_level = 3
 
-# Cython declarations for the `imcd 2024.1.1` library.
+# Cython declarations for the `imcd 2025.11.11` library.
 # https://github.com/cgohlke/imagecodecs
 
-from libc.stdint cimport uint8_t
+from libc.stdint cimport uint8_t, uint16_t, uint32_t
 
 
 cdef extern from 'imcd.h' nogil:
@@ -142,27 +142,54 @@ cdef extern from 'imcd.h' nogil:
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
-        const char byteorder
+        const int islittle
     )
 
     ssize_t imcd_float24_encode(
         const uint8_t* src,
         const ssize_t srcsize,
         uint8_t* dst,
-        const char byteorder,
+        const int islittle,
+        int rounding
+    )
+
+    ssize_t imcd_bfloat16_decode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const int islittle
+    )
+
+    ssize_t imcd_bfloat16_encode(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const int islittle,
         int rounding
     )
 
     ssize_t imcd_eer_decode(
-        const uint8_t *src,
+        const uint8_t* src,
         const ssize_t srcsize,
-        uint8_t *dst,
+        uint8_t* dst,
         const ssize_t height,
         const ssize_t width,
-        const int rlebits,
-        const int horzbits,
-        const int vertbits,
-        const bint superres
+        const uint32_t skipbits,
+        const uint32_t horzbits,
+        const uint32_t vertbits,
+        const uint32_t superres
+    )
+
+    ssize_t imcd_eer_decode_u2(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint16_t* dst,
+        const ssize_t height,
+        const ssize_t width,
+        const uint32_t skipbits,
+        const uint32_t horzbits,
+        const uint32_t vertbits,
+        const uint32_t superres
     )
 
     void imcd_swapbytes(
