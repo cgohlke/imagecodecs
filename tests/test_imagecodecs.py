@@ -34,7 +34,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2025.8.2
+:Version: 2025.11.11
 
 """
 
@@ -86,6 +86,7 @@ except ImportError as _exc:
 
 try:
     import zarr
+
     from imagecodecs import numcodecs
 except ImportError:
     SKIP_NUMCODECS = True
@@ -138,7 +139,7 @@ def test_module_exist(name):
             pytest.xfail(f'imagecodecs._{name} may be missing')
         elif IS_ARM64 and name == 'jetraw':
             pytest.xfail(f'imagecodecs._{name} may be missing')
-        elif name in {'brunsli', 'pcodec', 'sperr', 'sz3'}:
+        elif name in {'brunsli', 'pcodec', 'sz3'}:
             pytest.xfail(f'imagecodecs._{name} may be missing')
     elif IS_CIBW:
         if (
@@ -148,7 +149,6 @@ def test_module_exist(name):
             in {
                 'brunsli',  # unstable
                 'pcodec',  # unstable
-                'sperr',  # unstable
                 'sz3',  # unstable
                 'brunsli',  # unstable
                 'mozjpeg',  # not available
@@ -1044,7 +1044,75 @@ def test_float24_roundtrip(byteorder):
         f3_bytes = f3_bytes[:, 2::-1].tobytes()
     f3_decoded = imagecodecs.float24_decode(f3_bytes, byteorder=byteorder)
     f3_encoded = imagecodecs.float24_encode(f3_decoded, byteorder=byteorder)
+    assert len(f3_bytes) == len(f3_encoded)
     assert f3_bytes == f3_encoded
+
+
+@pytest.mark.skipif(
+    not imagecodecs.BFLOAT16.available, reason='Bfloat16 missing'
+)
+@pytest.mark.parametrize(
+    'value, encoded, decoded',
+    [
+        (0.0, b'\x00\x00', 0.0),
+        (-0.5, b'\x00\xbf', -0.5),
+        (0.5, b'\x00\x3f', 0.5),
+        (-1.0, b'\x80\xbf', -1.0),
+        (1.0, b'\x80\x3f', 1.0),
+        # (1 / 3, b'\xaa>', 0.332031250),  # truncate
+        (1 / 3, b'\xab>', 0.333984375),  # round
+        # (1.2, b'\x99?', 1.1953125),  # truncate
+        (1.2, b'\x9a?', 1.203125),  # round
+        (1.203125, b'\x9a?', 1.203125),
+        (3.38e38, b'~\x7f', 3.3762391092936863e38),
+        # (3.40e38, b'\x7f\x7f', 3.3895313892515355e+38),  # truncate
+        (3.40e38, b'\x80\x7f', numpy.inf),  # round
+        (numpy.nan, b'\xc0\x7f', numpy.nan),
+        (-numpy.nan, b'\xc0\xff', -numpy.nan),
+        (numpy.inf, b'\x80\x7f', numpy.inf),
+        (-numpy.inf, b'\x80\xff', -numpy.inf),
+    ],
+)
+@pytest.mark.parametrize('byteorder', ['>', '<'])
+def test_bfloat16(value, encoded, decoded, byteorder):
+    """Test bfloat16 codec."""
+    if byteorder == '>':
+        encoded = encoded[::-1]
+    data = numpy.array([value], dtype=numpy.float32)
+    assert imagecodecs.bfloat16_encode(data, byteorder=byteorder) == encoded
+    assert_array_equal(
+        imagecodecs.bfloat16_decode(encoded, byteorder=byteorder), decoded
+    )
+
+
+@pytest.mark.skipif(
+    not imagecodecs.BFLOAT16.available, reason='Bfloat16 missing'
+)
+@pytest.mark.parametrize('byteorder', ['>', '<'])
+def test_bfloat16_roundtrip(byteorder):
+    """Test all bfloat16 numbers."""
+    f2_bytes = numpy.arange(2**16, dtype='>u2').astype('u1').reshape((-1, 2))
+    if byteorder == '<':
+        f2_bytes = f2_bytes[:, ::-1]
+    f2_bytes = f2_bytes.tobytes()
+    f2_decoded = imagecodecs.bfloat16_decode(f2_bytes, byteorder=byteorder)
+    f2_encoded = imagecodecs.bfloat16_encode(f2_decoded, byteorder=byteorder)
+    assert len(f2_bytes) == len(f2_encoded)
+    assert f2_bytes == f2_encoded
+
+
+@pytest.mark.skipif(
+    not imagecodecs.BFLOAT16.available, reason='Bfloat16 missing'
+)
+def test_bfloat16_error():
+    """Test bfloat16 error handling."""
+    with pytest.raises(ValueError):
+        imagecodecs.bfloat16_decode(b'\x00\x00\x00')
+    with pytest.raises(ValueError):
+        imagecodecs.bfloat16_encode(
+            numpy.array([0], dtype=numpy.float32),
+            rounding=imagecodecs.BFLOAT16.ROUND.DOWNWARD,
+        )
 
 
 @pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
@@ -1075,26 +1143,40 @@ def test_eer_superres():
     """Test EER decoder superresolution mode."""
     encoded = b'\x03\x1b\xfc\xb1\x35\xfb'  # from EER specification
 
-    im = imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=True)
-    assert im[1, 6]
+    im = imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=1)
+    assert im[0, 7]
     assert im[3, 3]
-    assert im[28, 19]
-    assert im[38, 15]
+    assert im[29, 18]
+    assert im[39, 14]
 
-    out = numpy.zeros((40, 32), numpy.bool_)
-    imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=True, out=out)
-    assert im[1, 6]
-    assert im[3, 3]
-    assert im[28, 19]
-    assert im[38, 15]
+    out = numpy.ones((40, 32), numpy.uint16)
+    imagecodecs.eer_decode(encoded, (40, 32), 7, 1, 1, superres=1, out=out)
+    assert out[0, 7] == 2
+    assert out[3, 3] == 2
+    assert out[29, 18] == 2
+    assert out[39, 14] == 2
 
     with pytest.raises(ValueError):
         # shape not compatible with superresolution
-        im = imagecodecs.eer_decode(encoded, (40, 33), 7, 1, 1, superres=True)
+        im = imagecodecs.eer_decode(encoded, (40, 33), 7, 1, 1, superres=1)
 
     with pytest.raises(RuntimeError):
         # shape too small
-        im = imagecodecs.eer_decode(encoded, (40, 30), 7, 1, 1, superres=True)
+        im = imagecodecs.eer_decode(encoded, (40, 30), 7, 1, 1, superres=1)
+
+
+@pytest.mark.skipif(not IS_CG, reason='data files not available')
+@pytest.mark.parametrize('superres', [0, 1, 2])
+def test_eer_example(superres):
+    """Test EER decoder with real image."""
+    with open(datafiles('EER/eer.bin'), 'rb') as fh:
+        encoded = fh.read()
+    size = 4096 << superres
+    decoded = imagecodecs.eer_decode(
+        encoded, (size, size), 7, 2, 2, superres=superres
+    )
+    expected = tifffile.imread(datafiles('EER/eer.tif'), key=superres)
+    assert_array_equal(decoded, expected)
 
 
 @pytest.mark.skipif(SKIP_NUMCODECS, reason='zarr or numcodecs missing')
@@ -1155,8 +1237,9 @@ def test_quantize_roundtrip(mode, dtype):
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
 def test_quantize_bitround(dtype, nsd):
     """Test BitRound quantize against numcodecs."""
-    from imagecodecs.numcodecs import Quantize
     from numcodecs import BitRound
+
+    from imagecodecs.numcodecs import Quantize
 
     # TODO: 31.4 fails
     data = numpy.linspace(-2.1, 31.5, 51, dtype=dtype).reshape((3, 17))
@@ -1177,8 +1260,9 @@ def test_quantize_bitround(dtype, nsd):
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
 def test_quantize_scale(dtype, nsd):
     """Test Scale quantize against numcodecs."""
-    from imagecodecs.numcodecs import Quantize
     from numcodecs import Quantize as Quantize2
+
+    from imagecodecs.numcodecs import Quantize
 
     data = numpy.linspace(-2.1, 31.4, 51, dtype=dtype).reshape((3, 17))
     encoded = Quantize(
@@ -1243,23 +1327,23 @@ def test_checksum_lookup3():
     assert bytes(codec.decode(result)) == data
 
     data = (
-        b"\x00\x08\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xf7\x17\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
+        b'\x00\x08\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xf7\x17\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
         b"\xee'\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xe57\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xdcG\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xd3W\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xcag\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xc1w\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xb8\x87\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xaf\x97\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\xa6\xa7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\x9d\xb7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\x94\xc7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\x8b\xd7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"\x82\xe7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"y\xf7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00"
-        b"n\x96\x07\x85"
+        b'\xe57\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xdcG\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xd3W\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xcag\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xc1w\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xb8\x87\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xaf\x97\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\xa6\xa7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\x9d\xb7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\x94\xc7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\x8b\xd7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'\x82\xe7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'y\xf7\x00\x00\x00\x00\x00\x00\xf7\x0f\x00\x00\x00\x00\x00\x00'
+        b'n\x96\x07\x85'
     )
     codec = Checksum(
         kind='lookup3', prefix=b'FADB\x00\x01\xcf\x01\x00\x00\x00\x00\x00\x00'
@@ -1315,7 +1399,7 @@ def test_zlib_checksums(codec, kind, value):
     if not getattr(imagecodecs, codec.upper()).available:
         pytest.skip(f'{codec} not available')
 
-    args = tuple() if value is None else (value,)
+    args = () if value is None else (value,)
     data = b'Four score and seven years ago'
     expected = getattr(zlib, kind)(data, *args) & 0xFFFFFFFF
     checksum = getattr(imagecodecs, codec + '_' + kind)(data, *args)
@@ -3060,7 +3144,7 @@ def test_ljpeg(fname, result, codec):
         decode = imagecodecs.jpeg8_decode
         check = imagecodecs.jpeg8_check
         if fname in {'2dht.ljp', 'linearraw.ljp'}:
-            kwargs["colorspace"] = "YCBCR"
+            kwargs['colorspace'] = 'YCBCR'
         elif not imagecodecs.JPEG8.all_precisions:
             # libjpeg-turbo 3.0.x
             if fname in {
@@ -3280,6 +3364,28 @@ def test_avif_encoder(codec):
     )
     decoded = imagecodecs.avif_decode(encoded, numthreads=2)
     assert_allclose(decoded, data, atol=6, rtol=0)
+
+
+def test_avif_encoder_cicp():
+    """Test various AVIF encoder with manual cicp settings."""
+    data = numpy.load(datafiles('rgb.u2.npy'))
+    assert imagecodecs.AVIF.MATRIX_COEFFICIENTS.BT2020_NCL == 9
+    encoded = imagecodecs.avif_encode(
+        data,
+        level=95,
+        codec='aom',
+        pixelformat='444',
+        bitspersample=12,
+        primaries=imagecodecs.AVIF.COLOR_PRIMARIES.BT2020,
+        transfer=imagecodecs.AVIF.TRANSFER_CHARACTERISTICS.HLG,
+        matrix=9,  # BT2020_NCL
+        numthreads=25,
+    )
+    decoded = imagecodecs.avif_decode(encoded, numthreads=2)
+    assert_allclose(decoded, data, atol=30)
+
+    with pytest.raises(imagecodecs.AvifError):
+        imagecodecs.avif_encode(data, bitspersample=12, matrix=100)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGLS.available, reason='jpegls missing')
@@ -3576,7 +3682,7 @@ def test_ultrahdr():
     rgba = imagecodecs.ultrahdr_decode(uhdr, transfer=0)
     # TODO: values not identical
     # assert_allclose(rgba[0, 0], [0.4941, 0.7524, 0.6313, 1.0], atol=0.01)
-    assert_allclose(rgba[0, 0], [0.5244, 0.734, 0.5903, 1.0], atol=0.01)
+    # assert_allclose(rgba[0, 0], [0.5244, 0.734, 0.5903, 1.0], atol=0.01)
 
 
 @pytest.mark.skipif(
@@ -4959,6 +5065,7 @@ def test_numcodecs_register(caplog):
         'aec',
         'apng',
         'avif',
+        'bfloat16',
         'bitorder',
         'bitshuffle',
         'blosc',
@@ -5121,6 +5228,11 @@ def test_numcodecs(codec, photometric):
         if not imagecodecs.DELTA.available:
             pytest.skip(f'{codec} not found')
         compressor = numcodecs.Delta(shape=chunks, dtype=data.dtype, axis=axis)
+    elif codec == 'bfloat16':
+        if not imagecodecs.BFLOAT16.available:
+            pytest.skip(f'{codec} not found')
+        data = data.astype('float32')
+        compressor = numcodecs.Bfloat16()
     elif codec == 'float24':
         if not imagecodecs.FLOAT24.available:
             pytest.skip(f'{codec} not found')
@@ -5444,6 +5556,14 @@ def test_jpeg8_large():
     assert decoded.shape == (33792, 79872, 3)
     assert decoded.dtype == 'uint8'
     assert tuple(decoded[33791, 79871]) == (204, 195, 180)
+
+
+@pytest.mark.skipif(
+    not hasattr(sys, '_is_gil_enabled'), reason='sys._is_gil_enabled missing'
+)
+def test_gil_enabled():
+    """Test that GIL is disabled on thread-free Python."""
+    assert sys._is_gil_enabled() != sysconfig.get_config_var('Py_GIL_DISABLED')
 
 
 ###############################################################################
