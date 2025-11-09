@@ -1243,7 +1243,7 @@ ssize_t imcd_float24_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const char byteorder)
+    const int islittle)
 {
     /* input validation is done in wrapper function */
 
@@ -1258,7 +1258,7 @@ ssize_t imcd_float24_decode(
     }
 
     for (i = 0; i < srcsize; i += 3) {
-        if (byteorder == '<') {
+        if (islittle) {
             /* from little endian */
             s2 = *src++;
             s1 = *src++;
@@ -1340,7 +1340,7 @@ ssize_t imcd_float24_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
-    const char byteorder,
+    const int islittle,
     int rounding)
 {
     /* input validation is done in wrapper function */
@@ -1491,16 +1491,128 @@ ssize_t imcd_float24_encode(
                 }
             }
         }
-        if (byteorder == '<') {
+        if (islittle) {
             /* to little endian */
             *dst++ = f2;
             *dst++ = f1;
             *dst++ = f0;
-        } else {
+        }
+        else {
             /* to big endian */
             *dst++ = f0;
             *dst++ = f1;
             *dst++ = f2;
+        }
+    }
+    return (srcsize / 4) * 4;
+}
+
+
+/********************************* Bfloat16 **********************************/
+
+/* https://en.wikipedia.org/wiki/Bfloat16_floating-point_format */
+
+ssize_t imcd_bfloat16_decode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const int islittle)
+{
+    /* input validation is done in wrapper function */
+
+    ssize_t i;
+    uint8_t f0, f1;
+
+    if (srcsize < 2) {
+        return 0;
+    }
+
+    for (i = 0; i < srcsize; i += 2) {
+        if (islittle) {
+            /* from little endian */
+            f1 = *src++;
+            f0 = *src++;
+        }
+        else {
+            /* from big endian */
+            f0 = *src++;
+            f1 = *src++;
+        }
+
+#if IMCD_MSB
+        /* to little endian */
+        *dst++ = 0;
+        *dst++ = 0;
+        *dst++ = f1;
+        *dst++ = f0;
+#else
+        /* to big endian */
+        *dst++ = f0;
+        *dst++ = f1;
+        *dst++ = 0;
+        *dst++ = 0;
+#endif
+    }
+    return (srcsize / 2) * 2;
+}
+
+
+ssize_t imcd_bfloat16_encode(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const int islittle,
+    int rounding)
+{
+    /* input validation is done in wrapper function */
+
+    ssize_t i;
+    uint8_t f0, f1;
+    uint32_t uvalue;
+    float fvalue;
+
+    if (srcsize < 4) {
+        return 0;
+    }
+
+    /* always round a half value to nearest even */
+    /*
+    if (rounding < 0) {
+        rounding = fegetround();
+    }
+    if (
+        (rounding != FE_TONEAREST) &&
+        (rounding != FE_TOWARDZERO) &&
+        (rounding != FE_UPWARD) &&
+        (rounding != FE_DOWNWARD)
+    ) {
+        rounding = FE_TONEAREST;
+    }
+    */
+
+    for (i = 0; i < srcsize; i += 4) {
+        memcpy(&fvalue, &src[i], 4);
+
+        if (isnan(fvalue)) {
+            f0 = signbit(fvalue) ? 0xFF : 0x7F;
+            f1 = 0xC0;
+        }
+        else {
+            /* memcpy(&uvalue, &src[i], 4); */
+            uvalue = *((uint32_t *) &fvalue);
+            uvalue += 0x7fff + ((uvalue >> 16) & 1);
+            f1 = (uvalue >> 16) & 0xFF;
+            f0 = (uvalue >> 24) & 0xFF;
+        }
+        if (islittle) {
+            /* to little endian */
+            *dst++ = f1;
+            *dst++ = f0;
+        }
+        else {
+            /* to big endian */
+            *dst++ = f0;
+            *dst++ = f1;
         }
     }
     return (srcsize / 4) * 4;
@@ -1518,99 +1630,178 @@ detected electron events with sub pixel information.
 
 ssize_t
 imcd_eer_decode(
-    const uint8_t *src,
+    const uint8_t* src,
     const ssize_t srcsize,
-    uint8_t *dst,
+    uint8_t* dst,
     const ssize_t height,
     const ssize_t width,
-    const int rlebits,
-    const int horzbits,
-    const int vertbits,
-    const bool superres)
+    const uint32_t skipbits,
+    const uint32_t horzbits,
+    const uint32_t vertbits,
+    const uint32_t superres)
 {
     const ssize_t dstsize = height * width;
-    const ssize_t nbits = rlebits + horzbits + vertbits;
+    const ssize_t nbits = skipbits + horzbits + vertbits;
     const ssize_t srcbits = srcsize * 8 - nbits;
-    const uint16_t rlemask = imcd_bitmask2(rlebits);
-    const uint16_t horzmask = imcd_bitmask2(horzbits);
-    const uint16_t vertmask = imcd_bitmask2(vertbits);
-    const ssize_t horzsize = (ssize_t)horzmask + 1;
-    const ssize_t vertsize = (ssize_t)vertmask + 1;
+    const uint32_t skipmask = imcd_bitmask2(skipbits);
+    const uint32_t horzmask = imcd_bitmask2(horzbits);
+    const uint32_t vertmask = imcd_bitmask2(vertbits);
+    const uint32_t horzshift = MAX_(0, (ssize_t)horzbits - (ssize_t)superres);
+    const uint32_t vertshift = MAX_(0, (ssize_t)vertbits - (ssize_t)superres);
+    const ssize_t horzsize = (ssize_t)((horzmask + 1) >> horzshift);
+    const ssize_t vertsize = (ssize_t)((vertmask + 1) >> vertshift);
     const ssize_t width2 = width / horzsize;
+    const ssize_t pixelsize = dstsize / (horzsize * vertsize);
     ssize_t bitindex = 0;
-    ssize_t pixelindex = 0;
     ssize_t dstindex = 0;
+    ssize_t pixelindex = 0;
     ssize_t events = 0;
-    uint16_t word = 0;
-    uint16_t rle = 0;
+    uint32_t word = 0;
+    uint32_t skip = 0;
     ssize_t v, h;
 
-    if ((src == NULL) || (srcsize < 2) || (dst == NULL) || (height < 1) ||
-        (width < 1) || (nbits > 16) || (nbits <= 8) || (rlebits < 4) ||
-        (horzbits < 1) || (vertbits < 1)) {
+    if ((src == NULL) || (srcsize % 2) || (dst == NULL) ||
+        (height < 1) || (width < 1) || (nbits > 16) || (nbits <= 8) ||
+        (skipbits < 4) || (horzbits < 1) || (vertbits < 1)) {
         return IMCD_VALUE_ERROR;
     }
 
-    if (superres) {
-        if ((width % horzsize) || (height % vertsize)) {
-            return IMCD_VALUE_ERROR;
-        }
-        while (bitindex < srcbits) {
-            word = *((uint16_t *)(src + (bitindex / 8)));
-            word >>= bitindex % 8;
-            rle = word & rlemask;
-            pixelindex += (ssize_t)rle;
-            if (rle == rlemask) {
-                bitindex += rlebits;
-                continue;
-            }
-            word >>= rlebits;
-            v = (ssize_t)((word & vertmask) ^ ((uint16_t)1 << (vertbits - 1)));
-            word >>= vertbits;
-            h = (ssize_t)((word & horzmask) ^ ((uint16_t)1 << (horzbits - 1)));
-            v += (pixelindex / width2) * vertsize;
-            h += (pixelindex % width2) * horzsize;
-            dstindex = v * width + h;
-            if (dstindex == dstsize) {
-                break;
-            }
-            if (dstindex < 0) {
-                return IMCD_INPUT_CORRUPT;
-            }
-            if (dstindex > dstsize) {
-                return IMCD_OUTPUT_TOO_SMALL;
-            }
-            dst[dstindex] += 1;
-            pixelindex++;
-            events++;
-            bitindex += nbits;
-        }
-    } else {
-        while (bitindex < srcbits) {
-            word = *((uint16_t *)(src + (bitindex / 8)));
-            word >>= bitindex % 8;
-            rle = word & rlemask;
-            dstindex += rle;
-            if (dstindex == dstsize) {
-                break;
-            }
-            if (dstindex < 0) {
-                return IMCD_INPUT_CORRUPT;
-            }
-            if (dstindex > dstsize) {
-                return IMCD_OUTPUT_TOO_SMALL;
-            }
-            if (rle == rlemask) {
-                bitindex += rlebits;
-                continue;
-            }
-            dst[dstindex] += 1;
-            dstindex++;
-            events++;
-            bitindex += nbits;
-        }
+    if ((superres > 0) && ((width % horzsize) || (height % vertsize))) {
+        return IMCD_VALUE_ERROR;
     }
 
+    while (bitindex < srcbits) {
+        word = 0;
+        v = bitindex / 8;
+        h = srcsize - v;
+        memcpy(&word, src + v, h > 3 ? 4 : h);
+        word >>= bitindex % 8;
+        skip = word & skipmask;
+        pixelindex += (ssize_t)skip;
+        if (pixelindex == pixelsize) {
+            break;
+        }
+        if (pixelindex < 0) {
+            return IMCD_INPUT_CORRUPT;
+        }
+        if (pixelindex > pixelsize) {
+            return IMCD_OUTPUT_TOO_SMALL;
+        }
+        if (skip == skipmask) {
+            bitindex += skipbits;
+            continue;
+        }
+        if (superres == 0) {
+            dstindex = pixelindex;
+        }
+        else {
+            word >>= skipbits;
+            h = (ssize_t)(((word & horzmask) ^ horzbits) >> horzshift);
+            h += (pixelindex % width2) * horzsize;
+
+            word >>= horzbits;
+            v = (ssize_t)(((word & vertmask) ^ vertbits) >> vertshift);
+            v += (pixelindex / width2) * vertsize;
+
+            dstindex = v * width + h;
+            if (dstindex >= dstsize) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
+        }
+        dst[dstindex] += 1;
+        pixelindex++;
+        bitindex += nbits;
+        events++;
+    }
+    return events;
+}
+
+
+ssize_t
+imcd_eer_decode_u2(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint16_t* dst,
+    const ssize_t height,
+    const ssize_t width,
+    const uint32_t skipbits,
+    const uint32_t horzbits,
+    const uint32_t vertbits,
+    const uint32_t superres)
+{
+    const ssize_t dstsize = height * width;
+    const ssize_t nbits = skipbits + horzbits + vertbits;
+    const ssize_t srcbits = srcsize * 8 - nbits;
+    const uint32_t skipmask = imcd_bitmask2(skipbits);
+    const uint32_t horzmask = imcd_bitmask2(horzbits);
+    const uint32_t vertmask = imcd_bitmask2(vertbits);
+    const uint32_t horzshift = MAX_(0, (ssize_t)horzbits - (ssize_t)superres);
+    const uint32_t vertshift = MAX_(0, (ssize_t)vertbits - (ssize_t)superres);
+    const ssize_t horzsize = (ssize_t)((horzmask + 1) >> horzshift);
+    const ssize_t vertsize = (ssize_t)((vertmask + 1) >> vertshift);
+    const ssize_t width2 = width / horzsize;
+    const ssize_t pixelsize = dstsize / (horzsize * vertsize);
+    ssize_t bitindex = 0;
+    ssize_t dstindex = 0;
+    ssize_t pixelindex = 0;
+    ssize_t events = 0;
+    uint32_t word = 0;
+    uint32_t skip = 0;
+    ssize_t v, h;
+
+    if ((src == NULL) || (srcsize % 2) || (dst == NULL) ||
+        (height < 1) || (width < 1) || (nbits > 16) || (nbits <= 8) ||
+        (skipbits < 4) || (horzbits < 1) || (vertbits < 1)) {
+        return IMCD_VALUE_ERROR;
+    }
+
+    if ((superres > 0) && ((width % horzsize) || (height % vertsize))) {
+        return IMCD_VALUE_ERROR;
+    }
+
+    while (bitindex < srcbits) {
+        word = 0;
+        v = bitindex / 8;
+        h = srcsize - v;
+        memcpy(&word, src + v, h > 3 ? 4 : h);
+        word >>= bitindex % 8;
+        skip = word & skipmask;
+        pixelindex += (ssize_t)skip;
+        if (pixelindex == pixelsize) {
+            break;
+        }
+        if (pixelindex < 0) {
+            return IMCD_INPUT_CORRUPT;
+        }
+        if (pixelindex > pixelsize) {
+            return IMCD_OUTPUT_TOO_SMALL;
+        }
+        if (skip == skipmask) {
+            bitindex += skipbits;
+            continue;
+        }
+        if (superres == 0) {
+            dstindex = pixelindex;
+        }
+        else {
+            word >>= skipbits;
+            h = (ssize_t)(((word & horzmask) ^ horzbits) >> horzshift);
+            h += (pixelindex % width2) * horzsize;
+
+            word >>= horzbits;
+            v = (ssize_t)(((word & vertmask) ^ vertbits) >> vertshift);
+            v += (pixelindex / width2) * vertsize;
+
+            dstindex = v * width + h;
+            if (dstindex >= dstsize) {
+                return IMCD_OUTPUT_TOO_SMALL;
+            }
+        }
+        dst[dstindex] += 1;
+        pixelindex++;
+        bitindex += nbits;
+        events++;
+    }
     return events;
 }
 
@@ -1660,7 +1851,8 @@ ssize_t _lzw_alloc_buffer(
         if (tmp == NULL) {
             free(handle->buffer);
             handle->buffer = NULL;
-        } else {
+        }
+        else {
             handle->buffer = (uint8_t *)tmp;
         }
     }
@@ -1718,7 +1910,8 @@ void imcd_lzw_del(imcd_lzw_handle_t* handle)
         if (bitoffset == 0 && bitw <= 24) {  \
             code = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];  \
             code >>= (24 - bitw);  \
-        } else {  \
+        } \
+        else {  \
             code = (uint32_t) bytes[0];  \
             code <<= 8;  \
             code |= (uint32_t) bytes[1];  \
