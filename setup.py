@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import sys
+import sysconfig
 
 import numpy
 from Cython.Build import cythonize
@@ -13,9 +14,21 @@ from setuptools import Extension, setup
 
 buildnumber = ''  # e.g. 'pre1' or 'post1'
 
-DEBUG = bool(os.environ.get('IMAGECODECS_DEBUG', False))
+HERE = os.path.dirname(os.path.abspath(__file__))
+DEBUG = bool(os.environ.get('CG_DEBUG', False))
+LIMITED_API = os.environ.get('CG_LIMITED_API', '1').lower() in ('1', 'true')
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
+if LIMITED_API and not sysconfig.get_config_var('Py_GIL_DISABLED'):
+    py_limited_api = True
+    define_macros = [
+        ('Py_LIMITED_API', 0x030B0000),
+        ('CYTHON_LIMITED_API', '1'),
+    ]
+    options = {'bdist_wheel': {'py_limited_api': 'cp311'}}
+else:
+    py_limited_api = False
+    define_macros = []
+    options = {}
 
 
 def search(pattern: str, string: str, flags: int = 0) -> str:
@@ -45,7 +58,7 @@ def fix_docstring_examples(docstring: str) -> str:
 
 
 with open(
-    os.path.join(base_dir, 'imagecodecs/imagecodecs.py'), encoding='utf-8'
+    os.path.join(HERE, 'imagecodecs/imagecodecs.py'), encoding='utf-8'
 ) as fh:
     code = fh.read().replace('\r\n', '\n').replace('\r', '\n')
 
@@ -107,7 +120,7 @@ def ext(**kwargs):
         extra_link_args=[],
         extra_objects=[],
         depends=[],
-        py_limited_api=False,
+        py_limited_api=py_limited_api,
     )
     d.update(kwargs)
     return d
@@ -118,19 +131,18 @@ OPTIONS = {
     'library_dirs': [],
     'libraries': ['m'] if sys.platform != 'win32' else [],
     'define_macros': (
-        [
+        define_macros
+        + [
             # ('CYTHON_TRACE_NOGIL', '1'),
-            # ('CYTHON_LIMITED_API', '1'),
-            # ('Py_LIMITED_API', '1'),
-            ('NPY_NO_DEPRECATED_API', 'NPY_1_20_API_VERSION'),
+            ('NPY_NO_DEPRECATED_API', 'NPY_2_0_API_VERSION'),
         ]
         + ([('WIN32', 1)] if sys.platform == 'win32' else [])
     ),
+    'py_limited_api': py_limited_api,
     'extra_compile_args': ['/Zi', '/Od'] if DEBUG else [],
     'extra_link_args': ['-debug:full'] if DEBUG else [],
     'extra_objects': [],
     'depends': ['imagecodecs/_shared.pxd'],
-    'py_limited_api': False,
     # cythonize options
     'nthreads': 0,
     'build_dir': 'build',
@@ -317,7 +329,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
     # remove unstable extensions
     EXTENSIONS.pop('brunsli', None)
     EXTENSIONS.pop('pcodec', None)
-    EXTENSIONS.pop('sperr', None)
+    # EXTENSIONS.pop('sperr', None)
     EXTENSIONS.pop('sz3', None)
 
     dlls: list[str] = []  # 'heif.dll'
@@ -480,7 +492,7 @@ def customize_build_cgohlke(EXTENSIONS, OPTIONS):
 
 
 def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
-    """Customize build for Czaki's cibuildwheel environment."""
+    """Customize build for cibuildwheel environment."""
     for ext in {
         'heif',
         'jetraw',
@@ -488,7 +500,7 @@ def customize_build_cibuildwheel(EXTENSIONS, OPTIONS):
         'mozjpeg',
         'brunsli',
         'pcodec',
-        'sperr',
+        # 'sperr',
         'sz3',
     }:
         EXTENSIONS.pop(ext, None)
@@ -735,7 +747,22 @@ MODULE_LIST = [extension(name) for name in sorted(EXTENSIONS)]
 if 'shared_utility_qualified_name' in OPTIONS:
     name = OPTIONS['shared_utility_qualified_name']
     assert isinstance(name, str)
-    MODULE_LIST.append(Extension(name, []))
+    MODULE_LIST.append(
+        Extension(
+            name,
+            [],
+            **{
+                key: OPTIONS[key]
+                for key in (
+                    'define_macros',
+                    'extra_compile_args',
+                    'extra_link_args',
+                    'py_limited_api',
+                )
+                if key in OPTIONS
+            },
+        )
+    )
 
 EXT_MODULES = cythonize(
     MODULE_LIST,
@@ -802,6 +829,7 @@ setup(
         'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
     },
     ext_modules=EXT_MODULES,
+    options=options,
     zip_safe=False,
     platforms=['any'],
     classifiers=[
