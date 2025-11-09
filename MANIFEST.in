@@ -57,7 +57,12 @@ exclude tests/data/33792x79872.jpg
 exclude tests/data/jpegxr.czi
 exclude tests/data/jetraw.bin
 
+exclude .env
 exclude *.cmd
+exclude *.yaml
+exclude mypy.ini
+exclude *.code-workspace
+exclude .gitignore
 exclude build_utils/*
 
 recursive-exclude doc *
