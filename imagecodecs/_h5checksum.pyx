@@ -1,13 +1,12 @@
 # imagecodecs/_h5checksum.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""H5checksum codec for the imagecodecs package."""
+"""H5CHECKSUM codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -44,7 +43,7 @@ from h5checksum cimport *
 
 
 class H5CHECKSUM:
-    """H5checksum codec constants."""
+    """H5CHECKSUM codec constants."""
 
     available = True
 
@@ -54,8 +53,12 @@ def h5checksum_version():
     return f'h5checksum {H5_VERS_MAJOR}.{H5_VERS_MINOR}.{H5_VERS_RELEASE}'
 
 
-def h5checksum_fletcher32(data, value=None):
-    """Return fletcher32 checksum of data (value is ignored)."""
+def h5checksum_fletcher32(
+    data,
+    /,
+    value=None,
+):
+    """Return Fletcher-32 checksum of data (value is ignored)."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
@@ -66,7 +69,11 @@ def h5checksum_fletcher32(data, value=None):
     return int(val)
 
 
-def h5checksum_lookup3(data, value=None):
+def h5checksum_lookup3(
+    data,
+    /,
+    value=None,
+):
     """Return Jenkins lookup3 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -78,8 +85,12 @@ def h5checksum_lookup3(data, value=None):
     return int(val)
 
 
-def h5checksum_crc(data, value=None):
-    """Return crc checksum of data (value is ignored)."""
+def h5checksum_crc(
+    data,
+    /,
+    value=None,
+):
+    """Return CRC checksum of data (value is ignored)."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.size
@@ -90,7 +101,11 @@ def h5checksum_crc(data, value=None):
     return int(val)
 
 
-def h5checksum_metadata(data, value=None):
+def h5checksum_metadata(
+    data,
+    /,
+    value=None,
+):
     """Return checksum of metadata."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -102,7 +117,11 @@ def h5checksum_metadata(data, value=None):
     return int(val)
 
 
-def h5checksum_hash_string(data, value=None):
+def h5checksum_hash_string(
+    data,
+    /,
+    value=None,
+):
     """Return hash of bytes string (value is ignored)."""
     cdef:
         const char* str = data
