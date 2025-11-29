@@ -1,13 +1,12 @@
 # imagecodecs/_template.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Template codec for the imagecodecs package."""
+"""TEMPLATE codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -58,17 +57,29 @@ def template_version():
     return 'templatelib n/a'
 
 
-def template_check(const uint8_t[::1] data):
-    """Return whether data is TEMPLATE encoded."""
-    # return None if don't know.
-    return False
+def template_check(const uint8_t[::1] data, /):
+    """Return whether data is TEMPLATE encoded or None if unknown."""
 
 
-def template_encode(data, level=None, numthreads=None, out=None):
+def template_encode(
+    data,
+    /,
+    level=None,
+    *,
+    numthreads=None,
+    out=None,
+):
     """Return TEMPLATE encoded data (not implemented)."""
     raise NotImplementedError('template_encode')
 
 
-def template_decode(data, index=None, numthreads=None, out=None):
+def template_decode(
+    data,
+    /,
+    index=None,
+    *,
+    numthreads=None,
+    out=None,
+):
     """Return decoded TEMPLATE data (not implemented)."""
     raise NotImplementedError('template_decode')
