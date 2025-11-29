@@ -1,13 +1,12 @@
 # imagecodecs/_zopfli.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Zopfli codec for the imagecodecs package."""
+"""ZOPFLI codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -70,7 +69,14 @@ def zopfli_version():
 # zopfli_decode = zlib_decode
 
 
-def zopfli_encode(data, level=None, out=None, **kwargs):
+def zopfli_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+    **kwargs,
+):
     """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
