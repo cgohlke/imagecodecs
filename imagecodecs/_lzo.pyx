@@ -1,13 +1,12 @@
 # imagecodecs/_lzo.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZO codec for the imagecodecs package."""
+"""LZO (Lempel-Ziv-Oberhumer) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -70,19 +69,32 @@ def lzo_version():
     return 'lzokay unknown'
 
 
-def lzo_check(const uint8_t[::1] data):
-    """Return whether data is LZO encoded."""
+def lzo_check(const uint8_t[::1] data, /):
+    """Return whether data is LZO encoded or None if unknown."""
     if data.size > 5 and (data[0] != 0xf0 or data[0] != 0xf1):
         return True
     return None
 
 
-def lzo_encode(data, level=None, header=False, out=None):
+def lzo_encode(
+    data,
+    /,
+    level=None,
+    *,
+    header=False,
+    out=None,
+):
     """Return LZO encoded data (not implemented)."""
     raise NotImplementedError('lzo_encode')
 
 
-def lzo_decode(data, header=False, out=None):
+def lzo_decode(
+    data,
+    /,
+    *,
+    header=False,
+    out=None,
+):
     """Return decoded LZO data."""
     cdef:
         const uint8_t[::1] src = data
