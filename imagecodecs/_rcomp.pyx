@@ -1,13 +1,12 @@
 # imagecodecs/_rcomp.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Rcomp codec for the imagecodecs package.
+"""RCOMP codec for the imagecodecs package.
 
 Rcomp is an implementation of the Rice algorithm:
 
@@ -77,12 +76,17 @@ def rcomp_version():
     return 'ricecomp ' + RCOMP_VERSION.decode()
 
 
-def rcomp_check(data):
-    """Return whether data is RCOMP encoded."""
-    return False
+def rcomp_check(const uint8_t[::1] data, /):
+    """Return whether data is RCOMP encoded or None if unknown."""
 
 
-def rcomp_encode(data, nblock=None, out=None):
+def rcomp_encode(
+    data,
+    /,
+    *,
+    nblock=None,
+    out=None,
+):
     """Return RCOMP encoded data."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -94,7 +98,7 @@ def rcomp_encode(data, nblock=None, out=None):
         int ret = 0
 
     if not (
-        srcsize <= 2147483647
+        srcsize <= INT32_MAX
         and dtype.kind in {b'i', b'u'}
         and dtype.itemsize in {1, 2, 4}
     ):
@@ -111,7 +115,7 @@ def rcomp_encode(data, nblock=None, out=None):
 
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647:
+    if dstsize > INT32_MAX:
         raise ValueError('output too large')
 
     if dtype.itemsize == 1:
@@ -158,13 +162,19 @@ def rcomp_encode(data, nblock=None, out=None):
 
 
 def rcomp_decode(
-    data, shape=None, dtype=None, nblock=None, out=None
+    data,
+    /,
+    shape=None,
+    dtype=None,
+    *,
+    nblock=None,
+    out=None,
 ):
     """Return decoded RCOMP data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = <size_t> src.size
+        ssize_t srcsize = <ssize_t> src.size
         ssize_t dstsize
         int ret = 0
         int nblock_ = 32 if nblock is None else nblock
@@ -172,7 +182,7 @@ def rcomp_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('input buffer too large')
 
     if out is not None and isinstance(out, numpy.ndarray):
@@ -183,7 +193,7 @@ def rcomp_decode(
         else:
             dtype = numpy.dtype(dtype)
     elif dtype is None or shape is None:
-        raise ValueError('missing shape or dtype')
+        raise TypeError('missing shape or dtype')
     else:
         dtype = numpy.dtype(dtype)
         try:
@@ -197,7 +207,7 @@ def rcomp_decode(
     out = _create_array(out, shape, dtype)
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647:
+    if dstsize > INT32_MAX:
         raise ValueError('output array too large')
 
     if dtype.itemsize == 1:
