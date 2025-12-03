@@ -1,13 +1,12 @@
 # imagecodecs/_snappy.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Snappy codec for the imagecodecs package."""
+"""SNAPPY codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -69,11 +68,16 @@ def snappy_version():
     return 'snappy 1.2.x'
 
 
-def snappy_check(arg):
-    """Return whether data is SNAPPY encoded."""
+def snappy_check(const uint8_t[::1] data, /):
+    """Return whether data is SNAPPY encoded or None if unknown."""
 
 
-def snappy_encode(data, out=None):
+def snappy_encode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return SNAPPY encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -134,7 +138,12 @@ def snappy_encode(data, out=None):
     return _return_output(out, dstsize, output_length, outgiven)
 
 
-def snappy_decode(data, out=None):
+def snappy_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded SNAPPY data."""
     cdef:
         const uint8_t[::1] src = data
