@@ -1,13 +1,12 @@
 # imagecodecs/_qoi.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""QOI codec for the imagecodecs package."""
+"""QOI (Quite OK Image Format) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -64,15 +63,20 @@ def qoi_version():
     return 'qoi 4461cc3'
 
 
-def qoi_check(const uint8_t[::1] data):
-    """Return whether data is QOI encoded image."""
+def qoi_check(const uint8_t[::1] data, /):
+    """Return whether data is QOI encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:4])
 
     return sig == b'qoif'
 
 
-def qoi_encode(data, out=None):
+def qoi_encode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return QOI encoded image."""
     cdef:
         numpy.ndarray src = numpy.asarray(data)
@@ -86,8 +90,8 @@ def qoi_encode(data, out=None):
     if not (
         src.dtype == numpy.uint8
         and src.ndim == 3
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
         and (samples == 3 or samples == 4)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
@@ -125,7 +129,12 @@ def qoi_encode(data, out=None):
     return _return_output(out, dstsize, out_len, outgiven)
 
 
-def qoi_decode(data, out=None):
+def qoi_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded QOI image."""
     cdef:
         numpy.ndarray dst
@@ -137,7 +146,7 @@ def qoi_decode(data, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('input too large')
 
     with nogil:
