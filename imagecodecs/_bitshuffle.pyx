@@ -1,13 +1,12 @@
 # imagecodecs/_bitshuffle.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Bitshuffle codec for the imagecodecs package."""
+"""BITSHUFFLE codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -73,12 +72,17 @@ def bitshuffle_version():
     )
 
 
-def bitshuffle_check(data):
-    """Return whether data is BITSHUFFLE encoded."""
+def bitshuffle_check(const uint8_t[::1] data, /):
+    """Return whether data is BITSHUFFLE encoded or None if unknown."""
 
 
 def bitshuffle_encode(
-    data, itemsize=1, blocksize=0, out=None
+    data,
+    /,
+    *,
+    itemsize=1,
+    blocksize=0,
+    out=None,
 ):
     """Return BITSHUFFLE encoded data."""
     cdef:
@@ -149,7 +153,12 @@ def bitshuffle_encode(
 
 
 def bitshuffle_decode(
-    data, itemsize=1, blocksize=0, out=None
+    data,
+    /,
+    *,
+    itemsize=1,
+    blocksize=0,
+    out=None,
 ):
     """Return decoded BITSHUFFLE data."""
     cdef:
