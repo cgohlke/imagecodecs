@@ -1,13 +1,12 @@
 # imagecodecs/_szip.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""SZIP codec for the imagecodecs package."""
+"""SZIP codec for the imagecodecs package.
+
+SZIP is a lossless compression algorithm based on extended-Rice.
+It is used as an optional filter in HDF5.
+
+"""
 
 include '_shared.pxi'
 
@@ -85,19 +89,20 @@ def szip_version():
     )
 
 
-def szip_check(data):
-    """Return whether data is SZIP encoded."""
+def szip_check(const uint8_t[::1] data, /):
+    """Return whether data is SZIP encoded or None if unknown."""
 
 
 def szip_encode(
     data,
+    /,
     options_mask,
     pixels_per_block,
     bits_per_pixel,
     pixels_per_scanline,
     *,
     header=False,
-    out=None
+    out=None,
 ):
     """Return SZIP encoded data."""
     cdef:
@@ -113,7 +118,7 @@ def szip_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if srcsize >= 2147483647:
+    if srcsize >= INT32_MAX:
         raise ValueError('src size exceeds 2 GB')
 
     param.options_mask = options_mask
@@ -133,7 +138,7 @@ def szip_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
         if dstsize < 0:
-            dstsize = szip_encode_size(
+            dstsize = _szip_encode_size(
                 srcsize,
                 param.bits_per_pixel,
                 param.pixels_per_block,
@@ -172,13 +177,14 @@ def szip_encode(
 
 def szip_decode(
     data,
+    /,
     options_mask,
     pixels_per_block,
     bits_per_pixel,
     pixels_per_scanline,
     *,
     header=False,
-    out=None
+    out=None,
 ):
     """Return decoded SZIP data."""
     cdef:
@@ -248,7 +254,12 @@ def szip_decode(
     return _return_output(out, dstsize, <ssize_t> dstlen, outgiven)
 
 
-def szip_params(data, int options_mask=4, int pixels_per_block=32):
+def szip_params(
+    data,
+    /,
+    int options_mask=4,
+    int pixels_per_block=32,
+):
     """Return SZIP parameters for numpy array."""
     cdef:
         ssize_t pixels_in_line
@@ -297,12 +308,12 @@ def szip_params(data, int options_mask=4, int pixels_per_block=32):
     }
 
 
-def szip_encode_size(
+def _szip_encode_size(
     ssize_t srcsize,
     ssize_t bits_per_pixel,
     ssize_t pixels_per_block,
     ssize_t pixels_per_scanline,
-    ssize_t headersize
+    ssize_t headersize,
 ):
     """Return maximum SZIP encoded size."""
     # https://github.com/cgohlke/imagecodecs/issues/128
@@ -315,7 +326,7 @@ def szip_encode_size(
         ssize_t max_bits_per_block
         ssize_t max_output_bits
 
-    blocks_per_scanline = ceildiv(pixels_per_scanline, pixels_per_block)
+    blocks_per_scanline = _ceildiv(pixels_per_scanline, pixels_per_block)
     # adjust bits_per_pixel for 32 and 64 bit cases
     if bits_per_pixel == 32 or bits_per_pixel == 64:
         real_bits_per_pixel = 8
@@ -334,17 +345,17 @@ def szip_encode_size(
     else:
         raise ValueError(f'invalid {bits_per_pixel=}')
     n_pixels = max(srcsize // bytes_per_pixel, 1)
-    n_scanlines = ceildiv(n_pixels, pixels_per_scanline)
+    n_scanlines = _ceildiv(n_pixels, pixels_per_scanline)
     n_blocks = blocks_per_scanline * n_scanlines
     # overhead from https://ccsds.org/Pubs/121x0b3.pdf Table 5-1
     max_bits_per_block = (
         pixels_per_block * real_bits_per_pixel + block_overhead
     )
     max_output_bits = max_bits_per_block * n_blocks
-    return ceildiv(max_output_bits, 8) + headersize
+    return _ceildiv(max_output_bits, 8) + headersize
 
 
-cdef ssize_t ceildiv(ssize_t a, ssize_t b):
+cdef ssize_t _ceildiv(ssize_t a, ssize_t b):
     """Return ceiling of integer division."""
     if b <= 0:
         raise ValueError('division by zero')
