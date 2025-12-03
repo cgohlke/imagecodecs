@@ -1,13 +1,12 @@
 # imagecodecs/_bz2.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""BZ2 codec for the imagecodecs package."""
+"""BZ2 (BZip2) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -78,11 +77,17 @@ def bz2_version():
     return 'libbzip2 ' + BZ2_bzlibVersion().decode().split(',')[0]
 
 
-def bz2_check(data):
-    """Return whether data is BZ2 encoded."""
+def bz2_check(const uint8_t[::1] data, /):
+    """Return whether data is BZ2 encoded or None if unknown."""
 
 
-def bz2_encode(data, level=None, out=None):
+def bz2_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return BZ2 encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -105,8 +110,6 @@ def bz2_encode(data, level=None, out=None):
         return bz2.compress(memoryview(data), compresslevel)
 
     if out is None:
-        if dstsize < 0:
-            raise NotImplementedError  # TODO
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -139,7 +142,12 @@ def bz2_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def bz2_decode(data, out=None):
+def bz2_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded BZ2 data."""
     cdef:
         const uint8_t[::1] src = data
@@ -162,8 +170,6 @@ def bz2_decode(data, out=None):
         return bz2.decompress(memoryview(data))
 
     if out is None:
-        if dstsize < 0:
-            raise NotImplementedError  # TODO
         out = _create_output(outtype, dstsize)
 
     dst = out
