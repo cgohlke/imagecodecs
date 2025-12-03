@@ -1,13 +1,12 @@
 # imagecodecs/_spng.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,9 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""SPNG codec for the imagecodecs package."""
-
-__version__ = '2023.3.16'
+"""SPNG (Simple PNG) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -86,15 +83,21 @@ def spng_version():
     )
 
 
-def spng_check(data):
-    """Return whether data is PNG encoded image."""
+def spng_check(const uint8_t[::1] data, /):
+    """Return whether data is PNG encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:8])
 
     return sig == b'\x89PNG\r\n\x1a\n'
 
 
-def spng_encode(data, level=None, out=None):
+def spng_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return PNG encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -113,8 +116,8 @@ def spng_encode(data, level=None, out=None):
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
@@ -211,7 +214,12 @@ def spng_encode(data, level=None, out=None):
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def spng_decode(data, out=None):
+def spng_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded PNG image.
 
     Supported formats: G8, RGB8, RGBA8, RGBA16
