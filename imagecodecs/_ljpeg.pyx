@@ -1,13 +1,12 @@
 # imagecodecs/_ljpeg.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Lossless JPEG codec for the imagecodecs package."""
+"""LJPEG (Lossless JPEG) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -70,15 +69,17 @@ def ljpeg_version():
     return 'liblj92 ' + LJ92_VERSION.decode()
 
 
-def ljpeg_check(data):
-    """Return whether data is Lossless JPEG encoded image."""
+def ljpeg_check(const uint8_t[::1] data, /):
+    """Return whether data is LJPEG encoded image or None if unknown."""
 
 
 def ljpeg_encode(
     data,
+    /,
+    *,
     bitspersample=None,
     delinearize=None,
-    out=None
+    out=None,
 ):
     """Return Lossless JPEG encoded image."""
     cdef:
@@ -101,7 +102,7 @@ def ljpeg_encode(
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
         and samples == 1  # {1, 3, 4}  RGB does not work correctly
-        and src.shape[0] * src.shape[1] <= 2147483647
+        and src.shape[0] * src.shape[1] <= INT32_MAX
         # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
         raise ValueError('invalid data shape or dtype')
@@ -170,8 +171,10 @@ def ljpeg_encode(
 
 def ljpeg_decode(
     data,
+    /,
+    *,
     linearize=None,
-    out=None
+    out=None,
 ):
     """Return decoded Lossless JPEG image."""
     cdef:
@@ -192,7 +195,7 @@ def ljpeg_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     if linearize is not None:
