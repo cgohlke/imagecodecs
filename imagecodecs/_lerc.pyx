@@ -1,13 +1,12 @@
 # imagecodecs/_lerc.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2020-2025, Christoph Gohlke
+# Copyright (c) 2020-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -44,6 +43,8 @@ include '_shared.pxi'
 
 from lerc cimport *
 
+from . import zlib_decode, zlib_encode, zstd_decode, zstd_encode
+
 
 class LERC:
     """LERC codec constants."""
@@ -74,8 +75,8 @@ def lerc_version():
     )
 
 
-def lerc_check(const uint8_t[::1] data):
-    """Return whether data is LERC encoded."""
+def lerc_check(const uint8_t[::1] data, /):
+    """Return whether data is LERC encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:9])
 
@@ -84,13 +85,15 @@ def lerc_check(const uint8_t[::1] data):
 
 def lerc_encode(
     data,
+    /,
     level=None,
+    *,
     masks=None,
     version=None,
     planar=None,
     compression=None,
     compressionargs=None,
-    out=None
+    out=None,
 ):
     """Return LERC encoded image."""
     cdef:
@@ -220,17 +223,21 @@ def lerc_encode(
     if compressionargs is None:
         compressionargs = {}
     if compression == 'zstd':
-        from . import zstd_encode
         out = zstd_encode(out, **compressionargs)
         return out
     if compression == 'deflate':
-        from . import zlib_encode
         return zlib_encode(out, **compressionargs)
     raise ValueError(f'{compression=!r} not supported')
 
 
-def lerc_decode(data, masks=None, out=None):
-    """Return decoded LERC image."""
+def lerc_decode(
+    data,
+    /,
+    *,
+    masks=None,
+    out=None,
+):
+    """Return decoded LERC image and optional masks."""
     cdef:
         numpy.ndarray dst
         numpy.ndarray valid
@@ -261,7 +268,6 @@ def lerc_decode(data, masks=None, out=None):
         # Lerc1 decoder segfaults if data is not writable
         src = memoryview(data).tobytes()
     elif sig[:4] == b'\x28\xB5\x2F\xFD':
-        from . import zstd_decode
         src = zstd_decode(data)
     elif (
         sig[:2] == b'\x78\x9C'
@@ -269,7 +275,6 @@ def lerc_decode(data, masks=None, out=None):
         or sig[:2] == b'\x78\x01'
         or sig[:2] == b'\x78\xDA'
     ):
-        from . import zlib_decode
         src = zlib_decode(data)
 
     srcsize = src.size
