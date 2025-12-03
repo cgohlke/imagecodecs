@@ -1,13 +1,12 @@
 # imagecodecs/_lz4.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZ4 codec for the imagecodecs package."""
+"""LZ4 (Lempel-Ziv version 4) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -68,12 +67,18 @@ def lz4_version():
     )
 
 
-def lz4_check(data):
-    """Return whether data is LZ4 encoded."""
+def lz4_check(const uint8_t[::1] data, /):
+    """Return whether data is LZ4 encoded or None if unknown."""
 
 
 def lz4_encode(
-    data, level=None, hc=False, header=False, out=None
+    data,
+    /,
+    level=None,
+    *,
+    hc=False,
+    header=False,
+    out=None,
 ):
     """Return LZ4 encoded data."""
     cdef:
@@ -96,9 +101,10 @@ def lz4_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = LZ4_compressBound(srcsize) + offset
+            dstsize = LZ4_compressBound(srcsize)
             if dstsize < 0:
                 raise Lz4Error(f'LZ4_compressBound returned {dstsize}')
+            dstsize += offset
         if dstsize < offset:
             dstsize = offset
         out = _create_output(outtype, dstsize)
@@ -106,7 +112,7 @@ def lz4_encode(
     dst = out
     dstsize = <int> dst.size - offset
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     if hc:
@@ -145,10 +151,16 @@ def lz4_encode(
         pdst[3] = (srcsize >> 24) & 255
 
     del dst
-    return _return_output(out, dstsize+offset, ret+offset, outgiven)
+    return _return_output(out, dstsize + offset, ret + offset, outgiven)
 
 
-def lz4_decode(data, header=False, out=None):
+def lz4_decode(
+    data,
+    /,
+    *,
+    header=False,
+    out=None,
+):
     """Return decoded LZ4 data."""
     cdef:
         const uint8_t[::1] src = data
@@ -161,7 +173,7 @@ def lz4_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > 2147483647:
+    if src.size > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -182,7 +194,7 @@ def lz4_decode(data, header=False, out=None):
     dst = out
     dstsize = <int> dst.size
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
@@ -197,6 +209,7 @@ def lz4_decode(data, header=False, out=None):
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
 
 ###############################################################################
 
@@ -228,15 +241,20 @@ class Lz4h5Error(RuntimeError):
 lz4h5_version = lz4_version
 
 
-def lz4h5_check(data):
-    """Return whether data is likely LZ4H5 encoded."""
-    if len(data) < 12:
+def lz4h5_check(const uint8_t[::1] data, /):
+    """Return whether data is LZ4H5 encoded or None if unknown."""
+    if data.size < 12:
         return False
     return None
 
 
 def lz4h5_encode(
-    data, level=None, blocksize=None, out=None
+    data,
+    /,
+    level=None,
+    *,
+    blocksize=None,
+    out=None,
 ):
     """Return LZ4H5 encoded data."""
     cdef:
@@ -287,7 +305,7 @@ def lz4h5_encode(
                 raise Lz4h5Error('output too small')
 
             dstpos += 4
-            lz4dstsize = <int> min(dstsize - dstpos, 2147483647)
+            lz4dstsize = <int> min(dstsize - dstpos, INT32_MAX)
             blksize = <int> min(blksize, srcsize - srcpos)
             lz4size = LZ4_compress_fast(
                 <const char*> &src[srcpos],
@@ -316,7 +334,12 @@ def lz4h5_encode(
     return _return_output(out, dstsize, dstpos, outgiven)
 
 
-def lz4h5_decode(data, out=None):
+def lz4h5_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded LZ4H5 data."""
     cdef:
         const uint8_t[::1] src = data
