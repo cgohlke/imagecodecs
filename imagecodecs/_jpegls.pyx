@@ -1,13 +1,12 @@
 # imagecodecs/_jpegls.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG LS codec for the imagecodecs package."""
+"""JPEGLS (JPEG Lossless Standard) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -74,11 +73,17 @@ def jpegls_version():
     )
 
 
-def jpegls_check(data):
-    """Return whether data is JPEGLS encoded image."""
+def jpegls_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEGLS encoded image or None if unknown."""
 
 
-def jpegls_encode(data, level=None, out=None):
+def jpegls_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return JPEGLS encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -98,7 +103,7 @@ def jpegls_encode(data, level=None, out=None):
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and srcsize < 4294967296U
+        and srcsize <= UINT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
 
@@ -251,7 +256,12 @@ def jpegls_encode(data, level=None, out=None):
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegls_decode(data, out=None):
+def jpegls_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded JPEGLS image."""
     cdef:
         numpy.ndarray dst
