@@ -1,13 +1,12 @@
 # imagecodecs/_jpegsof3.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG SOF3 codec for the imagecodecs package.
+"""JPEGSOF3 codec for the imagecodecs package.
 
 The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
 described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
@@ -90,17 +89,22 @@ def jpegsof3_version():
     return 'jpegsof3 ' + JPEGSOF3_VERSION.decode()
 
 
-def jpegsof3_check(data):
-    """Return whether data is Lossless JPEG encoded image."""
+def jpegsof3_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEGSOF3 encoded image or None if unknown."""
 
 
 def jpegsof3_encode(*args, **kwargs):
-    """Return Lossless JPEG encoded image (not implemented)."""
+    """Return JPEGSOF3 encoded image (not implemented)."""
     raise NotImplementedError('jpegsof3_encode')
 
 
-def jpegsof3_decode(data, out=None):
-    """Return decoded Lossless JPEG image.
+def jpegsof3_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
+    """Return decoded JPEGSOF3 image.
 
     Beware, the input data must be writable and is modified in-place!
 
