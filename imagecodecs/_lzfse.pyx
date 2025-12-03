@@ -1,13 +1,12 @@
 # imagecodecs/_lzfse.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZFSE codec for the imagecodecs package."""
+"""LZFSE (Lempel-Ziv Finite State Entropy) codec for the imagecodecs package.
+
+"""
 
 include '_shared.pxi'
 
@@ -60,15 +61,20 @@ def lzfse_version():
     return 'lzfse 1.0'
 
 
-def lzfse_check(const uint8_t[::1] data):
-    """Return whether data is LZFSE encoded."""
+def lzfse_check(const uint8_t[::1] data, /):
+    """Return whether data is LZFSE encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:3])
 
     return sig == b'bvx'
 
 
-def lzfse_encode(data, out=None):
+def lzfse_encode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return LZFSE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -80,7 +86,7 @@ def lzfse_encode(data, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         # arbitrary 2GB limit
         raise ValueError('input too large')
 
@@ -110,7 +116,12 @@ def lzfse_encode(data, out=None):
     return _return_output(out, dstsize, dst_size, outgiven)
 
 
-def lzfse_decode(data, out=None):
+def lzfse_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded LZFSE data."""
     cdef:
         const uint8_t[::1] src = data
@@ -129,10 +140,10 @@ def lzfse_decode(data, out=None):
 
     if out is None:
         if dstsize < 0:
-            dstsize = lzfse_decoded_size(<char*> &src[0], srcsize)
-            if dstsize < 0 or dstsize > 2147483647:
+            dstsize = _lzfse_decoded_size(<char*> &src[0], srcsize)
+            if dstsize < 0 or dstsize > INT32_MAX:
                 # arbitrary 2 GB limit
-                raise LzfseError(f'lzfse_decoded_size {dstsize} out of bound')
+                raise LzfseError(f'_lzfse_decoded_size {dstsize} out of bound')
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -156,7 +167,7 @@ def lzfse_decode(data, out=None):
     return _return_output(out, dstsize, dst_size, outgiven)
 
 
-cdef ssize_t lzfse_decoded_size(char* src, ssize_t srcsize) nogil:
+cdef ssize_t _lzfse_decoded_size(char* src, ssize_t srcsize) noexcept nogil:
     """Return sum of all block headers n_raw_bytes fields."""
     cdef:
         ssize_t size = 0
