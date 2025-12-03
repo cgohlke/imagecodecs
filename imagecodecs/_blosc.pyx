@@ -1,13 +1,12 @@
 # imagecodecs/_blosc.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Blosc codec for the imagecodecs package."""
+"""BLOSC codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -75,19 +74,21 @@ def blosc_version():
     return 'c-blosc ' + BLOSC_VERSION_STRING.decode()
 
 
-def blosc_check(data):
-    """Return whether data is BLOSC encoded."""
+def blosc_check(const uint8_t[::1] data, /):
+    """Return whether data is BLOSC encoded or None if unknown."""
 
 
 def blosc_encode(
     data,
+    /,
     level=None,
+    *,
     compressor=None,
     shuffle=None,
     typesize=None,
     blocksize=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return BLOSC encoded data."""
     cdef:
@@ -99,7 +100,7 @@ def blosc_encode(
         size_t ctypesize
         char* compname = NULL
         int clevel = _default_value(level, 9, 0, 9)
-        int numinternalthreads = <int> _default_threads(numthreads)
+        int numinternalthreads = _default_threads(numthreads)
         int doshuffle
         int ret
 
@@ -119,7 +120,7 @@ def blosc_encode(
 
     srcsize = src.size
 
-    if srcsize > 2147483647 - BLOSC_MAX_OVERHEAD:
+    if srcsize > INT32_MAX - BLOSC_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
 
     if blocksize is None:
@@ -191,20 +192,26 @@ def blosc_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def blosc_decode(data, numthreads=None, out=None):
+def blosc_decode(
+    data,
+    /,
+    *,
+    numthreads=None,
+    out=None,
+):
     """Return decoded BLOSC data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         size_t nbytes, cbytes, blocksize
-        int numinternalthreads = <int> _default_threads(numthreads)
+        int numinternalthreads = _default_threads(numthreads)
         int ret
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > 2147483647:
+    if src.size > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -226,7 +233,7 @@ def blosc_decode(data, numthreads=None, out=None):
 
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647:
+    if dstsize > INT32_MAX:
         raise ValueError('output size larger than 2 GB')
 
     with nogil:
