@@ -1,13 +1,12 @@
 # imagecodecs/_lz4f.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2020-2025, Christoph Gohlke
+# Copyright (c) 2020-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZ4 Frame codec for the imagecodecs package."""
+"""LZ4F (LZ4 Frame) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -78,8 +77,8 @@ def lz4f_version():
     )
 
 
-def lz4f_check(data):
-    """Return whether data is LZ4F encoded."""
+def lz4f_check(const uint8_t[::1] data, /):
+    """Return whether data is LZ4F encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:4])
 
@@ -88,11 +87,13 @@ def lz4f_check(data):
 
 def lz4f_encode(
     data,
+    /,
     level=None,
+    *,
     blocksizeid=None,
     contentchecksum=None,
     blockchecksum=None,
-    out=None
+    out=None,
 ):
     """Return LZ4F encoded data."""
     cdef:
@@ -144,12 +145,17 @@ def lz4f_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def lz4f_decode(data, out=None):
+def lz4f_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded LZ4F data."""
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = <size_t> src.size
+        ssize_t srcsize = <ssize_t> src.size
         ssize_t dstsize
         size_t byteswritten, bytesread, ret
         size_t srcindex = 0
