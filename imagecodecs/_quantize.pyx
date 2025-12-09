@@ -1,13 +1,12 @@
 # imagecodecs/_quantize.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Quantize codec for the imagecodecs package."""
+"""QUANTIZE codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -45,12 +44,12 @@ from nc4var cimport *
 
 
 class QUANTIZE:
-    """Quantize codec constants."""
+    """QUANTIZE codec constants."""
 
     available = True
 
     class MODE(enum.IntEnum):
-        """Quantize mode."""
+        """QUANTIZE mode."""
 
         NOQUANTIZE = NC_NOQUANTIZE
         BITGROOM = NC_QUANTIZE_BITGROOM
@@ -60,7 +59,7 @@ class QUANTIZE:
 
 
 class QuantizeError(RuntimeError):
-    """Quantize codec exceptions."""
+    """QUANTIZE codec exceptions."""
 
 
 def quantize_version():
@@ -68,7 +67,18 @@ def quantize_version():
     return f'nc4var {NC_VERSION_MAJOR}.{NC_VERSION_MINOR}.{NC_VERSION_PATCH}'
 
 
-def quantize_encode(data, mode, int nsd, out=None):
+def quantize_check(const uint8_t[::1] data, /):
+    """Return whether data is QUANTIZE encoded or None if unknown."""
+
+
+def quantize_encode(
+    data,
+    /,
+    mode,
+    int nsd,
+    *,
+    out=None,
+):
     """Return quantized floating point data.
 
     ``nsd`` ("number of significant digits") is interpreted differently
@@ -122,7 +132,7 @@ def quantize_encode(data, mode, int nsd, out=None):
     else:
         raise ValueError(f'invalid quantize {mode=!r}')
 
-    if not 0 <= nsd < 64:
+    if not 0 <= nsd < src.itemsize * 8:
         raise ValueError(f'invalid number of significant digits {nsd!r}')
 
     out = _create_array(out, data.shape, data.dtype)
@@ -131,18 +141,12 @@ def quantize_encode(data, mode, int nsd, out=None):
     with nogil:
         if quantize_mode == 100:
             if src_type == NC_FLOAT:
-                quantize_scale_f(
-                    <float*> src.data,
-                    <float*> dst.data,
-                    src_size,
-                    nsd
+                _quantize_scale(
+                    <float*> dst.data, <float*> src.data, src_size, nsd
                 )
             else:
-                quantize_scale_d(
-                    <double*> src.data,
-                    <double*> dst.data,
-                    src_size,
-                    nsd
+                _quantize_scale(
+                    <double*> dst.data, <double*> src.data, src_size, nsd
                 )
         else:
             ret = nc4_convert_type(
@@ -163,53 +167,42 @@ def quantize_encode(data, mode, int nsd, out=None):
     return out
 
 
-def quantize_decode(data, mode, nsd, out=None):
+def quantize_decode(
+    data,
+    /,
+    mode,
+    nsd,
+    *,
+    out=None,
+):
     """Return de-quantized data. Raise QuantizeError if lossy."""
     if mode != NC_NOQUANTIZE:
         raise QuantizeError(f'Quantize {mode=} is lossy.')
     return data
 
-###############################################################################
 
 # quantize_scale
-# Data is quantized using round(scale*data)/scale, where scale is 2**bits,
+# Data is quantized using round(data*scale)/scale, where scale is 2**bits,
 # and bits is determined from the nsd. For example, if nsd=1, bits will be 4.
 # https://github.com/Blosc/bcolz utils.py
 
-
-cdef void quantize_scale_f(
-    const float* data,
-    float* out,
-    ssize_t size,
-    int nsb
-) noexcept nogil:
-    cdef:
-        float scale
-        double exp
-        ssize_t i
-
-    exp = log10(pow(10.0, -nsb))
-    exp = floor(exp) if exp < 0.0 else ceil(exp)
-    scale = <float> pow(2.0, ceil(log2(pow(10.0, -exp))))
-
-    for i in range(size):
-        out[i] = <float> round(data[i] * scale) / scale
+ctypedef fused data_t:
+    float
+    double
 
 
-cdef void quantize_scale_d(
-    const double* data,
-    double* out,
-    ssize_t size,
-    int nsb
+cdef void _quantize_scale(
+    data_t* dst,
+    const data_t* src,
+    const ssize_t size,
+    const int nsd,
 ) noexcept nogil:
     cdef:
         double scale
-        double exp
         ssize_t i
 
-    exp = log10(pow(10.0, -nsb))
-    exp = floor(exp) if exp < 0.0 else ceil(exp)
-    scale = <double> pow(2.0, ceil(log2(pow(10.0, -exp))))
-
+    scale = log10(pow(10.0, -nsd))  # exp
+    scale = floor(scale) if scale < 0.0 else ceil(scale)  # exp
+    scale = pow(2.0, ceil(log2(pow(10.0, -scale))))
     for i in range(size):
-        out[i] = round(data[i] * scale) / scale
+        dst[i] = <data_t> (round(src[i] * scale) / scale)
