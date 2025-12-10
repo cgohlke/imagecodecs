@@ -1,5 +1,6 @@
 # imagecodecs/tests/conftest.py
-# type: ignore
+
+"""Pytest configuration."""
 
 import os
 import sys
@@ -11,17 +12,17 @@ if os.environ.get('VSCODE_CWD'):
     )
 
 
-def pytest_report_header(config, start_path):
+def pytest_report_header(config: object) -> str:
+    """Return pytest report header."""
     try:
-        pyversion = f'Python {sys.version.splitlines()[0]}'
         import imagecodecs
         from imagecodecs import _imagecodecs
 
-        return '{}\npackagedir: {}\nversion: {}\ndependencies: {}'.format(
-            pyversion,
-            imagecodecs.__path__[0],
-            imagecodecs.version(),
-            _imagecodecs.version(),
+        return (
+            f'Python {sys.version.splitlines()[0]}\n'
+            f'packagedir: {imagecodecs.__path__[0]}\n'
+            f'version: {imagecodecs.version()}\n'
+            f'dependencies: {_imagecodecs.version()}'
         )
     except Exception as exc:
         return f'pytest_report_header failed: {exc!s}'
