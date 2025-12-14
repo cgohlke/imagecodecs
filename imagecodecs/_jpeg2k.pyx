@@ -1,13 +1,12 @@
 # imagecodecs/_jpeg2k.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG 2000 codec for the imagecodecs package."""
+"""JPEG2K (JPEG 2000) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -78,8 +77,8 @@ def jpeg2k_version():
     return 'openjpeg ' + opj_version().decode()
 
 
-def jpeg2k_check(const uint8_t[::1] data):
-    """Return whether data is JPEG 2000 encoded image."""
+def jpeg2k_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEG2K encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:12])
 
@@ -92,7 +91,9 @@ def jpeg2k_check(const uint8_t[::1] data):
 
 def jpeg2k_encode(
     data,
-    level=None,  # quality, psnr
+    /,
+    level=None,  # quality, psnr, level < 1 or > 1000 map to quality=0
+    *,
     codecformat=None,
     colorspace=None,
     planar=None,
@@ -103,9 +104,9 @@ def jpeg2k_encode(
     mct=True,  # multiple component transform: rgb->ycc
     verbose=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
-    """Return JPEG 2000 encoded image.
+    """Return JPEG2K encoded image.
 
     WIP: currently only single-tile, single-quality-layer formats are supported
 
@@ -134,14 +135,14 @@ def jpeg2k_encode(
         int tile_height = 0
         float quality = _default_value(level, 0, 0, None)
         int numresolution = _default_value(resolutions, 6, 1, OPJ_J2K_MAXRLVLS)
-        int num_threads = <int> _default_threads(numthreads)
+        int num_threads = _default_threads(numthreads)
         int irreversible = 0 if reversible else 1
         bint tcp_mct = bool(mct)
 
     if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
         raise ValueError('invalid data shape or dtype')
 
-    if srcsize >= 4294967296U:
+    if srcsize > UINT32_MAX:
         raise ValueError('tile size must not exceed 4 GB')
 
     if quality < 1 or quality > 1000:
@@ -225,7 +226,7 @@ def jpeg2k_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = max(4096, srcsize // (2 if quality == 0.0 else 4))
+            dstsize = _align_ssize_t(srcsize // (2 if quality == 0.0 else 4))
             memopj.data = <OPJ_UINT8*> malloc(dstsize)
             if memopj.data == NULL:
                 raise MemoryError('failed to allocate output buffer')
@@ -242,7 +243,6 @@ def jpeg2k_encode(
 
     try:
         with nogil:
-
             stream = opj_memstream_create(&memopj, OPJ_FALSE)
             if stream == NULL:
                 raise Jpeg2kError('opj_memstream_create failed')
@@ -382,6 +382,7 @@ def jpeg2k_encode(
             if num_threads != 1 and opj_has_thread_support():
                 if num_threads == 0:
                     num_threads = opj_get_num_cpus() / 2
+                    num_threads = 1 if num_threads < 1 else num_threads
                 ret = opj_codec_set_threads(codec, num_threads)
                 if ret == OPJ_FALSE:
                     raise Jpeg2kError('opj_codec_set_threads failed')
@@ -400,9 +401,10 @@ def jpeg2k_encode(
                     stream
                 )
             else:
-                raise NotImplementedError
+                # this code path is currently not used
                 # TODO: copy data to image.comps[band].data[y, x]
                 # ret = opj_encode(codec, stream)
+                raise NotImplementedError
 
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_encode or opj_write_tile failed')
@@ -411,6 +413,7 @@ def jpeg2k_encode(
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_end_compress failed')
 
+            # superfluous
             if memopj.written > memopj.size:
                 raise Jpeg2kError('output buffer too small')
 
@@ -441,22 +444,17 @@ def jpeg2k_encode(
 
 def jpeg2k_decode(
     data,
+    /,
+    *,
     planar=None,
     verbose=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
-    """Return decoded JPEG 2000 image."""
+    """Return decoded JPEG2K image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        int32_t* band
-        uint32_t* u4
-        uint16_t* u2
-        uint8_t* u1
-        int32_t* i4
-        int16_t* i2
-        int8_t* i1
         ssize_t itemsize
         memopj_t memopj
         opj_codec_t* codec = NULL
@@ -467,8 +465,8 @@ def jpeg2k_decode(
         OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
         OPJ_UINT32 sgnd, prec, width, height
-        ssize_t i, j, k, bandsize, samples
-        int num_threads = <int> _default_threads(numthreads)
+        ssize_t i, bandsize, samples
+        int num_threads = _default_threads(numthreads)
         int verbosity = int(verbose) if verbose else 0
         bytes sig
         bint contig = not planar
@@ -551,6 +549,9 @@ def jpeg2k_decode(
                 raise Jpeg2kError('opj_decode or opj_end_decompress failed')
 
             # handle subsampling and color profiles
+            # This heuristic tries to auto-detect SYCC but may be fragile.
+            # Assume that if component 1 has different subsampling,
+            # it must be SYCC.
             if (
                 image.color_space != OPJ_CLRSPC_SYCC
                 and image.numcomps == 3
@@ -605,90 +606,41 @@ def jpeg2k_decode(
         dst = out
 
         with nogil:
-            # TODO: use OMP prange?
-            # memset(<void*> dst.data, 0, dst.nbytes)
+            comp = image.comps
             bandsize = <ssize_t> height * <ssize_t> width
             if itemsize == 1:
                 if sgnd:
-                    if contig:
-                        for i in range(samples):
-                            i1 = <int8_t*> dst.data + i
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                i1[j * samples] = <int8_t> band[j]
-                    else:
-                        k = 0
-                        i1 = <int8_t*> dst.data
-                        for i in range(samples):
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                i1[k] = <int8_t> band[j]
-                                k += 1
+                    _opj_copy_image_comps(
+                        <int8_t*> dst.data, comp, bandsize, samples, contig
+                    )
                 else:
-                    if contig:
-                        for i in range(samples):
-                            u1 = <uint8_t*> dst.data + i
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                u1[j * samples] = <uint8_t> band[j]
-                    else:
-                        k = 0
-                        u1 = <uint8_t*> dst.data
-                        for i in range(samples):
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                u1[k] = <uint8_t> band[j]
-                                k += 1
+                    _opj_copy_image_comps(
+                        <uint8_t*> dst.data, comp, bandsize, samples, contig
+                    )
             elif itemsize == 2:
                 if sgnd:
-                    if contig:
-                        for i in range(samples):
-                            i2 = <int16_t*> dst.data + i
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                i2[j * samples] = <int16_t> band[j]
-                    else:
-                        k = 0
-                        i2 = <int16_t*> dst.data
-                        for i in range(samples):
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                i2[k] = <int16_t> band[j]
-                                k += 1
+                    _opj_copy_image_comps(
+                        <int16_t*> dst.data, comp, bandsize, samples, contig
+                    )
                 else:
-                    if contig:
-                        for i in range(samples):
-                            u2 = <uint16_t*> dst.data + i
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                u2[j * samples] = <uint16_t> band[j]
-                    else:
-                        k = 0
-                        u2 = <uint16_t*> dst.data
-                        for i in range(samples):
-                            band = <int32_t*> image.comps[i].data
-                            for j in range(bandsize):
-                                u2[k] = <uint16_t> band[j]
-                                k += 1
+                    _opj_copy_image_comps(
+                        <uint16_t*> dst.data, comp, bandsize, samples, contig
+                    )
             elif not contig:
                 for i in range(samples):
                     memcpy(
                         <void*> &dst.data[i * bandsize * 4],
-                        <const void*> image.comps[i].data,
+                        <const void*> comp[i].data,
                         bandsize * 4
                     )
             elif sgnd:
-                for i in range(samples):
-                    i4 = <int32_t*> dst.data + i
-                    band = <int32_t*> image.comps[i].data
-                    for j in range(bandsize):
-                        i4[j * samples] = <int32_t> band[j]
+                _opj_copy_image_comps(
+                    <int32_t*> dst.data, comp, bandsize, samples, contig
+                )
             else:
-                for i in range(samples):
-                    u4 = <uint32_t*> dst.data + i
-                    band = <int32_t*> image.comps[i].data
-                    for j in range(bandsize):
-                        u4[j * samples] = <uint32_t> band[j]
+                _opj_copy_image_comps(
+                    <uint32_t*> dst.data, comp, bandsize, samples, contig
+                )
 
     finally:
         if stream != NULL:
@@ -699,6 +651,45 @@ def jpeg2k_decode(
             opj_image_destroy(image)
 
     return out
+
+
+ctypedef fused data_t:
+    int8_t
+    uint8_t
+    int16_t
+    uint16_t
+    int32_t
+    uint32_t
+
+
+cdef int _opj_copy_image_comps(
+    data_t* dst,
+    const opj_image_comp_t* comps,
+    const ssize_t bandsize,
+    const ssize_t samples,
+    const bint contig,
+) noexcept nogil:
+    """Copy opj_image component data to buffer."""
+    cdef:
+        ssize_t i, j, k
+        OPJ_INT32* band
+
+    if samples == 1:
+        band = comps[0].data
+        for j in range(bandsize):
+            dst[j * samples] = <data_t> band[j]
+    elif contig:
+        for i in range(samples):
+            band = comps[i].data
+            for j in range(bandsize):
+                dst[j * samples + i] = <data_t> band[j]
+    else:
+        k = 0
+        for i in range(samples):
+            band = comps[i].data
+            for j in range(bandsize):
+                dst[k] = <data_t> band[j]
+                k += 1
 
 
 ctypedef struct memopj_t:
@@ -733,9 +724,12 @@ cdef memopj_t* memopj_new(uint8_t* data, size_t size) noexcept nogil:
 
 cdef OPJ_BOOL opj_mem_resize(
     memopj_t* memopj,
-    OPJ_SIZE_T newsize
+    OPJ_SIZE_T newsize,
 ) noexcept nogil:
     """Reallocate buffer to at least fit newsize bytes."""
+    cdef:
+        OPJ_UINT8* tmp
+
     if newsize < 0:
         return OPJ_FALSE
     if newsize <= memopj.size:
@@ -744,8 +738,7 @@ cdef OPJ_BOOL opj_mem_resize(
         return OPJ_FALSE
     if newsize <= <OPJ_SIZE_T> (<double> memopj.size * 1.25):
         # moderate upsize: overallocate
-        newsize = newsize + newsize // 4
-        newsize = (((newsize - 1) // 4096) + 1) * 4096
+        newsize = _align_size_t(newsize + newsize // 4)
     tmp = <OPJ_UINT8*> realloc(<void*> memopj.data, newsize)
     if tmp == NULL:
         return OPJ_FALSE
@@ -757,7 +750,7 @@ cdef OPJ_BOOL opj_mem_resize(
 cdef OPJ_SIZE_T opj_mem_read(
     void* dst,
     OPJ_SIZE_T size,
-    void* data
+    void* data,
 ) noexcept nogil:
     """opj_stream_set_read_function."""
     cdef:
@@ -775,7 +768,7 @@ cdef OPJ_SIZE_T opj_mem_read(
 cdef OPJ_SIZE_T opj_mem_write(
     void* dst,
     OPJ_SIZE_T size,
-    void* data
+    void* data,
 ) noexcept nogil:
     """opj_stream_set_write_function."""
     cdef:
@@ -791,7 +784,10 @@ cdef OPJ_SIZE_T opj_mem_write(
     return size
 
 
-cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T offset, void* data) noexcept nogil:
+cdef OPJ_BOOL opj_mem_seek(
+    OPJ_OFF_T offset,
+    void* data,
+) noexcept nogil:
     """opj_stream_set_seek_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -814,7 +810,10 @@ cdef OPJ_BOOL opj_mem_seek(OPJ_OFF_T offset, void* data) noexcept nogil:
     return OPJ_TRUE
 
 
-cdef OPJ_OFF_T opj_mem_skip(OPJ_OFF_T size, void* data) noexcept nogil:
+cdef OPJ_OFF_T opj_mem_skip(
+    OPJ_OFF_T size,
+    void* data,
+) noexcept nogil:
     """opj_stream_set_skip_function."""
     cdef:
         memopj_t* memopj = <memopj_t*> data
@@ -844,7 +843,7 @@ cdef void opj_mem_nop(void* data) noexcept nogil:
 
 cdef opj_stream_t* opj_memstream_create(
     memopj_t* memopj,
-    OPJ_BOOL isinput
+    OPJ_BOOL isinput,
 ) noexcept nogil:
     """Return OPJ stream using memory as input or output."""
     cdef:
@@ -870,15 +869,24 @@ cdef opj_stream_t* opj_memstream_create(
 cdef void j2k_error_callback(char* msg, void* client_data) noexcept with gil:
     # TODO: this does not raise an exception, only prints the error message
     # raise Jpeg2kError(msg.decode().strip())
-    _log_warning('JPEG2K error: %s', msg.decode().strip())
+    try:
+        _log_warning('JPEG2K error: %s', msg.decode().strip())
+    except Exception:
+        pass
 
 
 cdef void j2k_warning_callback(char* msg, void* client_data) noexcept with gil:
-    _log_warning('JPEG2K warning: %s', msg.decode().strip())
+    try:
+        _log_warning('JPEG2K warning: %s', msg.decode().strip())
+    except Exception:
+        pass
 
 
 cdef void j2k_info_callback(char* msg, void* client_data) noexcept with gil:
-    _log_warning('JPEG2K info: %s', msg.decode().strip())
+    try:
+        _log_warning('JPEG2K info: %s', msg.decode().strip())
+    except Exception:
+        pass
 
 
 cdef _opj_colorspace(colorspace):
