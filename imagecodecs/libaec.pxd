@@ -1,5 +1,4 @@
 # imagecodecs/libaec.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libaec 1.1.4` library.
 # https://gitlab.dkrz.de/k202009/libaec
@@ -47,22 +46,22 @@ cdef extern from 'libaec.h' nogil:
     )
 
     int aec_encode_enable_offsets(
-        aec_stream *strm
+        aec_stream* strm
     )
 
     int aec_encode_count_offsets(
-        aec_stream *strm,
-        size_t *rsi_offsets_count
+        aec_stream* strm,
+        size_t* rsi_offsets_count
     )
 
     int aec_encode_get_offsets(
-        aec_stream *strm,
-        size_t *rsi_offsets,
+        aec_stream* strm,
+        size_t* rsi_offsets,
         size_t rsi_offsets_count
     )
 
     int aec_buffer_seek(
-        aec_stream *strm,
+        aec_stream* strm,
         size_t offset
     )
 
@@ -80,17 +79,17 @@ cdef extern from 'libaec.h' nogil:
     )
 
     int aec_decode_enable_offsets(
-        aec_stream *strm
+        aec_stream* strm
     )
 
     int aec_decode_count_offsets(
-        aec_stream *strm,
-        size_t *rsi_offsets_count
+        aec_stream* strm,
+        size_t* rsi_offsets_count
     )
 
     int aec_decode_get_offsets(
-        aec_stream *strm,
-        size_t *rsi_offsets,
+        aec_stream* strm,
+        size_t* rsi_offsets,
         size_t rsi_offsets_count
     )
 
@@ -100,8 +99,8 @@ cdef extern from 'libaec.h' nogil:
     )
 
     int aec_decode_range(
-        aec_stream *strm,
-        const size_t *rsi_offsets,
+        aec_stream* strm,
+        const size_t* rsi_offsets,
         size_t rsi_offsets_count,
         size_t pos,
         size_t size
