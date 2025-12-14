@@ -1,13 +1,12 @@
 # imagecodecs/_blosc2.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Blosc2 codec for the imagecodecs package."""
+"""BLOSC2 codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -94,20 +93,22 @@ def blosc2_version():
     return 'c-blosc2 ' + BLOSC2_VERSION_STRING.decode()
 
 
-def blosc2_check(data):
-    """Return whether data is BLOSC2 encoded."""
+def blosc2_check(const uint8_t[::1] data, /):
+    """Return whether data is BLOSC2 encoded or None if unknown."""
 
 
 def blosc2_encode(
     data,
+    /,
     level=None,
+    *,
     compressor=None,
     shuffle=None,  # TODO: enable filters
     splitmode=None,
     typesize=None,
     blocksize=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return BLOSC2 encoded data."""
     cdef:
@@ -120,7 +121,7 @@ def blosc2_encode(
         uint8_t compcode
         uint8_t cfilter
         int32_t csplitmode
-        int16_t nthreads = <int16_t> _default_threads(numthreads)
+        int16_t nthreads = _default_threads(numthreads)
         int clevel = _default_value(level, 1, 0, 9)
         blosc2_context* context = NULL
         blosc2_cparams cparams = BLOSC2_CPARAMS_DEFAULTS
@@ -142,7 +143,7 @@ def blosc2_encode(
 
     srcsize = src.size
 
-    if srcsize > 2147483647 - BLOSC2_MAX_OVERHEAD:
+    if srcsize > INT32_MAX - BLOSC2_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
 
     if blocksize is None:
@@ -220,7 +221,6 @@ def blosc2_encode(
     dstsize = dst.size
 
     with nogil:
-
         if nthreads == 0:
             nthreads = blosc2_get_nthreads()
 
@@ -253,7 +253,13 @@ def blosc2_encode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def blosc2_decode(data, numthreads=None, out=None):
+def blosc2_decode(
+    data,
+    /,
+    *,
+    numthreads=None,
+    out=None,
+):
     """Return decoded BLOSC2 data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -261,7 +267,7 @@ def blosc2_decode(data, numthreads=None, out=None):
         ssize_t dstsize
         ssize_t srcsize = src.size
         int32_t nbytes, cbytes, blocksize
-        int16_t nthreads = <int16_t> _default_threads(numthreads)
+        int16_t nthreads = _default_threads(numthreads)
         blosc2_context* context = NULL
         blosc2_dparams dparams = BLOSC2_DPARAMS_DEFAULTS
         int ret
@@ -269,7 +275,7 @@ def blosc2_decode(data, numthreads=None, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > 2147483647:
+    if src.size > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -291,7 +297,7 @@ def blosc2_decode(data, numthreads=None, out=None):
 
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647:
+    if dstsize > INT32_MAX:
         raise ValueError('output size larger than 2 GB')
 
     with nogil:
