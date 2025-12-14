@@ -47,6 +47,7 @@ include tests/data/libaec/121B2TestData/*.txt
 include tests/data/libaec/121B2TestData/AllOptions/*.*
 
 # files too large or not licensed
+exclude tests/test_imagecodecs_more.py
 exclude tests/data/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/data/tiff/gray.movie.*.tif
 exclude tests/data/ljpeg/dcm*.ljp
@@ -56,11 +57,13 @@ exclude tests/data/bcn/*.dds
 exclude tests/data/33792x79872.jpg
 exclude tests/data/jpegxr.czi
 exclude tests/data/jetraw.bin
+exclude tests/data/huge.bin
 
 exclude .env
 exclude *.cmd
 exclude *.yaml
 exclude mypy.ini
+exclude ruff.toml
 exclude *.code-workspace
 exclude .gitignore
 exclude build_utils/*
