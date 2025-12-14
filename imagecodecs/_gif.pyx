@@ -1,13 +1,12 @@
 # imagecodecs/_gif.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""GIF codec for the imagecodecs package."""
+"""GIF (Graphics Interchange Format) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -74,15 +73,21 @@ def gif_version():
     return f'giflib {GIFLIB_MAJOR}.{GIFLIB_MINOR}.{GIFLIB_RELEASE}'
 
 
-def gif_check(const uint8_t[::1] data):
-    """Return whether data is GIF encoded image."""
+def gif_check(const uint8_t[::1] data, /):
+    """Return whether data is GIF encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:6])
 
     return sig == b'GIF87a' or sig == b'GIF89a'
 
 
-def gif_encode(data, colormap=None, out=None):
+def gif_encode(
+    data,
+    /,
+    *,
+    colormap=None,
+    out=None,
+):
     """Return GIF encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -141,7 +146,6 @@ def gif_encode(data, colormap=None, out=None):
 
     try:
         with nogil:
-
             memgif.data = <GifByteType*> &dst[0]
             memgif.size = dstsize
             memgif.offset = 0
@@ -187,7 +191,14 @@ def gif_encode(data, colormap=None, out=None):
     return _return_output(out, dstsize, memgif.offset, outgiven)
 
 
-def gif_decode(data, index=None, asrgb=True, out=None):
+def gif_decode(
+    data,
+    /,
+    index=None,
+    *,
+    asrgb=True,
+    out=None,
+):
     """Return decoded GIF image.
 
     By default, all images in the file are returned in one array.
@@ -209,7 +220,7 @@ def gif_decode(data, index=None, asrgb=True, out=None):
         int colorcount, transparent, disposal
         ssize_t i, j, k, m, w, h, previous
         ssize_t imagesize, rowsize, imagecount, width, height, samples
-        uint8_t background[4]
+        uint8_t[4] background
         uint8_t* palptr
         uint8_t* srcptr
         uint8_t* dstptr
@@ -223,7 +234,6 @@ def gif_decode(data, index=None, asrgb=True, out=None):
     try:
         with nogil:
             # open image and determie size
-
             memgif.data = <GifByteType*> &src[0]
             memgif.size = srcsize
             memgif.offset = 0
@@ -300,7 +310,6 @@ def gif_decode(data, index=None, asrgb=True, out=None):
         dstptr = <uint8_t*> &dst.data[0]
 
         with nogil:
-
             if rgb:
                 # compose image sequence
                 previous = 0
@@ -486,7 +495,7 @@ ctypedef struct memgif_t:
 cdef int gif_input_func(
     GifFileType* gif,
     GifByteType* dst,
-    int size
+    int size,
 ) noexcept nogil:
     """GIF read callback function."""
     cdef:
@@ -511,7 +520,7 @@ cdef int gif_input_func(
 cdef int gif_output_func(
     GifFileType* gif,
     const GifByteType* src,
-    int size
+    int size,
 ) noexcept nogil:
     """GIF write callback function."""
     cdef:
@@ -528,11 +537,10 @@ cdef int gif_output_func(
         if not memgif.owner:
             # raise GifError('OutputFunc', E_GIF_ERR_WRITE_FAILED)
             return 0
-        newsize = memgif.offset + size
+        newsize = _align_ssize_t(memgif.offset + size)
         if newsize <= <ssize_t> (<double> memgif.size * 1.25):
             # moderate upsize: overallocate
-            newsize = newsize + newsize // 4
-            newsize = (((newsize - 1) // 4096) + 1) * 4096
+            newsize = _align_ssize_t(newsize + newsize // 4)
         tmp = <uint8_t*> realloc(<void*> memgif.data, newsize)
         if tmp == NULL:
             # raise MemoryError('OutputFunc realloc failed')
