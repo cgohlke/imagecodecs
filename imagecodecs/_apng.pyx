@@ -1,13 +1,12 @@
 # imagecodecs/_apng.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""APNG codec for the imagecodecs package."""
+"""APNG (Animated PNG) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -98,8 +97,8 @@ def apng_version():
     return 'libpng_apng ' + PNG_LIBPNG_VER_STRING.decode()
 
 
-def apng_check(const uint8_t[::1] data):
-    """Return whether data is APNG encoded image."""
+def apng_check(const uint8_t[::1] data, /):
+    """Return whether data is APNG encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:8])
 
@@ -108,12 +107,14 @@ def apng_check(const uint8_t[::1] data):
 
 def apng_encode(
     data,
+    /,
     level=None,
+    *,
     strategy=None,
     filter=None,
     photometric=None,
     delay=None,
-    out=None
+    out=None,
 ):
     """Return APNG encoded image.
 
@@ -177,8 +178,8 @@ def apng_encode(
 
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
-        and height <= 2147483647
-        and width <= 2147483647
+        and height <= INT32_MAX
+        and width <= INT32_MAX
         and samples <= 4
     ):
         raise ValueError('invalid data shape or dtype')
@@ -187,7 +188,8 @@ def apng_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = png_size_max(srcsize, frames)  # TODO: use dynamic mempng
+            # TODO: use dynamic mempng
+            dstsize = _apng_size_max(srcsize, frames)
         out = _create_output(outtype, dstsize)
         mempng.owner = 0
     else:
@@ -202,7 +204,6 @@ def apng_encode(
 
     try:
         with nogil:
-
             isapng = frames > 1
 
             mempng.data = <png_bytep> &dst[0]
@@ -307,7 +308,13 @@ def apng_encode(
     return _return_output(out, dstsize, mempng.offset, outgiven)
 
 
-def apng_decode(data, index=None, out=None):
+def apng_decode(
+    data,
+    /,
+    index=None,
+    *,
+    out=None,
+):
     """Return decoded APNG image.
 
     By default, all images in the file are returned in one array, including
@@ -437,7 +444,9 @@ def apng_decode(data, index=None, out=None):
                 isapng = False
 
             if frameindex >= 0 and frameindex >= <ssize_t> numframes:
-                raise IndexError(f'{frameindex=} out of range {numframes}')
+                raise IndexError(
+                    f'{frameindex=} out of range [0, {numframes}]'
+                )
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
                 png_set_tRNS_to_alpha(png_ptr)
@@ -641,13 +650,13 @@ cdef void png_composite_uint8(
     const png_bytep foreground,
     const ssize_t height,
     const ssize_t width,
-    const ssize_t samples
+    const ssize_t samples,
 ) noexcept nogil:
     """Composite foreground image against background image."""
     cdef:
         png_bytep background
         png_byte alpha
-        ssize_t row, col, i, j
+        ssize_t row, col, i, j, s
 
     i = 0
     for row in range(height):
@@ -681,13 +690,13 @@ cdef void png_composite_uint16(
     const png_uint_16p foreground,
     const ssize_t height,
     const ssize_t width,
-    const ssize_t samples
+    const ssize_t samples,
 ) noexcept nogil:
     """Composite foreground image against background image."""
     cdef:
         png_uint_16p background
         png_uint_16 alpha
-        ssize_t row, col, i, j
+        ssize_t row, col, i, j, s
 
     i = 0
     for row in range(height):
@@ -716,7 +725,7 @@ cdef void png_composite_uint16(
                 j += 1
 
 
-cdef _png_colortype(photometric):
+cdef int _png_colortype(photometric):
     """Return color_type value from photometric argument."""
     if photometric is None:
         return -1
@@ -746,7 +755,7 @@ cdef _png_colortype(photometric):
 
 cdef void png_error_callback(
     png_structp png_ptr,
-    png_const_charp msg
+    png_const_charp msg,
 ) noexcept nogil:
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -759,9 +768,12 @@ cdef void png_error_callback(
 
 cdef void png_warn_callback(
     png_structp png_ptr,
-    png_const_charp msg
+    png_const_charp msg,
 ) noexcept with gil:
-    _log_warning('PNG warning: %s', msg.decode().strip())
+    try:
+        _log_warning('PNG warning: %s', msg.decode().strip())
+    except Exception:
+        pass
 
 
 ctypedef struct mempng_t:
@@ -775,7 +787,7 @@ ctypedef struct mempng_t:
 cdef void png_read_data_fn(
     png_structp png_ptr,
     png_bytep dst,
-    png_size_t size
+    png_size_t size,
 ) noexcept nogil:
     """APNG read callback function."""
     cdef:
@@ -800,7 +812,7 @@ cdef void png_read_data_fn(
 cdef void png_write_data_fn(
     png_structp png_ptr,
     png_bytep src,
-    png_size_t size
+    png_size_t size,
 ) noexcept nogil:
     """APNG write callback function."""
     cdef:
@@ -816,11 +828,10 @@ cdef void png_write_data_fn(
         if not mempng.owner:
             png_error(png_ptr, b'png_write_data_fn output stream too small')
             return
-        newsize = mempng.offset + size
+        newsize = _align_ssize_t(mempng.offset + size)
         if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
-            newsize = newsize + newsize // 4
-            newsize = (((newsize - 1) // 4096) + 1) * 4096
+            newsize = _align_ssize_t(newsize + newsize // 4)
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
             png_error(png_ptr, b'png_write_data_fn realloc failed')
@@ -835,14 +846,11 @@ cdef void png_write_data_fn(
     mempng.offset += size
 
 
-cdef void png_output_flush_fn(
-    png_structp png_ptr
-) noexcept nogil:
+cdef void png_output_flush_fn(png_structp png_ptr) noexcept nogil:
     """APNG flush callback function."""
-    pass
 
 
-cdef ssize_t png_size_max(ssize_t size, ssize_t frames) noexcept nogil:
+cdef ssize_t _apng_size_max(ssize_t size, ssize_t frames) noexcept nogil:
     """Return upper bound size of APNG stream from uncompressed image size."""
     # TODO: review this
     size /= frames
