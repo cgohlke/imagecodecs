@@ -1,13 +1,12 @@
 # imagecodecs/_brunsli.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Brunsli codec for the imagecodecs package.
+"""BRUNSLI codec for the imagecodecs package.
 
 Brunsli works as a transcoder converting between JPEG and JPEG XL.
 
@@ -81,20 +80,22 @@ def brunsli_version():
     return 'brunsli 0.1'
 
 
-def brunsli_check(data):
-    """Return whether data is BRUNSLI/JPEG encoded."""
+def brunsli_check(const uint8_t[::1] data, /):
+    """Return whether data is BRUNSLI/JPEG encoded or None if unknown."""
 
 
 def brunsli_encode(
     data,
+    /,
     level=None,
+    *,
     colorspace=None,
     outcolorspace=None,
     subsampling=None,
     optimize=None,
     smoothing=None,
     predictor=None,
-    out=None
+    out=None,
 ):
     """Return BRUNSLI/JPEG encoded image."""
     cdef:
@@ -127,7 +128,7 @@ def brunsli_encode(
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
-    sink = brunsli_sink_new(srcsize // 2)
+    sink = brunsli_sink_new(_align_size_t(srcsize // 2))
     if sink == NULL:
         raise MemoryError('brunsli_sink_new failed')
 
@@ -156,10 +157,12 @@ def brunsli_encode(
 
 def brunsli_decode(
     data,
+    /,
+    *,
     colorspace=None,
     outcolorspace=None,
     asjpeg=False,
-    out=None
+    out=None,
 ):
     """Return decoded BRUNSLI/JPEG image."""
     cdef:
@@ -168,7 +171,7 @@ def brunsli_decode(
         brunsli_sink_t* sink = NULL
         int ret
 
-    sink = brunsli_sink_new(srcsize * 2)
+    sink = brunsli_sink_new(_align_size_t(srcsize * 2))
     if sink == NULL:
         raise MemoryError('brunsli_sink_new failed')
 
@@ -235,11 +238,10 @@ cdef size_t brunsli_sink_write(
         return 0
     if sink.offset + size > sink.size:
         # output stream too small; realloc
-        newsize = sink.offset + size
+        newsize = _align_size_t(sink.offset + size)
         if newsize <= <size_t> (<double> sink.size * 1.25):
             # moderate upsize: overallocate
-            newsize = newsize + newsize // 4
-            newsize = (((newsize - 1) // 4096) + 1) * 4096
+            newsize = _align_size_t(newsize + newsize // 4)
         tmp = <uint8_t*> realloc(<void*> sink.data, newsize)
         if tmp == NULL:
             return 0
