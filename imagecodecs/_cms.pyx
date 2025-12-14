@@ -1,13 +1,12 @@
 # imagecodecs/_cms.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""CMS codec for the imagecodecs package."""
+"""CMS (Color Management System) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -129,8 +128,8 @@ def cms_version():
     )
 
 
-def cms_check(const uint8_t[::1] data):
-    """Return whether data is ICC profile."""
+def cms_check(const uint8_t[::1] data, /):
+    """Return whether data is ICC profile or None if unknown."""
     cdef:
         bytes sig = bytes(data[36:40])
 
@@ -139,6 +138,7 @@ def cms_check(const uint8_t[::1] data):
 
 def cms_transform(
     data,
+    /,
     profile,
     outprofile,
     *,
@@ -150,7 +150,7 @@ def cms_transform(
     intent=None,
     flags=None,
     verbose=None,
-    out=None
+    out=None,
 ):
     """Return color-transformed array (experimental)."""
     cdef:
@@ -169,12 +169,7 @@ def cms_transform(
 
     # TODO: determine colorspace/pixeltype from profiles?
 
-    InputFormat = _cms_format(
-        data.shape,
-        data.dtype,
-        colorspace=colorspace,
-        planar=planar
-    )
+    InputFormat = _cms_format(data.shape, data.dtype, colorspace, planar)
 
     planar = T_PLANAR(InputFormat)
     numpixels = <cmsUInt32Number> (
@@ -184,10 +179,7 @@ def cms_transform(
     if out is not None and isinstance(out, numpy.ndarray):
         # assert outdtype is None
         OutputFormat = _cms_format(
-            out.shape,
-            out.dtype,
-            colorspace=outcolorspace,
-            planar=outplanar,
+            out.shape, out.dtype, outcolorspace, outplanar
         )
     else:
         if outcolorspace is None:
@@ -198,19 +190,13 @@ def cms_transform(
             outdtype = data.dtype
 
         outshape = _cms_output_shape(
-            InputFormat,
-            data.shape,
-            outcolorspace,
-            outplanar
+            InputFormat, data.shape, outcolorspace, outplanar
         )
 
         out = _create_array(out, outshape, outdtype)
 
         OutputFormat = _cms_format(
-            out.shape,
-            out.dtype,
-            colorspace=outcolorspace,
-            planar=outplanar,
+            out.shape, out.dtype, outcolorspace, outplanar
         )
 
     outplanar = T_PLANAR(OutputFormat)
@@ -231,14 +217,14 @@ def cms_transform(
         if profile is None:
             hInProfile = cmsCreateNULLProfile()
         else:
-            hInProfile = open_profile(profile)
+            hInProfile = _cms_open_profile(profile)
             if hInProfile == NULL:
                 raise CmsError('cmsOpenProfileFromMem returned NULL')
 
         if outprofile is None:
             hOutProfile = cmsCreateNULLProfile()
         else:
-            hOutProfile = open_profile(outprofile)
+            hOutProfile = _cms_open_profile(outprofile)
             if hOutProfile == NULL:
                 raise CmsError('cmsOpenProfileFromMem returned NULL')
 
@@ -246,7 +232,6 @@ def cms_transform(
         # ColorSpaceSignature = cmsGetColorSpace(hProfile)
 
         with nogil:
-
             hTransform = cmsCreateTransform(
                 hInProfile,
                 InputFormat,
@@ -294,10 +279,12 @@ cms_decode = cms_transform
 @cython.boundscheck(True)
 def cms_profile(
     profile,
+    /,
+    *,
     whitepoint=None,  # gray and rgb
     primaries=None,  # rgb
     transferfunction=None,  # gray and rgb
-    gamma=None
+    gamma=None,
 ):
     """Return ICC profile."""
     cdef:
@@ -471,7 +458,7 @@ def cms_profile(
                 if hProfile == NULL:
                     raise CmsError('cmsCreateNULLProfile returned NULL')
             elif profile == 'adobergb':
-                hProfile = adobe_rgb_compatible()
+                hProfile = _cms_adobe_rgb_compatible()
 
         if hProfile == NULL:
             raise ValueError(f'failed to create CMS {profile=!r}')
@@ -500,14 +487,19 @@ def cms_profile(
     return out
 
 
-def cms_profile_validate(profile, verbose=False):
+def cms_profile_validate(
+    profile,
+    /,
+    *,
+    verbose=False,
+):
     """Raise CmsError if ICC profile is invalid."""
     cdef:
         cmsHPROFILE hProfile = NULL
 
     if verbose:
         cmsSetLogErrorHandler(_cms_log_error_handler)
-    hProfile = open_profile(profile)
+    hProfile = _cms_open_profile(profile)
     if verbose:
         cmsSetLogErrorHandler(NULL)
     if hProfile == NULL:
@@ -520,7 +512,8 @@ def _cms_output_shape(
     cmsUInt32Number inputformat,
     inshape,
     str colorspace,
-    cmsUInt32Number planar
+    cmsUInt32Number planar,
+    /,
 ):
     """Return shape of output array."""
     cdef:
@@ -571,7 +564,7 @@ def _cms_output_shape(
     return tuple(outshape)
 
 
-def _cms_format_decode(cmsUInt32Number cmsformat):
+def _cms_format_decode(cmsUInt32Number cmsformat, /):
     """Return unpacked cms format number; for testing."""
     from collections import namedtuple
 
@@ -622,7 +615,13 @@ def _cms_format_decode(cmsUInt32Number cmsformat):
 
 
 @cython.wraparound(True)
-def _cms_format(shape, dtype, colorspace=None, planar=None):
+def _cms_format(
+    shape,
+    dtype,
+    colorspace=None,
+    planar=None,
+    /,
+):
     """Return lcms format number.
 
     It's best to explicitly specify colorspace and planar to avoid ambiguities.
@@ -863,7 +862,7 @@ _CMS_FORMATS = {
 }
 
 
-cdef cmsHPROFILE open_profile(object profile):
+cdef cmsHPROFILE _cms_open_profile(object profile):
     """Return handle from CMS profile bytes."""
     cdef:
         cmsHPROFILE hProfile = NULL
@@ -877,14 +876,14 @@ cdef cmsHPROFILE open_profile(object profile):
     return hProfile
 
 
-cdef cmsHPROFILE adobe_rgb_compatible() nogil:
+cdef cmsHPROFILE _cms_adobe_rgb_compatible() nogil:
     """Return handle to Adobe RGB compatible CMS profile."""
     cdef:
         cmsHPROFILE hProfile = NULL
         cmsCIEXYZTRIPLE color
         cmsCIEXYZ black, d65
         cmsToneCurve* transferfunction = NULL
-        cmsMLU *mlu = NULL
+        cmsMLU* mlu = NULL
         cmsBool ret
 
     color.Red.X = 0.609741
@@ -964,6 +963,9 @@ cdef cmsHPROFILE adobe_rgb_compatible() nogil:
 cdef void _cms_log_error_handler(
     cmsContext ContextID,
     cmsUInt32Number ErrorCode,
-    const char *Text
+    const char* Text,
 ) noexcept with gil:
-    _log_warning('CMS error: %s', Text.decode().strip())
+    try:
+        _log_warning('CMS error: %s', Text.decode().strip())
+    except Exception:
+        pass
