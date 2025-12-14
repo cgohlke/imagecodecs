@@ -1,5 +1,4 @@
 # imagecodecs/rgbe.pxd
-# cython: language_level = 3
 
 # Cython declarations for the modified `rgbe` library.
 # https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c
@@ -26,82 +25,82 @@ cdef extern from 'rgbe.h' nogil:
         char[16] programtype
 
     ctypedef struct rgbe_stream_t:
-        char *data
+        char* data
         size_t size
         size_t pos
         int owner
 
     int RGBE_WriteHeader(
-        rgbe_stream_t *fp,
+        rgbe_stream_t* fp,
         int width,
         int height,
-        rgbe_header_info *info
+        rgbe_header_info* info
     )
 
     int RGBE_ReadHeader(
-        rgbe_stream_t *fp,
-        int *width,
-        int *height,
-        rgbe_header_info *info
+        rgbe_stream_t* fp,
+        int* width,
+        int* height,
+        rgbe_header_info* info
     )
 
     int RGBE_WritePixels(
-        rgbe_stream_t *fp,
-        float *data,
+        rgbe_stream_t* fp,
+        float* data,
         int numpixels
     )
 
     int RGBE_ReadPixels(
-        rgbe_stream_t *fp,
-        float *data,
+        rgbe_stream_t* fp,
+        float* data,
         int numpixels
     )
 
     int RGBE_WritePixels_RLE(
-        rgbe_stream_t *fp,
-        float *data,
+        rgbe_stream_t* fp,
+        float* data,
         int scanline_width,
         int num_scanlines
     )
 
     int RGBE_ReadPixels_RLE(
-        rgbe_stream_t *fp,
-        float *data,
+        rgbe_stream_t* fp,
+        float* data,
         int scanline_width,
         int num_scanlines
     )
 
-    rgbe_stream_t *rgbe_stream_new(
+    rgbe_stream_t* rgbe_stream_new(
         size_t size,
-        char *data
+        char* data
     )
 
     void rgbe_stream_del(
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
     )
 
     size_t rgbe_stream_read(
-        void *ptr,
+        void* ptr,
         size_t size,
         size_t nmemb,
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
     )
 
     size_t rgbe_stream_write(
-        const void *ptr,
+        const void* ptr,
         size_t size,
         size_t nmemb,
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
     )
 
     int rgbe_stream_printf(
-        rgbe_stream_t *stream,
-        const char *format,
+        rgbe_stream_t* stream,
+        const char* format,
         ...
     )
 
     char* rgbe_stream_gets(
-        char *str,
+        char* str,
         size_t n,
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
     )
