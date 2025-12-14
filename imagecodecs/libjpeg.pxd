@@ -1,5 +1,4 @@
 # imagecodecs/libjpeg.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libjpeg 8d` library.
 # http://libjpeg.sourceforge.net/
@@ -191,7 +190,7 @@ cdef extern from 'jpeglib.h' nogil:
     )
 
     void jpeg_set_colorspace(
-        jpeg_compress_struct *cinfo,
+        jpeg_compress_struct* cinfo,
         J_COLOR_SPACE colorspace
     )
 
