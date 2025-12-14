@@ -1,13 +1,12 @@
 # imagecodecs/_zstd.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Zstd (ZStandard) codec for the imagecodecs package."""
+"""ZSTD (ZStandard) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -71,15 +70,21 @@ def zstd_version():
     )
 
 
-def zstd_check(data):
-    """Return whether data is ZSTD encoded."""
+def zstd_check(const uint8_t[::1] data, /):
+    """Return whether data is ZSTD encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:4])
 
     return sig == b'\x28\xB5\x2F\xFD'
 
 
-def zstd_encode(data, level=None, out=None):
+def zstd_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return ZSTD encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -121,7 +126,12 @@ def zstd_encode(data, level=None, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-def zstd_decode(data, out=None):
+def zstd_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded ZSTD data."""
     cdef:
         const uint8_t[::1] src = data
@@ -138,12 +148,12 @@ def zstd_decode(data, out=None):
 
     if out is None:
         if dstsize < 0:
-            cntsize = ZSTD_getFrameContentSize(<void*> &src[0], srcsize)
-            if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > 2147483647:
-                # use streaming API for unknown or suspiciously large sizes
-                return _zstd_decode(data, outtype)
+            cntsize = _zstd_content_size(<uint8_t*> &src[0], srcsize)
             if cntsize == ZSTD_CONTENTSIZE_ERROR:
                 raise ZstdError('ZSTD_getFrameContentSize', f'{cntsize}')
+            if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > INT32_MAX:
+                # use streaming API for unknown or suspiciously large sizes
+                return _zstd_decode(data, outtype)
             dstsize = cntsize
         out = _create_output(outtype, dstsize)
 
@@ -164,7 +174,10 @@ def zstd_decode(data, out=None):
     return _return_output(out, dstsize, ret, outgiven)
 
 
-cdef _zstd_decode(const uint8_t[::1] src, outtype):
+cdef _zstd_decode(
+    const uint8_t[::1] src,
+    outtype,
+):
     """Decompress using streaming API."""
     cdef:
         output_t* output = NULL
@@ -179,7 +192,6 @@ cdef _zstd_decode(const uint8_t[::1] src, outtype):
 
     try:
         with nogil:
-
             dctx = ZSTD_createDCtx()
             if dctx == NULL:
                 raise ZstdError('ZSTD_createDCtx', 'NULL')
@@ -220,6 +232,39 @@ cdef _zstd_decode(const uint8_t[::1] src, outtype):
         ZSTD_freeDCtx(dctx)
 
     return out
+
+
+cdef uint64_t _zstd_content_size(
+    const uint8_t* src,
+    const size_t srcsize,
+) noexcept nogil:
+    """Return uncompressed size of all frames in buffer."""
+    cdef:
+        uint64_t frame_content_size
+        size_t frame_compressed_size
+        uint64_t dstsize = 0
+        size_t offset = 0
+
+    while offset < srcsize:
+        frame_compressed_size = ZSTD_findFrameCompressedSize(
+            <const void*> (src + offset), srcsize - offset
+        )
+        if ZSTD_isError(frame_compressed_size):
+            return ZSTD_CONTENTSIZE_ERROR  # frame_compressed_size
+
+        frame_content_size = ZSTD_getFrameContentSize(
+            <const void*> (src + offset), frame_compressed_size
+        )
+        if (
+            frame_content_size == ZSTD_CONTENTSIZE_ERROR
+            or frame_content_size == ZSTD_CONTENTSIZE_UNKNOWN
+        ):
+            return frame_content_size
+
+        dstsize += frame_content_size
+        offset += frame_compressed_size
+
+    return dstsize
 
 
 # Output Stream ###############################################################
