@@ -1,5 +1,4 @@
 # imagecodecs/blosc.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `c-blosc 1.21.6` library.
 # https://github.com/Blosc/c-blosc
@@ -39,8 +38,8 @@ cdef extern from 'blosc.h' nogil:
         int doshuffle,
         size_t typesize,
         size_t nbytes,
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         size_t destsize
     )
 
@@ -57,23 +56,23 @@ cdef extern from 'blosc.h' nogil:
     )
 
     int blosc_decompress(
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         size_t destsize
     )
 
     int blosc_decompress_ctx(
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         size_t destsize,
         int numinternalthreads
     )
 
     int blosc_getitem(
-        const void *src,
+        const void* src,
         int start,
         int nitems,
-        void *dest
+        void* dest
     )
 
     int blosc_get_nthreads()
@@ -90,11 +89,11 @@ cdef extern from 'blosc.h' nogil:
 
     int blosc_compcode_to_compname(
         int compcode,
-        const char **compname
+        const char** compname
     )
 
     int blosc_compname_to_compcode(
-        const char *compname
+        const char* compname
     )
 
     const char* blosc_list_compressors()
@@ -102,18 +101,18 @@ cdef extern from 'blosc.h' nogil:
     const char* blosc_get_version_string()
 
     int blosc_get_complib_info(
-        const char *compname,
-        char **complib,
-        char **version
+        const char* compname,
+        char** complib,
+        char** version
     )
 
     int blosc_free_resources()
 
     void blosc_cbuffer_sizes(
-        const void *cbuffer,
-        size_t *nbytes,
-        size_t *cbytes,
-        size_t *blocksize
+        const void* cbuffer,
+        size_t* nbytes,
+        size_t* cbytes,
+        size_t* blocksize
     )
 
     int blosc_cbuffer_validate(
@@ -123,19 +122,19 @@ cdef extern from 'blosc.h' nogil:
     )
 
     void blosc_cbuffer_metainfo(
-        const void *cbuffer,
-        size_t *typesize,
-        int *flags
+        const void* cbuffer,
+        size_t* typesize,
+        int* flags
     )
 
     void blosc_cbuffer_versions(
-        const void *cbuffer,
-        int *version,
-        int *compversion
+        const void* cbuffer,
+        int* version,
+        int* compversion
     )
 
-    const char *blosc_cbuffer_complib(
-        const void *cbuffer
+    const char* blosc_cbuffer_complib(
+        const void* cbuffer
     )
 
     int blosc_get_blocksize()
