@@ -1,13 +1,12 @@
 # imagecodecs/_aec.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""AEC codec for the imagecodecs package."""
+"""AEC (Adaptive Entropy Coding) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -82,17 +81,19 @@ def aec_version():
     )
 
 
-def aec_check(data):
-    """Return whether data is AEC encoded."""
+def aec_check(const uint8_t[::1] data, /):
+    """Return whether data is AEC encoded or None if unknown."""
 
 
 def aec_encode(
     data,
+    /,
+    *,
     bitspersample=None,
     flags=None,
     blocksize=None,
     rsi=None,
-    out=None
+    out=None,
 ):
     """Return AEC encoded data.
 
@@ -190,11 +191,13 @@ def aec_encode(
 
 def aec_decode(
     data,
+    /,
+    *,
     bitspersample=None,
     flags=None,
     blocksize=None,
     rsi=None,
-    out=None
+    out=None,
 ):
     """Return decoded AEC data."""
     cdef:
