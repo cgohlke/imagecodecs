@@ -1,5 +1,4 @@
 # imagecodecs/lzham.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `lzham 1.0` library.
 # https://github.com/richgel999/lzham_codec
@@ -69,7 +68,7 @@ cdef extern from 'lzham.h' nogil:
         LZHAM_TOTAL_COMP_LEVELS
         LZHAM_COMP_LEVEL_FORCE_DWORD
 
-    ctypedef void *lzham_compress_state_ptr
+    ctypedef void* lzham_compress_state_ptr
 
     ctypedef enum lzham_compress_flags:
         LZHAM_COMP_FLAG_EXTREME_PARSING
@@ -91,12 +90,12 @@ cdef extern from 'lzham.h' nogil:
         lzham_int32 m_max_helper_threads
         lzham_uint32 m_compress_flags
         lzham_uint32 m_num_seed_bytes
-        const void *m_pSeed_bytes
+        const void* m_pSeed_bytes
         lzham_uint32 m_table_max_update_interval
         lzham_uint32 m_table_update_interval_slow_rate
 
     lzham_compress_state_ptr lzham_compress_init(
-        const lzham_compress_params *pParams
+        const lzham_compress_params* pParams
     )
 
     lzham_compress_state_ptr lzham_compress_reinit(
@@ -109,28 +108,29 @@ cdef extern from 'lzham.h' nogil:
 
     lzham_compress_status_t lzham_compress(
         lzham_compress_state_ptr pState,
-        const lzham_uint8 *pIn_buf,
-        size_t *pIn_buf_size,
-        lzham_uint8 *pOut_buf,
-        size_t *pOut_buf_size,
+        const lzham_uint8* pIn_buf,
+        size_t* pIn_buf_size,
+        lzham_uint8* pOut_buf,
+        size_t* pOut_buf_size,
         lzham_bool no_more_input_bytes_flag
     )
 
     lzham_compress_status_t lzham_compress2(
         lzham_compress_state_ptr pState,
-        const lzham_uint8 *pIn_buf,
-        size_t *pIn_buf_size,
-        lzham_uint8 *pOut_buf, size_t *pOut_buf_size,
+        const lzham_uint8* pIn_buf,
+        size_t* pIn_buf_size,
+        lzham_uint8* pOut_buf,
+        size_t* pOut_buf_size,
         lzham_flush_t flush_type
     )
 
     lzham_compress_status_t lzham_compress_memory(
-        const lzham_compress_params *pParams,
+        const lzham_compress_params* pParams,
         lzham_uint8* pDst_buf,
-        size_t *pDst_len,
+        size_t* pDst_len,
         const lzham_uint8* pSrc_buf,
         size_t src_len,
-        lzham_uint32 *pAdler32
+        lzham_uint32* pAdler32
     )
 
     ctypedef enum lzham_decompress_status_t:
@@ -153,7 +153,7 @@ cdef extern from 'lzham.h' nogil:
         LZHAM_DECOMP_STATUS_FAILED_BAD_SYNC_BLOCK
         LZHAM_DECOMP_STATUS_INVALID_PARAMETER
 
-    ctypedef void *lzham_decompress_state_ptr
+    ctypedef void* lzham_decompress_state_ptr
 
     ctypedef enum lzham_decompress_flags:
         LZHAM_DECOMP_FLAG_OUTPUT_UNBUFFERED
@@ -166,17 +166,17 @@ cdef extern from 'lzham.h' nogil:
         lzham_uint32 m_table_update_rate
         lzham_uint32 m_decompress_flags
         lzham_uint32 m_num_seed_bytes
-        const void *m_pSeed_bytes
+        const void* m_pSeed_bytes
         lzham_uint32 m_table_max_update_interval
         lzham_uint32 m_table_update_interval_slow_rate
 
     lzham_decompress_state_ptr lzham_decompress_init(
-        const lzham_decompress_params *pParams
+        const lzham_decompress_params* pParams
     )
 
     lzham_decompress_state_ptr lzham_decompress_reinit(
         lzham_decompress_state_ptr pState,
-        const lzham_decompress_params *pParams
+        const lzham_decompress_params* pParams
     )
 
     lzham_uint32 lzham_decompress_deinit(
@@ -185,38 +185,38 @@ cdef extern from 'lzham.h' nogil:
 
     lzham_decompress_status_t lzham_decompress(
         lzham_decompress_state_ptr pState,
-        const lzham_uint8 *pIn_buf,
-        size_t *pIn_buf_size,
-        lzham_uint8 *pOut_buf,
-        size_t *pOut_buf_size,
+        const lzham_uint8* pIn_buf,
+        size_t* pIn_buf_size,
+        lzham_uint8* pOut_buf,
+        size_t* pOut_buf_size,
         lzham_bool no_more_input_bytes_flag
     )
 
     lzham_decompress_status_t lzham_decompress_memory(
-        const lzham_decompress_params *pParams,
+        const lzham_decompress_params* pParams,
         lzham_uint8* pDst_buf,
-        size_t *pDst_len,
+        size_t* pDst_len,
         const lzham_uint8* pSrc_buf,
         size_t src_len,
-        lzham_uint32 *pAdler32
+        lzham_uint32* pAdler32
     )
 
     ctypedef unsigned long lzham_z_ulong
 
     ctypedef void *(*lzham_z_alloc_func)(
-        void *opaque,
+        void* opaque,
         size_t items,
         size_t size
     ) nogil
 
     ctypedef void (*lzham_z_free_func)(
-        void *opaque,
-        void *address
+        void* opaque,
+        void* address
     ) nogil
 
     ctypedef void *(*lzham_z_realloc_func)(
-        void *opaque,
-        void *address,
+        void* opaque,
+        void* address,
         size_t items,
         size_t size
     ) nogil
@@ -225,7 +225,7 @@ cdef extern from 'lzham.h' nogil:
 
     lzham_z_ulong lzham_z_adler32(
         lzham_z_ulong adler,
-        const unsigned char *ptr,
+        const unsigned char* ptr,
         size_t buf_len
     )
 
@@ -233,7 +233,7 @@ cdef extern from 'lzham.h' nogil:
 
     lzham_z_ulong lzham_z_crc32(
         lzham_z_ulong crc,
-        const unsigned char *ptr,
+        const unsigned char* ptr,
         size_t buf_len
     )
 
@@ -293,28 +293,28 @@ cdef extern from 'lzham.h' nogil:
         pass
 
     ctypedef struct lzham_z_stream:
-        const unsigned char *next_in
+        const unsigned char* next_in
         unsigned int avail_in
         lzham_z_ulong total_in
 
-        unsigned char *next_out
+        unsigned char* next_out
         unsigned int avail_out
         lzham_z_ulong total_out
 
-        char *msg
-        lzham_z_internal_state *state
+        char* msg
+        lzham_z_internal_state* state
 
         lzham_z_alloc_func zalloc
         lzham_z_free_func zfree
-        void *opaque
+        void* opaque
 
         int data_type
         lzham_z_ulong adler
         lzham_z_ulong reserved
 
-    ctypedef lzham_z_stream *lzham_z_streamp
+    ctypedef lzham_z_stream* lzham_z_streamp
 
-    const char *lzham_z_version()
+    const char* lzham_z_version()
 
     int lzham_z_deflateInit(
         lzham_z_streamp pStream,
@@ -349,16 +349,16 @@ cdef extern from 'lzham.h' nogil:
     )
 
     int lzham_z_compress(
-        unsigned char *pDest,
-        lzham_z_ulong *pDest_len,
-        const unsigned char *pSource,
+        unsigned char* pDest,
+        lzham_z_ulong* pDest_len,
+        const unsigned char* pSource,
         lzham_z_ulong source_len
     )
 
     int lzham_z_compress2(
-        unsigned char *pDest,
-        lzham_z_ulong *pDest_len,
-        const unsigned char *pSource,
+        unsigned char* pDest,
+        lzham_z_ulong* pDest_len,
+        const unsigned char* pSource,
         lzham_z_ulong source_len,
         int level
     )
@@ -390,12 +390,12 @@ cdef extern from 'lzham.h' nogil:
     )
 
     int lzham_z_uncompress(
-        unsigned char *pDest,
-        lzham_z_ulong *pDest_len,
-        const unsigned char *pSource,
+        unsigned char* pDest,
+        lzham_z_ulong* pDest_len,
+        const unsigned char* pSource,
         lzham_z_ulong source_len
     )
 
-    const char *lzham_z_error(
+    const char* lzham_z_error(
         int err
     )
