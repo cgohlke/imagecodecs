@@ -1,13 +1,12 @@
 # imagecodecs/_deflate.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2020-2025, Christoph Gohlke
+# Copyright (c) 2020-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -42,6 +41,11 @@ include '_shared.pxi'
 
 from libdeflate cimport *
 
+try:
+    from ._zlib import _zlib_decode
+except ImportError:
+    _zlib_decode = None
+
 
 class DEFLATE:
     """DEFLATE codec constants."""
@@ -68,8 +72,8 @@ def deflate_version():
     return 'libdeflate ' + LIBDEFLATE_VERSION_STRING.decode()
 
 
-def deflate_check(data):
-    """Return whether data is DEFLATE encoded."""
+def deflate_check(const uint8_t[::1] data, /):
+    """Return whether data is DEFLATE encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -81,11 +85,16 @@ def deflate_check(data):
         or sig == b'\x78\xDA'
     ):
         return True
-    return None  # maybe
+    return None
 
 
 def deflate_encode(
-    data, level=None, bint raw=False, out=None
+    data,
+    /,
+    level=None,
+    *,
+    bint raw=False,
+    out=None,
 ):
     """Return DEFLATE encoded data."""
     cdef:
@@ -162,8 +171,18 @@ def deflate_encode(
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def deflate_decode(data, bint raw=False, out=None):
-    """Return decoded DEFLATE data."""
+def deflate_decode(
+    data,
+    /,
+    *,
+    bint raw=False,
+    out=None,
+):
+    """Return decoded DEFLATE data.
+
+    This implementation uses the zlib codec if the output size is unknown.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -184,10 +203,10 @@ def deflate_decode(data, bint raw=False, out=None):
             if raw:
                 raise NotImplementedError  # TODO
 
-            # use Python's zlib module if output size is unknown
-            import zlib
+            if _zlib_decode is not None:
+                return _zlib_decode(src, outtype)
 
-            return zlib.decompress(data)
+            raise NotImplementedError('deflate stream decode not implemented')
 
         out = _create_output(outtype, dstsize)
 
@@ -247,15 +266,21 @@ GzipError = DeflateError
 gzip_version = deflate_version
 
 
-def gzip_check(data):
-    """Return whether data is GZIP encoded."""
+def gzip_check(const uint8_t[::1] data, /):
+    """Return whether data is GZIP encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:2])
 
     return sig == b'\x1f\x8b'
 
 
-def gzip_encode(data, level=None, out=None):
+def gzip_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return GZIP encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -310,7 +335,12 @@ def gzip_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def gzip_decode(data, out=None):
+def gzip_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded GZIP data.
 
     Supports only single-member streams < 2^32.
@@ -378,7 +408,11 @@ def gzip_decode(data, out=None):
 
 # CRC #########################################################################
 
-def deflate_crc32(data, value=None):
+def deflate_crc32(
+    data,
+    /,
+    value=None,
+):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -390,7 +424,11 @@ def deflate_crc32(data, value=None):
     return int(crc)
 
 
-def deflate_adler32(data, value=None):
+def deflate_adler32(
+    data,
+    /,
+    value=None,
+):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
