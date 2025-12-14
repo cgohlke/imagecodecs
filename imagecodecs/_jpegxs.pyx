@@ -1,13 +1,12 @@
 # imagecodecs/_jpegxs.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2024-2025, Christoph Gohlke
+# Copyright (c) 2024-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -109,8 +108,8 @@ def jpegxs_version():
     return f'libjxs {version.decode()}'
 
 
-def jpegxs_check(const uint8_t[::1] data):
-    """Return whether data is JPEG XS encoded image."""
+def jpegxs_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEGXS encoded image or None if unknown."""
     sig = bytes(data[:12])
     return (
         sig == b'\x00\x00\x00\x0C\x4A\x58\x53\x20\x0D\x0A\x87\x0A'  # image
@@ -119,7 +118,13 @@ def jpegxs_check(const uint8_t[::1] data):
 
 
 def jpegxs_encode(
-    data, config=None, bitspersample=None, verbose=None, out=None
+    data,
+    /,
+    config=None,
+    *,
+    bitspersample=None,
+    verbose=None,
+    out=None,
 ):
     """Return JPEGXS encoded data."""
     cdef:
@@ -189,7 +194,6 @@ def jpegxs_encode(
 
     try:
         with nogil:
-
             for s in range(xs_image.ncomps):
                 xs_image.sx[s] = 1
                 xs_image.sy[s] = 1
@@ -267,7 +271,13 @@ def jpegxs_encode(
     return _return_output(out, dstsize, bitstream_buf_size, outgiven)
 
 
-def jpegxs_decode(data, verbose=None, out=None):
+def jpegxs_decode(
+    data,
+    /,
+    *,
+    verbose=None,
+    out=None,
+):
     """Return decoded JPEGXS data."""
     cdef:
         numpy.ndarray dst
@@ -292,7 +302,6 @@ def jpegxs_decode(data, verbose=None, out=None):
 
     try:
         with nogil:
-
             ret = xs_dec_probe(
                 <uint8_t*> &src[0], srcsize, &xs_config, &xs_image
             )
