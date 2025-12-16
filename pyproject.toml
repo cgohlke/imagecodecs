@@ -1,5 +1,3 @@
-# imagecodecs/pyproject.toml
-
 [build-system]
 requires = ["setuptools", "numpy>=2", "Cython>=3.2"]
 build-backend = "setuptools.build_meta"
@@ -10,5 +8,6 @@ target-version = ["py311", "py312", "py313"]
 skip-string-normalization = true
 
 [tool.isort]
+known_first_party = ["imagecodecs"]
 profile = "black"
 line_length = 79
