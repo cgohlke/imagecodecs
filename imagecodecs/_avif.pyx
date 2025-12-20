@@ -1,13 +1,12 @@
 # imagecodecs/_avif.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2020-2025, Christoph Gohlke
+# Copyright (c) 2020-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""AVIF codec for the imagecodecs package."""
+"""AVIF (AV1 Image File Format) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -187,8 +186,8 @@ def avif_version():
     )
 
 
-def avif_check(const uint8_t[::1] data):
-    """Return whether data is AVIF encoded image."""
+def avif_check(const uint8_t[::1] data, /):
+    """Return whether data is AVIF encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[4:12])
 
@@ -201,7 +200,9 @@ def avif_check(const uint8_t[::1] data):
 
 def avif_encode(
     data,
+    /,
     level=None,
+    *,
     speed=None,
     tilelog2=None,
     bitspersample=None,
@@ -211,7 +212,7 @@ def avif_encode(
     transfer=None,
     matrix=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return AVIF encoded image."""
     cdef:
@@ -226,7 +227,7 @@ def avif_encode(
         # int duration = 1
         int timescale = 1
         int keyframeinterval = 0
-        int maxthreads = <int> _default_threads(numthreads)
+        int maxthreads = _default_threads(numthreads)
         uint32_t imagecount, width, height, samples, depth
         size_t rawsize
         bint monochrome = 0  # must be initialized
@@ -248,10 +249,10 @@ def avif_encode(
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3, 4}
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
-        and src.shape[src.ndim - 1] <= 2147483647
-        and src.shape[src.ndim - 2] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
+        and src.shape[src.ndim - 1] <= INT32_MAX
+        and src.shape[src.ndim - 2] <= INT32_MAX
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
@@ -444,7 +445,14 @@ def avif_encode(
     return _return_output(out, dstsize, rawsize, outgiven)
 
 
-def avif_decode(data, index=None, numthreads=None, out=None):
+def avif_decode(
+    data,
+    /,
+    index=None,
+    *,
+    numthreads=None,
+    out=None,
+):
     """Return decoded AVIF image."""
     cdef:
         numpy.ndarray dst
@@ -454,7 +462,7 @@ def avif_decode(data, index=None, numthreads=None, out=None):
         ssize_t samples, size, itemsize, i, imagecount
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
-        int maxthreads = <int> _default_threads(numthreads)
+        int maxthreads = _default_threads(numthreads)
         avifDecoder* decoder = NULL
         avifImage* image = NULL
         avifRGBImage rgb
@@ -499,7 +507,9 @@ def avif_decode(data, index=None, numthreads=None, out=None):
             imagecount = decoder.imageCount
 
             if frameindex >= imagecount:
-                raise IndexError(f'{frameindex=} out of range {imagecount=}')
+                raise IndexError(
+                    f'{frameindex=} out of range [0, {imagecount}]'
+                )
 
             if imagecount == 1:
                 frameindex = 0
@@ -538,9 +548,9 @@ def avif_decode(data, index=None, numthreads=None, out=None):
 
         shape = int(image.height), int(image.width)
         if samples > 1:
-            shape = shape + (int(samples),)
+            shape = (*shape, int(samples))
         if imagecount > 1 and frameindex < 0:
-            shape = (int(imagecount),) + shape
+            shape = (int(imagecount), *shape)
 
         out = _create_array(out, shape, dtype)
         dst = out
@@ -563,7 +573,9 @@ def avif_decode(data, index=None, numthreads=None, out=None):
 
                 res = avifImageYUVToRGB(decoder.image, &rgb)
                 if res != AVIF_RESULT_OK:
-                    raise AvifError('avifImageYUVToRGB', res, decoder.diag.error)
+                    raise AvifError(
+                        'avifImageYUVToRGB', res, decoder.diag.error
+                    )
 
                 rgb.pixels += size
     finally:
