@@ -1,13 +1,12 @@
 # imagecodecs/_rgbe.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""RGBE codec for the imagecodecs package."""
+"""RGBE (Red Green Blue Exponent) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -71,8 +70,8 @@ def rgbe_version():
     return 'rgbe ' + RGBE_VERSION.decode()
 
 
-def rgbe_check(const uint8_t[::1] data):
-    """Return whether data is RGBE encoded image."""
+def rgbe_check(const uint8_t[::1] data, /):
+    """Return whether data is RGBE encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -80,7 +79,12 @@ def rgbe_check(const uint8_t[::1] data):
 
 
 def rgbe_encode(
-    data, header=None, rle=None, out=None
+    data,
+    /,
+    *,
+    header=None,
+    rle=None,
+    out=None,
 ):
     """Return RGBE encoded image."""
     cdef:
@@ -95,11 +99,11 @@ def rgbe_encode(
         int width = 1
         int height = 1
         int ret = RGBE_RETURN_SUCCESS
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
         # rgbe_header_info info
 
     if not (
-        srcsize <= 2147483647
+        srcsize <= INT32_MAX
         and src.dtype.char == 'f'
         and src.ndim > 0
         and src.shape[src.ndim - 1] == 3
@@ -185,7 +189,12 @@ def rgbe_encode(
 
 
 def rgbe_decode(
-    data, header=None, rle=None, out=None
+    data,
+    /,
+    *,
+    header=None,
+    rle=None,
+    out=None,
 ):
     """Return decoded RGBE image."""
     cdef:
@@ -196,7 +205,7 @@ def rgbe_decode(
         int dorle = -1 if rle is None else (1 if rle else 0)
         int width, height
         int ret = RGBE_RETURN_SUCCESS
-        rgbe_stream_t *stream
+        rgbe_stream_t* stream
         # rgbe_header_info info
 
     if data is out:
@@ -217,11 +226,11 @@ def rgbe_decode(
             arr.ndim > 0
             and arr.shape[arr.ndim - 1] == 4
             and arr.dtype.char == 'B'
-            and arr.nbytes <= 2147483647
+            and arr.nbytes <= INT32_MAX
         ):
             raise ValueError('data must be a uint8 RGBE image array')
         out = _create_array(
-            out, data.shape[:arr.ndim - 1] + (3, ), numpy.float32
+            out, (*data.shape[:arr.ndim - 1], 3), numpy.float32
         )
         size = out.size // 3
         dst = out
@@ -238,7 +247,7 @@ def rgbe_decode(
         del dst
         return out
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('input too large')
 
     stream = rgbe_stream_new(srcsize, <char*> &src[0])
@@ -274,7 +283,7 @@ def rgbe_decode(
             if not (
                 len(shape) == 3
                 and shape[2] == 3
-                and out.nbytes <= 2147483647
+                and out.nbytes <= INT32_MAX
                 and out.dtype.char == 'f'
                 and out.flags['C_CONTIGUOUS']
             ):
