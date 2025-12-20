@@ -1,13 +1,12 @@
 # imagecodecs/_shared.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Shared functions for imagecodecs extensions."""
+"""Private, shared functions for imagecodecs extension modules."""
 
 import numbers
 
@@ -91,15 +90,11 @@ cdef _create_output(out, ssize_t size, const char* string=NULL):
     cdef:
         object obj
 
-    IF IS_PYPY:
-        # PyPy can not modify the content of bytes
-        pass
-    ELSE:
-        if out is None or out is bytes or PyBytes_Check(out):
-            obj = PyBytes_FromStringAndSize(string, size)
-            if obj is None:
-                raise MemoryError('PyBytes_FromStringAndSize failed')
-            return obj
+    if out is None or out is bytes or PyBytes_Check(out):
+        obj = PyBytes_FromStringAndSize(string, size)
+        if obj is None:
+            raise MemoryError('PyBytes_FromStringAndSize failed')
+        return obj
     obj = PyByteArray_FromStringAndSize(string, size)
     if obj is None:
         raise MemoryError('PyByteArray_FromStringAndSize failed')
@@ -151,6 +146,8 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
         if out.itemsize != numpy.dtype(dtype).itemsize:
             raise ValueError(f'invalid {out.dtype=}, {dtype=}')
         if out.shape != shape:
+            # check that shapes match, allowing length-one dimensions.
+            # arrays with incompatible strides will fail to reshape
             if (
                 tuple(int(i) for i in out.shape if i != 1)
                 != tuple(int(i) for i in shape if i != 1)
@@ -173,8 +170,7 @@ cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
         dstsize = 1
         for i in shape:
             dstsize *= i
-        out = numpy.frombuffer(out, dtype, dstsize)
-        out.shape = shape
+        out = numpy.frombuffer(out, dtype, dstsize).reshape(shape)
 
     if zero:
         out.fill(0)
@@ -282,7 +278,7 @@ cdef tuple _squeeze_shape(tuple shape, ssize_t ndim):
 
 
 cdef _default_value(value, default, smallest, largest):
-    """Return default value or value in range."""
+    """Return default value or value in range [smallest, largest]."""
     if value is None:
         return default
     if largest is not None and value >= largest:
@@ -292,15 +288,15 @@ cdef _default_value(value, default, smallest, largest):
     return value
 
 
-cdef _default_threads(numthreads):
-    """Return default number of threads or value in range."""
+cdef uint8_t _default_threads(numthreads):
+    """Return default number of threads or value in range [0, 32]."""
     if numthreads is None:
         return 1
     if numthreads <= 0:
         return 0
     if numthreads >= 32:
         return 32
-    return numthreads
+    return <uint8_t> numthreads
 
 
 def _log_warning(msg, *args, **kwargs):
