@@ -1,5 +1,4 @@
 # imagecodecs/lz4.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `lz4 1.10.0` library.
 # https://github.com/lz4/lz4
@@ -192,7 +191,6 @@ cdef extern from 'lz4.h' nogil:
         int dictSize
     )
 
-
 cdef extern from 'lz4hc.h' nogil:
 
     int LZ4HC_CLEVEL_MIN
@@ -278,7 +276,6 @@ cdef extern from 'lz4hc.h' nogil:
         LZ4_streamHC_t* working_stream,
         const LZ4_streamHC_t* dictionary_stream
     )
-
 
 cdef extern from 'lz4frame.h' nogil:
 
