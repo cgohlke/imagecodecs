@@ -1,5 +1,4 @@
 # imagecodecs/lerc.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `LERC 4.0.0` library.
 # https://github.com/Esri/lerc
@@ -176,7 +175,6 @@ cdef extern from 'Lerc_c_api.h' nogil:
         unsigned char* pUsesNoData,
         double* noDataValues
     )
-
 
 # cdef extern from 'Lerc_types.h' nogil:  # C++ header
 
