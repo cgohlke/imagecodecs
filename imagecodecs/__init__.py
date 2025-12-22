@@ -1,5 +1,4 @@
 # imagecodecs/__init__.py
-# flake8: noqa
 
 from __future__ import annotations
 
