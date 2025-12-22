@@ -1,5 +1,4 @@
 # imagecodecs/blosc2.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `c-blosc2 2.22.0` library.
 # https://github.com/Blosc/c-blosc2
@@ -372,7 +371,7 @@ cdef extern from 'blosc2.h' nogil:
     ) nogil
 
     ctypedef int (*blosc2_destroy_cb)(
-        void *params
+        void* params
     ) nogil
 
     ctypedef struct blosc2_io_cb:
@@ -715,7 +714,7 @@ cdef extern from 'blosc2.h' nogil:
     blosc2_schunk* blosc2_schunk_open_offset_udio(
         const char* urlpath,
         int64_t offset,
-        const blosc2_io *udio
+        const blosc2_io* udio
     )
 
     int64_t blosc2_schunk_to_buffer(
@@ -1051,7 +1050,6 @@ cdef extern from 'blosc2.h' nogil:
         void* dest
     )
 
-
 cdef extern from 'b2nd.h' nogil:
 
     int B2ND_METALAYER_VERSION
@@ -1168,8 +1166,8 @@ cdef extern from 'b2nd.h' nogil:
     )
 
     int64_t b2nd_save_append(
-        const b2nd_array_t *array,
-        const char *urlpath
+        const b2nd_array_t* array,
+        const char* urlpath
     )
 
     int b2nd_from_cbuffer(
@@ -1235,12 +1233,12 @@ cdef extern from 'b2nd.h' nogil:
     )
 
     int b2nd_concatenate(
-        b2nd_context_t *ctx,
-        const b2nd_array_t *src1,
-        const b2nd_array_t *src2,
+        b2nd_context_t* ctx,
+        const b2nd_array_t* src1,
+        const b2nd_array_t* src2,
         int8_t axis,
         bool copy,
-        b2nd_array_t **array
+        b2nd_array_t** array
     )
 
     int b2nd_print_meta(
@@ -1318,23 +1316,23 @@ cdef extern from 'b2nd.h' nogil:
     int b2nd_copy_buffer(
         int8_t ndim,
         uint8_t itemsize,
-        const void *src,
-        const int64_t *src_pad_shape,
-        const int64_t *src_start,
-        const int64_t *src_stop,
-        void *dst,
-        const int64_t *dst_pad_shape,
-        const int64_t *dst_start
+        const void* src,
+        const int64_t* src_pad_shape,
+        const int64_t* src_start,
+        const int64_t* src_stop,
+        void* dst,
+        const int64_t* dst_pad_shape,
+        const int64_t* dst_start
     )
 
     int b2nd_copy_buffer2(
         int8_t ndim,
         int32_t itemsize,
-        const void *src,
-        const int64_t *src_pad_shape,
-        const int64_t *src_start,
-        const int64_t *src_stop,
-        void *dst,
-        const int64_t *dst_pad_shape,
-        const int64_t *dst_start
+        const void* src,
+        const int64_t* src_pad_shape,
+        const int64_t* src_start,
+        const int64_t* src_stop,
+        void* dst,
+        const int64_t* dst_pad_shape,
+        const int64_t* dst_start
     )
