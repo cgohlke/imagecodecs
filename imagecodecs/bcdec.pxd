@@ -1,5 +1,4 @@
 # imagecodecs/bcdec.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `bcdec 963c5e5` library.
 # https://github.com/iOrange/bcdec
@@ -104,7 +103,6 @@ cdef extern from 'bcdec.h' nogil:
         void* decompressedBlock,
         int destinationPitch
     )
-
 
 cdef extern from 'bcdec_dds.h' nogil:
 
