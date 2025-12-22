@@ -1,5 +1,4 @@
 # imagecodecs/zstd.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `zstd 1.5.7` library (aka Zstandard).
 # https://github.com/facebook/zstd
@@ -49,7 +48,6 @@ cdef extern from 'zstd_errors.h' nogil:
         ZSTD_ErrorCode code
     )
 
-
 cdef extern from 'zstd.h' nogil:
 
     int ZSTD_VERSION_MAJOR
@@ -89,7 +87,7 @@ cdef extern from 'zstd.h' nogil:
     )
 
     unsigned long long ZSTD_getFrameContentSize(
-        const void *src,
+        const void* src,
         size_t srcSize
     )
 
@@ -492,7 +490,8 @@ cdef extern from 'zstd.h' nogil:
 
     # endif
 
-    # if defined(ZSTD_STATIC_LINKING_ONLY) && !defined(ZSTD_H_ZSTD_STATIC_LINKING_ONLY)
+    # if defined(ZSTD_STATIC_LINKING_ONLY)
+    # && !defined(ZSTD_H_ZSTD_STATIC_LINKING_ONLY)
     int ZSTD_H_ZSTD_STATIC_LINKING_ONLY
 
     int ZSTD_FrameHeaderSIZE_PREFIX(format)
