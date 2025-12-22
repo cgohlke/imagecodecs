@@ -1,5 +1,4 @@
 # imagecodecs/libultrahdr.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libultrahdr 1.4.0` library.
 # https://github.com/google/libultrahdr
