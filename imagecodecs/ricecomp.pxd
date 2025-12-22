@@ -1,10 +1,8 @@
 # imagecodecs/ricecomp.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `ricecomp 2023.7.4` library.
 # Forked from `cfitsio 3.49`
 # https://heasarc.gsfc.nasa.gov/fitsio/
-
 
 cdef extern from 'ricecomp.h' nogil:
 
