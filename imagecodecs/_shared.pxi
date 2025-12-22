@@ -1,5 +1,4 @@
 # imagecodecs/_shared.pxi
-# cython: language_level = 3
 
 # Include file for imagecodecs extensions.
 
@@ -12,7 +11,11 @@ cimport numpy
 
 from ._shared import _log_warning
 
+from libc.limits cimport ULONG_MAX
 from libc.stdint cimport (
+    INT16_MAX,
+    INT32_MAX,
+    INT64_MAX,
     SIZE_MAX,
     UINT16_MAX,
     UINT32_MAX,
@@ -43,3 +46,13 @@ from ._shared cimport (
 )
 
 numpy.import_array()
+
+
+cdef inline size_t _align_size_t(size_t size) noexcept nogil:
+    """Return size_t increased to next multiple of 64KB."""
+    return (size + 65536 - 1) // 65536 * 65536
+
+
+cdef inline size_t _align_ssize_t(ssize_t size) noexcept nogil:
+    """Return ssize_t increased to next multiple of 64KB."""
+    return (size + 65536 - 1) // 65536 * 65536
