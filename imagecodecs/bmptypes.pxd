@@ -1,5 +1,4 @@
 # imagecodecs/bmptypes.pxd
-# cython: language_level = 3
 
 # Cython declarations for the BMP file format.
 
