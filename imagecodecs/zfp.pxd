@@ -1,5 +1,4 @@
 # imagecodecs/zfp.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `zfp 1.0.1` library.
 # https://github.com/LLNL/zfp
@@ -33,7 +32,6 @@ cdef extern from 'zfp/version.h' nogil:
     int ZFP_VERSION_PATCH
     int ZFP_VERSION_TWEAK
 
-
 cdef extern from 'zfp/bitstream.h' nogil:
 
     ctypedef struct bitstream:
@@ -47,7 +45,6 @@ cdef extern from 'zfp/bitstream.h' nogil:
     void stream_close(
         bitstream* stream
     )
-
 
 cdef extern from 'zfp.h' nogil:
 
