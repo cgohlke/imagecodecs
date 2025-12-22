@@ -1,5 +1,4 @@
 # imagecodecs/qoi.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `qoi 75e7f30` library.
 # https://github.com/phoboslab/qoi
