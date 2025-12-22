@@ -1,5 +1,4 @@
 # imagecodecs/_shared.pxd
-# cython: language_level = 3
 
 # Shared function definitions for imagecodecs extensions.
 
@@ -24,4 +23,4 @@ cdef tuple _squeeze_shape(tuple shape, ssize_t ndim)
 
 cdef _default_value(value, default, smallest, largest)
 
-cdef _default_threads(numthreads)
+cdef uint8_t _default_threads(numthreads)
