@@ -1,5 +1,4 @@
 # imagecodecs/libjxs.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libjxs 2.0.2` library.
 # https://jpeg.org/jpegxs/software.html
