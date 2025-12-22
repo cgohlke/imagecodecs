@@ -1,5 +1,4 @@
 # imagecodecs/zopfli.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `Zopfli 1.0.3` library.
 # https://github.com/google/zopfli
@@ -32,7 +31,6 @@ cdef extern from 'zopfli.h' nogil:
         size_t* outsize
     )
 
-
 # zlib_container.h and gzip_container.h missing in Arch Linux
 #
 # cdef extern from 'zopfli/zlib_container.h' nogil:
@@ -55,7 +53,6 @@ cdef extern from 'zopfli.h' nogil:
 #         unsigned char** out,
 #         size_t* outsize
 #     )
-
 
 # zopflipng_lib.h missing in Debian
 #
