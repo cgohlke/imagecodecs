@@ -1,7 +1,6 @@
 # imagecodecs/pcodec.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `pcodec 0.4.6` library.
+# Cython declarations for the `pcodec 0.4.7` library.
 # https://github.com/mwlon/pcodec
 
 cdef extern from 'cpcodec.h' nogil:
@@ -23,25 +22,25 @@ cdef extern from 'cpcodec.h' nogil:
         PcoDecompressionError
 
     ctypedef struct PcoFfiVec:
-        const void *ptr
+        const void* ptr
         size_t len
-        const void *raw_box
+        const void* raw_box
 
     PcoError pco_simpler_compress(
-        const void *nums,
+        const void* nums,
         size_t len,
         unsigned char dtype,
         unsigned int level,
-        PcoFfiVec *dst
+        PcoFfiVec* dst
     )
 
     PcoError pco_simple_decompress(
-        const void *compressed,
+        const void* compressed,
         size_t len,
         unsigned char dtype,
-        PcoFfiVec *dst
+        PcoFfiVec* dst
     )
 
     PcoError pco_free_pcovec(
-        PcoFfiVec *ffi_vec
+        PcoFfiVec* ffi_vec
     )
