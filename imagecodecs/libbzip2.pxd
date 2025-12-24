@@ -1,5 +1,4 @@
 # imagecodecs/libbzip2.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libbzip2 1.0.8` library.
 # https://sourceware.org/bzip2/
