@@ -1,13 +1,12 @@
 # imagecodecs/_pcodec.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2024-2025, Christoph Gohlke
+# Copyright (c) 2024-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Pcodec codec for the imagecodecs package."""
+"""PCODEC codec for the imagecodecs package.
+
+See Pcodec C API issues: https://github.com/pcodec/pcodec/issues/247
+
+"""
 
 include '_shared.pxi'
 
@@ -44,13 +47,13 @@ from pcodec cimport *
 
 
 class PCODEC:
-    """Pcodec codec constants."""
+    """PCODEC codec constants."""
 
     available = True
 
 
 class PcodecError(RuntimeError):
-    """Pcodec codec exceptions."""
+    """PCODEC codec exceptions."""
 
     def __init__(self, func, err):
         msg = {
@@ -66,27 +69,31 @@ class PcodecError(RuntimeError):
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 0.3.1'
+    return 'pcodec 0.4.7'
 
 
-def pcodec_check(const uint8_t[::1] data):
-    """Return whether data is pcodec encoded."""
-    return None
+def pcodec_check(const uint8_t[::1] data, /):
+    """Return whether data is PCODEC encoded or None if unknown."""
 
 
-def pcodec_encode(data, level=None, out=None):
-    """Return pcodec encoded data."""
+def pcodec_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
+    """Return PCODEC encoded data."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize, dst_len
-        size_t len = src.size
+        ssize_t dstsize, pcovec_len
         unsigned int pcolevel = _default_value(level, 8, 0, 12)
         unsigned char pcotype
         PcoFfiVec pcovec
         PcoError ret
 
-    if src.size > 2147483647:
+    if src.size > INT32_MAX:
         raise ValueError(f'invalid {src.size=}')
 
     try:
@@ -95,9 +102,11 @@ def pcodec_encode(data, level=None, out=None):
         raise ValueError(f'{src.dtype=} not supported')
 
     with nogil:
+        memset(<void*> &pcovec, 0, sizeof(PcoFfiVec))
+
         ret = pco_simpler_compress(
             <const void*> src.data,
-            len,
+            <size_t> src.size,
             pcotype,
             pcolevel,
             &pcovec
@@ -105,30 +114,39 @@ def pcodec_encode(data, level=None, out=None):
         if ret != PcoSuccess:
             raise PcodecError('pco_simpler_compress', ret)
 
-    try:
-        dst_len = <ssize_t> pcovec.len
+        pcovec_len = <ssize_t> pcovec.len
 
+    try:
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
-            dstsize = dst_len
-            out = _create_output(outtype, dstsize, <const char*> pcovec.ptr)
+            dstsize = pcovec_len
+            out = _create_output(
+                outtype, dstsize, <const char*> pcovec.ptr
+            )
         else:
             dst = out
             dstsize = dst.nbytes
-            if dstsize < dst_len:
+            if dstsize < pcovec_len:
                 raise ValueError(
-                    f'output buffer too small {dstsize=} < {dst_len=}'
+                    f'output buffer too small {dstsize=} < {pcovec.len=}'
                 )
-            memcpy(<void*> &dst[0], <const void*> pcovec.ptr, dst_len)
+            memcpy(<void*> &dst[0], pcovec.ptr, pcovec.len)
             del dst
     finally:
         pco_free_pcovec(&pcovec)
 
-    return _return_output(out, dstsize, dst_len, outgiven)
+    return _return_output(out, dstsize, pcovec_len, outgiven)
 
 
-def pcodec_decode(data, shape=None, dtype=None, out=None):
-    """Return decoded pcodec data."""
+def pcodec_decode(
+    data,
+    /,
+    shape=None,
+    dtype=None,
+    *,
+    out=None,
+):
+    """Return decoded PCODEC data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -136,9 +154,6 @@ def pcodec_decode(data, shape=None, dtype=None, out=None):
         unsigned char pcotype
         PcoFfiVec pcovec
         PcoError ret
-
-    if src.size > 2147483647:
-        raise ValueError(f'invalid {src.size=}')
 
     if isinstance(out, numpy.ndarray):
         dtype = out.dtype
@@ -155,6 +170,8 @@ def pcodec_decode(data, shape=None, dtype=None, out=None):
         raise ValueError(f'{dtype=} not supported')
 
     with nogil:
+        memset(<void*> &pcovec, 0, sizeof(PcoFfiVec))
+
         ret = pco_simple_decompress(
             <const void*> &src[0], src_len, pcotype, &pcovec
         )
@@ -170,7 +187,7 @@ def pcodec_decode(data, shape=None, dtype=None, out=None):
             raise ValueError(
                 f'invalid output size {out.size=} != {pcovec.len=}'
             )
-        memcpy(<void*> &dst.data[0], <const void*> pcovec.ptr, dst.nbytes)
+        memcpy(<void*> &dst.data[0], pcovec.ptr, dst.nbytes)
     finally:
         pco_free_pcovec(&pcovec)
 
