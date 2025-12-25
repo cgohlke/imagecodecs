@@ -1,8 +1,5 @@
 # imagecodecs/__main__.py
 
-# Copyright (c) 2019-2025, Christoph Gohlke
-# This source code is distributed under the BSD 3-Clause license.
-
 """Imagecodecs package command line script."""
 
 from __future__ import annotations
@@ -15,7 +12,7 @@ from tifffile import Timer, askopenfilename, imshow
 from .imagecodecs import imread
 
 
-def main(argv: list[str] | None = None, verbose: bool = True) -> int:
+def main(argv: list[str] | None = None, *, verbose: bool = True) -> int:
     """Imagecodecs command line usage main function."""
     if argv is None:
         argv = sys.argv
