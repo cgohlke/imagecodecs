@@ -1,5 +1,4 @@
 # imagecodecs/brotli.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `Brotli 1.2.0` library.
 # https://github.com/google/brotli
@@ -23,7 +22,6 @@ cdef extern from 'brotli/types.h' nogil:
         void* opaque,
         void* address
     ) nogil
-
 
 cdef extern from 'brotli/decode.h' nogil:
 
@@ -56,7 +54,7 @@ cdef extern from 'brotli/decode.h' nogil:
         BrotliDecoderState* state,
         BrotliSharedDictionaryType type_,
         size_t data_size,
-        const uint8_t *data
+        const uint8_t* data
     )
 
     BrotliDecoderState* BrotliDecoderCreateInstance(
@@ -128,7 +126,6 @@ cdef extern from 'brotli/decode.h' nogil:
         brotli_decoder_metadata_start_func start_func,
         brotli_decoder_metadata_chunk_func chunk_func, void* opaque
     )
-
 
 cdef extern from 'brotli/encode.h' nogil:
 
