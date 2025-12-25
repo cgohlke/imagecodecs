@@ -1,13 +1,12 @@
 # imagecodecs/_lzf.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,16 +35,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Lzf codec for the imagecodecs package."""
+"""LZF (Lempel-Ziv Fast) codec for the imagecodecs package."""
 
 include '_shared.pxi'
+
+from liblzf cimport *
+
 
 cdef extern from 'errno.h':
     int errno
     int E2BIG
     int EINVAL
-
-from liblzf cimport *
 
 
 class LZF:
@@ -63,11 +63,17 @@ def lzf_version():
     return f'liblzf {LZF_VERSION >> 8}.{LZF_VERSION & 255}'
 
 
-def lzf_check(data):
-    """Return whether data is LZF encoded."""
+def lzf_check(const uint8_t[::1] data, /):
+    """Return whether data is LZF encoded or None if unknown."""
 
 
-def lzf_encode(data, header=False, out=None):
+def lzf_encode(
+    data,
+    /,
+    *,
+    header=False,
+    out=None,
+):
     """Return LZF encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -81,7 +87,7 @@ def lzf_encode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -99,7 +105,7 @@ def lzf_encode(data, header=False, out=None):
     dst = out
     dstsize = dst.size - offset
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
@@ -123,7 +129,13 @@ def lzf_encode(data, header=False, out=None):
     return _return_output(out, dstsize+offset, ret+offset, outgiven)
 
 
-def lzf_decode(data, header=False, out=None):
+def lzf_decode(
+    data,
+    /,
+    *,
+    header=False,
+    out=None,
+):
     """Return decoded LZF data."""
     cdef:
         const uint8_t[::1] src = data
@@ -138,7 +150,7 @@ def lzf_decode(data, header=False, out=None):
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -159,7 +171,7 @@ def lzf_decode(data, header=False, out=None):
     dst = out
     dstsize = <int> dst.size
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
