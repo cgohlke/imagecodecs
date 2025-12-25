@@ -1,5 +1,4 @@
 # imagecodecs/libdeflate.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libdeflate 1.25` library.
 # https://github.com/ebiggers/libdeflate
@@ -36,7 +35,7 @@ cdef extern from 'libdeflate.h' nogil:
 
     libdeflate_compressor* libdeflate_alloc_compressor_ex(
         int compression_level,
-        const libdeflate_options *options
+        const libdeflate_options* options
     )
 
     size_t libdeflate_deflate_compress(
@@ -87,7 +86,7 @@ cdef extern from 'libdeflate.h' nogil:
     libdeflate_decompressor* libdeflate_alloc_decompressor()
 
     libdeflate_decompressor* libdeflate_alloc_decompressor_ex(
-        const libdeflate_options *options
+        const libdeflate_options* options
     )
 
     libdeflate_result libdeflate_deflate_decompress(
@@ -175,4 +174,4 @@ cdef extern from 'libdeflate.h' nogil:
     struct libdeflate_options:
         size_t sizeof_options
         void *(*malloc_func)(size_t) nogil
-        void (*free_func)(void *) nogil
+        void (*free_func)(void*) nogil
