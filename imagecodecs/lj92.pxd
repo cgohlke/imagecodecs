@@ -1,5 +1,4 @@
 # imagecodecs/lj92.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `liblj92 2023.1.23` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/liblj92/
