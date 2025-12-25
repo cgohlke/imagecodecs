@@ -1,13 +1,12 @@
 # imagecodecs/_pglz.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -62,12 +61,17 @@ def pglz_version():
     return f'pg_lzcompress {PG_LZCOMPRESS_VERSION.decode()}'
 
 
-def pglz_check(data):
-    """Return whether data is PGLZ encoded."""
+def pglz_check(const uint8_t[::1] data, /):
+    """Return whether data is PGLZ encoded or None if unknown."""
 
 
 def pglz_encode(
-    data, header=False, strategy=None, out=None
+    data,
+    /,
+    *,
+    header=False,
+    strategy=None,
+    out=None,
 ):
     """Return PGLZ encoded data.
 
@@ -104,7 +108,7 @@ def pglz_encode(
         custom_strategy.match_size_good = strategy[4]
         custom_strategy.match_size_drop = strategy[5]
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -119,13 +123,11 @@ def pglz_encode(
     dst = out
     dstsize = dst.size - offset
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     if dstsize < PGLZ_MAX_OUTPUT(srcsize):
         raise ValueError('output too small')
-
-    # pglz_compress is not thread-safe
 
     with global_lock:
         ret = pglz_compress(
@@ -155,7 +157,12 @@ def pglz_encode(
 
 
 def pglz_decode(
-    data, header=False, checkcomplete=None, out=None
+    data,
+    /,
+    *,
+    header=False,
+    checkcomplete=None,
+    out=None,
 ):
     """Return decoded PGLZ data."""
     cdef:
@@ -171,7 +178,7 @@ def pglz_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -193,7 +200,7 @@ def pglz_decode(
     dst = out
     dstsize = dst.size
 
-    if dst.size > 2147483647:
+    if dst.size > INT32_MAX:
         raise ValueError('output too large')
 
     if header and srcsize == offset + rawsize:
