@@ -1,13 +1,12 @@
 # imagecodecs/_jetraw.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Jetraw codec for the imagecodecs package."""
+"""JETRAW codec for the imagecodecs package.
+
+This implementation is based on the discontinued version 23.03.16.4
+Jetraw SDK by the Dotphoton.
+
+"""
 
 include '_shared.pxi'
 
@@ -49,10 +53,10 @@ import cython
 from cpython.mem cimport PyMem_Free
 
 
-cdef cython.pymutex global_lock
-
 cdef extern from 'Python.h':
     jetraw.CHARTYPE* PyUnicode_AsWideCharString(object, Py_ssize_t*)
+
+cdef cython.pymutex global_lock
 
 
 class JETRAW:
@@ -78,12 +82,15 @@ def jetraw_version():
     return 'jetraw ' + jetraw.jetraw_version().decode()
 
 
-def jetraw_check(const uint8_t[::1] data):
-    """Return whether data is JETRAW encoded image."""
-    return None
+def jetraw_check(const uint8_t[::1] data, /):
+    """Return whether data is JETRAW encoded image or None if unknown."""
 
 
-def jetraw_init(parameters=None, verbose=None):
+def jetraw_init(
+    parameters=None,
+    *,
+    verbose=None,
+):
     """Initialize JETRAW codec.
 
     Load preparation parameters and set verbosity level.
@@ -119,7 +126,12 @@ def jetraw_init(parameters=None, verbose=None):
 
 
 def jetraw_encode(
-    data, identifier, errorbound=None, out=None
+    data,
+    /,
+    identifier,
+    *,
+    errorbound=None,
+    out=None,
 ):
     """Return JETRAW encoded image.
 
@@ -143,7 +155,7 @@ def jetraw_encode(
 
     if not (
         src.ndim == 2
-        and srcsize <= 2147483647
+        and srcsize <= INT32_MAX
         and src.dtype == numpy.uint16
     ):
         raise ValueError('invalid data shape or dtype')
@@ -155,12 +167,12 @@ def jetraw_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = min(max(src.size, <ssize_t> 1024), <ssize_t> 2147483647)
+            dstsize = min(max(src.size, <ssize_t> 1024), <ssize_t> INT32_MAX)
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647:
+    if dstsize > INT32_MAX:
         raise RuntimeError('output too large')
     pdstlen = <int32_t> dstsize
 
@@ -191,7 +203,12 @@ def jetraw_encode(
     return _return_output(out, dstsize, pdstlen, outgiven)
 
 
-def jetraw_decode(data, out=None):
+def jetraw_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded JETRAW image."""
     cdef:
         numpy.ndarray dst
@@ -208,10 +225,10 @@ def jetraw_decode(data, out=None):
 
     dst = out
     dstsize = dst.size
-    if dstsize > 2147483647 or dst.dtype != numpy.uint16:
+    if dstsize > INT32_MAX or dst.dtype != numpy.uint16:
         raise ValueError('invalid output shape or dtype')
 
-    if srcsize > 2147483647:
+    if srcsize > INT32_MAX:
         raise ValueError('input too large')
 
     with nogil:
