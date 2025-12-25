@@ -1,7 +1,6 @@
 # imagecodecs/liblzma.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `liblzma 5.8.1` library.
+# Cython declarations for the `liblzma 5.8.2` library.
 # https://github.com/tukaani-project/xz
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
@@ -927,30 +926,30 @@ cdef extern from 'lzma.h' nogil:
         pass
 
     lzma_index_hash* lzma_index_hash_init(
-        lzma_index_hash *index_hash,
-        const lzma_allocator *allocator
+        lzma_index_hash* index_hash,
+        const lzma_allocator* allocator
     )
 
     void lzma_index_hash_end(
-        lzma_index_hash *index_hash,
-        const lzma_allocator *allocator
+        lzma_index_hash* index_hash,
+        const lzma_allocator* allocator
     )
 
     lzma_ret lzma_index_hash_append(
-        lzma_index_hash *index_hash,
+        lzma_index_hash* index_hash,
         lzma_vli unpadded_size,
         lzma_vli uncompressed_size
     )
 
     lzma_ret lzma_index_hash_decode(
-        lzma_index_hash *index_hash,
-        const uint8_t *in_,
-        size_t *in_pos,
+        lzma_index_hash* index_hash,
+        const uint8_t* in_,
+        size_t* in_pos,
         size_t in_size
     )
 
     lzma_vli lzma_index_hash_size(
-        const lzma_index_hash *index_hash
+        const lzma_index_hash* index_hash
     )
 
     # hardware.h
