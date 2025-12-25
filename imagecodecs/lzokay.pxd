@@ -1,5 +1,4 @@
 # imagecodecs/lzokay.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `lzokay` library.
 # https://github.com/AxioDL/lzokay
