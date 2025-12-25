@@ -1,5 +1,4 @@
 # imagecodecs/nc4var.pxd
-# cython: language_level = 3
 
 # Cython declarations for netcdf4-c's `nc4var.c`.
 # https://github.com/Unidata/netcdf-c/blob/main/libsrc4/nc4var.c
@@ -52,13 +51,13 @@ cdef extern from 'nc4var.h' nogil:
     ctypedef int nc_type
 
     int nc4_convert_type(
-        const void *src,
-        void *dest,
+        const void* src,
+        void* dest,
         const nc_type src_type,
         const nc_type dest_type,
         const size_t len,
-        int *range_error,
-        const void *fill_value,
+        int* range_error,
+        const void* fill_value,
         int strict_nc3,
         int quantize_mode,
         int nsd
