@@ -1,5 +1,4 @@
 # imagecodecs/libtiff.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libtiff 4.7.1` library.
 # https://gitlab.com/libtiff/libtiff
@@ -21,7 +20,6 @@ from libc.stdio cimport FILE
 cdef extern from '<stdarg.h>' nogil:
     ctypedef struct va_list:
         pass
-
 
 cdef extern from 'tiffio.h' nogil:
 
@@ -443,7 +441,7 @@ cdef extern from 'tiffio.h' nogil:
     )
 
     int TIFFFieldIsAnonymous(
-        const TIFFField *
+        const TIFFField*
     )
 
     ctypedef int (*TIFFVSetMethod)(
@@ -975,7 +973,7 @@ cdef extern from 'tiffio.h' nogil:
     ctypedef struct TIFFOpenOptions:
         pass
 
-    TIFFOpenOptions *TIFFOpenOptionsAlloc()
+    TIFFOpenOptions* TIFFOpenOptionsAlloc()
 
     void TIFFOpenOptionsFree(
         TIFFOpenOptions*
@@ -987,12 +985,12 @@ cdef extern from 'tiffio.h' nogil:
     )
 
     void TIFFOpenOptionsSetMaxCumulatedMemAlloc(
-        TIFFOpenOptions *opts,
+        TIFFOpenOptions* opts,
         tmsize_t max_cumulated_mem_alloc
     )
 
     void TIFFOpenOptionsSetWarnAboutUnknownTags(
-        TIFFOpenOptions *opts,
+        TIFFOpenOptions* opts,
         int warn_about_unknown_tags
     )
 
@@ -1067,7 +1065,7 @@ cdef extern from 'tiffio.h' nogil:
         TIFFSizeProc,
         TIFFMapFileProc,
         TIFFUnmapFileProc,
-        TIFFOpenOptions *opts
+        TIFFOpenOptions* opts
     )
 
     TIFFExtendProc TIFFSetTagExtender(
