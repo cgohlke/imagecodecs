@@ -1,5 +1,4 @@
 # imagecodecs/bitshuffle.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `Bitshuffle 0.5.1` library.
 # https://github.com/kiyo-masui/bitshuffle
