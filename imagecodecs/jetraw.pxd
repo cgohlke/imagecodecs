@@ -1,9 +1,7 @@
 # imagecodecs/jetraw.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `jetraw 23.03.16.4` library.
 # https://github.com/Jetraw/Jetraw
-
 
 from libc.stdint cimport int32_t, uint16_t, uint32_t
 
@@ -51,7 +49,6 @@ cdef extern from 'jetraw/jetraw.h' nogil:
     )
 
     const char* jetraw_version()
-
 
 cdef extern from 'dpcore/dpcore.h' nogil:
 
