@@ -1,13 +1,12 @@
 # imagecodecs/_tiff.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""TIFF codec for the imagecodecs package."""
+"""TIFF (Tagged Image File Format) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -49,7 +48,7 @@ cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
 
 # private definition in tiffiop.h
-DEF TIFF_MAX_DIR_COUNT = 1048576
+cdef const tdir_t TIFF_MAX_DIR_COUNT = 1048576
 
 
 class _TIFF:
@@ -81,6 +80,7 @@ class _TIFF:
         LZMA = COMPRESSION_LZMA
         ZSTD = COMPRESSION_ZSTD
         WEBP = COMPRESSION_WEBP
+        # TODO: enable when libtiff adds better support
         # LERC = COMPRESSION_LERC
         # JXL = COMPRESSION_JXL
 
@@ -124,7 +124,9 @@ class TiffError(RuntimeError):
         cdef:
             memtif_t* memtif
 
-        if arg is None or isinstance(arg, str):
+        if arg is None:
+            pass
+        elif isinstance(arg, str):
             msg += arg
         else:
             memtif = <memtif_t*> PyCapsule_GetPointer(arg, NULL)
@@ -141,8 +143,8 @@ def tiff_version():
     return 'libtiff ' + ver.decode().split('\n')[0].split()[-1]
 
 
-def tiff_check(const uint8_t[::1] data):
-    """Return whether data is TIFF encoded image."""
+def tiff_check(const uint8_t[::1] data, /):
+    """Return whether data is TIFF encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:4])
 
@@ -161,7 +163,9 @@ def tiff_check(const uint8_t[::1] data):
 
 def tiff_encode(
     data,
+    /,
     level=None,
+    *,
     bigtiff=None,
     append=None,
     photometric=None,
@@ -180,14 +184,20 @@ def tiff_encode(
     subfiletype=0,
     software=None,
     verbose=None,
-    out=None
+    out=None,
 ):
     """Return TIFF encoded image (not implemented)."""
     raise NotImplementedError('tiff_encode')  # TODO
 
 
 def tiff_decode(
-    data, index=0, asrgb=False, verbose=None, out=None
+    data,
+    /,
+    index=0,
+    *,
+    asrgb=False,
+    verbose=None,
+    out=None,
 ):
     """Return decoded TIFF image.
 
@@ -245,7 +255,7 @@ def tiff_decode(
         if not 0 < len(index) < TIFF_MAX_DIR_COUNT:
             raise ValueError('invalid index')
         try:
-            dirnum = index[0]
+            dirnum = index[0]  # validate index[0] is non-negative integer
             dirnum = <tdir_t> len(index)
         except Exception as exc:
             raise ValueError('invalid index') from exc
@@ -262,6 +272,7 @@ def tiff_decode(
         dirlist_append(dirlist, dirstart)
     else:
         raise ValueError('invalid index')
+
     if dirlist == NULL:
         raise MemoryError('dirlist_new failed')
 
@@ -306,12 +317,12 @@ def tiff_decode(
 
             dirnum = dirlist.data[0]
             if dirnum != 0:
-                ret = tiff_set_directory(tif, dirnum)
+                ret = _tiff_set_directory(tif, dirnum)
                 if ret == 0:
                     raise IndexError('directory out of range')
 
             isrgb = rgb
-            ret = tiff_read_ifd(tif, &sizes[0], &dtype[0], &isrgb, &istiled)
+            ret = _tiff_read_ifd(tif, &sizes[0], &dtype[0], &isrgb, &istiled)
             if ret == 0:
                 raise TiffError(memtifobj)
             if ret == -1:
@@ -333,11 +344,11 @@ def tiff_decode(
                         break
                     dirnum += dirstep
 
-                    ret = tiff_set_directory(tif, dirnum)
+                    ret = _tiff_set_directory(tif, dirnum)
                     if ret == 0:
                         break
                     isrgb2 = rgb
-                    ret = tiff_read_ifd(
+                    ret = _tiff_read_ifd(
                         tif, &sizes2[0], &dtype2[0], &isrgb2, &istiled2
                     )
                     if ret == 0:
@@ -375,6 +386,10 @@ def tiff_decode(
                     raise TiffError(memtifobj)
 
             images = dirlist.index
+            if images == 0:
+                raise ValueError('no matching directories found')
+
+            # ssize_t overflow detected during _create_array() call below
             imagesize = (
                 sizes[1] * sizes[2] * sizes[3] * sizes[4] * sizes[5] * sizes[6]
             )
@@ -392,7 +407,7 @@ def tiff_decode(
         )
 
         out = _create_array(out, shapeout, f'{dtype.decode()}{int(sizes[6])}')
-        out.shape = shape
+        out = out.reshape(shape)
         outptr = <uint8_t*> numpy.PyArray_DATA(out)
         strides = numpy.PyArray_STRIDES(out)
         # out[:] = 0
@@ -400,7 +415,7 @@ def tiff_decode(
         with nogil:
             if isrgb:
                 for i in range(images):
-                    ret = tiff_set_directory(tif, dirlist.data[i])
+                    ret = _tiff_set_directory(tif, dirlist.data[i])
                     if ret == 0:
                         raise TiffError(memtifobj)
                     ret = TIFFReadRGBAImageOriented(
@@ -420,10 +435,10 @@ def tiff_decode(
                 if tile == NULL:
                     raise MemoryError('failed to allocate tile buffer')
                 for i in range(images):
-                    ret = tiff_set_directory(tif, dirlist.data[i])
+                    ret = _tiff_set_directory(tif, dirlist.data[i])
                     if ret == 0:
                         raise TiffError(memtifobj)
-                    ret = tiff_decode_tiled(
+                    ret = _tiff_decode_tiled(
                         tif,
                         &outptr[i * imagesize],
                         sizes,
@@ -435,11 +450,11 @@ def tiff_decode(
                         raise TiffError(memtifobj)
                     if ret < 0:
                         # TODO: libtiff does not seem to handle tiledepth > 1
-                        raise TiffError(f'tile size != {size}')
+                        raise TiffError(f'_tiff_decode_tiled returned {ret}')
 
             else:
                 for i in range(images):
-                    ret = tiff_set_directory(tif, dirlist.data[i])
+                    ret = _tiff_set_directory(tif, dirlist.data[i])
                     if ret == 0:
                         raise TiffError(memtifobj)
                     if TIFFIsTiled(tif) != 0:
@@ -480,23 +495,23 @@ def tiff_decode(
             int(sizes[4]),
             int(sizes[7])
         )
-        out.shape = tuple(
-            s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
+        out = out.reshape(
+            tuple(s for i, s in enumerate(shape) if s > 1 or i in {3, 4})
         )
         # ? out = numpy.ascontiguousarray(out)
     else:
-        out.shape = shapeout
+        out = out.reshape(shapeout)
 
     return out
 
 
-cdef int tiff_read_ifd(
+cdef int _tiff_read_ifd(
     TIFF* tif,
     ssize_t* sizes,
     char* dtype,
     int* asrgb,
-    int* istiled
-) nogil:
+    int* istiled,
+) noexcept nogil:
     """Get normalized image shape and dtype from current IFD tags.
 
     'sizes' contains images, planes, depth, height, width, samples, itemsize,
@@ -515,6 +530,7 @@ cdef int tiff_read_ifd(
 
     ret = TIFFGetFieldDefaulted(tif, TIFFTAG_PHOTOMETRIC, &photometric)
     if ret == 0:
+        # this is ambiguous because PHOTOMETRIC_MINISWHITE == 0
         photometric = PHOTOMETRIC_MINISWHITE
 
     ret = TIFFGetFieldDefaulted(tif, TIFFTAG_IMAGEWIDTH, &imagewidth)
@@ -647,14 +663,14 @@ cdef int tiff_read_ifd(
     return 1
 
 
-cdef int tiff_decode_tiled(
+cdef int _tiff_decode_tiled(
     TIFF* tif,
     uint8_t* dst,
     ssize_t* sizes,
     numpy.npy_intp* strides,
     uint8_t* tile,
-    ssize_t size
-) nogil:
+    ssize_t size,
+) noexcept nogil:
     """Decode tiled image. Return 1 on success."""
     cdef:
         ssize_t i, j, h, d
@@ -723,14 +739,19 @@ cdef int tiff_decode_tiled(
         for d in range(min(tiledepth, imagedepth - td)):
             for h in range(min(tilelength, imagelength - tl)):
                 sizeleft -= size
-                if sizeleft >= 0:
-                    i = tp * sp + (td + d) * sd + (tl + h) * sl + tw * sw
-                    j = h * tilewidth * samplesize
-                    memcpy(<void*> &dst[i], <const void*> &tile[j], size)
+                if sizeleft < 0:
+                    return -2
+                i = tp * sp + (td + d) * sd + (tl + h) * sl + tw * sw
+                j = h * tilewidth * samplesize
+                # TODO: check out of bounds writes?
+                memcpy(<void*> &dst[i], <const void*> &tile[j], size)
     return 1
 
 
-cdef inline int tiff_set_directory(TIFF* tif, tdir_t dirnum) nogil:
+cdef inline int _tiff_set_directory(
+    TIFF* tif,
+    tdir_t dirnum,
+) noexcept nogil:
     """Set current directory, avoiding TIFFSetDirectory if possible."""
     cdef:
         ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
@@ -748,7 +769,7 @@ ctypedef struct dirlist_t:
     tdir_t index
 
 
-cdef dirlist_t* dirlist_new(tdir_t size) nogil:
+cdef dirlist_t* dirlist_new(tdir_t size) noexcept nogil:
     """Return new dirlist."""
     cdef:
         dirlist_t* dirlist = <dirlist_t*> calloc(1, sizeof(dirlist_t))
@@ -810,6 +831,9 @@ cdef int dirlist_extend(dirlist_t* dirlist, values):
     return ret
 
 
+cdef const ssize_t MEMTIF_CHECK = 1234567890
+
+
 ctypedef struct memtif_t:
     ssize_t check
     unsigned char* data
@@ -819,24 +843,24 @@ ctypedef struct memtif_t:
     toff_t fpos
     int owner
     int warn
-    char errmsg[80]
+    char[80] errmsg
 
 
 cdef memtif_t* memtif_open(
     unsigned char* data,
     toff_t size,
-    toff_t flen
-) nogil:
+    toff_t flen,
+) noexcept nogil:
     """Return new memtif from existing buffer for reading."""
     cdef:
         memtif_t* memtif = <memtif_t*> calloc(1, sizeof(memtif_t))
 
-    if memtif == NULL:
+    if memtif == NULL or flen > size:
         return NULL
     if data == NULL:
         free(memtif)
         return NULL
-    memtif.check = 1234567890
+    memtif.check = MEMTIF_CHECK
     memtif.data = data
     memtif.size = size
     memtif.inc = 0
@@ -848,7 +872,10 @@ cdef memtif_t* memtif_open(
     return memtif
 
 
-cdef memtif_t* memtif_new(toff_t size, toff_t inc) noexcept nogil:
+cdef memtif_t* memtif_new(
+    toff_t size,
+    toff_t inc,
+) noexcept nogil:
     """Return new memtif with new buffer for writing."""
     cdef:
         memtif_t* memtif = <memtif_t*> calloc(1, sizeof(memtif_t))
@@ -859,7 +886,7 @@ cdef memtif_t* memtif_new(toff_t size, toff_t inc) noexcept nogil:
     if memtif.data == NULL:
         free(memtif)
         return NULL
-    memtif.check = 1234567890
+    memtif.check = MEMTIF_CHECK
     memtif.size = size
     memtif.inc = inc
     memtif.flen = 0
@@ -870,7 +897,9 @@ cdef memtif_t* memtif_new(toff_t size, toff_t inc) noexcept nogil:
     return memtif
 
 
-cdef void memtif_del(memtif_t* memtif) noexcept nogil:
+cdef void memtif_del(
+    memtif_t* memtif,
+) noexcept nogil:
     """Delete memtif."""
     if memtif != NULL:
         if memtif.owner:
@@ -881,7 +910,7 @@ cdef void memtif_del(memtif_t* memtif) noexcept nogil:
 cdef tsize_t memtif_TIFFReadProc(
     thandle_t handle,
     void* buf,
-    tmsize_t size
+    tmsize_t size,
 ) noexcept nogil:
     """Callback function to read from memtif."""
     cdef:
@@ -897,7 +926,7 @@ cdef tsize_t memtif_TIFFReadProc(
 cdef tmsize_t memtif_TIFFWriteProc(
     thandle_t handle,
     void* buf,
-    tmsize_t size
+    tmsize_t size,
 ) noexcept nogil:
     """Callback function to write to memtif."""
     cdef:
@@ -924,7 +953,7 @@ cdef tmsize_t memtif_TIFFWriteProc(
 cdef toff_t memtif_TIFFSeekProc(
     thandle_t handle,
     toff_t off,
-    int whence
+    int whence,
 ) noexcept nogil:
     """Callback function to seek in memtif."""
     cdef:
@@ -957,16 +986,16 @@ cdef toff_t memtif_TIFFSeekProc(
         memtif.fpos += off
 
     elif whence == SEEK_END:
-        if memtif.size < memtif.size + off:
+        if memtif.size < memtif.flen + off:
             if memtif.owner == 0:
                 return -1
-            newsize = memtif.size + memtif.inc + off
+            newsize = memtif.flen + memtif.inc + off
             tmp = <unsigned char*> realloc(&memtif.data[0], <size_t> newsize)
             if tmp == NULL:
                 return -1
             memtif.data = tmp
             memtif.size = newsize
-        memtif.fpos = memtif.size + off
+        memtif.fpos = memtif.flen + off
 
     if memtif.fpos > memtif.flen:
         memtif.flen = memtif.fpos
@@ -975,7 +1004,7 @@ cdef toff_t memtif_TIFFSeekProc(
 
 
 cdef int memtif_TIFFCloseProc(
-    thandle_t handle
+    thandle_t handle,
 ) noexcept nogil:
     """Callback function to close memtif."""
     cdef:
@@ -998,7 +1027,7 @@ cdef toff_t memtif_TIFFSizeProc(
 cdef int memtif_TIFFMapFileProc(
     thandle_t handle,
     void** base,
-    toff_t* size
+    toff_t* size,
 ) noexcept nogil:
     """Callback function to map memtif."""
     cdef:
@@ -1012,18 +1041,18 @@ cdef int memtif_TIFFMapFileProc(
 cdef void memtif_TIFFUnmapFileProc(
     thandle_t handle,
     void* base,
-    toff_t size
+    toff_t size,
 ) noexcept nogil:
     """Callback function to unmap memtif."""
     return
 
 
 cdef int tif_error_handler(
-    TIFF *tif,
+    TIFF* tif,
     void* user_data,
     const char* module,
     const char* fmt,
-    va_list args
+    va_list args,
 ) noexcept nogil:
     """Callback function to write libtiff error message to memtif."""
     cdef:
@@ -1033,7 +1062,7 @@ cdef int tif_error_handler(
     if user_data == NULL or tif == NULL:
         return 0  # call global error handler
     memtif = <memtif_t*> user_data
-    if memtif.check != 1234567890:
+    if memtif.check != MEMTIF_CHECK:
         return 0  # call global error handler
     i = vsnprintf(&memtif.errmsg[0], 80, fmt, args)
     memtif.errmsg[0 if i < 0 else 79] = 0
@@ -1041,29 +1070,33 @@ cdef int tif_error_handler(
 
 
 cdef int tif_warning_handler(
-    TIFF *tif,
+    TIFF* tif,
     void* user_data,
     const char* module,
     const char* fmt,
-    va_list args
+    va_list args,
 ) noexcept with gil:
     """Callback function to output libtiff warning message to logging."""
     cdef:
-        char msg[80]
+        char[80] msg
         memtif_t* memtif
         int i
 
+    # TODO: is this freethreading compatible?
     if user_data == NULL or tif == NULL:
         return 0  # call global warning handler
     memtif = <memtif_t*> user_data
-    if memtif.check != 1234567890:
+    if memtif.check != MEMTIF_CHECK:
         return 0  # call global warning handler
     if memtif.warn == 0:
         return 1  # done
     i = vsnprintf(&msg[0], 80, fmt, args)
     if i > 0:
         msg[79] = 0
-        _log_warning(msg.decode().strip())
+        try:
+            _log_warning(msg.decode('utf-8', errors='replace').strip())
+        except Exception:
+            pass
     return 1
 
 
