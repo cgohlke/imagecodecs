@@ -1,5 +1,4 @@
 # imagecodecs/jxrlib.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `jxrlib 1.1` library.
 # https://packages.debian.org/sid/libjxr-dev
@@ -324,7 +323,7 @@ cdef extern from 'windowsmediaphoto.h' nogil:
 
     Int WMPhotoValidate(
         CWMImageInfo* pII,
-        CWMIStrCodecParam *pSCP
+        CWMIStrCodecParam* pSCP
     )
 
     ctypedef struct CWMTranscodingParam:
@@ -361,7 +360,6 @@ cdef extern from 'windowsmediaphoto.h' nogil:
         CWMDetilingParam* pParam
     )
 
-
 cdef extern from 'guiddef.h' nogil:
 
     ctypedef struct GUID:
@@ -371,7 +369,6 @@ cdef extern from 'guiddef.h' nogil:
         GUID*,
         GUID*
     )
-
 
 cdef extern from 'JXRMeta.h' nogil:
 
@@ -494,7 +491,6 @@ cdef extern from 'JXRMeta.h' nogil:
         U32 uPhotoshopMetadataByteCount
         U32 uDescMetadataOffset
         U32 uDescMetadataByteCount
-
 
 cdef extern from 'JXRGlue.h' nogil:
 
