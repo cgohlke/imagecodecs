@@ -1,5 +1,4 @@
 # imagecodecs/brunsli.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `Brunsli 0.1` library.
 # https://github.com/google/brunsli
@@ -22,7 +21,6 @@ cdef extern from 'brunsli/decode.h' nogil:
         DecodeBrunsliSink out_fun
     )
 
-
 cdef extern from 'brunsli/encode.h' nogil:
 
     int EncodeBrunsli(
@@ -31,7 +29,6 @@ cdef extern from 'brunsli/encode.h' nogil:
         void* sink,
         DecodeBrunsliSink out_fun
     )
-
 
 # ctypedef enum brunsli_status:
 #     # defined in brunsli/status.h'
