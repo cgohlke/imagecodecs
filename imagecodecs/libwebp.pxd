@@ -1,5 +1,4 @@
 # imagecodecs/libwebp.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libwebp 1.6.0` library.
 # https://github.com/webmproject/libwebp
@@ -362,7 +361,6 @@ cdef extern from 'webp/decode.h' nogil:
         size_t data_size,
         WebPDecoderConfig* config
     )
-
 
 cdef extern from 'webp/encode.h' nogil:
 
@@ -775,7 +773,6 @@ cdef extern from 'webp/encode.h' nogil:
         void* ptr
     )
 
-
 cdef extern from 'webp/mux_types.h' nogil:
 
     ctypedef struct WebPData:
@@ -810,7 +807,6 @@ cdef extern from 'webp/mux_types.h' nogil:
         const WebPData* src,
         WebPData* dst
     )
-
 
 cdef extern from 'webp/demux.h' nogil:
 
