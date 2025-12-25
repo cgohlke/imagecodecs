@@ -1,5 +1,4 @@
 # imagecodecs/pg_lzcompress.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `PostgreSQL 13.2 pg_lzcompress` library.
 # https://github.com/postgres/postgres/
@@ -25,21 +24,21 @@ cdef extern from 'pg_lzcompress.h' nogil:
         int32 match_size_good
         int32 match_size_drop
 
-    const PGLZ_Strategy *const PGLZ_strategy_default
+    const PGLZ_Strategy* const PGLZ_strategy_default
 
-    const PGLZ_Strategy *const PGLZ_strategy_always
+    const PGLZ_Strategy* const PGLZ_strategy_always
 
     int32 pglz_compress(
-        const char *source,
+        const char* source,
         int32 slen,
-        char *dest,
-        const PGLZ_Strategy *strategy
+        char* dest,
+        const PGLZ_Strategy* strategy
     )
 
     int32 pglz_decompress(
-        const char *source,
+        const char* source,
         int32 slen,
-        char *dest,
+        char* dest,
         int32 rawsize,
         bool_t check_complete
     )
