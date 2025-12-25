@@ -1,5 +1,4 @@
 # imagecodecs/libjxl.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libjxl 0.11.1` library.
 # https://github.com/libjxl/libjxl
@@ -50,7 +49,6 @@ cdef extern from 'jxl/types.h' nogil:
         uint32_t exponent_bits_per_sample
 
     ctypedef char[4] JxlBoxType
-
 
 cdef extern from 'jxl/codestream_header.h' nogil:
 
@@ -160,7 +158,6 @@ cdef extern from 'jxl/codestream_header.h' nogil:
         JXL_BOOL is_last
         JxlLayerInfo layer_info
 
-
 cdef extern from 'jxl/color_encoding.h' nogil:
 
     ctypedef enum JxlColorSpace:
@@ -219,7 +216,6 @@ cdef extern from 'jxl/color_encoding.h' nogil:
         float[3] opsin_biases
         float[3] quant_biases
 
-
 cdef extern from 'jxl/memory_manager.h' nogil:
 
     ctypedef void* (*jpegxl_alloc_func)(
@@ -236,7 +232,6 @@ cdef extern from 'jxl/memory_manager.h' nogil:
         void* opaque
         jpegxl_alloc_func alloc
         jpegxl_free_func free
-
 
 cdef extern from 'jxl/parallel_runner.h' nogil:
 
@@ -264,7 +259,6 @@ cdef extern from 'jxl/parallel_runner.h' nogil:
         uint32_t end_range
     ) nogil
 
-
 cdef extern from 'jxl/thread_parallel_runner.h' nogil:
 
     JxlParallelRetCode JxlThreadParallelRunner(
@@ -286,7 +280,6 @@ cdef extern from 'jxl/thread_parallel_runner.h' nogil:
     )
 
     size_t JxlThreadParallelRunnerDefaultNumWorkerThreads()
-
 
 cdef extern from 'jxl/cms_interface.h' nogil:
 
@@ -342,7 +335,6 @@ cdef extern from 'jxl/cms_interface.h' nogil:
         jpegxl_cms_run_func run
         jpegxl_cms_destroy_func destroy
 
-
 cdef extern from 'jxl/stats.h' nogil:
 
     ctypedef struct JxlEncoderStats:
@@ -392,7 +384,6 @@ cdef extern from 'jxl/stats.h' nogil:
         JxlEncoderStats* stats,
         const JxlEncoderStats* other
     )
-
 
 cdef extern from 'jxl/decode.h' nogil:
 
@@ -734,7 +725,6 @@ cdef extern from 'jxl/decode.h' nogil:
         JxlDecoder* dec,
         const JxlBitDepth* bit_depth
     )
-
 
 cdef extern from 'jxl/encode.h' nogil:
 
@@ -1120,7 +1110,6 @@ cdef extern from 'jxl/encode.h' nogil:
         JxlEncoderStats* stats
     )
 
-
 cdef extern from 'jxl/gain_map.h' nogil:
 
     ctypedef struct JxlGainMapBundle:
@@ -1152,7 +1141,6 @@ cdef extern from 'jxl/gain_map.h' nogil:
         size_t input_buffer_size,
         size_t* bytes_read
     )
-
 
 cdef extern from 'jxl/compressed_icc.h' nogil:
     JXL_BOOL JxlICCProfileEncode(
