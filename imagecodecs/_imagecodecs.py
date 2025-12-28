@@ -1,6 +1,6 @@
 # imagecodecs/_imagecodecs.py
 
-# Copyright (c) 2008-2025, Christoph Gohlke
+# Copyright (c) 2008-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -61,6 +61,7 @@ __all__ = [
 ]
 
 import bz2
+import contextlib
 import functools
 import gzip
 import io
@@ -68,7 +69,11 @@ import lzma
 import struct
 import sys
 import zlib
-from types import ModuleType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
+    from typing import Any
 
 import numpy
 
@@ -171,12 +176,12 @@ except ImportError:
     zopfli = None
 
 try:
-    from compression import zstd  # Python >= 3.14
+    if sys.version_info >= (3, 14):
+        from compression import zstd
+    else:
+        from backports import zstd
 except ImportError:
-    try:
-        import zstd
-    except ImportError:
-        zstd = None
+    zstd = None
 
 try:
     import zarr
@@ -189,55 +194,51 @@ except ImportError:
     numcodecs = None
 
 
-def version(astype=None, _versions_=[]):
+def version() -> str:
     """Return detailed version information about test dependencies."""
-    if not _versions_:
+    try:
+        zstd_version = zstd.version()
+    except Exception:
         try:
-            zstd_version = zstd.version()
-        except Exception:
-            try:
-                import compression  # noqa
+            if sys.version_info >= (3, 14):
+                from compression import zstd as _zstd
+            else:
+                from backports import zstd as _zstd
 
-                zstd_version = f'{sys.version_info[0]}.{sys.version_info[1]}'
-            except ImportError:
-                zstd_version = 'n/a'
-        _versions_.extend(
-            (
-                ('imagecodecs.py', __version__),
-                ('numpy', numpy.__version__),
-                ('zlib', zlib.ZLIB_VERSION),
-                ('bz2', 'stdlib'),
-                ('lzma', getattr(lzma, '__version__', 'stdlib')),
-                ('blosc', blosc.__version__ if blosc else 'n/a'),
-                ('blosc2', blosc2.__version__ if blosc2 else 'n/a'),
-                ('zstd', zstd_version),
-                ('lz4', lz4.VERSION if lz4 else 'n/a'),
-                ('lzf', 'unknown' if lzf else 'n/a'),
-                ('lzham', 'unknown' if lzham else 'n/a'),
-                ('pyliblzfse', 'unknown' if lzfse else 'n/a'),
-                ('snappy', 'unknown' if snappy else 'n/a'),
-                ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
-                ('zfpy', zfp.__version__ if zfp else 'n/a'),
-                (
-                    'bitshuffle',
-                    bitshuffle.__version__ if bitshuffle else 'n/a',
-                ),
-                ('pillow', pillow.__version__ if pillow else 'n/a'),
-                ('numcodecs', numcodecs.__version__ if numcodecs else 'n/a'),
-                ('zarr', zarr.__version__ if zarr else 'n/a'),
-                ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
-                ('czifile', czifile.__version__ if czifile else 'n/a'),
-                ('liffile', liffile.__version__ if liffile else 'n/a'),
-            )
+            zstd_version = _zstd.zstd_version
+        except ImportError:
+            zstd_version = 'n/a'
+
+    return ', '.join(
+        f'{k}-{v}'
+        for k, v in (
+            ('imagecodecs.py', __version__),
+            ('numpy', numpy.__version__),
+            ('zlib', zlib.ZLIB_VERSION),
+            ('bz2', 'stdlib'),
+            ('lzma', getattr(lzma, '__version__', 'stdlib')),
+            ('blosc', blosc.__version__ if blosc else 'n/a'),
+            ('blosc2', blosc2.__version__ if blosc2 else 'n/a'),
+            ('zstd', zstd_version),
+            ('lz4', lz4.VERSION if lz4 else 'n/a'),
+            ('lzf', 'unknown' if lzf else 'n/a'),
+            ('lzham', 'unknown' if lzham else 'n/a'),
+            ('pyliblzfse', 'unknown' if lzfse else 'n/a'),
+            ('snappy', 'unknown' if snappy else 'n/a'),
+            ('zopflipy', zopfli.__version__ if zopfli else 'n/a'),
+            ('zfpy', zfp.__version__ if zfp else 'n/a'),
+            ('bitshuffle', bitshuffle.__version__ if bitshuffle else 'n/a'),
+            ('pillow', pillow.__version__ if pillow else 'n/a'),
+            ('numcodecs', numcodecs.__version__ if numcodecs else 'n/a'),
+            ('zarr', zarr.__version__ if zarr else 'n/a'),
+            ('tifffile', tifffile.__version__ if tifffile else 'n/a'),
+            ('czifile', czifile.__version__ if czifile else 'n/a'),
+            ('liffile', liffile.__version__ if liffile else 'n/a'),
         )
-    if astype is str or astype is None:
-        return ', '.join(f'{k}-{v}' for k, v in _versions_)
-    if astype is dict:
-        return dict(_versions_)
-    return tuple(_versions_)
+    )
 
 
-def notimplemented(arg=False):
+def notimplemented(arg: Any = 0, /) -> Any:
     """Return function decorator that raises NotImplementedError if not arg.
 
     >>> @notimplemented
@@ -260,7 +261,8 @@ def notimplemented(arg=False):
     def wrapper(func):
         @functools.wraps(func)
         def notimplemented(*args, **kwargs):
-            raise NotImplementedError(f'{func.__name__} not implemented')
+            msg = f'{func.__name__} not implemented'
+            raise NotImplementedError(msg)
 
         return notimplemented
 
@@ -285,20 +287,18 @@ def none_encode(data, *args, **kwargs):
     return data
 
 
-def numpy_decode(data, index=0, out=None, **kwargs):
+def numpy_decode(data, /, index=0, *, out=None, **kwargs):
     """Decode NPY and NPZ."""
     with io.BytesIO(data) as fh:
         out = numpy.load(fh, **kwargs)
         if hasattr(out, 'files'):
-            try:
+            with contextlib.suppress(TypeError, IndexError):
                 index = out.files[index]
-            except Exception:
-                pass
             out = out[index]
     return out
 
 
-def numpy_encode(data, level=None, out=None, **kwargs):
+def numpy_encode(data, /, *, level=None, out=None, **kwargs):
     """Encode NPY and NPZ."""
     with io.BytesIO() as fh:
         if level:
@@ -306,11 +306,10 @@ def numpy_encode(data, level=None, out=None, **kwargs):
         else:
             numpy.save(fh, data, **kwargs)
         fh.seek(0)
-        out = fh.read()
-    return out
+        return fh.read()
 
 
-def delta_encode(data, axis=-1, dist=1, out=None):
+def delta_encode(data, /, *, axis=-1, dist=1, out=None):
     r"""Encode Delta.
 
     >>> delta_encode(b'0123456789')
@@ -318,7 +317,8 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'{dist=} not implemented')
+        msg = f'{dist=} not implemented'
+        raise NotImplementedError(msg)
 
     if isinstance(data, (bytes, bytearray)):
         data = numpy.frombuffer(data, dtype='u1')
@@ -327,14 +327,14 @@ def delta_encode(data, axis=-1, dist=1, out=None):
 
     dtype = data.dtype
     if dtype.kind == 'f':
-        data = data.view(f'{dtype.byteorder}u{dtype.itemsize}')  #
+        data = data.view(f'{dtype.byteorder}u{dtype.itemsize}')
 
     diff = numpy.diff(data, axis=axis)
     key: list[int | slice] = [slice(None)] * data.ndim
     key[axis] = 0
     diff = numpy.insert(diff, 0, data[tuple(key)], axis=axis)
     if not data.dtype.isnative:
-        diff = diff.byteswap(True)
+        diff = diff.byteswap(inplace=True)
         diff = diff.view(diff.dtype.newbyteorder())
 
     if dtype.kind == 'f':
@@ -342,7 +342,7 @@ def delta_encode(data, axis=-1, dist=1, out=None):
     return diff
 
 
-def delta_decode(data, axis=-1, dist=1, out=None):
+def delta_decode(data, /, *, axis=-1, dist=1, out=None):
     r"""Decode Delta.
 
     >>> delta_decode(b'0\x01\x01\x01\x01\x01\x01\x01\x01\x01')
@@ -350,7 +350,8 @@ def delta_decode(data, axis=-1, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'{dist=} not implemented')
+        msg = f'{dist=} not implemented'
+        raise NotImplementedError(msg)
     if out is not None and not out.flags.writeable:
         out = None
     if isinstance(data, (bytes, bytearray)):
@@ -359,11 +360,11 @@ def delta_decode(data, axis=-1, dist=1, out=None):
     out = numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
     if data.dtype.isnative:
         return out
-    out = out.byteswap(True)
+    out = out.byteswap(inplace=True)
     return out.view(out.dtype.newbyteorder())
 
 
-def xor_encode(data, axis=-1, out=None):
+def xor_encode(data, /, *, axis=-1, out=None):
     r"""Encode XOR delta.
 
     >>> xor_encode(b'0123456789')
@@ -392,12 +393,12 @@ def xor_encode(data, axis=-1, out=None):
     if dtype.kind == 'f':
         return xor.view(dtype)
     if not data.dtype.isnative:
-        xor = xor.byteswap(True)
+        xor = xor.byteswap(inplace=True)
         xor = xor.view(xor.dtype.newbyteorder())
     return xor
 
 
-def xor_decode(data, axis=-1, out=None):
+def xor_decode(data, /, *, axis=-1, out=None):
     r"""Decode XOR delta.
 
     >>> xor_decode(b'0\x01\x03\x01\x07\x01\x03\x01\x0f\x01')
@@ -414,7 +415,7 @@ def xor_decode(data, axis=-1, out=None):
     raise NotImplementedError
 
 
-def floatpred_decode(data, axis=-2, dist=1, out=None):
+def floatpred_decode(data, /, *, axis=-2, dist=1, out=None):
     """Decode floating point horizontal differencing.
 
     The TIFF predictor type 3 reorders the bytes of the image values and
@@ -430,41 +431,42 @@ def floatpred_decode(data, axis=-2, dist=1, out=None):
 
     """
     if dist != 1:
-        raise NotImplementedError(f'{dist=} not implemented')  # TODO
+        msg = f'{dist=} not implemented'
+        raise NotImplementedError(msg)  # TODO
     if axis != -2:
-        raise NotImplementedError(f'{axis=!r} != -2')  # TODO
+        msg = f'{axis=!r} != -2'
+        raise NotImplementedError(msg)  # TODO
     shape = data.shape
     dtype = data.dtype
     if len(shape) < 3:
-        raise ValueError('invalid data shape')
+        msg = 'invalid data shape'
+        raise ValueError(msg)
     if dtype.char not in 'dfe':
-        raise ValueError('not a floating point image')
+        msg = 'not a floating point image'
+        raise ValueError(msg)
     littleendian = data.dtype.byteorder == '<' or (
         sys.byteorder == 'little' and data.dtype.byteorder == '='
     )
     # undo horizontal byte differencing
-    data = data.view('uint8')
-    data.shape = shape[:-2] + (-1,) + shape[-1:]
+    data = data.view('uint8').reshape((*shape[:-2], -1, *shape[-1:]))
     numpy.cumsum(data, axis=-2, dtype='uint8', out=data)
     # reorder bytes
     if littleendian:
-        data.shape = shape[:-2] + (-1,) + shape[-2:]
+        data = data.reshape((*shape[:-2], -1, *shape[-2:]))
     data = numpy.swapaxes(data, -3, -2)
     data = numpy.swapaxes(data, -2, -1)
     data = data[..., ::-1]
     # back to float
     data = numpy.ascontiguousarray(data)
-    data = data.view(dtype)
-    data.shape = shape
-    return data
+    return data.view(dtype).reshape(shape)
 
 
 @notimplemented
-def floatpred_encode(data, axis=-1, dist=1, out=None):
+def floatpred_encode(data, /, *, axis=-1, dist=1, out=None):
     """Encode Floating Point Predictor."""
 
 
-def bitorder_decode(data, out=None, _bitorder=[]):
+def bitorder_decode(data, /, *, out=None, _bitorder=[]):
     r"""Reverse bits in each byte of byte string or numpy array.
 
     Decode data where pixels with lower column values are stored in the
@@ -506,18 +508,18 @@ def bitorder_decode(data, out=None, _bitorder=[]):
         _bitorder.append(numpy.frombuffer(_bitorder[0], dtype='uint8'))
     try:
         view = data.view('uint8')
-        numpy.take(_bitorder[1], view, out=view)
-        return data
+        return numpy.take(_bitorder[1], view, out=view)
     except AttributeError:
         return data.translate(_bitorder[0])
     except ValueError as exc:
-        raise NotImplementedError('slices of arrays not supported') from exc
+        msg = 'slices of arrays not supported'
+        raise NotImplementedError(msg) from exc
 
 
 bitorder_encode = bitorder_decode
 
 
-def packbits_decode(encoded, out=None):
+def packbits_decode(encoded, /, *, out=None):
     r"""Decompress PackBits encoded byte string.
 
     >>> packbits_decode(b'\x80\x80')  # NOP
@@ -550,7 +552,7 @@ def packbits_decode(encoded, out=None):
     return bytes(out)
 
 
-def lzw_decode(encoded, buffersize=0, out=None):
+def lzw_decode(encoded, /, *, buffersize=0, out=None):
     r"""Decompress LZW (Lempel-Ziv-Welch) encoded TIFF strip (byte string).
 
     The strip must begin with a CLEAR code and end with an EOI code.
@@ -594,10 +596,12 @@ def lzw_decode(encoded, buffersize=0, out=None):
     bitcount = 0
 
     if len_encoded < 4:
-        raise ValueError('strip must be at least 4 characters long')
+        msg = 'strip must be at least 4 characters long'
+        raise ValueError(msg)
 
     if next_code() != 256:
-        raise ValueError('strip must begin with CLEAR code')
+        msg = 'strip must begin with CLEAR code'
+        raise ValueError(msg)
 
     code = 0
     oldcode = 0
@@ -640,7 +644,7 @@ def lzw_decode(encoded, buffersize=0, out=None):
     return b''.join(result)
 
 
-def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
+def packints_decode(data, dtype, bitspersample, /, *, runlen=0, out=None):
     """Decompress byte string to array of integers of any bit size <= 32.
 
     This Python implementation is slow and only handles itemsizes 1, 2, 4, 8,
@@ -669,7 +673,7 @@ def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
         data = numpy.frombuffer(data, '|B')
         data = numpy.unpackbits(data)
         if runlen % 8:
-            data = data.reshape(-1, runlen + (8 - runlen % 8))
+            data = data.reshape((-1, runlen + (8 - runlen % 8)))
             data = data[:, :runlen].reshape(-1)
         return data.astype(dtype)
 
@@ -677,13 +681,16 @@ def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
     if bitspersample in {8, 16, 32, 64}:
         return numpy.frombuffer(data, dtype)
     if bitspersample not in {1, 2, 4, 8, 16, 32}:
-        raise ValueError(f'{bitspersample=} not supported')
+        msg = f'{bitspersample=} not supported'
+        raise ValueError(msg)
     if dtype.kind not in 'bu':
-        raise ValueError('invalid dtype')
+        msg = 'invalid dtype'
+        raise ValueError(msg)
 
     itembytes = next(i for i in (1, 2, 4, 8) if 8 * i >= bitspersample)
     if itembytes != dtype.itemsize:
-        raise ValueError('dtype.itemsize too small')
+        msg = 'dtype.itemsize too small'
+        raise ValueError(msg)
     if runlen == 0:
         runlen = (8 * len(data)) // bitspersample
     skipbits = runlen * bitspersample % 8
@@ -714,7 +721,7 @@ def packints_decode(data, dtype, bitspersample, runlen=0, out=None):
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_encode(data, level=1, itemsize=1, blocksize=0, out=None):
+def bitshuffle_encode(data, /, *, itemsize=1, blocksize=0, out=None):
     """Bitshuffle."""
     if isinstance(data, numpy.ndarray):
         return bitshuffle.bitshuffle(data, blocksize)
@@ -724,7 +731,7 @@ def bitshuffle_encode(data, level=1, itemsize=1, blocksize=0, out=None):
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
+def bitshuffle_decode(data, /, *, itemsize=1, blocksize=0, out=None):
     """Bitunshuffle."""
     if isinstance(data, numpy.ndarray):
         return bitshuffle.bitunshuffle(data, blocksize)
@@ -733,46 +740,46 @@ def bitshuffle_decode(data, itemsize=1, blocksize=0, out=None):
     return data.tobytes()
 
 
-def zlib_encode(data, level=6, out=None):
+def zlib_encode(data, /, level=6, *, out=None):
     """Compress Zlib."""
     return zlib.compress(data, level)
 
 
-def zlib_decode(data, out=None):
+def zlib_decode(data, /, *, out=None):
     """Decompress Zlib."""
     return zlib.decompress(data)
 
 
-def deflate_encode(data, level=6, raw=False, out=None):
+def deflate_encode(data, /, level=6, *, raw=False, out=None):
     """Compress Deflate/Zlib."""
     if raw:
         raise NotImplementedError
     return zlib.compress(data, level)
 
 
-def deflate_decode(data, raw=False, out=None):
+def deflate_decode(data, /, *, raw=False, out=None):
     """Decompress deflate/Zlib."""
     if raw:
         raise NotImplementedError
     return zlib.decompress(data)
 
 
-def gzip_encode(data, level=6, out=None):
+def gzip_encode(data, /, level=6, *, out=None):
     """Compress GZIP."""
     return gzip.compress(data, level)
 
 
-def gzip_decode(data, out=None):
+def gzip_decode(data, /, *, out=None):
     """Decompress GZIP."""
     return gzip.decompress(data)
 
 
-def bz2_encode(data, level=9, out=None):
+def bz2_encode(data, /, level=9, *, out=None):
     """Compress BZ2."""
     return bz2.compress(data, level)
 
 
-def bz2_decode(data, out=None):
+def bz2_decode(data, /, *, out=None):
     """Decompress BZ2."""
     return bz2.decompress(data)
 
@@ -780,7 +787,9 @@ def bz2_decode(data, out=None):
 @notimplemented(blosc)
 def blosc_encode(
     data,
+    /,
     level=None,
+    *,
     compressor='blosclz',
     numthreads=1,
     typesize=8,
@@ -803,110 +812,110 @@ def blosc_encode(
 
 
 @notimplemented(blosc)
-def blosc_decode(data, out=None):
+def blosc_decode(data, /, *, out=None):
     """Decompress Blosc."""
     return blosc.decompress(data)
 
 
-def lzma_encode(data, level=None, out=None):
+def lzma_encode(data, /, level=None, *, out=None):
     """Compress LZMA."""
     return lzma.compress(data)
 
 
-def lzma_decode(data, out=None):
+def lzma_decode(data, /, *, out=None):
     """Decompress LZMA."""
     return lzma.decompress(data)
 
 
 @notimplemented(zstd)
-def zstd_encode(data, level=5, out=None):
+def zstd_encode(data, /, level=5, *, out=None):
     """Compress ZStandard."""
     return zstd.compress(data, level)
 
 
 @notimplemented(zstd)
-def zstd_decode(data, out=None):
+def zstd_decode(data, /, *, out=None):
     """Decompress ZStandard."""
     return zstd.decompress(data)
 
 
 @notimplemented(brotli)
-def brotli_encode(data, level=11, mode=0, lgwin=22, out=None):
+def brotli_encode(data, /, level=11, *, mode=0, lgwin=22, out=None):
     """Compress Brotli."""
     return brotli.compress(data, quality=level, mode=mode, lgwin=lgwin)
 
 
 @notimplemented(brotli)
-def brotli_decode(data, out=None):
+def brotli_decode(data, /, *, out=None):
     """Decompress Brotli."""
     return brotli.decompress(data)
 
 
 @notimplemented(snappy)
-def snappy_encode(data, level=None, out=None):
+def snappy_encode(data, /, level=None, *, out=None):
     """Compress Snappy."""
     return snappy.compress(data)
 
 
 @notimplemented(snappy)
-def snappy_decode(data, out=None):
+def snappy_decode(data, /, *, out=None):
     """Decompress Snappy."""
     return snappy.decompress(data)
 
 
 @notimplemented(zopfli)
-def zopfli_encode(data, level=None, out=None):
+def zopfli_encode(data, /, level=None, *, out=None):
     """Compress Zopfli."""
     c = zopfli.ZopfliCompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
     return c.compress(data) + c.flush()
 
 
 @notimplemented(zopfli)
-def zopfli_decode(data, out=None):
+def zopfli_decode(data, /, *, out=None):
     """Decompress Zopfli."""
     d = zopfli.ZopfliDecompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
     return d.decompress(data) + d.flush()
 
 
 @notimplemented(lzf)
-def lzf_encode(data, level=None, header=False, out=None):
+def lzf_encode(data, /, level=None, *, header=False, out=None):
     """Compress LZF."""
     return lzf.compress(data)
 
 
 @notimplemented(lzf)
-def lzf_decode(data, header=False, out=None):
+def lzf_decode(data, /, *, header=False, out=None):
     """Decompress LZF."""
     return lzf.decompress(data)
 
 
 @notimplemented(lzfse)
-def lzfse_encode(data, level=None, out=None):
+def lzfse_encode(data, /, level=None, *, out=None):
     """Compress LZFSE."""
     return lzfse.compress(data)
 
 
 @notimplemented(lzfse)
-def lzfse_decode(data, out=None):
+def lzfse_decode(data, /, *, out=None):
     """Decompress LZFSE."""
     return lzfse.decompress(data)
 
 
 @notimplemented(lzham)
-def lzham_encode(data, level=None, out=None):
+def lzham_encode(data, /, level=None, *, out=None):
     """Compress LZHAM."""
     return lzham.compress(data)
 
 
 @notimplemented(lzham)
-def lzham_decode(data, out=None):
+def lzham_decode(data, /, *, out=None):
     """Decompress LZHAM."""
     return lzham.decompress(data, out)
 
 
 @notimplemented(zfp)
 def zfp_encode(
-    data, level=None, mode=None, execution=None, header=True, out=None
+    data, /, level=None, *, mode=None, execution=None, header=True, out=None
 ):
     """Compress ZFP."""
     kwargs = {'write_header': header}
@@ -919,37 +928,37 @@ def zfp_encode(
     elif mode in {zfp.mode_fixed_accuracy, 'a', 'accuracy'}:
         kwargs['tolerance'] = -1 if level is None else level
     elif mode in {zfp.mode_expert, 'c', 'expert'}:
-        minbits, maxbits, maxprec, minexp = level
+        _minbits, _maxbits, _maxprec, _minexp = level
         raise NotImplementedError
     return zfp.compress_numpy(data, **kwargs)
 
 
 @notimplemented(zfp)
-def zfp_decode(data, shape=None, dtype=None, out=None):
+def zfp_decode(data, /, *, shape=None, dtype=None, out=None):
     """Decompress ZFP."""
     return zfp.decompress_numpy(data)
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_lz4_encode(data, level=1, blocksize=0, out=None):
+def bitshuffle_lz4_encode(data, /, level=1, *, blocksize=0, out=None):
     """Compress LZ4 with Bitshuffle."""
     return bitshuffle.compress_lz4(data, blocksize)
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_lz4_decode(data, shape, dtype, blocksize=0, out=None):
+def bitshuffle_lz4_decode(data, /, shape, dtype, *, blocksize=0, out=None):
     """Decompress LZ4 with Bitshuffle."""
     return bitshuffle.decompress_lz4(data, shape, dtype, blocksize)
 
 
 @notimplemented(lz4)
-def lz4_encode(data, level=1, header=False, out=None):
+def lz4_encode(data, /, level=1, *, header=False, out=None):
     """Compress LZ4."""
     return lz4.block.compress(data, store_size=header)
 
 
 @notimplemented(lz4)
-def lz4_decode(data, header=False, out=None):
+def lz4_decode(data, /, *, header=False, out=None):
     """Decompress LZ4."""
     if header:
         return lz4.block.decompress(data)
@@ -960,51 +969,49 @@ def lz4_decode(data, header=False, out=None):
 
 
 @notimplemented(tifffile)
-def tiff_decode(data, key=None, **kwargs):
+def tiff_decode(data, /, key=None, **kwargs):
     """Decode TIFF."""
     with io.BytesIO(data) as fh:
-        out = tifffile.imread(fh, key=key, **kwargs)
-    return out
+        return tifffile.imread(fh, key=key, **kwargs)
 
 
 @notimplemented(tifffile)
-def tiff_encode(data, level=1, **kwargs):
+def tiff_encode(data, /, level=1, **kwargs):
     """Encode TIFF."""
     with io.BytesIO() as fh:
         tifffile.imwrite(fh, data, **kwargs)
         fh.seek(0)
-        out = fh.read()
-    return out
+        return fh.read()
 
 
 @notimplemented(pillow)
-def pil_decode(data, out=None):
+def pil_decode(data, /, *, out=None):
     """Decode image data using Pillow."""
     return numpy.asarray(pillow.Image.open(io.BytesIO(data)))
 
 
 @notimplemented(pillow)
 def jpeg8_decode(
-    data, tables=None, colorspace=None, outcolorspace=None, out=None
+    data, /, *, tables=None, colorspace=None, outcolorspace=None, out=None
 ):
     """Decode JPEG 8-bit."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def jpeg2k_decode(data, verbose=None, out=None):
+def jpeg2k_decode(data, /, *, verbose=None, out=None):
     """Decode JPEG 2000."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def webp_decode(data, out=None):
+def webp_decode(data, /, *, out=None):
     """Decode WebP."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def png_decode(data, out=None):
+def png_decode(data, /, *, out=None):
     """Decode PNG."""
     return pil_decode(data)
 
