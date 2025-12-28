@@ -1,7 +1,6 @@
 # imagecodecs/imcd.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `imcd 2025.11.11` library.
+# Cython declarations for the `imcd 2026.1.1` library.
 # https://github.com/cgohlke/imagecodecs
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t
@@ -240,16 +239,16 @@ cdef extern from 'imcd.h' nogil:
     )
 
     ssize_t imcd_memsearch(
-        const char *src,
+        const char* src,
         const ssize_t srclen,
-        const char *dst,
+        const char* dst,
         const ssize_t dstlen
     )
 
     ssize_t imcd_strsearch(
-        const char *src,
+        const char* src,
         const ssize_t srclen,
-        const char *dst,
+        const char* dst,
         const ssize_t dstlen
     )
 
