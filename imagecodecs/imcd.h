@@ -1,7 +1,7 @@
 /* imagecodecs/imcd.h */
 
 /*
-Copyright (c) 2008-2025, Christoph Gohlke.
+Copyright (c) 2008-2026, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2025.11.11"
+#define IMCD_VERSION "2026.1.1"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -437,17 +437,17 @@ void imcd_stream_data(
 
 
 ssize_t imcd_memsearch(
-    const char *src,
+    const char* src,
     const ssize_t srclen,
-    const char *dst,
+    const char* dst,
     const ssize_t dstlen
 );
 
 
 ssize_t imcd_strsearch(
-    const char *src,
+    const char* src,
     const ssize_t srclen,
-    const char *dst,
+    const char* dst,
     const ssize_t dstlen
 );
 
