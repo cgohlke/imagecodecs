@@ -1,7 +1,6 @@
 # imagecodecs/zlib.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `zlib 1.3.1` library.
+# Cython declarations for the `zlib 1.3.1.2` library.
 # https://github.com/madler/zlib
 
 cdef extern from 'zlib.h' nogil:
@@ -65,7 +64,7 @@ cdef extern from 'zlib.h' nogil:
     ctypedef void* voidp
     ctypedef const void* voidpc
     ctypedef size_t z_size_t
-    ctypedef long z_off_t
+    ctypedef long long z_off_t
     ctypedef long long z_off64_t
 
     ctypedef voidpf (*alloc_func)(
@@ -187,6 +186,11 @@ cdef extern from 'zlib.h' nogil:
     int deflatePending(
         z_streamp strm,
         unsigned* pending,
+        int* bits
+    )
+
+    int deflateUsed(
+        z_streamp strm,
         int* bits
     )
 
