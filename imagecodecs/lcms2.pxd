@@ -1,7 +1,6 @@
 # imagecodecs/lcms2.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `Little 2.17.0` library.
+# Cython declarations for the `Little 2.18` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stddef cimport wchar_t
@@ -749,10 +748,10 @@ cdef extern from 'lcms2.h' nogil:
     int cmsERROR_CORRUPTION_DETECTED
     int cmsERROR_NOT_SUITABLE
 
-    ctypedef void (* cmsLogErrorHandlerFunction)(
+    ctypedef void (*cmsLogErrorHandlerFunction)(
         cmsContext ContextID,
         cmsUInt32Number ErrorCode,
-        const char *Text
+        const char* Text
     ) nogil
 
     void cmsSetLogErrorHandler(
@@ -791,7 +790,7 @@ cdef extern from 'lcms2.h' nogil:
     )
 
     void cmsLab2LCh(
-        cmsCIELCh*LCh,
+        cmsCIELCh* LCh,
         const cmsCIELab* Lab
     )
 
@@ -1136,7 +1135,7 @@ cdef extern from 'lcms2.h' nogil:
     cmsStage* cmsStageAllocToneCurves(
         cmsContext ContextID,
         cmsUInt32Number nChannels,
-        cmsToneCurve* const Curves[]
+        (cmsToneCurve* const)[] Curves  # cmsToneCurve* const Curves[]
     )
 
     cmsStage* cmsStageAllocMatrix(
@@ -1444,8 +1443,8 @@ cdef extern from 'lcms2.h' nogil:
 
     ctypedef struct cmsDICTentry:
         cmsDICTentry* Next
-        cmsMLU *DisplayName
-        cmsMLU *DisplayValue
+        cmsMLU* DisplayName
+        cmsMLU* DisplayValue
         wchar_t* Name
         wchar_t* Value
 
@@ -1465,8 +1464,8 @@ cdef extern from 'lcms2.h' nogil:
         cmsHANDLE hDict,
         const wchar_t* Name,
         const wchar_t* Value,
-        const cmsMLU *DisplayName,
-        const cmsMLU *DisplayValue
+        const cmsMLU* DisplayName,
+        const cmsMLU* DisplayValue
     )
 
     const cmsDICTentry* cmsDictGetEntryList(
@@ -1556,7 +1555,7 @@ cdef extern from 'lcms2.h' nogil:
 
     cmsBool cmsGetHeaderCreationDateTime(
         cmsHPROFILE hProfile,
-        tm *Dest
+        tm* Dest
     )
 
     cmsUInt32Number cmsGetHeaderRenderingIntent(
@@ -1747,7 +1746,7 @@ cdef extern from 'lcms2.h' nogil:
 
     cmsIOHANDLER* cmsOpenIOhandlerFromMem(
         cmsContext ContextID,
-        void*Buffer,
+        void* Buffer,
         cmsUInt32Number size,
         const char* AccessMode
     )
@@ -1769,14 +1768,14 @@ cdef extern from 'lcms2.h' nogil:
     )
 
     cmsHPROFILE cmsOpenProfileFromFile(
-        const char *ICCProfile,
-        const char *sAccess
+        const char* ICCProfile,
+        const char* sAccess
     )
 
     cmsHPROFILE cmsOpenProfileFromFileTHR(
         cmsContext ContextID,
-        const char *ICCProfile,
-        const char *sAccess
+        const char* ICCProfile,
+        const char* sAccess
     )
 
     cmsHPROFILE cmsOpenProfileFromStream(
@@ -1828,7 +1827,7 @@ cdef extern from 'lcms2.h' nogil:
 
     cmsBool cmsSaveProfileToMem(
         cmsHPROFILE hProfile,
-        void*MemPtr,
+        void* MemPtr,
         cmsUInt32Number* BytesNeeded
     )
 
@@ -2213,7 +2212,7 @@ cdef extern from 'lcms2.h' nogil:
 
     cmsHANDLE cmsIT8LoadFromMem(
         cmsContext ContextID,
-        const void*Ptr,
+        const void* Ptr,
         cmsUInt32Number len
     )
 
@@ -2224,7 +2223,7 @@ cdef extern from 'lcms2.h' nogil:
 
     cmsBool cmsIT8SaveToMem(
         cmsHANDLE hIT8,
-        void*MemPtr,
+        void* MemPtr,
         cmsUInt32Number* BytesNeeded
     )
 
@@ -2245,7 +2244,7 @@ cdef extern from 'lcms2.h' nogil:
     cmsBool cmsIT8SetPropertyStr(
         cmsHANDLE hIT8,
         const char* cProp,
-        const char *Str
+        const char* Str
     )
 
     cmsBool cmsIT8SetPropertyDbl(
@@ -2264,7 +2263,7 @@ cdef extern from 'lcms2.h' nogil:
         cmsHANDLE hIT8,
         const char* Key,
         const char* SubKey,
-        const char *Buffer
+        const char* Buffer
     )
 
     cmsBool cmsIT8SetPropertyUncooked(
@@ -2286,18 +2285,18 @@ cdef extern from 'lcms2.h' nogil:
     const char* cmsIT8GetPropertyMulti(
         cmsHANDLE hIT8,
         const char* Key,
-        const char *SubKey
+        const char* SubKey
     )
 
     cmsUInt32Number cmsIT8EnumProperties(
         cmsHANDLE hIT8,
-        char ***PropertyNames
+        char*** PropertyNames
     )
 
     cmsUInt32Number cmsIT8EnumPropertyMulti(
         cmsHANDLE hIT8,
         const char* cProp,
-        const char ***SubpropertyNames
+        const char*** SubpropertyNames
     )
 
     const char* cmsIT8GetDataRowCol(
@@ -2342,7 +2341,7 @@ cdef extern from 'lcms2.h' nogil:
         cmsHANDLE hIT8,
         const char* cPatch,
         const char* cSample,
-        const char *Val
+        const char* Val
     )
 
     cmsBool cmsIT8SetDataDbl(
@@ -2360,12 +2359,12 @@ cdef extern from 'lcms2.h' nogil:
     cmsBool cmsIT8SetDataFormat(
         cmsHANDLE hIT8,
         int n,
-        const char *Sample
+        const char* Sample
     )
 
     int cmsIT8EnumDataFormat(
         cmsHANDLE hIT8,
-        char ***SampleNames
+        char*** SampleNames
     )
 
     const char* cmsIT8GetPatchName(
@@ -2376,7 +2375,7 @@ cdef extern from 'lcms2.h' nogil:
 
     int cmsIT8GetPatchByName(
         cmsHANDLE hIT8,
-        const char *cPatch
+        const char* cPatch
     )
 
     int cmsIT8SetTableByLabel(
