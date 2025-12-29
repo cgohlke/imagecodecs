@@ -1,5 +1,4 @@
 # imagecodecs/mozjpeg.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `mozjpeg 4.1.1` library.
 # https://github.com/mozilla/mozjpeg
@@ -456,9 +455,9 @@ cdef extern from 'mozjpeg/jpeglib.h' nogil:
         _msg_parm msg_parm
         int trace_level
         long num_warnings
-        const char* const* jpeg_message_table
+        const char** jpeg_message_table
         int last_jpeg_message
-        const char* const* addon_message_table
+        const char** addon_message_table
         int first_addon_message
         int last_addon_message
 
