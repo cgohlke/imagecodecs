@@ -1,13 +1,12 @@
 # imagecodecs/_bmp.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,21 +35,13 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""BMP codec for the imagecodecs package."""
+"""BMP (Bitmap) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
 from bmptypes cimport *
 
-try:
-    from ._jpeg8 import jpeg8_decode
-except ImportError as exc:
-    jpeg8_decode = None
-
-try:
-    from ._png import png_decode
-except ImportError as exc:
-    png_decode = None
+from . import jpeg8_decode, png_decode
 
 
 class BMP:
@@ -65,16 +56,22 @@ class BmpError(RuntimeError):
 
 def bmp_version():
     """Return bmp codec version string."""
-    return 'bmp 2024.1.1'
+    return 'bmp 2026.1.1'
 
 
-def bmp_check(const uint8_t[::1] data):
-    """Return whether data is BMP encoded."""
+def bmp_check(const uint8_t[::1] data, /):
+    """Return whether data is BMP encoded or None if unknown."""
     # TODO: b'BA', b'CI', b'CP', b'IC', b'PT'
     return data.size > 54 and data[0] == 66 and data[1] == 77  # 'BM'
 
 
-def bmp_encode(data, ppm=None, out=None):
+def bmp_encode(
+    data,
+    /,
+    *,
+    ppm=None,
+    out=None,
+):
     """Return BMP encoded image."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -91,8 +88,8 @@ def bmp_encode(data, ppm=None, out=None):
         src.dtype == numpy.uint8
         and (src.ndim == 2 or src.ndim == 3)
         and (samples == 1 or samples == 3)
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
 
@@ -191,7 +188,13 @@ def bmp_encode(data, ppm=None, out=None):
     return _return_output(out, dstsize, fileheader.size, outgiven)
 
 
-def bmp_decode(data, asrgb=None, out=None):
+def bmp_decode(
+    data,
+    /,
+    *,
+    asrgb=None,
+    out=None,
+):
     """Return decoded BMP image.
 
     Only 8 and 24-bit BMP files are supported.
@@ -210,7 +213,7 @@ def bmp_decode(data, asrgb=None, out=None):
 
     if data is out:
         raise ValueError('cannot decode in-place')
-    if srcsize > 4294967295U:
+    if srcsize > UINT32_MAX:
         raise ValueError('input too large')
     if srcsize < 54:
         raise BmpError(f'invalid BMP size {srcsize} < 54')
@@ -241,9 +244,9 @@ def bmp_decode(data, asrgb=None, out=None):
     memset(<void*> &infoheader, 0, sizeof(bmp_infoheader_t))
     memcpy(<void*> &infoheader, <const void*> &src[offset], infoheader_size)
     offset += infoheader_size  # offset to palette
-    if infoheader.compression_type == 4 and jpeg8_decode is not None:
+    if infoheader.compression_type == 4:
         return jpeg8_decode(src[fileheader.offbits:], out=out)
-    if infoheader.compression_type == 5 and png_decode is not None:
+    if infoheader.compression_type == 5:
         return png_decode(src[fileheader.offbits:], out=out)
     if infoheader.compression_type != 0:
         raise BmpError(f'{infoheader.compression_type=} not implemented')
@@ -317,8 +320,7 @@ def bmp_decode(data, asrgb=None, out=None):
                         palindex = src[srcindex]
                         if palindex >= infoheader.clr_used:
                             raise IndexError(
-                                f'{palindex=} out of range '
-                                f'{infoheader.clr_used=}'
+                                f'{palindex=} >= {infoheader.clr_used=}'
                             )
                         palindex = offset + palindex * 4
                         dstptr[dstindex] = src[palindex + 2]  # R
