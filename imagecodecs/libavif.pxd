@@ -1,5 +1,4 @@
 # imagecodecs/libavif.pxd
-# cython: language_level = 3
 
 # Cython declarations for the `libavif 1.3.0` library.
 # https://github.com/AOMediaCodec/libavif
@@ -962,7 +961,7 @@ cdef extern from 'avif/avif.h' nogil:
         avifEncoder* encoder,
         uint32_t gridCols,
         uint32_t gridRows,
-        const avifImage* const* cellImages,
+        const avifImage** cellImages,
         avifAddImageFlags addImageFlags
     )
 
