@@ -1,13 +1,12 @@
 # imagecodecs/_sz3.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2024-2025, Christoph Gohlke
+# Copyright (c) 2024-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -70,15 +69,22 @@ class Sz3Error(RuntimeError):
 
 def sz3_version():
     """Return sz3 library version string."""
-    return 'sz3 3.1.8'
+    return 'sz3 3.3.2'
 
 
-def sz3_check(const uint8_t[::1] data):
-    """Return whether data is SZ3 encoded."""
-    return None
+def sz3_check(const uint8_t[::1] data, /):
+    """Return whether data is SZ3 encoded or None if unknown."""
 
 
-def sz3_encode(data, mode=None, abs=None, rel=None, out=None):
+def sz3_encode(
+    data,
+    /,
+    mode=None,
+    abs=None,
+    rel=None,
+    *,
+    out=None,
+):
     """Return SZ3 encoded data."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
@@ -202,7 +208,14 @@ def sz3_encode(data, mode=None, abs=None, rel=None, out=None):
     return _return_output(out, dstsize, outSize, outgiven)
 
 
-def sz3_decode(data, shape, dtype, out=None):
+def sz3_decode(
+    data,
+    /,
+    shape,
+    dtype,
+    *,
+    out=None,
+):
     """Return decoded SZ3 data."""
     cdef:
         const uint8_t[::1] src = data
