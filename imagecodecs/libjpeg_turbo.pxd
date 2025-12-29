@@ -1,7 +1,6 @@
 # imagecodecs/libjpeg_turbo.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `libjpeg-turbo 3.1.2` library.
+# Cython declarations for the `libjpeg-turbo 3.1.4` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 from libc.stdio cimport FILE
@@ -107,13 +106,13 @@ cdef extern from 'jpeglib.h' nogil:
     ctypedef JSAMPROW* JSAMPARRAY
     ctypedef JSAMPARRAY* JSAMPIMAGE
 
-    ctypedef J12SAMPLE *J12SAMPROW
-    ctypedef J12SAMPROW *J12SAMPARRAY
-    ctypedef J12SAMPARRAY *J12SAMPIMAGE
+    ctypedef J12SAMPLE* J12SAMPROW
+    ctypedef J12SAMPROW* J12SAMPARRAY
+    ctypedef J12SAMPARRAY* J12SAMPIMAGE
 
-    ctypedef J16SAMPLE *J16SAMPROW
-    ctypedef J16SAMPROW *J16SAMPARRAY
-    ctypedef J16SAMPARRAY *J16SAMPIMAGE
+    ctypedef J16SAMPLE* J16SAMPROW
+    ctypedef J16SAMPROW* J16SAMPARRAY
+    ctypedef J16SAMPARRAY* J16SAMPIMAGE
 
     ctypedef JCOEF JBLOCK[64]  # DCTSIZE2
     ctypedef JBLOCK* JBLOCKROW
@@ -436,9 +435,9 @@ cdef extern from 'jpeglib.h' nogil:
         _msg_parm msg_parm
         int trace_level
         long num_warnings
-        const char* const* jpeg_message_table
+        const char** jpeg_message_table
         int last_jpeg_message
-        const char* const* addon_message_table
+        const char** addon_message_table
         int first_addon_message
         int last_addon_message
 
@@ -829,8 +828,8 @@ cdef extern from 'jpeglib.h' nogil:
 
     void jpeg12_crop_scanline(
         j_decompress_ptr cinfo,
-        JDIMENSION *xoffset,
-        JDIMENSION *width
+        JDIMENSION* xoffset,
+        JDIMENSION* width
     )
 
     boolean jpeg_finish_decompress(
