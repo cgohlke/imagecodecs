@@ -1,7 +1,6 @@
 # imagecodecs/charls.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `CharLS 2.4.1` library.
+# Cython declarations for the `CharLS 2.4.2` library.
 # https://github.com/team-charls/charls
 
 from libc.stdint cimport int32_t, uint32_t
