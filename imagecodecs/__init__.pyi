@@ -1,6 +1,6 @@
 # imagecodecs/__init__.pyi
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -32,36 +32,506 @@
 # Public interface for the imagecodecs package.
 # This interface document is updated manually and considered experimental.
 
-"""Image transformation, compression, and decompression codecs."""
-
 import enum
 import mmap
 import os
-from collections.abc import Sequence
-from typing import IO, Any, Callable, Literal, overload
+from collections.abc import Callable, Sequence
+from typing import IO, Any, Literal, NoReturn, TypeAlias, overload
 
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-BytesLike = bytes | bytearray | mmap.mmap
+BytesLike: TypeAlias = bytes | bytearray | mmap.mmap
 
+__all__ = [
+    'AEC',
+    'APNG',
+    'AVIF',
+    'BCN',
+    'BFLOAT16',
+    'BITORDER',
+    'BITSHUFFLE',
+    'BLOSC',
+    'BLOSC2',
+    'BMP',
+    'BROTLI',
+    'BRUNSLI',
+    'BYTESHUFFLE',
+    'BZ2',
+    'CMS',
+    'DDS',
+    'DEFLATE',
+    'DELTA',
+    'DICOMRLE',
+    'EER',
+    'FLOAT24',
+    'FLOATPRED',
+    'GIF',
+    'GZIP',
+    'H5CHECKSUM',
+    'HEIF',
+    'HTJ2K',
+    'JETRAW',
+    'JPEG',
+    'JPEG2K',
+    'JPEG8',
+    'JPEGLS',
+    'JPEGSOF3',
+    'JPEGXL',
+    'JPEGXR',
+    'JPEGXS',
+    'LERC',
+    'LJPEG',
+    'LZ4',
+    'LZ4F',
+    'LZ4H5',
+    'LZF',
+    'LZFSE',
+    'LZHAM',
+    'LZMA',
+    'LZO',
+    'LZW',
+    'MESHOPT',
+    'MOZJPEG',
+    'NONE',
+    'NUMPY',
+    'PACKBITS',
+    'PACKINTS',
+    'PCODEC',
+    'PGLZ',
+    'PNG',
+    'QOI',
+    'QUANTIZE',
+    'RCOMP',
+    'RGBE',
+    'SNAPPY',
+    'SPERR',
+    'SPNG',
+    'SZ3',
+    'SZIP',
+    'TIFF',
+    'ULTRAHDR',
+    'WEBP',
+    'XOR',
+    'ZFP',
+    'ZLIB',
+    'ZLIBNG',
+    'ZOPFLI',
+    'ZSTD',
+    'AecError',
+    'ApngError',
+    'AvifError',
+    'BcnError',
+    'Bfloat16Error',
+    'BitorderError',
+    'BitshuffleError',
+    'Blosc2Error',
+    'BloscError',
+    'BmpError',
+    'BrotliError',
+    'BrunsliError',
+    'ByteshuffleError',
+    'Bz2Error',
+    'CmsError',
+    'DdsError',
+    'DeflateError',
+    'DelayedImportError',
+    'DeltaError',
+    'DicomrleError',
+    'EerError',
+    'Float24Error',
+    'FloatpredError',
+    'GifError',
+    'GzipError',
+    'HeifError',
+    'Htj2kError',
+    'JetrawError',
+    'Jpeg2kError',
+    'Jpeg8Error',
+    'JpegError',
+    'JpeglsError',
+    'Jpegsof3Error',
+    'JpegxlError',
+    'JpegxrError',
+    'JpegxsError',
+    'LercError',
+    'LjpegError',
+    'Lz4Error',
+    'Lz4fError',
+    'Lz4h5Error',
+    'LzfError',
+    'LzfseError',
+    'LzhamError',
+    'LzmaError',
+    'LzoError',
+    'LzwError',
+    'MeshoptError',
+    'MozjpegError',
+    'NoneError',
+    'NumpyError',
+    'PackbitsError',
+    'PackintsError',
+    'PcodecError',
+    'PglzError',
+    'PngError',
+    'QoiError',
+    'QuantizeError',
+    'RcompError',
+    'RgbeError',
+    'SnappyError',
+    'SperrError',
+    'SpngError',
+    'Sz3Error',
+    'SzipError',
+    'TiffError',
+    'UltrahdrError',
+    'WebpError',
+    'XorError',
+    'ZfpError',
+    'ZlibError',
+    'ZlibngError',
+    'ZopfliError',
+    'ZstdError',
+    '__version__',
+    'aec_check',
+    'aec_decode',
+    'aec_encode',
+    'aec_version',
+    'apng_check',
+    'apng_decode',
+    'apng_encode',
+    'apng_version',
+    'avif_check',
+    'avif_decode',
+    'avif_encode',
+    'avif_version',
+    'bcn_check',
+    'bcn_decode',
+    'bcn_encode',
+    'bcn_version',
+    'bfloat16_check',
+    'bfloat16_decode',
+    'bfloat16_encode',
+    'bfloat16_version',
+    'bitorder_check',
+    'bitorder_decode',
+    'bitorder_encode',
+    'bitorder_version',
+    'bitshuffle_check',
+    'bitshuffle_decode',
+    'bitshuffle_encode',
+    'bitshuffle_version',
+    'blosc2_check',
+    'blosc2_decode',
+    'blosc2_encode',
+    'blosc2_version',
+    'blosc_check',
+    'blosc_decode',
+    'blosc_encode',
+    'blosc_version',
+    'bmp_check',
+    'bmp_decode',
+    'bmp_encode',
+    'bmp_version',
+    'brotli_check',
+    'brotli_decode',
+    'brotli_encode',
+    'brotli_version',
+    'brunsli_check',
+    'brunsli_decode',
+    'brunsli_encode',
+    'brunsli_version',
+    'byteshuffle_check',
+    'byteshuffle_decode',
+    'byteshuffle_encode',
+    'byteshuffle_version',
+    'bz2_check',
+    'bz2_decode',
+    'bz2_encode',
+    'bz2_version',
+    'cms_check',
+    'cms_decode',
+    'cms_encode',
+    'cms_profile',
+    'cms_profile_validate',
+    'cms_transform',
+    'cms_version',
+    'cython_version',
+    'dds_check',
+    'dds_decode',
+    'dds_encode',
+    'dds_version',
+    'deflate_adler32',
+    'deflate_check',
+    'deflate_crc32',
+    'deflate_decode',
+    'deflate_encode',
+    'deflate_version',
+    'delta_check',
+    'delta_decode',
+    'delta_encode',
+    'delta_version',
+    'dicomrle_check',
+    'dicomrle_decode',
+    'dicomrle_encode',
+    'dicomrle_version',
+    'eer_check',
+    'eer_decode',
+    'eer_encode',
+    'eer_version',
+    'float24_check',
+    'float24_decode',
+    'float24_encode',
+    'float24_version',
+    'floatpred_check',
+    'floatpred_decode',
+    'floatpred_encode',
+    'floatpred_version',
+    'gif_check',
+    'gif_decode',
+    'gif_encode',
+    'gif_version',
+    'gzip_check',
+    'gzip_decode',
+    'gzip_encode',
+    'gzip_version',
+    'h5checksum_crc',
+    'h5checksum_fletcher32',
+    'h5checksum_hash_string',
+    'h5checksum_lookup3',
+    'h5checksum_metadata',
+    'h5checksum_version',
+    'heif_check',
+    'heif_decode',
+    'heif_encode',
+    'heif_version',
+    'htj2k_check',
+    'htj2k_decode',
+    'htj2k_encode',
+    'htj2k_init',
+    'htj2k_version',
+    'imagefileext',
+    'imcd_version',
+    'imread',
+    'imwrite',
+    'jetraw_check',
+    'jetraw_decode',
+    'jetraw_encode',
+    'jetraw_init',
+    'jetraw_version',
+    'jpeg2k_check',
+    'jpeg2k_decode',
+    'jpeg2k_encode',
+    'jpeg2k_version',
+    'jpeg8_check',
+    'jpeg8_decode',
+    'jpeg8_encode',
+    'jpeg8_version',
+    'jpeg_check',
+    'jpeg_decode',
+    'jpeg_encode',
+    'jpeg_version',
+    'jpegls_check',
+    'jpegls_decode',
+    'jpegls_encode',
+    'jpegls_version',
+    'jpegsof3_check',
+    'jpegsof3_decode',
+    'jpegsof3_encode',
+    'jpegsof3_version',
+    'jpegxl_check',
+    'jpegxl_decode',
+    'jpegxl_decode_jpeg',
+    'jpegxl_encode',
+    'jpegxl_encode_jpeg',
+    'jpegxl_version',
+    'jpegxr_check',
+    'jpegxr_decode',
+    'jpegxr_encode',
+    'jpegxr_version',
+    'jpegxs_check',
+    'jpegxs_decode',
+    'jpegxs_encode',
+    'jpegxs_version',
+    'lerc_check',
+    'lerc_decode',
+    'lerc_encode',
+    'lerc_version',
+    'ljpeg_check',
+    'ljpeg_decode',
+    'ljpeg_encode',
+    'ljpeg_version',
+    'lz4_check',
+    'lz4_decode',
+    'lz4_encode',
+    'lz4_version',
+    'lz4f_check',
+    'lz4f_decode',
+    'lz4f_encode',
+    'lz4f_version',
+    'lz4h5_check',
+    'lz4h5_decode',
+    'lz4h5_encode',
+    'lz4h5_version',
+    'lzf_check',
+    'lzf_decode',
+    'lzf_encode',
+    'lzf_version',
+    'lzfse_check',
+    'lzfse_decode',
+    'lzfse_encode',
+    'lzfse_version',
+    'lzham_check',
+    'lzham_decode',
+    'lzham_encode',
+    'lzham_version',
+    'lzma_check',
+    'lzma_decode',
+    'lzma_encode',
+    'lzma_version',
+    'lzo_check',
+    'lzo_decode',
+    'lzo_encode',
+    'lzo_version',
+    'lzw_check',
+    'lzw_decode',
+    'lzw_encode',
+    'lzw_version',
+    'meshopt_check',
+    'meshopt_decode',
+    'meshopt_encode',
+    'meshopt_version',
+    'mozjpeg_check',
+    'mozjpeg_decode',
+    'mozjpeg_encode',
+    'mozjpeg_version',
+    'none_check',
+    'none_decode',
+    'none_encode',
+    'none_version',
+    'numpy_abi_version',
+    'numpy_check',
+    'numpy_decode',
+    'numpy_encode',
+    'numpy_version',
+    'packbits_check',
+    'packbits_decode',
+    'packbits_encode',
+    'packbits_version',
+    'packints_check',
+    'packints_decode',
+    'packints_encode',
+    'packints_version',
+    'pcodec_check',
+    'pcodec_decode',
+    'pcodec_encode',
+    'pcodec_version',
+    'pglz_check',
+    'pglz_decode',
+    'pglz_encode',
+    'pglz_version',
+    'png_check',
+    'png_decode',
+    'png_encode',
+    'png_version',
+    'qoi_check',
+    'qoi_decode',
+    'qoi_encode',
+    'qoi_version',
+    'quantize_check',
+    'quantize_decode',
+    'quantize_encode',
+    'quantize_version',
+    'rcomp_check',
+    'rcomp_decode',
+    'rcomp_encode',
+    'rcomp_version',
+    'rgbe_check',
+    'rgbe_decode',
+    'rgbe_encode',
+    'rgbe_version',
+    'snappy_check',
+    'snappy_decode',
+    'snappy_encode',
+    'snappy_version',
+    'sperr_check',
+    'sperr_decode',
+    'sperr_encode',
+    'sperr_version',
+    'spng_check',
+    'spng_decode',
+    'spng_encode',
+    'spng_version',
+    'sz3_check',
+    'sz3_decode',
+    'sz3_encode',
+    'sz3_version',
+    'szip_check',
+    'szip_decode',
+    'szip_encode',
+    'szip_params',
+    'szip_version',
+    'tiff_check',
+    'tiff_decode',
+    'tiff_encode',
+    'tiff_version',
+    'ultrahdr_check',
+    'ultrahdr_decode',
+    'ultrahdr_encode',
+    'ultrahdr_version',
+    'version',
+    'webp_check',
+    'webp_decode',
+    'webp_encode',
+    'webp_version',
+    'xor_check',
+    'xor_decode',
+    'xor_encode',
+    'xor_version',
+    'zfp_check',
+    'zfp_decode',
+    'zfp_encode',
+    'zfp_version',
+    'zlib_adler32',
+    'zlib_check',
+    'zlib_crc32',
+    'zlib_decode',
+    'zlib_encode',
+    'zlib_version',
+    'zlibng_adler32',
+    'zlibng_check',
+    'zlibng_crc32',
+    'zlibng_decode',
+    'zlibng_encode',
+    'zlibng_version',
+    'zopfli_check',
+    'zopfli_decode',
+    'zopfli_encode',
+    'zopfli_version',
+    'zstd_check',
+    'zstd_decode',
+    'zstd_encode',
+    'zstd_version',
+]
 __version__: str
 
 def __dir__() -> list[str]: ...
 def __getattr__(name: str, /) -> Any: ...
 
 class DelayedImportError(ImportError):
-    """Delayed ImportError."""
-
     def __init__(self, name: str, /) -> None: ...
 
+@overload
+def version(astype: None = None) -> str: ...
+@overload
+def version(astype: type[str]) -> str: ...
+@overload
 def version(
-    astype: type | None = None,
-) -> str:  # | tuple[str, ...] | dict[str, str]: ...
-    """Return version information about all codecs and dependencies.
-
-    All extension modules are imported into the process.
-    """
-
+    astype: type[tuple],  # type: ignore[type-arg]
+) -> tuple[str, ...]: ...
+@overload
+def version(
+    astype: type[dict],  # type: ignore[type-arg]
+) -> dict[str, str]: ...
 @overload
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
@@ -76,9 +546,7 @@ def imread(
     memmap: bool = False,
     return_codec: Literal[False] = ...,
     **kwargs: Any,
-) -> NDArray[Any]:
-    """Return image array from file."""
-
+) -> NDArray[Any]: ...
 @overload
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
@@ -93,9 +561,7 @@ def imread(
     memmap: bool = False,
     return_codec: Literal[True],
     **kwargs: Any,
-) -> tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
-    """Return image array and decode function from file."""
-
+) -> tuple[NDArray[Any], Callable[..., NDArray[Any]]]: ...
 @overload
 def imread(
     fileobj: str | os.PathLike[Any] | bytes | mmap.mmap,
@@ -110,41 +576,25 @@ def imread(
     memmap: bool = False,
     return_codec: bool,
     **kwargs: Any,
-) -> NDArray[Any] | tuple[NDArray[Any], Callable[..., NDArray[Any]]]:
-    """Return image array and decode function from file."""
-
+) -> NDArray[Any] | tuple[NDArray[Any], Callable[..., NDArray[Any]]]: ...
 def imwrite(
     fileobj: str | os.PathLike[Any] | IO[bytes],
     data: ArrayLike,
     /,
     codec: str | Callable[..., bytes | bytearray] | None = None,
     **kwargs: Any,
-) -> None:
-    """Write image array to file."""
+) -> None: ...
+def imagefileext() -> tuple[str, ...]: ...
+def cython_version() -> str: ...
+def numpy_abi_version() -> str: ...
+def imcd_version() -> str: ...
 
-def imagefileext() -> tuple[str, ...]:
-    """Return list of image file extensions handled by imread and imwrite."""
-
-def cython_version() -> str:
-    """Return Cython version string."""
-
-def numpy_abi_version() -> str:
-    """Return Numpy ABI version string."""
-
-def imcd_version() -> str:
-    """Return imcd library version string."""
-
-class ImcdError(RuntimeError):
-    """IMCD codec exceptions."""
+class ImcdError(RuntimeError): ...
 
 class AEC:
-    """AEC codec constants."""
-
     available: bool
-    """AEC codec is available."""
 
     class FLAG(enum.IntEnum):
-        """AEC codec flags."""
 
         DATA_SIGNED = ...
         DATA_3BYTE = ...
@@ -153,15 +603,10 @@ class AEC:
         PAD_RSI = ...
         NOT_ENFORCE = ...
 
-class AecError(RuntimeError):
-    """AEC codec exceptions."""
+class AecError(RuntimeError): ...
 
-def aec_version() -> str:
-    """Return libaec library version string."""
-
-def aec_check(data: BytesLike, /) -> None:
-    """Return whether data is AEC encoded."""
-
+def aec_version() -> str: ...
+def aec_check(data: BytesLike, /) -> bool | None: ...
 def aec_encode(
     data: BytesLike | ArrayLike,
     /,
@@ -171,9 +616,7 @@ def aec_encode(
     blocksize: int | None = None,
     rsi: int | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return AEC encoded data."""
-
+) -> bytes | bytearray: ...
 @overload
 def aec_decode(
     data: BytesLike,
@@ -184,9 +627,7 @@ def aec_decode(
     blocksize: int | None = None,
     rsi: int | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded AEC data."""
-
+) -> bytes | bytearray: ...
 @overload
 def aec_decode(
     data: BytesLike,
@@ -197,17 +638,13 @@ def aec_decode(
     blocksize: int | None = None,
     rsi: int | None = None,
     out: NDArray[Any],
-) -> NDArray[Any]:
-    """Return decoded AEC data."""
+) -> NDArray[Any]: ...
 
 class APNG:
-    """APNG codec constants."""
 
     available: bool
-    """APNG codec is available."""
 
     class COLOR_TYPE(enum.IntEnum):
-        """APNG codec color types."""
 
         GRAY = ...
         GRAY_ALPHA = ...
@@ -215,7 +652,6 @@ class APNG:
         RGB_ALPHA = ...
 
     class COMPRESSION(enum.IntEnum):
-        """APNG codec compression levels."""
 
         DEFAULT = ...
         NO = ...
@@ -223,7 +659,6 @@ class APNG:
         SPEED = ...
 
     class STRATEGY(enum.IntEnum):
-        """APNG codec strategies."""
 
         DEFAULT = ...
         FILTERED = ...
@@ -232,7 +667,6 @@ class APNG:
         FIXED = ...
 
     class FILTER(enum.IntEnum):  # IntFlag
-        """APNG codec filters."""
 
         NO = ...
         NONE = ...
@@ -243,54 +677,43 @@ class APNG:
         FAST = ...
         ALL = ...
 
-class ApngError(RuntimeError):
-    """APNG codec exceptions."""
+class ApngError(RuntimeError): ...
 
-def apng_version() -> str:
-    """Return libpng-apng library version string."""
-
-def apng_check(data: BytesLike, /) -> bool:
-    """Return whether data is APNG encoded image."""
-
+def apng_version() -> str: ...
+def apng_check(data: BytesLike, /) -> bool | None: ...
 def apng_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
-    strategy: int | None = None,
-    filter: int | None = None,
-    photometric: int | None = None,
+    strategy: APNG.STRATEGY | int | None = None,
+    filter: APNG.FILTER | int | None = None,
+    photometric: APNG.COLOR_TYPE | int | None = None,
     delay: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return APNG encoded image."""
-
+) -> bytes | bytearray: ...
 def apng_decode(
     data: BytesLike,
     /,
     index: int | None = None,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded APNG image."""
+) -> NDArray[Any]: ...
 
 class AVIF:
-    """AVIF codec constants."""
 
     available: bool
-    """AVIF codec is available."""
 
     class PIXEL_FORMAT(enum.IntEnum):
-        """AVIF codec pixel formats."""
 
         NONE = ...
         YUV444 = ...
         YUV422 = ...
         YUV420 = ...
         YUV400 = ...
+        COUNT = ...
 
     class QUALITY(enum.IntEnum):
-        """AVIF codec quality."""
 
         DEFAULT = ...
         LOSSLESS = ...
@@ -298,14 +721,12 @@ class AVIF:
         BEST = ...
 
     class SPEED(enum.IntEnum):
-        """AVIF codec speeds."""
 
         DEFAULT = ...
         SLOWEST = ...
         FASTEST = ...
 
     class CHROMA_UPSAMPLING(enum.IntEnum):
-        """AVIF codec chroma upsampling types."""
 
         AUTOMATIC = ...
         FASTEST = ...
@@ -314,7 +735,6 @@ class AVIF:
         BILINEAR = ...
 
     class CODEC_CHOICE(enum.IntEnum):
-        """AVIF codec choices."""
 
         AUTO = ...
         AOM = ...
@@ -325,7 +745,6 @@ class AVIF:
         AVM = ...
 
     class COLOR_PRIMARIES(enum.IntEnum):
-        """AVIF color primaries."""
 
         UNKNOWN = ...
         BT709 = ...
@@ -346,7 +765,6 @@ class AVIF:
         EBU3213 = ...
 
     class TRANSFER_CHARACTERISTICS(enum.IntEnum):
-        """AVIF transfer characteristics."""
 
         UNKNOWN = ...
         BT709 = ...
@@ -369,7 +787,6 @@ class AVIF:
         HLG = ...
 
     class MATRIX_COEFFICIENTS(enum.IntEnum):
-        """AVIF matrix coefficients."""
 
         IDENTITY = ...
         BT709 = ...
@@ -388,15 +805,10 @@ class AVIF:
         YCGCO_RE = ...
         YCGCO_RO = ...
 
-class AvifError(RuntimeError):
-    """AVIF codec exceptions."""
+class AvifError(RuntimeError): ...
 
-def avif_version() -> str:
-    """Return libavif library version string."""
-
-def avif_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is AVIF encoded image."""
-
+def avif_version() -> str: ...
+def avif_check(data: BytesLike, /) -> bool | None: ...
 def avif_encode(
     data: ArrayLike,
     /,
@@ -412,9 +824,7 @@ def avif_encode(
     matrix: AVIF.MATRIX_COEFFICIENTS | int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return AVIF encoded image."""
-
+) -> bytes | bytearray: ...
 def avif_decode(
     data: BytesLike,
     /,
@@ -422,62 +832,47 @@ def avif_decode(
     *,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded AVIF image."""
+) -> NDArray[Any]: ...
 
 class BCN:
-    """BCn codec constants."""
 
     available: bool
-    """BCn codec is available."""
 
     class FORMAT(enum.IntEnum):
-        """BCn compression format."""
 
-        BC1 = 1  # DXT1
-        BC2 = 2  # DXT3
-        BC3 = 3  # DXT5
-        BC4 = 4  # BC4_UNORM
-        BC5 = 5  # BC5_UNORM
-        BC6HU = 6  # BC6H_UF16
-        BC6HS = -6  # BC6H_SF16
-        BC7 = 7  # BC7_UNORM
+        BC1 = ...  # DXT1
+        BC2 = ...  # DXT3
+        BC3 = ...  # DXT5
+        BC4 = ...  # BC4_UNORM
+        BC5 = ...  # BC5_UNORM
+        BC6HU = ...  # BC6H_UF16
+        BC6HS = ...  # BC6H_SF16
+        BC7 = ...  # BC7_UNORM
 
-class BcnError(RuntimeError):
-    """BCn codec exceptions."""
+class BcnError(RuntimeError): ...
 
-def bcn_version() -> str:
-    """Return bcdec library version string."""
-
-def bcn_check(data: BytesLike, /) -> None:
-    """Return whether data is BCn encoded."""
-
+def bcn_version() -> str: ...
+def bcn_check(data: BytesLike, /) -> bool | None: ...
 def bcn_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BCn encoded data (not implemented)."""
-
+) -> NoReturn: ...
 def bcn_decode(
     data: BytesLike,
-    format: BCN.FORMAT | int,
     /,
-    shape: tuple[int, ...] | None = None,
+    format: BCN.FORMAT | int,
     *,
+    shape: tuple[int, ...] | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BCn data."""
+) -> bytes | bytearray: ...
 
 class BFLOAT16:
-    """BFLOAT16 codec constants."""
 
     available: bool
-    """BFLOAT16 codec is available."""
 
     class ROUND(enum.IntEnum):
-        """BFLOAT16 codec rounding types."""
 
         TONEAREST = ...
         UPWARD = ...
@@ -487,9 +882,7 @@ class BFLOAT16:
 Bfloat16Error = ImcdError
 bfloat16_version = imcd_version
 
-def bfloat16_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is BFLOAT16 encoded."""
-
+def bfloat16_check(data: BytesLike, /) -> bool | None: ...
 def bfloat16_encode(
     data: ArrayLike,
     /,
@@ -497,65 +890,48 @@ def bfloat16_encode(
     byteorder: Literal['>', '<', '='] | None = None,
     rounding: BFLOAT16.ROUND | int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BFLOAT16 encoded array."""
-
+) -> bytes | bytearray: ...
 def bfloat16_decode(
     data: BytesLike,
     /,
     *,
     byteorder: Literal['>', '<', '='] | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded BFLOAT16 array."""
+) -> NDArray[Any]: ...
 
 class BITORDER:
-    """BITORDER codec constants."""
 
     available: bool
-    """BITORDER codec is available."""
 
 BitorderError = ImcdError
 bitorder_version = imcd_version
 
-def bitorder_check(data: BytesLike, /) -> None:
-    """Return whether data is BITORDER encoded."""
-
+def bitorder_check(data: BytesLike, /) -> bool | None: ...
 @overload
 def bitorder_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return data with reversed bit-order in each byte."""
-
+) -> bytes | bytearray: ...
 @overload
 def bitorder_encode(
     data: NDArray[Any],
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return data with reversed bit-order in each byte."""
+) -> NDArray[Any]: ...
 
 bitorder_decode = bitorder_encode
 
 class BITSHUFFLE:
-    """BITSHUFFLE codec constants."""
 
     available: bool
-    """BITSHUFFLE codec is available."""
 
-class BitshuffleError(RuntimeError):
-    """BITSHUFFLE codec exceptions."""
+class BitshuffleError(RuntimeError): ...
 
-def bitshuffle_version() -> str:
-    """Return Bitshuffle library version string."""
-
-def bitshuffle_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is BITSHUFFLE encoded."""
-
+def bitshuffle_version() -> str: ...
+def bitshuffle_check(data: BytesLike, /) -> bool | None: ...
 @overload
 def bitshuffle_encode(
     data: BytesLike,
@@ -564,9 +940,7 @@ def bitshuffle_encode(
     itemsize: int = 1,
     blocksize: int = 0,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BITSHUFFLE encoded data."""
-
+) -> bytes | bytearray: ...
 @overload
 def bitshuffle_encode(
     data: NDArray[Any],
@@ -575,9 +949,7 @@ def bitshuffle_encode(
     itemsize: int = 1,
     blocksize: int = 0,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return BITSHUFFLE encoded data."""
-
+) -> NDArray[Any]: ...
 @overload
 def bitshuffle_decode(
     data: BytesLike,
@@ -586,9 +958,7 @@ def bitshuffle_decode(
     itemsize: int = 1,
     blocksize: int = 0,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BITSHUFFLE data."""
-
+) -> bytes | bytearray: ...
 @overload
 def bitshuffle_decode(
     data: NDArray[Any],
@@ -597,24 +967,19 @@ def bitshuffle_decode(
     itemsize: int = 1,
     blocksize: int = 0,
     out: NDArray[Any] | None = None,
-) -> bytes | bytearray:
-    """Return decoded BITSHUFFLE data."""
+) -> NDArray[Any]: ...
 
 class BLOSC:
-    """BLOSC codec constants."""
 
     available: bool
-    """BLOSC codec is available."""
 
     class SHUFFLE(enum.IntEnum):
-        """BLOSC codec shuffle types."""
 
         NOSHUFFLE = ...
         SHUFFLE = ...
         BITSHUFFLE = ...
 
     class COMPRESSOR(enum.IntEnum):
-        """BLOSC codec compressors."""
 
         BLOSCLZ = ...
         LZ4 = ...
@@ -623,15 +988,10 @@ class BLOSC:
         ZLIB = ...
         ZSTD = ...
 
-class BloscError(RuntimeError):
-    """BLOSC coec exceptions."""
+class BloscError(RuntimeError): ...
 
-def blosc_version() -> str:
-    """Return C-Blosc library version string."""
-
-def blosc_check(data: BytesLike, /) -> None:
-    """Return whether data is BLOSC encoded."""
-
+def blosc_version() -> str: ...
+def blosc_check(data: BytesLike, /) -> bool | None: ...
 def blosc_encode(
     data: BytesLike,
     /,
@@ -643,26 +1003,20 @@ def blosc_encode(
     blocksize: int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BLOSC encoded data."""
-
+) -> bytes | bytearray: ...
 def blosc_decode(
     data: BytesLike,
     /,
     *,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BLOSC data."""
+) -> bytes | bytearray: ...
 
 class BLOSC2:
-    """BLOSC2 codec constants."""
 
     available: bool
-    """BLOSC2 codec is available."""
 
     class FILTER(enum.IntEnum):
-        """BLOSC2 codec filters."""
 
         NOFILTER = ...
         NOSHUFFLE = ...
@@ -672,7 +1026,6 @@ class BLOSC2:
         TRUNC_PREC = ...
 
     class COMPRESSOR(enum.IntEnum):
-        """BLOSC2 codec compressors."""
 
         BLOSCLZ = ...
         LZ4 = ...
@@ -681,22 +1034,16 @@ class BLOSC2:
         ZSTD = ...  # default
 
     class SPLIT(enum.IntEnum):
-        """BLOSC2 split modes."""
 
         ALWAYS = ...  # default
         NEVER = ...
         AUTO = ...
         FORWARD_COMPAT = ...
 
-class Blosc2Error(RuntimeError):
-    """BLOSC2 codec exceptions."""
+class Blosc2Error(RuntimeError): ...
 
-def blosc2_version() -> str:
-    """Return C-Blosc2 library version string."""
-
-def blosc2_check(data: BytesLike, /) -> None:
-    """Return whether data is BLOSC2 encoded."""
-
+def blosc2_version() -> str: ...
+def blosc2_check(data: BytesLike, /) -> bool | None: ...
 def blosc2_encode(
     data: BytesLike,
     /,
@@ -709,73 +1056,52 @@ def blosc2_encode(
     blocksize: int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return decoded BLOSC2 data."""
-
+) -> bytes | bytearray: ...
 def blosc2_decode(
     data: BytesLike,
     /,
     *,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return BLOSC2 encoded data."""
+) -> bytes | bytearray: ...
 
 class BMP:
-    """BMP codec constants."""
 
     available: bool
-    """BMP codec is available."""
 
-class BmpError(RuntimeError):
-    """BMP codec exceptions."""
+class BmpError(RuntimeError): ...
 
-def bmp_version() -> str:
-    """Return EasyBMP library version string."""
-
-def bmp_check(data: BytesLike, /) -> bool:
-    """Return whether data is BMP encoded image."""
-
+def bmp_version() -> str: ...
+def bmp_check(data: BytesLike, /) -> bool | None: ...
 def bmp_encode(
     data: ArrayLike,
     /,
     *,
     ppm: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BMP encoded image."""
-
+) -> bytes | bytearray: ...
 def bmp_decode(
     data: BytesLike,
     /,
     *,
     asrgb: bool | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded BMP image."""
+) -> NDArray[Any]: ...
 
 class BROTLI:
-    """BROTLI codec constants."""
 
     available: bool
-    """BROTLI codec is available."""
 
     class MODE(enum.IntEnum):
-        """BROTLI codec modes."""
 
         GENERIC = ...
         TEXT = ...
         FONT = ...
 
-class BrotliError(RuntimeError):
-    """BROTLI codec exceptions."""
+class BrotliError(RuntimeError): ...
 
-def brotli_version() -> str:
-    """Return Brotli library version string."""
-
-def brotli_check(data: BytesLike, /) -> None:
-    """Return whether data is BROTLI encoded."""
-
+def brotli_version() -> str: ...
+def brotli_check(data: BytesLike, /) -> bool | None: ...
 def brotli_encode(
     data: BytesLike,
     /,
@@ -784,32 +1110,22 @@ def brotli_encode(
     mode: BROTLI.MODE | int | None = None,
     lgwin: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BROTLI encoded data."""
-
+) -> bytes | bytearray: ...
 def brotli_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BROTLI data."""
+) -> bytes | bytearray: ...
 
 class BRUNSLI:
-    """BRUNSLI codec constants."""
 
     available: bool
-    """BRUNSLI codec is available."""
 
-class BrunsliError(RuntimeError):
-    """BRUNSLI codec exceptions."""
+class BrunsliError(RuntimeError): ...
 
-def brunsli_version() -> str:
-    """Return Brunsli library version string."""
-
-def brunsli_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is BRUNSLI/JPEG encoded."""
-
+def brunsli_version() -> str: ...
+def brunsli_check(data: BytesLike, /) -> bool | None: ...
 def brunsli_encode(
     data: BytesLike,
     /,
@@ -822,9 +1138,7 @@ def brunsli_encode(
     smoothing: bool | None = None,
     predictor: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BRUNSLI/JPEG encoded image."""
-
+) -> bytes | bytearray: ...
 def brunsli_decode(
     data: BytesLike,
     /,
@@ -833,21 +1147,16 @@ def brunsli_decode(
     outcolorspace: int | str | None = None,
     asjpeg: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BRUNSLI/JPEG image."""
+) -> bytes | bytearray: ...
 
 class BYTESHUFFLE:
-    """BYTESHUFFLE codec constants."""
 
     available: bool
-    """BYTESHUFFLE codec is available."""
 
 ByteshuffleError = ImcdError
 byteshuffle_version = imcd_version
 
-def byteshuffle_check(data: BytesLike, /) -> None:
-    """Return whether data is BYTESHUFFLE encoded."""
-
+def byteshuffle_check(data: BytesLike, /) -> bool | None: ...
 def byteshuffle_encode(
     data: NDArray[Any],
     /,
@@ -857,9 +1166,7 @@ def byteshuffle_encode(
     delta: bool = False,
     reorder: bool = False,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return byte-shuffled data."""
-
+) -> NDArray[Any]: ...
 def byteshuffle_decode(
     data: NDArray[Any],
     /,
@@ -869,49 +1176,35 @@ def byteshuffle_decode(
     delta: bool = False,
     reorder: bool = False,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return un-byte-shuffled data."""
+) -> NDArray[Any]: ...
 
 class BZ2:
-    """BZ2 codec constants."""
 
     available: bool
-    """BZ2 codec is available."""
 
-class Bz2Error(RuntimeError):
-    """BZ2 codec exceptions."""
+class Bz2Error(RuntimeError): ...
 
-def bz2_version() -> str:
-    """Return libbzip2 library version string."""
-
-def bz2_check(data: BytesLike, /) -> None:
-    """Return whether data is BZ2 encoded."""
-
+def bz2_version() -> str: ...
+def bz2_check(data: BytesLike, /) -> bool | None: ...
 def bz2_encode(
     data: BytesLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return BZ2 encoded data."""
-
+) -> bytes | bytearray: ...
 def bz2_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded BZ2 data."""
+) -> bytes | bytearray: ...
 
 class CMS:
-    """CMS codec constants."""
 
     available: bool
-    """CMS codec is available."""
 
     class INTENT(enum.IntEnum):
-        """CMS codec intent types."""
 
         PERCEPTUAL = ...
         RELATIVE_COLORIMETRIC = ...
@@ -919,7 +1212,6 @@ class CMS:
         ABSOLUTE_COLORIMETRIC = ...
 
     class FLAGS(enum.IntEnum):
-        """CMS codec flags."""
 
         NOCACHE = ...
         NOOPTIMIZE = ...
@@ -941,7 +1233,6 @@ class CMS:
         NODEFAULTRESOURCEDEF = ...
 
     class PT(enum.IntEnum):
-        """CMS codec pixel types."""
 
         GRAY = ...
         RGB = ...
@@ -971,32 +1262,26 @@ class CMS:
         MCH14 = ...
         MCH15 = ...
 
-class CmsError(RuntimeError):
-    """CMS codec exceptions."""
+class CmsError(RuntimeError): ...
 
-def cms_version() -> str:
-    """Return Little-CMS library version string."""
-
-def cms_check(data: BytesLike, /) -> bool:
-    """Return whether data is ICC profile."""
-
+def cms_version() -> str: ...
+def cms_check(data: BytesLike, /) -> bool | None: ...
 def cms_transform(
     data: ArrayLike,
+    /,
     profile: bytes,
     outprofile: bytes,
-    /,
     *,
     colorspace: str | None = None,
     planar: bool | None = None,
     outcolorspace: str | None = None,
     outplanar: bool | None = None,
     outdtype: DTypeLike | None = None,
-    intent: int | None = None,
-    flags: int | None = None,
+    intent: CMS.INTENT | int | None = None,
+    flags: CMS.FLAGS | int | None = None,
     verbose: bool | None = None,
     out: int | bytearray | None = None,
-) -> NDArray[Any]:
-    """Return color-transformed array (experimental)."""
+) -> NDArray[Any]: ...
 
 cms_encode = cms_transform
 cms_decode = cms_transform
@@ -1009,64 +1294,44 @@ def cms_profile(
     primaries: Sequence[float] | None = None,
     transferfunction: ArrayLike | None = None,
     gamma: float | None = None,
-) -> bytes:
-    """Return ICC profile."""
-
+) -> bytes: ...
 def cms_profile_validate(
     profile: bytes,
     /,
     *,
     verbose: bool = False,
-) -> None:
-    """Raise CmsError if ICC profile is invalid."""
+) -> None: ...
 
 class DDS:
-    """DDS codec constants."""
 
     available: bool
-    """DDS codec is available."""
 
-class DdsError(RuntimeError):
-    """DDS codec exceptions."""
+class DdsError(RuntimeError): ...
 
-def dds_version() -> str:
-    """Return bcdec library version string."""
-
-def dds_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is DDS encoded."""
-
+def dds_version() -> str: ...
+def dds_check(data: BytesLike, /) -> bool | None: ...
 def dds_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DDS encoded data (not implemented)."""
-
+) -> NoReturn: ...
 def dds_decode(
     data: BytesLike,
     /,
     *,
     mipmap: int = 0,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DDS data."""
+) -> bytes | bytearray: ...
 
 class DEFLATE:
-    """DEFLATE codec constants."""
 
     available: bool
-    """DEFLATE codec is available."""
 
-class DeflateError(RuntimeError):
-    """DEFLATE codec exceptions."""
+class DeflateError(RuntimeError): ...
 
-def deflate_version() -> str:
-    """Return libdeflate library version string."""
-
-def deflate_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is Zlib/Deflate encoded."""
-
+def deflate_version() -> str: ...
+def deflate_check(data: BytesLike, /) -> bool | None: ...
 def deflate_encode(
     data: BytesLike,
     /,
@@ -1074,36 +1339,25 @@ def deflate_encode(
     *,
     raw: bool = False,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DEFLATE encoded data."""
-
+) -> bytes | bytearray: ...
 def deflate_decode(
     data: BytesLike,
     /,
     *,
     raw: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DEFLATE data."""
-
-def deflate_crc32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return CRC32 checksum of data."""
-
-def deflate_adler32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return Adler-32 checksum of data."""
+) -> bytes | bytearray: ...
+def deflate_crc32(data: BytesLike, /, value: int | None = None) -> int: ...
+def deflate_adler32(data: BytesLike, /, value: int | None = None) -> int: ...
 
 class DELTA:
-    """DELTA codec constants."""
 
     available: bool
-    """DELTA codec is available."""
 
 DeltaError = ImcdError
 delta_version = imcd_version
 
-def delta_check(data: BytesLike, /) -> None:
-    """Return whether data is DELTA encoded."""
-
+def delta_check(data: BytesLike, /) -> bool | None: ...
 @overload
 def delta_encode(
     data: BytesLike,
@@ -1112,9 +1366,7 @@ def delta_encode(
     axis: int = -1,
     dist: int = 1,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DELTA encoded data."""
-
+) -> bytes | bytearray: ...
 @overload
 def delta_encode(
     data: NDArray[Any],
@@ -1123,9 +1375,7 @@ def delta_encode(
     axis: int = -1,
     dist: int = 1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return DELTA encoded data."""
-
+) -> NDArray[Any]: ...
 @overload
 def delta_decode(
     data: BytesLike,
@@ -1134,9 +1384,7 @@ def delta_decode(
     axis: int = -1,
     dist: int = 1,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DELTA data."""
-
+) -> bytes | bytearray: ...
 @overload
 def delta_decode(
     data: NDArray[Any],
@@ -1145,29 +1393,22 @@ def delta_decode(
     axis: int = -1,
     dist: int = 1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded DELTA data."""
+) -> NDArray[Any]: ...
 
 class EER:
-    """EER codec constants."""
 
     available: bool
-    """EER codec is available."""
 
 EerError = ImcdError
 eer_version = imcd_version
 
-def eer_check(data: BytesLike, /) -> None:
-    """Return whether data is EER encoded."""
-
+def eer_check(data: BytesLike, /) -> bool | None: ...
 def eer_encode(
     data: ArrayLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> None:
-    """Return EER encoded image (not implemented)."""
-
+) -> NoReturn: ...
 def eer_decode(
     data: BytesLike,
     /,
@@ -1178,47 +1419,35 @@ def eer_decode(
     *,
     superres: int = 0,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded EER image."""
+) -> NDArray[Any]: ...
 
 class DICOMRLE:
-    """DICOMRLE codec constants."""
 
     available: bool
-    """DICOMRLE codec is available."""
 
 DicomrleError = ImcdError
 dicomrle_version = imcd_version
 
-def dicomrle_check(data: BytesLike, /) -> bool:
-    """Return whether data is DICOMRLE encoded."""
-
+def dicomrle_check(data: BytesLike, /) -> bool | None: ...
 def dicomrle_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DICOMRLE encoded data (not implemented)."""
-    raise NotImplementedError('dicomrle_encode')
-
+) -> NoReturn: ...
 def dicomrle_decode(
     data: BytesLike,
     /,
     dtype: DTypeLike,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DICOMRLE data."""
+) -> bytes | bytearray: ...
 
 class FLOAT24:
-    """FLOAT24 codec constants."""
 
     available: bool
-    """FLOAT24 codec is available."""
 
     class ROUND(enum.IntEnum):
-        """FLOAT24 codec rounding types."""
 
         TONEAREST = ...
         UPWARD = ...
@@ -1228,9 +1457,7 @@ class FLOAT24:
 Float24Error = ImcdError
 float24_version = imcd_version
 
-def float24_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is FLOAT24 encoded."""
-
+def float24_check(data: BytesLike, /) -> bool | None: ...
 def float24_encode(
     data: ArrayLike,
     /,
@@ -1238,30 +1465,23 @@ def float24_encode(
     byteorder: Literal['>', '<', '='] | None = None,
     rounding: FLOAT24.ROUND | int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return FLOAT24 encoded array."""
-
+) -> bytes | bytearray: ...
 def float24_decode(
     data: BytesLike,
     /,
     *,
     byteorder: Literal['>', '<', '='] | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded FLOAT24 array."""
+) -> NDArray[Any]: ...
 
 class FLOATPRED:
-    """FLOATPRED codec constants."""
 
     available: bool
-    """FLOATPRED codec is available."""
 
 FloatpredError = ImcdError
 floatpred_version = imcd_version
 
-def floatpred_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is FLOATPRED encoded."""
-
+def floatpred_check(data: BytesLike, /) -> bool | None: ...
 def floatpred_encode(
     data: NDArray[Any],
     /,
@@ -1269,9 +1489,7 @@ def floatpred_encode(
     axis: int = -1,
     dist: int = 1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return floating-point predicted array."""
-
+) -> NDArray[Any]: ...
 def floatpred_decode(
     data: NDArray[Any],
     /,
@@ -1279,33 +1497,23 @@ def floatpred_decode(
     axis: int = -1,
     dist: int = 1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return un-predicted floating-point array."""
+) -> NDArray[Any]: ...
 
 class GIF:
-    """GIF codec constants."""
 
     available: bool
-    """GIF codec is available."""
 
-class GifError(RuntimeError):
-    """GIF codec exceptions."""
+class GifError(RuntimeError): ...
 
-def gif_version() -> str:
-    """Return giflib library version string."""
-
-def gif_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is GIF encoded image."""
-
+def gif_version() -> str: ...
+def gif_check(data: BytesLike, /) -> bool | None: ...
 def gif_encode(
     data: ArrayLike,
     /,
     *,
     colormap: ArrayLike | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return GIF encoded image."""
-
+) -> bytes | bytearray: ...
 def gif_decode(
     data: BytesLike,
     /,
@@ -1313,100 +1521,77 @@ def gif_decode(
     *,
     asrgb: bool = True,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded GIF image."""
+) -> NDArray[Any]: ...
 
 class GZIP:
-    """GZIP codec constants."""
 
     available: bool
-    """GZIP codec is available."""
 
 GzipError = DeflateError
 gzip_version = deflate_version
 
-def gzip_check(data: BytesLike, /) -> bool:
-    """Return whether data is GZIP encoded."""
-
+def gzip_check(data: BytesLike, /) -> bool | None: ...
 def gzip_encode(
     data: BytesLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return GZIP encoded data."""
-
+) -> bytes | bytearray: ...
 def gzip_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded GZIP data."""
+) -> bytes | bytearray: ...
 
 class H5CHECKSUM:
-    """H5checksum codec constants."""
 
     available: bool
-    """H5checksum codec is available."""
 
-def h5checksum_version() -> str:
-    """Return h5checksum library version string."""
-
-def h5checksum_fletcher32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return fletcher32 checksum of data (value is ignored)."""
-
-def h5checksum_lookup3(data: BytesLike, /, value: int | None = None) -> int:
-    """Return Jenkins lookup3 checksum of data."""
-
-def h5checksum_crc(data: BytesLike, /, value: int | None = None) -> int:
-    """Return crc checksum of data (value is ignored)."""
-
-def h5checksum_metadata(data: BytesLike, /, value: int | None = None) -> int:
-    """Return checksum of metadata."""
-
+def h5checksum_version() -> str: ...
+def h5checksum_fletcher32(
+    data: BytesLike, /, value: int | None = None
+) -> int: ...
+def h5checksum_lookup3(
+    data: BytesLike, /, value: int | None = None
+) -> int: ...
+def h5checksum_crc(data: BytesLike, /, value: int | None = None) -> int: ...
+def h5checksum_metadata(
+    data: BytesLike, /, value: int | None = None
+) -> int: ...
 def h5checksum_hash_string(
     data: BytesLike, /, value: int | None = None
-) -> int:
-    """Return hash of bytes string (value is ignored)."""
+) -> int: ...
 
 class HEIF:
-    """HEIF codec constants."""
 
     available: bool
-    """HEIF codec is available."""
 
     class COMPRESSION(enum.IntEnum):
-        """HEIF codec compression levels."""
 
         UNDEFINED = ...
         HEVC = ...
         AVC = ...
         JPEG = ...
         AV1 = ...
-        # VVC
-        # EVC
-        # JPEG2000
-        # UNCOMPRESSED
+        VVC = ...
+        EVC = ...
+        JPEG2000 = ...
+        UNCOMPRESSED = ...
+        MASK = ...
 
     class COLORSPACE(enum.IntEnum):
-        """HEIF codec color spaces."""
 
         UNDEFINED = ...
         YCBCR = ...
         RGB = ...
         MONOCHROME = ...
 
-class HeifError(RuntimeError):
-    """HEIF codec exceptions."""
+class HeifError(RuntimeError): ...
 
-def heif_version() -> str:
-    """Return libheif library version string."""
-
-def heif_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is HEIF encoded image."""
-
+def heif_version() -> str: ...
+def heif_check(data: BytesLike, /) -> bool | None: ...
 def heif_encode(
     data: ArrayLike,
     /,
@@ -1416,9 +1601,7 @@ def heif_encode(
     photometric: HEIF.COLORSPACE | int | str | None = None,
     compression: HEIF.COMPRESSION | int | str | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return HEIF encoded image."""
-
+) -> bytes | bytearray: ...
 def heif_decode(
     data: BytesLike,
     /,
@@ -1426,24 +1609,55 @@ def heif_decode(
     *,
     photometric: HEIF.COLORSPACE | int | str | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded HEIF image."""
+) -> NDArray[Any]: ...
 
-class JETRAW:
-    """JETRAW codec constants."""
+class HTJ2K:
 
     available: bool
-    """JETRAW codec is available."""
 
-class JetrawError(RuntimeError):
-    """JETRAW codec exceptions."""
+class Htj2kError(RuntimeError): ...
 
-def jetraw_version() -> str:
-    """Return Jetraw library version string."""
+def htj2k_init(
+    *,
+    verbose: int | None = None,
+) -> None: ...
+def htj2k_version() -> str: ...
+def htj2k_check(data: BytesLike, /) -> bool | None: ...
+def htj2k_encode(
+    data: ArrayLike,
+    /,
+    level: float | None = None,
+    *,
+    rgb: bool | None = None,
+    planar: bool | None = None,
+    tile: tuple[int, int] | None = None,
+    resolutions: int | None = None,
+    reversible: bool | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def htj2k_decode(
+    data: BytesLike,
+    /,
+    *,
+    planar: bool | None = None,
+    skipres: int | tuple[int, int] | None = None,
+    resilient: bool = False,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
-def jetraw_check(data: BytesLike, /) -> None:
-    """Return whether data is JETRAW encoded image."""
+class JETRAW:
 
+    available: bool
+
+class JetrawError(RuntimeError): ...
+
+def jetraw_init(
+    parameters: str | None = None,
+    *,
+    verbose: int | None = None,
+) -> None: ...
+def jetraw_version() -> str: ...
+def jetraw_check(data: BytesLike, /) -> bool | None: ...
 def jetraw_encode(
     data: ArrayLike,
     /,
@@ -1451,32 +1665,19 @@ def jetraw_encode(
     *,
     errorbound: float | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JETRAW encoded image."""
-
+) -> bytes | bytearray: ...
 def jetraw_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JETRAW image."""
-
-def jetraw_init(
-    parameters: str | None = None,
-    *,
-    verbose: int | None = None,
-) -> None:
-    """Initialize JETRAW codec."""
+) -> NDArray[Any]: ...
 
 class JPEG2K:
-    """JPEG2K codec constants."""
 
     available: bool
-    """JPEG2K codec is available."""
 
     class CODEC(enum.IntEnum):
-        """JPEG2K codec file formats."""
 
         JP2 = ...
         J2K = ...
@@ -1485,7 +1686,6 @@ class JPEG2K:
         # JPX = ...
 
     class CLRSPC(enum.IntEnum):
-        """JPEG2K codec color spaces."""
 
         UNSPECIFIED = ...
         SRGB = ...
@@ -1494,15 +1694,10 @@ class JPEG2K:
         EYCC = ...
         CMYK = ...
 
-class Jpeg2kError(RuntimeError):
-    """JPEG2K codec exceptions."""
+class Jpeg2kError(RuntimeError): ...
 
-def jpeg2k_version() -> str:
-    """Return OpenJPEG library version string."""
-
-def jpeg2k_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is JPEG 2000 encoded image."""
-
+def jpeg2k_version() -> str: ...
+def jpeg2k_check(data: BytesLike, /) -> bool | None: ...
 def jpeg2k_encode(
     data: ArrayLike,
     /,
@@ -1519,9 +1714,7 @@ def jpeg2k_encode(
     verbose: int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEG 2000 encoded image."""
-
+) -> bytes | bytearray: ...
 def jpeg2k_decode(
     data: BytesLike,
     /,
@@ -1530,23 +1723,17 @@ def jpeg2k_decode(
     verbose: int | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEG 2000 image."""
+) -> NDArray[Any]: ...
 
 class JPEG8:
-    """JPEG8 codec constants."""
 
     available: bool
-    """JPEG8 codec is available."""
 
     legacy: bool
-    """JPEG8 codec is not linked to libjpeg-turbo 3."""
 
     all_precisions: bool
-    """JPEG8 codec supports all precisions from 2 to 16-bit."""
 
     class CS(enum.IntEnum):
-        """JPEG8 codec color spaces."""
 
         UNKNOWN = ...
         GRAYSCALE = ...
@@ -1566,15 +1753,10 @@ class JPEG8:
         EXT_ARGB = ...
         RGB565 = ...
 
-class Jpeg8Error(RuntimeError):
-    """JPEG8 codec exceptions."""
+class Jpeg8Error(RuntimeError): ...
 
-def jpeg8_version() -> str:
-    """Return libjpeg-turbo library version string."""
-
-def jpeg8_check(data: BytesLike, /) -> bool:
-    """Return whether data is JPEG encoded image."""
-
+def jpeg8_version() -> str: ...
+def jpeg8_check(data: BytesLike, /) -> bool | None: ...
 def jpeg8_encode(
     data: ArrayLike,
     /,
@@ -1588,10 +1770,9 @@ def jpeg8_encode(
     lossless: bool | None = None,
     predictor: int | None = None,
     bitspersample: int | None = None,
+    validate: bool | None = None,  # for compatibility
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEG encoded image."""
-
+) -> bytes | bytearray: ...
 def jpeg8_decode(
     data: BytesLike,
     /,
@@ -1601,8 +1782,7 @@ def jpeg8_decode(
     outcolorspace: JPEG8.CS | int | str | None = None,
     shape: tuple[int, int] | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEG image."""
+) -> NDArray[Any]: ...
 
 JPEG = JPEG8
 
@@ -1626,9 +1806,7 @@ def jpeg_encode(
     predictor: int | None = None,
     bitspersample: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEG encoded image."""
-
+) -> bytes | bytearray: ...
 def jpeg_decode(
     data: BytesLike,
     /,
@@ -1640,80 +1818,56 @@ def jpeg_decode(
     shape: tuple[int, int] | None = None,
     bitspersample: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEG image."""
+) -> NDArray[Any]: ...
 
 class JPEGLS:
-    """JPEGLS codec constants."""
 
     available: bool
-    """JPEGLS codec is available."""
 
-class JpeglsError(RuntimeError):
-    """JPEGLS codec exceptions."""
+class JpeglsError(RuntimeError): ...
 
-def jpegls_version() -> str:
-    """Return CharLS library version string."""
-
-def jpegls_check(data: BytesLike, /) -> None:
-    """Return whether data is JPEGLS encoded image."""
-
+def jpegls_version() -> str: ...
+def jpegls_check(data: BytesLike, /) -> bool | None: ...
 def jpegls_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEGLS encoded image."""
-
+) -> bytes | bytearray: ...
 def jpegls_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEGLS image."""
+) -> NDArray[Any]: ...
 
 class JPEGSOF3:
-    """JPEGSOF3 codec constants."""
 
     available: bool
-    """JPEGSOF3 codec is available."""
 
-class Jpegsof3Error(RuntimeError):
-    """JPEGSOF3 codec exceptions."""
+class Jpegsof3Error(RuntimeError): ...
 
-def jpegsof3_version() -> str:
-    """Return jpegsof3 library version string."""
-
-def jpegsof3_check(data: BytesLike, /) -> None:
-    """Return whether data is Lossless JPEG encoded image."""
-
+def jpegsof3_version() -> str: ...
+def jpegsof3_check(data: BytesLike, /) -> bool | None: ...
 def jpegsof3_encode(
     data: ArrayLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> None:
-    """Return Lossless JPEG encoded image (not implemented)."""
-
+) -> NoReturn: ...
 def jpegsof3_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded Lossless JPEG image."""
+) -> NDArray[Any]: ...
 
 class JPEGXL:
-    """JPEGXL codec constants."""
 
     available: bool
-    """JPEGXL codec is available."""
 
     class COLOR_SPACE(enum.IntEnum):
-        """JPEGXL codec color spaces."""
 
         UNKNOWN = ...
         RGB = ...
@@ -1721,7 +1875,6 @@ class JPEGXL:
         XYB = ...
 
     class CHANNEL(enum.IntEnum):
-        """JPEGXL codec channel types."""
 
         UNKNOWN = ...
         ALPHA = ...
@@ -1733,15 +1886,10 @@ class JPEGXL:
         THERMAL = ...
         OPTIONAL = ...
 
-class JpegxlError(RuntimeError):
-    """JPEGXL codec exceptions."""
+class JpegxlError(RuntimeError): ...
 
-def jpegxl_version() -> str:
-    """Return libjxl library version string."""
-
-def jpegxl_check(data: BytesLike, /) -> bool:
-    """Return whether data is JPEGXL encoded image."""
-
+def jpegxl_version() -> str: ...
+def jpegxl_check(data: BytesLike, /) -> bool | None: ...
 def jpegxl_encode(
     data: ArrayLike,
     /,
@@ -1758,9 +1906,7 @@ def jpegxl_encode(
     usecontainer: bool | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEGXL encoded image."""
-
+) -> bytes | bytearray: ...
 def jpegxl_decode(
     data: BytesLike,
     /,
@@ -1769,34 +1915,26 @@ def jpegxl_decode(
     keeporientation: bool | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEGXL image."""
-
+) -> NDArray[Any]: ...
 def jpegxl_encode_jpeg(
     data: BytesLike,
     /,
     usecontainer: bool | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEGXL encoded image from JPEG stream."""
-
+) -> bytes | bytearray: ...
 def jpegxl_decode_jpeg(
     data: BytesLike,
     /,
     numthreads: int,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEG encoded image from JPEG XL stream."""
+) -> bytes | bytearray: ...
 
 class JPEGXR:
-    """JPEGXR codec constants."""
 
     available: bool
-    """JPEGXR codec is available."""
 
     class PI(enum.IntEnum):
-        """JPEGXR codec photometric interpretations."""
 
         W0 = ...
         B0 = ...
@@ -1809,15 +1947,10 @@ class JPEGXR:
         NCH = ...
         RGBE = ...
 
-class JpegxrError(RuntimeError):
-    """JPEGXR codec exceptions."""
+class JpegxrError(RuntimeError): ...
 
-def jpegxr_version() -> str:
-    """Return jxrlib library version string."""
-
-def jpegxr_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is JPEGXR encoded image."""
-
+def jpegxr_version() -> str: ...
+def jpegxr_check(data: BytesLike, /) -> bool | None: ...
 def jpegxr_encode(
     data: ArrayLike,
     /,
@@ -1827,33 +1960,23 @@ def jpegxr_encode(
     hasalpha: bool | None = None,
     resolution: tuple[float, float] | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEGXR encoded image."""
-
+) -> bytes | bytearray: ...
 def jpegxr_decode(
     data: BytesLike,
     /,
     *,
     fp2int: bool = False,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEGXR image."""
+) -> NDArray[Any]: ...
 
 class JPEGXS:
-    """JPEGXS codec constants."""
 
     available: bool
-    """JPEGXS codec is available."""
 
-class JpegxsError(RuntimeError):
-    """JPEGXS codec exceptions."""
+class JpegxsError(RuntimeError): ...
 
-def jpegxs_version() -> str:
-    """Return libjxs library version string."""
-
-def jpegxs_check(data: BytesLike, /) -> bool:
-    """Return whether data is JPEGXS encoded image."""
-
+def jpegxs_version() -> str: ...
+def jpegxs_check(data: BytesLike, /) -> bool | None: ...
 def jpegxs_encode(
     data: ArrayLike,
     /,
@@ -1862,33 +1985,23 @@ def jpegxs_encode(
     bitspersample: int | None = None,
     verbose: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEGXS encoded image."""
-
+) -> bytes | bytearray: ...
 def jpegxs_decode(
     data: BytesLike,
     /,
     *,
     verbose: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEGXS image."""
+) -> NDArray[Any]: ...
 
 class LERC:
-    """LERC codec constants."""
 
     available: bool
-    """LERC codec is available."""
 
-class LercError(RuntimeError):
-    """LERC codec exceptions."""
+class LercError(RuntimeError): ...
 
-def lerc_version() -> str:
-    """Return LERC library version string."""
-
-def lerc_check(data: BytesLike, /) -> bool:
-    """Return whether data is LERC encoded."""
-
+def lerc_version() -> str: ...
+def lerc_check(data: BytesLike, /) -> bool | None: ...
 def lerc_encode(
     data: ArrayLike,
     /,
@@ -1897,12 +2010,10 @@ def lerc_encode(
     masks: ArrayLike | None = None,
     version: int | None = None,
     planar: bool | None = None,
-    compression: Literal['zstd'] | Literal['deflate'] | None = None,
+    compression: Literal['zstd', 'deflate'] | None = None,
     compressionargs: dict[str, Any] | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LERC encoded image."""
-
+) -> bytes | bytearray: ...
 @overload
 def lerc_decode(
     data: BytesLike,
@@ -1910,9 +2021,7 @@ def lerc_decode(
     *,
     masks: Literal[False] | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded LERC image."""
-
+) -> NDArray[Any]: ...
 @overload
 def lerc_decode(
     data: BytesLike,
@@ -1920,24 +2029,16 @@ def lerc_decode(
     *,
     masks: Literal[True] | NDArray[Any],
     out: NDArray[Any] | None = None,
-) -> tuple[NDArray[Any], NDArray[Any]]:
-    """Return LERC encoded image."""
+) -> tuple[NDArray[Any], NDArray[Any]]: ...
 
 class LJPEG:
-    """LJPEG codec constants."""
 
     available: bool
-    """LJPEG codec is available."""
 
-class LjpegError(RuntimeError):
-    """LJPEG codec exceptions."""
+class LjpegError(RuntimeError): ...
 
-def ljpeg_version() -> str:
-    """Return liblj92 library version string."""
-
-def ljpeg_check(data: BytesLike, /) -> None:
-    """Return whether data is Lossless JPEG encoded image."""
-
+def ljpeg_version() -> str: ...
+def ljpeg_check(data: BytesLike, /) -> bool | None: ...
 def ljpeg_encode(
     data: ArrayLike,
     /,
@@ -1945,41 +2046,30 @@ def ljpeg_encode(
     bitspersample: int | None = None,
     delinearize: ArrayLike | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return Lossless JPEG encoded image."""
-
+) -> bytes | bytearray: ...
 def ljpeg_decode(
     data: BytesLike,
     /,
     *,
     linearize: ArrayLike | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded Lossless JPEG image."""
+) -> NDArray[Any]: ...
 
 class LZ4:
-    """LZ4 codec constants."""
 
     available: bool
-    """LZ4 codec is available."""
 
     class CLEVEL(enum.IntEnum):
-        """LZ4 codec compression levels."""
 
         DEFAULT = ...
         MIN = ...
         MAX = ...
         OPT_MIN = ...
 
-class Lz4Error(RuntimeError):
-    """LZ4 codec exceptions."""
+class Lz4Error(RuntimeError): ...
 
-def lz4_version() -> str:
-    """Return LZ4 library version string."""
-
-def lz4_check(data: BytesLike, /) -> None:
-    """Return whether data is LZ4 encoded."""
-
+def lz4_version() -> str: ...
+def lz4_check(data: BytesLike, /) -> bool | None: ...
 def lz4_encode(
     data: BytesLike,
     /,
@@ -1988,36 +2078,25 @@ def lz4_encode(
     hc: bool = False,
     header: bool = False,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZ4 encoded data."""
-
+) -> bytes | bytearray: ...
 def lz4_decode(
     data: BytesLike,
     /,
     *,
     header: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZ4 data."""
+) -> bytes | bytearray: ...
 
 class LZ4F:
-    """LZ4F codec constants."""
 
     available: bool
-    """LZ4F codec is available."""
 
     VERSION: int
-    """LZ4F file version."""
 
-class Lz4fError(RuntimeError):
-    """LZ4F codec exceptions."""
+class Lz4fError(RuntimeError): ...
 
-def lz4f_version() -> str:
-    """Return LZ4 library version string."""
-
-def lz4f_check(data: BytesLike, /) -> bool:
-    """Return whether data is LZ4F encoded."""
-
+def lz4f_version() -> str: ...
+def lz4f_check(data: BytesLike, /) -> bool | None: ...
 def lz4f_encode(
     data: BytesLike,
     /,
@@ -2027,35 +2106,24 @@ def lz4f_encode(
     contentchecksum: bool | None = None,
     blockchecksum: bool | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZ4F encoded data."""
-
+) -> bytes | bytearray: ...
 def lz4f_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZ4F data."""
+) -> bytes | bytearray: ...
 
 class LZ4H5:
-    """LZ4H5 codec constants."""
 
     available: bool
-    """LZ4H5 codec is available."""
 
     CLEVEL: LZ4.CLEVEL
-    """LZ4 codec compression levels."""
 
-class Lz4h5Error(RuntimeError):
-    """LZ4H5 codec exceptions."""
+class Lz4h5Error(RuntimeError): ...
 
-def lz4h5_version() -> str:
-    """Return LZ4 library version string."""
-
-def lz4h5_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is LZ4H5 encoded."""
-
+def lz4h5_version() -> str: ...
+def lz4h5_check(data: BytesLike, /) -> bool | None: ...
 def lz4h5_encode(
     data: BytesLike,
     /,
@@ -2063,89 +2131,63 @@ def lz4h5_encode(
     blocksize: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZ4H5 encoded data."""
-
+) -> bytes | bytearray: ...
 def lz4h5_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZ4H5 data."""
+) -> bytes | bytearray: ...
 
 class LZF:
-    """LZF codec constants."""
 
     available: bool
-    """LZF codec is available."""
 
-class LzfError(RuntimeError):
-    """LZF codec exceptions."""
+class LzfError(RuntimeError): ...
 
-def lzf_version() -> str:
-    """Return LibLZF library version string."""
-
-def lzf_check(data: BytesLike, /) -> None:
-    """Return whether data is LZF encoded."""
-
+def lzf_version() -> str: ...
+def lzf_check(data: BytesLike, /) -> bool | None: ...
 def lzf_encode(
     data: BytesLike,
     /,
     *,
     header: bool = False,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZF encoded data."""
-
+) -> bytes | bytearray: ...
 def lzf_decode(
     data: BytesLike,
     /,
     *,
     header: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZF data."""
+) -> bytes | bytearray: ...
 
 class LZFSE:
-    """LZFSE codec constants."""
 
     available: bool
-    """LZFSE codec is available."""
 
-class LzfseError(RuntimeError):
-    """LZFSE codec exceptions."""
+class LzfseError(RuntimeError): ...
 
-def lzfse_version() -> str:
-    """Return LZFSE library version string."""
-
-def lzfse_check(data: BytesLike, /) -> bool:
-    """Return whether data is LZFSE encoded."""
-
+def lzfse_version() -> str: ...
+def lzfse_check(data: BytesLike, /) -> bool | None: ...
 def lzfse_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZFSE encoded data."""
-
+) -> bytes | bytearray: ...
 def lzfse_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZFSE data."""
+) -> bytes | bytearray: ...
 
 class LZHAM:
-    """LZHAM codec constants."""
 
     available: bool
-    """LZHAM codec is available."""
 
     class COMPRESSION(enum.IntEnum):
-        """LZHAM codec compression levels."""
 
         DEFAULT = ...
         NO = ...
@@ -2154,7 +2196,6 @@ class LZHAM:
         UBER = ...
 
     class STRATEGY(enum.IntEnum):
-        """LZHAM codec compression strategies."""
 
         DEFAULT = ...
         FILTERED = ...
@@ -2162,55 +2203,39 @@ class LZHAM:
         RLE = ...
         FIXED = ...
 
-class LzhamError(RuntimeError):
-    """LZHAM codec exceptions."""
+class LzhamError(RuntimeError): ...
 
-def lzham_version() -> str:
-    """Return LZHAM library version string."""
-
-def lzham_check(data: BytesLike, /) -> None:
-    """Return whether data is LZHAM encoded."""
-
+def lzham_version() -> str: ...
+def lzham_check(data: BytesLike, /) -> bool | None: ...
 def lzham_encode(
     data: BytesLike,
     /,
     level: LZHAM.COMPRESSION | int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZHAM encoded data."""
-
+) -> bytes | bytearray: ...
 def lzham_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZHAM data."""
+) -> bytes | bytearray: ...
 
 class LZMA:
-    """LZMA codec constants."""
 
     available: bool
-    """LZMA codec is available."""
 
     class CHECK(enum.IntEnum):
-        """LZMA codec checksums."""
 
         NONE = ...
         CRC32 = ...
         CRC64 = ...
         SHA256 = ...
 
-class LzmaError(RuntimeError):
-    """LZMA codec exceptions."""
+class LzmaError(RuntimeError): ...
 
-def lzma_version() -> str:
-    """Return liblzma library version string."""
-
-def lzma_check(data: BytesLike, /) -> None:
-    """Return whether data is LZMA encoded."""
-
+def lzma_version() -> str: ...
+def lzma_check(data: BytesLike, /) -> bool | None: ...
 def lzma_encode(
     data: BytesLike,
     /,
@@ -2218,32 +2243,22 @@ def lzma_encode(
     *,
     check: LZMA.CHECK | int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZMA encoded data."""
-
+) -> bytes | bytearray: ...
 def lzma_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZMA data."""
+) -> bytes | bytearray: ...
 
 class LZO:
-    """LZO codec constants."""
 
     available: bool
-    """LZO codec is available."""
 
-class LzoError(RuntimeError):
-    """LZO codec exceptions."""
+class LzoError(RuntimeError): ...
 
-def lzo_version() -> str:
-    """Return lzokay library version string."""
-
-def lzo_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is LZO encoded."""
-
+def lzo_version() -> str: ...
+def lzo_check(data: BytesLike, /) -> bool | None: ...
 def lzo_encode(
     data: BytesLike,
     /,
@@ -2251,61 +2266,74 @@ def lzo_encode(
     *,
     header: bool = False,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZO encoded data (not implemented)."""
-
+) -> NoReturn: ...
 def lzo_decode(
     data: BytesLike,
     /,
     *,
     header: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZO data."""
+) -> bytes | bytearray: ...
 
 class LZW:
-    """LZW codec constants."""
 
     available: bool
-    """LZW codec is available."""
 
 LzwError = ImcdError
 
 lzw_version = imcd_version
 
-def lzw_check(data: BytesLike, /) -> bool:
-    """Return whether data is LZW encoded."""
-
+def lzw_check(data: BytesLike, /) -> bool | None: ...
 def lzw_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return LZW encoded data."""
-
+) -> bytes | bytearray: ...
 def lzw_decode(
     data: BytesLike,
     /,
     *,
     buffersize: int = 0,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded LZW data."""
+) -> bytes | bytearray: ...
 
+class MESHOPT:
+
+    available: bool
+
+class MeshoptError(RuntimeError): ...
+
+def meshopt_version() -> str: ...
+def meshopt_check(data: BytesLike, /) -> bool | None: ...
+def meshopt_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    items: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def meshopt_decode(
+    data: BytesLike,
+    /,
+    shape: tuple[int, ...] | None = None,
+    dtype: DTypeLike | None = None,
+    *,
+    items: int | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
+# TODO: MONO12P codec implementation pending
 # class MONO12P:
-#     """MONO12P codec constants."""
-
+#
 #     available: bool
-#     """MONO12P codec is available."""
-
+#
 # Mono12pError = ImcdError
-
 # mono12p_version = imcd_version
-
-# def mono12p_check(data: BytesLike, /) -> None:
-#     """Return whether data is MONO12P encoded."""
-
+#
+# def mono12p_check(data: BytesLike, /) -> bool | None: ...
+#
 # def mono12p_encode(
 #     data: ArrayLike,
 #     /,
@@ -2313,9 +2341,9 @@ def lzw_decode(
 #     *,
 #     axis: int = -1,
 #     out: int | bytearray | None = None,
-# ) -> bytes | bytearray:
-#     """Return MONO12P packed integers."""
-
+# ) -> bytes | bytearray: ...
+#
+#
 # def mono12p_decode(
 #     data: BytesLike,
 #     /,
@@ -2323,17 +2351,13 @@ def lzw_decode(
 #     *,
 #     runlen: int = 0,
 #     out: NDArray[Any] | None = None,
-# ) -> NDArray[Any]:
-#     """Return unpacked MONO12P integers."""
+# ) -> NDArray[Any]: ...
 
 class MOZJPEG:
-    """MOZJPEG codec constants."""
 
     available: bool
-    """MOZJPEG codec is available."""
 
     class CS(enum.IntEnum):
-        """MOZJPEG codec color spaces."""
 
         UNKNOWN = ...
         GRAYSCALE = ...
@@ -2353,15 +2377,10 @@ class MOZJPEG:
         EXT_ARGB = ...
         RGB565 = ...
 
-class MozjpegError(RuntimeError):
-    """MOZJPEG codec exceptions."""
+class MozjpegError(RuntimeError): ...
 
-def mozjpeg_version() -> str:
-    """Return mozjpeg library version string."""
-
-def mozjpeg_check(data: BytesLike, /) -> bool:
-    """Return whether data is JPEG encoded image."""
-
+def mozjpeg_version() -> str: ...
+def mozjpeg_check(data: BytesLike, /) -> bool | None: ...
 def mozjpeg_encode(
     data: ArrayLike,
     /,
@@ -2376,9 +2395,7 @@ def mozjpeg_encode(
     quanttable: int | None = None,
     progressive: bool | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return JPEG encoded image."""
-
+) -> bytes | bytearray: ...
 def mozjpeg_decode(
     data: BytesLike,
     /,
@@ -2388,52 +2405,34 @@ def mozjpeg_decode(
     outcolorspace: MOZJPEG.CS | int | str | None = None,
     shape: tuple[int, int] | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded JPEG image."""
+) -> NDArray[Any]: ...
 
 class NONE:
-    """NONE codec constants."""
 
     available: bool
-    """NONE codec is available."""
 
 NoneError = RuntimeError
 
-def none_version() -> str:
-    """Return empty version string."""
-
-def none_check(data: Any, /) -> None:
-    """Return None."""
-
-def none_decode(data: Any, *args: Any, **kwargs: Any) -> Any:
-    """Return data unchanged."""
-
-def none_encode(data: Any, *args: Any, **kwargs: Any) -> Any:
-    """Return data unchanged."""
+def none_version() -> str: ...
+def none_check(data: Any, /) -> bool | None: ...
+def none_decode(data: Any, *args: Any, **kwargs: Any) -> Any: ...
+def none_encode(data: Any, *args: Any, **kwargs: Any) -> Any: ...
 
 class NUMPY:
-    """NUMPY codec constants."""
 
     available: bool
-    """NUMPY codec is available."""
 
 NumpyError = RuntimeError
 
-def numpy_version() -> str:
-    """Return Numpy library version string."""
-
-def numpy_check(data: BytesLike, /) -> bool:
-    """Return whether data is NPY or NPZ encoded."""
-
+def numpy_version() -> str: ...
+def numpy_check(data: BytesLike, /) -> bool | None: ...
 def numpy_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes:
-    """Return NPY or NPZ encoded data."""
-
+) -> bytes: ...
 def numpy_decode(
     data: BytesLike,
     /,
@@ -2441,55 +2440,40 @@ def numpy_decode(
     *,
     out: NDArray[Any] | None = None,
     **kwargs: Any,
-) -> NDArray[Any]:
-    """Return decoded NPY or NPZ data."""
+) -> NDArray[Any]: ...
 
 class PACKBITS:
-    """PACKBITS codec constants."""
 
     available: bool
-    """PACKBITS codec is available."""
 
 PackbitsError = ImcdError
 
 packbits_version = imcd_version
 
-def packbits_check(
-    data: BytesLike,
-    /,
-) -> bool | None:
-    """Return whether data is PACKBITS encoded."""
-
+def packbits_check(data: BytesLike, /) -> bool | None: ...
 def packbits_encode(
     data: BytesLike | ArrayLike,
     /,
     *,
     axis: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return PACKBITS encoded data."""
-
+) -> bytes | bytearray: ...
 def packbits_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded PACKBITS data."""
+) -> bytes | bytearray: ...
 
 class PACKINTS:
-    """PACKINTS codec constants."""
 
     available: bool
-    """PACKINTS codec is available."""
 
 PackintsError = ImcdError
 
 packints_version = imcd_version
 
-def packints_check(data: BytesLike, /) -> None:
-    """Return whether data is PACKINTS encoded."""
-
+def packints_check(data: BytesLike, /) -> bool | None: ...
 def packints_encode(
     data: ArrayLike,
     bitspersample: int,
@@ -2497,9 +2481,7 @@ def packints_encode(
     *,
     axis: int = -1,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return packed integers (not implemented)."""
-
+) -> NoReturn: ...
 def packints_decode(
     data: BytesLike,
     dtype: DTypeLike,
@@ -2508,33 +2490,23 @@ def packints_decode(
     *,
     runlen: int = 0,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return unpacked integers."""
+) -> NDArray[Any]: ...
 
 class PCODEC:
-    """Pcodec codec constants."""
 
     available: bool
-    """Pcodec codec is available."""
 
-class PcodecError(RuntimeError):
-    """Pcodec codec exceptions."""
+class PcodecError(RuntimeError): ...
 
-def pcodec_version() -> str:
-    """Return pcodec library version string."""
-
-def pcodec_check(data: BytesLike, /) -> None:
-    """Return whether data is pcodec encoded."""
-
+def pcodec_version() -> str: ...
+def pcodec_check(data: BytesLike, /) -> bool | None: ...
 def pcodec_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return pcodec encoded data."""
-
+) -> bytes | bytearray: ...
 def pcodec_decode(
     data: BytesLike,
     /,
@@ -2542,24 +2514,16 @@ def pcodec_decode(
     dtype: DTypeLike | None = None,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded pcodec data."""
+) -> NDArray[Any]: ...
 
 class PGLZ:
-    """PGLZ codec constants."""
 
     available: bool
-    """PGLZ codec is available."""
 
-class PglzError(RuntimeError):
-    """PGLZ codec exceptions."""
+class PglzError(RuntimeError): ...
 
-def pglz_version() -> str:
-    """Return PostgreSQL library version string."""
-
-def pglz_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is PGLZ encoded."""
-
+def pglz_version() -> str: ...
+def pglz_check(data: BytesLike, /) -> bool | None: ...
 def pglz_encode(
     data: BytesLike,
     /,
@@ -2567,9 +2531,7 @@ def pglz_encode(
     header: bool = False,
     strategy: str | tuple[int, int, int, int, int, int] | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return PGLZ encoded data."""
-
+) -> bytes | bytearray: ...
 def pglz_decode(
     data: BytesLike,
     /,
@@ -2577,17 +2539,13 @@ def pglz_decode(
     header: bool = False,
     checkcomplete: bool | None = None,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded PGLZ data."""
+) -> bytes | bytearray: ...
 
 class PNG:
-    """PNG codec constants."""
 
     available: bool
-    """PNG codec is available."""
 
     class COLOR_TYPE(enum.IntEnum):
-        """PNG codec color types."""
 
         GRAY = ...
         GRAY_ALPHA = ...
@@ -2595,7 +2553,6 @@ class PNG:
         RGB_ALPHA = ...
 
     class COMPRESSION(enum.IntEnum):
-        """PNG codec compression levels."""
 
         DEFAULT = ...
         NO = ...
@@ -2603,7 +2560,6 @@ class PNG:
         SPEED = ...
 
     class STRATEGY(enum.IntEnum):
-        """PNG codec compression strategies."""
 
         DEFAULT = ...
         FILTERED = ...
@@ -2612,7 +2568,6 @@ class PNG:
         FIXED = ...
 
     class FILTER(enum.IntEnum):  # IntFlag
-        """PNG codec filters."""
 
         NO = ...
         NONE = ...
@@ -2623,79 +2578,57 @@ class PNG:
         FAST = ...
         ALL = ...
 
-class PngError(RuntimeError):
-    """PNG codec exceptions."""
+class PngError(RuntimeError): ...
 
-def png_version() -> str:
-    """Return libpng library version string."""
-
-def png_check(data: BytesLike, /) -> bool:
-    """Return whether data is PNG encoded image."""
-
+def png_version() -> str: ...
+def png_check(data: BytesLike, /) -> bool | None: ...
 def png_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
-    strategy: int | None = None,
-    filter: int | None = None,
+    strategy: PNG.STRATEGY | int | None = None,
+    filter: PNG.FILTER | int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return PNG encoded image."""
-
+) -> bytes | bytearray: ...
 def png_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded PNG image."""
+) -> NDArray[Any]: ...
 
 class QOI:
-    """QOI codec constants."""
 
     available: bool
-    """QOI codec is available."""
 
     class COLORSPACE(enum.IntEnum):
-        """QOI codec color spaces."""
 
         SRGB = ...
         LINEAR = ...
 
-class QoiError(RuntimeError):
-    """QOI codec exceptions."""
+class QoiError(RuntimeError): ...
 
-def qoi_version() -> str:
-    """Return QOI library version string."""
-
-def qoi_check(data: BytesLike, /) -> bool:
-    """Return whether data is QOI encoded image."""
-
+def qoi_version() -> str: ...
+def qoi_check(data: BytesLike, /) -> bool | None: ...
 def qoi_encode(
     data: ArrayLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return QOI encoded image."""
-
+) -> bytes | bytearray: ...
 def qoi_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded QOI image."""
+) -> NDArray[Any]: ...
 
 class QUANTIZE:
-    """Quantize codec constants."""
 
     available: bool
-    """Quantize codec is available."""
 
     class MODE(enum.IntEnum):
-        """Quantize mode."""
 
         NOQUANTIZE = ...
         BITGROOM = ...
@@ -2703,12 +2636,10 @@ class QUANTIZE:
         BITROUND = ...
         SCALE = ...
 
-class QuantizeError(RuntimeError):
-    """Quantize codec exceptions."""
+class QuantizeError(RuntimeError): ...
 
-def quantize_version() -> str:
-    """Return nc4var library version string."""
-
+def quantize_version() -> str: ...
+def quantize_check(data: BytesLike, /) -> bool | None: ...
 def quantize_encode(
     data: NDArray[Any],
     /,
@@ -2719,9 +2650,7 @@ def quantize_encode(
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return quantized floating point array."""
-
+) -> NDArray[Any]: ...
 def quantize_decode(
     data: NDArray[Any],
     /,
@@ -2732,59 +2661,41 @@ def quantize_decode(
     nsd: int,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return data if lossless else raise QuantizeError."""
+) -> NDArray[Any]: ...
 
 class RCOMP:
-    """RCOMP codec constants."""
 
     available: bool
-    """RCOMP codec is available."""
 
-class RcompError(RuntimeError):
-    """RCOMP codec exceptions."""
+class RcompError(RuntimeError): ...
 
-def rcomp_version() -> str:
-    """Return cfitsio library version string."""
-
-def rcomp_check(data: BytesLike, /) -> bool:
-    """Return whether data is RCOMP encoded."""
-
+def rcomp_version() -> str: ...
+def rcomp_check(data: BytesLike, /) -> bool | None: ...
 def rcomp_encode(
     data: ArrayLike,
     /,
     *,
     nblock: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return RCOMP encoded data."""
-
+) -> bytes | bytearray: ...
 def rcomp_decode(
     data: BytesLike,
     /,
-    *,
     shape: tuple[int, ...] | None = None,
     dtype: DTypeLike | None = None,
+    *,
     nblock: int | None = None,
     out: NDArray[Any] | None = None,
-) -> ArrayLike:
-    """Return decoded RCOMP data."""
+) -> NDArray[Any]: ...
 
 class RGBE:
-    """RGBE codec constants."""
 
     available: bool
-    """RGBE codec is available."""
 
-class RgbeError(RuntimeError):
-    """RBGE codec exceptions."""
+class RgbeError(RuntimeError): ...
 
-def rgbe_version() -> str:
-    """Return RGBE library version string."""
-
-def rgbe_check(data: BytesLike, /) -> bool:
-    """Return whether data is RGBE encoded image."""
-
+def rgbe_version() -> str: ...
+def rgbe_check(data: BytesLike, /) -> bool | None: ...
 def rgbe_encode(
     data: ArrayLike,
     /,
@@ -2792,9 +2703,7 @@ def rgbe_encode(
     header: bool | None = None,
     rle: bool | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return RGBE encoded image."""
-
+) -> bytes | bytearray: ...
 def rgbe_decode(
     data: BytesLike,
     /,
@@ -2802,75 +2711,54 @@ def rgbe_decode(
     header: bool | None = None,
     rle: bool | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded RGBE image."""
+) -> NDArray[Any]: ...
 
 class SNAPPY:
-    """SNAPPY codec constants."""
 
     available: bool
-    """SNAPPY codec is available."""
 
-class SnappyError(RuntimeError):
-    """SNAPPY codec exceptions."""
+class SnappyError(RuntimeError): ...
 
-def snappy_version() -> str:
-    """Return Snappy library version string."""
-
-def snappy_check(data: BytesLike, /) -> None:
-    """Return whether data is SNAPPY encoded."""
-
+def snappy_version() -> str: ...
+def snappy_check(data: BytesLike, /) -> bool | None: ...
 def snappy_encode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return SNAPPY encoded data."""
-
+) -> bytes | bytearray: ...
 def snappy_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded SNAPPY data."""
+) -> bytes | bytearray: ...
 
 class SPERR:
-    """SPERR codec constants."""
 
     available: bool
-    """SPERR codec is available."""
 
     class MODE(enum.IntEnum):
-        """SPERR quality mode."""
 
         BPP = ...
         PSNR = ...
         PWE = ...
 
-class SperrError(RuntimeError):
-    """SPERR codec exceptions."""
+class SperrError(RuntimeError): ...
 
-def sperr_version() -> str:
-    """Return SPERR library version string."""
-
-def sperr_check(data: BytesLike, /) -> None:
-    """Return whether data is SPERR encoded."""
-
+def sperr_version() -> str: ...
+def sperr_check(data: BytesLike, /) -> bool | None: ...
 def sperr_encode(
     data: ArrayLike,
     /,
     level: float,
-    *,
     mode: SPERR.MODE | Literal['bpp', 'psnr', 'pwe'],
+    *,
     chunks: tuple[int, int, int] | None = None,
     header: bool = True,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return SPERR encoded data."""
-
+) -> bytes | bytearray: ...
 def sperr_decode(
     data: BytesLike,
     /,
@@ -2880,17 +2768,13 @@ def sperr_decode(
     header: bool = True,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded SPERR data."""
+) -> NDArray[Any]: ...
 
 class SPNG:
-    """SPNG codec constants."""
 
     available: bool
-    """SPNG codec is available."""
 
     class FMT(enum.IntEnum):
-        """SPNG codec formats."""
 
         RGBA8 = ...
         RGBA16 = ...
@@ -2899,40 +2783,29 @@ class SPNG:
         GA16 = ...
         G8 = ...
 
-class SpngError(RuntimeError):
-    """SPNG codec exceptions."""
+class SpngError(RuntimeError): ...
 
-def spng_version() -> str:
-    """Return libspng library version string."""
-
-def spng_check(data: BytesLike, /) -> bool:
-    """Return whether data is PNG encoded image."""
-
+def spng_version() -> str: ...
+def spng_check(data: BytesLike, /) -> bool | None: ...
 def spng_encode(
     data: ArrayLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return PNG encoded image."""
-
+) -> bytes | bytearray: ...
 def spng_decode(
     data: BytesLike,
     /,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded PNG image."""
+) -> NDArray[Any]: ...
 
 class SZ3:
-    """SZ3 codec constants."""
 
     available: bool
-    """SZ3 codec is available."""
 
     class MODE(enum.IntEnum):
-        """SZ3 codec error bound modes."""
 
         ABS = ...
         REL = ...
@@ -2946,15 +2819,10 @@ class SZ3:
         # REL_AND_PW_REL = ...
         # REL_OR_PW_REL = ...
 
-class Sz3Error(RuntimeError):
-    """SZ3 codec exceptions."""
+class Sz3Error(RuntimeError): ...
 
-def sz3_version() -> str:
-    """Return SZ3 library version string."""
-
-def sz3_check(data: BytesLike, /) -> bool:
-    """Return whether data is SZ3 encoded."""
-
+def sz3_version() -> str: ...
+def sz3_check(data: BytesLike, /) -> bool | None: ...
 def sz3_encode(
     data: ArrayLike,
     /,
@@ -2964,9 +2832,7 @@ def sz3_encode(
     # pwr: float | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return SZ3 encoded data."""
-
+) -> bytes | bytearray: ...
 def sz3_decode(
     data: BytesLike,
     /,
@@ -2974,17 +2840,13 @@ def sz3_decode(
     dtype: DTypeLike,
     *,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded SZ3 data."""
+) -> NDArray[Any]: ...
 
 class SZIP:
-    """SZIP codec constants."""
 
     available: bool
-    """SZIP codec is available."""
 
     class OPTION_MASK(enum.IntEnum):
-        """SZIP codec flags."""
 
         ALLOW_K13 = ...
         CHIP = ...
@@ -2994,28 +2856,21 @@ class SZIP:
         NN = ...
         RAW = ...
 
-class SzipError(RuntimeError):
-    """SZIP codec exceptions."""
+class SzipError(RuntimeError): ...
 
-def szip_version() -> str:
-    """Return libaec library version string."""
-
-def szip_check(data: BytesLike, /) -> None:
-    """Return whether data is SZIP encoded."""
-
+def szip_version() -> str: ...
+def szip_check(data: BytesLike, /) -> bool | None: ...
 def szip_encode(
     data: BytesLike,
     /,
-    options_mask: int,
+    options_mask: SZIP.OPTION_MASK | int,
     pixels_per_block: int,
     bits_per_pixel: int,
     pixels_per_scanline: int,
     *,
     header: bool = False,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return SZIP encoded data."""
-
+) -> bytes | bytearray: ...
 def szip_decode(
     data: BytesLike,
     /,
@@ -3026,34 +2881,26 @@ def szip_decode(
     *,
     header: bool = False,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded SZIP data."""
-
+) -> bytes | bytearray: ...
 def szip_params(
     data: NDArray[Any], /, options_mask: int = 4, pixels_per_block: int = 32
-) -> dict[str, int]:
-    """Return SZIP parameters for numpy array."""
+) -> dict[str, int]: ...
 
 class TIFF:
-    """TIFF codec constants."""
 
     available: bool
-    """TIFF codec is available."""
 
     class VERSION(enum.IntEnum):
-        """TIFF codec file types."""
 
         CLASSIC = ...
         BIG = ...
 
     class ENDIAN(enum.IntEnum):
-        """TIFF codec endian values."""
 
         BIG = ...
         LITTLE = ...
 
     class COMPRESSION(enum.IntEnum):
-        """TIFF codec compression schemes."""
 
         NONE = ...
         LZW = ...
@@ -3068,7 +2915,6 @@ class TIFF:
         # JXL = ...
 
     class PHOTOMETRIC(enum.IntEnum):
-        """TIFF codec photometric interpretations."""
 
         MINISWHITE = ...
         MINISBLACK = ...
@@ -3079,42 +2925,51 @@ class TIFF:
         YCBCR = ...
 
     class PLANARCONFIG(enum.IntEnum):
-        """TIFF codec planar configurations."""
 
         CONTIG = ...
         SEPARATE = ...
 
     class PREDICTOR(enum.IntEnum):
-        """TIFF codec predictor schemes."""
 
         NONE = ...
         HORIZONTAL = ...
         FLOATINGPOINT = ...
 
     class EXTRASAMPLE(enum.IntEnum):
-        """TIFF codec extrasample types."""
 
         UNSPECIFIED = ...
         ASSOCALPHA = ...
         UNASSALPHA = ...
 
-class TiffError(RuntimeError):
-    """TIFF codec exceptions."""
+class TiffError(RuntimeError): ...
 
-def tiff_version() -> str:
-    """Return libtiff library version string."""
-
-def tiff_check(data: BytesLike, /) -> bool:
-    """Return whether data is TIFF encoded image."""
-
+def tiff_version() -> str: ...
+def tiff_check(data: BytesLike, /) -> bool | None: ...
 def tiff_encode(
     data: ArrayLike,
     /,
+    level: int | None = None,
     *,
+    bigtiff: bool | None = None,
+    append: bool | None = None,
+    photometric: TIFF.PHOTOMETRIC | int | None = None,
+    planarconfig: TIFF.PLANARCONFIG | int | None = None,
+    extrasamples: tuple[TIFF.EXTRASAMPLE | int, ...] | None = None,
+    # volumetric: bool = False,
+    tile: tuple[int, int] | None = None,
+    rowsperstrip: int | None = None,
+    bitspersample: int | None = None,
+    compression: TIFF.COMPRESSION | int | None = None,
+    predictor: TIFF.PREDICTOR | int | None = None,
+    # colormap: NDArray[Any] | None = None,
+    description: str | None = None,
+    datetime: str | None = None,
+    resolution: tuple[float, float] | None = None,
+    subfiletype: int = 0,
+    software: str | None = None,
+    verbose: bool | None = None,
     out: int | bytearray | None = None,
-) -> None:
-    """Return TIFF encoded image (not implemented)."""
-
+) -> NoReturn: ...
 def tiff_decode(
     data: BytesLike,
     /,
@@ -3123,17 +2978,13 @@ def tiff_decode(
     asrgb: bool = False,
     verbose: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded TIFF image."""
+) -> NDArray[Any]: ...
 
 class ULTRAHDR:
-    """Ultra HDR codec constants."""
 
     available: bool
-    """Ultra HDR codec is available."""
 
     class CG(enum.IntEnum):
-        """Ultra HDR color gamut."""
 
         UNSPECIFIED = ...
         BT_709 = ...
@@ -3141,7 +2992,6 @@ class ULTRAHDR:
         BT_2100 = ...
 
     class CT(enum.IntEnum):
-        """Ultra HDR color transfer."""
 
         UNSPECIFIED = ...
         LINEAR = ...
@@ -3150,49 +3000,40 @@ class ULTRAHDR:
         SRGB = ...
 
     class CR(enum.IntEnum):
-        """Ultra HDR color range."""
 
         UNSPECIFIED = ...
         LIMITED_RANGE = ...
         FULL_RANGE = ...
 
     class CODEC(enum.IntEnum):
-        """Ultra HDR codec."""
 
         JPEG = ...
         HEIF = ...
         AVIF = ...
 
     class USAGE(enum.IntEnum):
-        """Ultra HDR codec."""
 
         REALTIME = ...
         QUALITY = ...
 
-class UltrahdrError(RuntimeError):
-    """Ultra HDR codec exceptions."""
+class UltrahdrError(RuntimeError): ...
 
-def ultrahdr_version() -> str:
-    """Return libultrahdr library version string."""
-
-def ultrahdr_check(data: BytesLike, /) -> bool:
-    """Return whether data is Ultra HDR encoded image."""
-
+def ultrahdr_version() -> str: ...
+def ultrahdr_check(data: BytesLike, /) -> bool | None: ...
 def ultrahdr_encode(
     data: ArrayLike,
     /,
-    *,
     level: int | None = None,
+    *,
     scale: int | None = None,
     gamut: ULTRAHDR.CG | int | None = None,
     transfer: ULTRAHDR.CT | int | None = None,
+    nits: float | None = None,
     crange: ULTRAHDR.CR | int | None = None,
     usage: ULTRAHDR.USAGE | int | None = None,
     codec: ULTRAHDR.CODEC | int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return Ultra HDR encoded image."""
-
+) -> bytes | bytearray: ...
 def ultrahdr_decode(
     data: BytesLike,
     /,
@@ -3202,24 +3043,16 @@ def ultrahdr_decode(
     boost: float | None = None,
     gpu: bool = False,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded Ultra HDR image."""
+) -> NDArray[Any]: ...
 
 class WEBP:
-    """WEBP codec constants."""
 
     available: bool
-    """WEBP codec is available."""
 
-class WebpError(RuntimeError):
-    """WEBP codec exceptions."""
+class WebpError(RuntimeError): ...
 
-def webp_version() -> str:
-    """Return libwebp library version string."""
-
-def webp_check(data: BytesLike, /) -> bool:
-    """Return whether data is WebP encoded image."""
-
+def webp_version() -> str: ...
+def webp_check(data: BytesLike, /) -> bool | None: ...
 def webp_encode(
     data: ArrayLike,
     /,
@@ -3229,9 +3062,7 @@ def webp_encode(
     method: int | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return WebP encoded image."""
-
+) -> bytes | bytearray: ...
 def webp_decode(
     data: BytesLike,
     /,
@@ -3239,22 +3070,17 @@ def webp_decode(
     *,
     hasalpha: bool | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded WebP image."""
+) -> NDArray[Any]: ...
 
 class XOR:
-    """XOR codec constants."""
 
     available: bool
-    """XOR codec is available."""
 
 XorError = ImcdError
 
 xor_version = imcd_version
 
-def xor_check(data: Any, /) -> None:
-    """Return whether data is XOR encoded."""
-
+def xor_check(data: Any, /) -> bool | None: ...
 @overload
 def xor_encode(
     data: BytesLike,
@@ -3262,9 +3088,7 @@ def xor_encode(
     *,
     axis: int = -1,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return XOR encoded data."""
-
+) -> bytes | bytearray: ...
 @overload
 def xor_encode(
     data: NDArray[Any],
@@ -3272,9 +3096,7 @@ def xor_encode(
     *,
     axis: int = -1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded XOR data."""
-
+) -> NDArray[Any]: ...
 @overload
 def xor_decode(
     data: BytesLike,
@@ -3282,9 +3104,7 @@ def xor_decode(
     *,
     axis: int = -1,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded XOR data."""
-
+) -> bytes | bytearray: ...
 @overload
 def xor_decode(
     data: NDArray[Any],
@@ -3292,24 +3112,19 @@ def xor_decode(
     *,
     axis: int = -1,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded XOR data."""
+) -> NDArray[Any]: ...
 
 class ZFP:
-    """ZFP codec constants."""
 
     available: bool
-    """ZFP codec is available."""
 
     class EXEC(enum.IntEnum):
-        """ZFP codec execution policies."""
 
         SERIAL = ...
         OMP = ...
         CUDA = ...
 
     class MODE(enum.IntEnum):
-        """ZFP codec compression modes."""
 
         NONE = ...
         EXPERT = ...
@@ -3319,22 +3134,16 @@ class ZFP:
         REVERSIBLE = ...
 
     class HEADER(enum.IntEnum):
-        """ZFP codec header types."""
 
         MAGIC = ...
         META = ...
         MODE = ...
         FULL = ...
 
-class ZfpError(RuntimeError):
-    """ZFP codec exceptions."""
+class ZfpError(RuntimeError): ...
 
-def zfp_version() -> str:
-    """Return zfp library version string."""
-
-def zfp_check(data: BytesLike, /) -> bool:
-    """Return whether data is ZFP encoded."""
-
+def zfp_version() -> str: ...
+def zfp_check(data: BytesLike, /) -> bool | None: ...
 def zfp_encode(
     data: ArrayLike,
     /,
@@ -3346,9 +3155,7 @@ def zfp_encode(
     header: bool = True,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return ZFP encoded data."""
-
+) -> bytes | bytearray: ...
 def zfp_decode(
     data: BytesLike,
     /,
@@ -3358,17 +3165,13 @@ def zfp_decode(
     strides: tuple[int, ...] | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
-) -> NDArray[Any]:
-    """Return decoded ZFP data."""
+) -> NDArray[Any]: ...
 
 class ZLIB:
-    """ZLIB codec constants."""
 
     available: bool
-    """ZLIB codec is available."""
 
     class COMPRESSION(enum.IntEnum):
-        """ZLIB codec compression levels."""
 
         DEFAULT = ...
         NO = ...
@@ -3376,7 +3179,6 @@ class ZLIB:
         SPEED = ...
 
     class STRATEGY(enum.IntEnum):
-        """ZLIB codec compression strategies."""
 
         DEFAULT = ...
         FILTERED = ...
@@ -3384,46 +3186,31 @@ class ZLIB:
         RLE = ...
         FIXED = ...
 
-class ZlibError(RuntimeError):
-    """ZLIB codec exceptions."""
+class ZlibError(RuntimeError): ...
 
-def zlib_version() -> str:
-    """Return zlib library version string."""
-
-def zlib_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is DEFLATE encoded."""
-
+def zlib_version() -> str: ...
+def zlib_check(data: BytesLike, /) -> bool | None: ...
 def zlib_encode(
     data: BytesLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DEFLATE encoded data."""
-
+) -> bytes | bytearray: ...
 def zlib_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DEFLATE data."""
-
-def zlib_crc32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return CRC32 checksum of data."""
-
-def zlib_adler32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return Adler-32 checksum of data."""
+) -> bytes | bytearray: ...
+def zlib_crc32(data: BytesLike, /, value: int | None = None) -> int: ...
+def zlib_adler32(data: BytesLike, /, value: int | None = None) -> int: ...
 
 class ZLIBNG:
-    """ZLIBNG codec constants."""
 
     available: bool
-    """ZLIBNG codec is available."""
 
     class COMPRESSION(enum.IntEnum):
-        """ZLIBNG codec compression levels."""
 
         DEFAULT = ...
         NO = ...
@@ -3431,7 +3218,6 @@ class ZLIBNG:
         SPEED = ...
 
     class STRATEGY(enum.IntEnum):
-        """ZLIBNG codec compression strategies."""
 
         DEFAULT = ...
         FILTERED = ...
@@ -3439,56 +3225,39 @@ class ZLIBNG:
         RLE = ...
         FIXED = ...
 
-class ZlibngError(RuntimeError):
-    """ZLIBNG codec exceptions."""
+class ZlibngError(RuntimeError): ...
 
-def zlibng_version() -> str:
-    """Return zlibng library version string."""
-
-def zlibng_check(data: BytesLike, /) -> bool | None:
-    """Return whether data is DEFLATE encoded."""
-
+def zlibng_version() -> str: ...
+def zlibng_check(data: BytesLike, /) -> bool | None: ...
 def zlibng_encode(
     data: BytesLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return DEFLATE encoded data."""
-
+) -> bytes | bytearray: ...
 def zlibng_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded DEFLATE data."""
-
-def zlibng_crc32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return CRC32 checksum of data."""
-
-def zlibng_adler32(data: BytesLike, /, value: int | None = None) -> int:
-    """Return Adler-32 checksum of data."""
+) -> bytes | bytearray: ...
+def zlibng_crc32(data: BytesLike, /, value: int | None = None) -> int: ...
+def zlibng_adler32(data: BytesLike, /, value: int | None = None) -> int: ...
 
 class ZOPFLI:
-    """ZOPFLI codec constants."""
 
     available: bool
-    """ZOPFLI codec is available."""
 
     class FORMAT(enum.IntEnum):
-        """ZOPFLI codec formats."""
 
         GZIP = ...
         ZLIB = ...
         DEFLATE = ...
 
-class ZopfliError(RuntimeError):
-    """ZOPFLI codec exceptions."""
+class ZopfliError(RuntimeError): ...
 
-def zopfli_version() -> str:
-    """Return Zopfli library version string."""
+def zopfli_version() -> str: ...
 
 zopfli_check = zlib_check
 
@@ -3499,39 +3268,28 @@ def zopfli_encode(
     *,
     out: int | bytearray | None = None,
     **kwargs: Any,
-) -> bytes | bytearray:
-    """Return DEFLATE encoded data."""
+) -> bytes | bytearray: ...
 
 zopfli_decode = zlib_decode
 
 class ZSTD:
-    """ZSTD codec constants."""
 
     available: bool
-    """ZSTD codec is available."""
 
-class ZstdError(RuntimeError):
-    """ZSTD codec exceptions."""
+class ZstdError(RuntimeError): ...
 
-def zstd_version() -> str:
-    """Return Zstandard library version string."""
-
-def zstd_check(data: BytesLike, /) -> bool:
-    """Return whether data is ZSTD encoded."""
-
+def zstd_version() -> str: ...
+def zstd_check(data: BytesLike, /) -> bool | None: ...
 def zstd_encode(
     data: BytesLike,
     /,
     level: int | None = None,
     *,
     out: int | bytearray | None = None,
-) -> bytes | bytearray:
-    """Return ZSTD encoded data."""
-
+) -> bytes | bytearray: ...
 def zstd_decode(
     data: BytesLike,
     /,
     *,
     out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray:
-    """Return decoded ZSTD data."""
+) -> bytes | bytearray: ...
