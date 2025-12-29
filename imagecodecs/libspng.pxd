@@ -1,7 +1,6 @@
 # imagecodecs/libspng.pxd
-# cython: language_level = 3
 
-# Cython declarations for the `libspng 0.7.3` library.
+# Cython declarations for the `libspng 0.7.4` library.
 # https://github.com/randy408/libspng/
 
 from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t
@@ -471,7 +470,7 @@ cdef extern from 'spng.h' nogil:
     )
 
     int spng_decode_chunks(
-        spng_ctx *ctx
+        spng_ctx* ctx
     )
 
     int spng_get_row_info(
