@@ -1,13 +1,12 @@
 # imagecodecs/_zlib.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Zlib codec for the imagecodecs package."""
+"""ZLIB codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -90,8 +89,8 @@ def zlib_version():
     return 'zlib ' + zlibVersion().decode()
 
 
-def zlib_check(data):
-    """Return whether data is DEFLATE encoded."""
+def zlib_check(const uint8_t[::1] data, /):
+    """Return whether data is DEFLATE encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -103,15 +102,20 @@ def zlib_check(data):
         or sig == b'\x78\xDA'
     ):
         return True
-    return None  # maybe
+    return None
 
 
-def zlib_encode(data, level=None, out=None):
+def zlib_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
         ssize_t dstsize
         unsigned long srclen, dstlen
         int ret
@@ -127,13 +131,13 @@ def zlib_encode(data, level=None, out=None):
     if out is None:
         if dstsize < 0:
             # TODO: use streaming APIs
-            dstsize = <ssize_t> compressBound(<unsigned long> srcsize)
+            dstsize = _compress_bound(src.size)
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    dstlen = <unsigned long> dstsize
-    srclen = <unsigned long> srcsize
+    dstlen = <unsigned long> dst.size  # validates overflow
+    srclen = <unsigned long> src.size  # validates overflow
 
     with nogil:
         ret = compress2(
@@ -150,7 +154,12 @@ def zlib_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def zlib_decode(data, out=None):
+def zlib_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded DEFLATE data."""
     cdef:
         const uint8_t[::1] src
@@ -166,20 +175,15 @@ def zlib_decode(data, out=None):
 
     if out is None and dstsize < 0:
         return _zlib_decode(data, outtype)
-        # use Python's zlib module
-        # import zlib
-        # return zlib.decompress(data)
 
     if out is None:
-        if dstsize < 0:
-            raise NotImplementedError  # TODO
         out = _create_output(outtype, dstsize)
 
     src = data
     dst = out
     dstsize = dst.size
-    dstlen = <unsigned long> dstsize
-    srclen = <unsigned long> src.size
+    dstlen = <unsigned long> dst.size  # validates overflow
+    srclen = <unsigned long> src.size  # validates overflow
 
     with nogil:
         # uncompress2 is not available on manylinux
@@ -196,18 +200,18 @@ def zlib_decode(data, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-cdef _zlib_decode(const uint8_t[::1] src, outtype):
+def _zlib_decode(const uint8_t[::1] src, outtype):
     """Decompress using streaming API."""
     cdef:
         output_t* output = NULL
         z_stream stream
-        ssize_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.size
+        size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int ret
 
     try:
         with nogil:
-
             stream.next_in = <Bytef*> &src[0]  # <z_const Bytef*>
             stream.avail_in = 0
             stream.zalloc = NULL
@@ -218,43 +222,46 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
             if ret != Z_OK:
                 raise ZlibError('inflateInit', ret)
 
-            output = output_new(
-                NULL,
-                max(4096, (srcsize * 2) + (4096 - srcsize * 2) % 4096)
-            )
+            if incsize > 268435456:  # 256 MB
+                incsize = 268435456
+            output = output_new(NULL, 3 * incsize)  # 3/2 srcsize
             if output == NULL:
                 raise MemoryError('output_new failed')
 
             stream.next_out = <Bytef*> output.data
             stream.avail_out = 0
             left = <size_t> output.size
-            size = <size_t> srcsize
+            size = srcsize
 
             while ret == Z_OK or ret == Z_BUF_ERROR:
 
+                if stream.avail_in == 0:
+                    # decode from chunks <= UINT32_MAX
+                    if ret == Z_BUF_ERROR:
+                        break
+                    if size > <size_t> UINT32_MAX:
+                        stream.avail_in = <uInt> UINT32_MAX
+                    else:
+                        stream.avail_in = <uInt> size
+                    size -= stream.avail_in
+
                 if stream.avail_out == 0:
                     if left == 0:
-                        left = output.size * 2
+                        # resize output buffer
+                        left = incsize
+                        if output.size > SIZE_MAX - left:
+                            raise MemoryError('output buffer size overflow')
                         if output_resize(output, output.size + left) == 0:
                             raise MemoryError('output_resize failed')
                         stream.next_out = (
                             <Bytef*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295U:
-                        stream.avail_out = <uInt> 4294967295U
+                    # decode to chunks <= UINT32_MAX
+                    if left > <size_t> UINT32_MAX:
+                        stream.avail_out = <uInt> UINT32_MAX
                     else:
                         stream.avail_out = <uInt> left
                     left -= stream.avail_out
-
-                if stream.avail_in == 0:
-                    if ret == Z_BUF_ERROR:
-                        # ret = Z_STREAM_END
-                        break
-                    if size > <size_t> 4294967295U:
-                        stream.avail_in = <uInt> 4294967295U
-                    else:
-                        stream.avail_in = <uInt> size
-                    size -= stream.avail_in
 
                 ret = inflate(&stream, Z_NO_FLUSH)
 
@@ -262,7 +269,10 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
                 raise ZlibError('inflate', ret)
 
         out = _create_output(
-            outtype, stream.total_out, <const char*> output.data
+            outtype,
+            # stream.total_out might overflow
+            stream.next_out - <Bytef*> output.data,
+            <const char*> output.data
         )
 
     finally:
@@ -274,9 +284,18 @@ cdef _zlib_decode(const uint8_t[::1] src, outtype):
     return out
 
 
+cdef ssize_t _compress_bound(const ssize_t srcsize) noexcept nogil:
+    # replacement for compressBound
+    return srcsize + (srcsize >> 12) + (srcsize >> 14) + (srcsize >> 25) + 13
+
+
 # CRC #########################################################################
 
-def zlib_crc32(data, value=None):
+def zlib_crc32(
+    data,
+    /,
+    value=None,
+):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -289,7 +308,11 @@ def zlib_crc32(data, value=None):
     return int(crc)
 
 
-def zlib_adler32(data, value=None):
+def zlib_adler32(
+    data,
+    /,
+    value=None,
+):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
