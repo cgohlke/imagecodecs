@@ -1,13 +1,12 @@
 # imagecodecs/_webp.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""WebP codec for the imagecodecs package."""
+"""WEBP (Web Portable) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -94,11 +93,11 @@ def webp_version():
     cdef:
         int ver = WebPGetDecoderVersion()
 
-    return 'libwebp {}.{}.{}'.format(ver >> 16, (ver >> 8) & 255, ver & 255)
+    return f'libwebp {ver >> 16}.{(ver >> 8) & 255}.{ver & 255}'
 
 
-def webp_check(const uint8_t[::1] data):
-    """Return whether data is WebP encoded image."""
+def webp_check(const uint8_t[::1] data, /):
+    """Return whether data is WEBP encoded image or None if unknown."""
     cdef:
         bytes sig = bytes(data[:12])
 
@@ -106,9 +105,16 @@ def webp_check(const uint8_t[::1] data):
 
 
 def webp_encode(
-    data, level=None, lossless=None, method=None, numthreads=None, out=None
+    data,
+    /,
+    level=None,
+    *,
+    lossless=None,
+    method=None,
+    numthreads=None,
+    out=None,
 ):
-    """Return WebP encoded image.
+    """Return WEBP encoded image.
 
     Libwebp drops entire alpha channel if all alpha values are 255 (opaque).
 
@@ -135,8 +141,8 @@ def webp_encode(
         and src.shape[1] < WEBP_MAX_DIMENSION
         and src.shape[2] in {3, 4}
         and src.strides[2] == 1
-        and src.strides[1] in {3, 4}
-        and src.strides[0] >= src.strides[1] * src.strides[2]
+        and src.strides[1] == src.shape[2]
+        and src.strides[0] >= src.shape[2] * src.shape[1]
         and src.dtype == numpy.uint8
     ):
         raise ValueError('invalid data shape, strides, or dtype')
@@ -153,7 +159,6 @@ def webp_encode(
 
     try:
         with nogil:
-
             if quality_factor < 0.0:
                 quality_factor = 75.0
 
@@ -179,6 +184,7 @@ def webp_encode(
                 config.lossless = 1
                 config.exact = 1  # preserve RGB values under transparent area
 
+            # is this necessary?
             # if WebPValidateConfig(&config) == 0:
             #     raise WebpError('WebPValidateConfig', 0)
 
@@ -225,8 +231,15 @@ def webp_encode(
     return _return_output(out, dstsize, output_size, outgiven)
 
 
-def webp_decode(data, index=0, hasalpha=None, out=None):
-    """Return decoded WebP image."""
+def webp_decode(
+    data,
+    /,
+    index=0,
+    *,
+    hasalpha=None,
+    out=None,
+):
+    """Return decoded WEBP image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -260,7 +273,7 @@ def webp_decode(data, index=0, hasalpha=None, out=None):
             index = 0
         frame = index + 1 if index >= 0 else frames + index + 1
         if frame < 1 or <uint32_t> frame > frames:
-            raise IndexError(f'{index=} out of range {frames}')
+            raise IndexError(f'{index=} out of range [0, {frames - 1}]')
 
         ret = WebPDemuxGetFrame(demux, frame, &iter)
         if ret == 0:
@@ -278,7 +291,7 @@ def webp_decode(data, index=0, hasalpha=None, out=None):
             shape,
             numpy.uint8,
             strides=(None, shape[2], 1),
-            zero=width != iter.width or height != iter.height
+            zero=<int> width != iter.width or <int> height != iter.height
         )
         dst = out
         dstsize = dst.shape[0] * dst.strides[0]
