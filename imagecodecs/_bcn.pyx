@@ -1,13 +1,12 @@
 # imagecodecs/_bcn.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""BCN and DDS codecs for the imagecodecs package."""
+"""BCn (Block Compression) and DDS codecs for the imagecodecs package.
+
+BCn refers to a family of texture compression algorithms, while DDS
+(DirectDraw Surface) is a container file format using BCn compression.
+
+"""
 
 include '_shared.pxi'
 
@@ -44,12 +48,12 @@ from bcdec cimport *
 
 
 class BCN:
-    """BCn codec constants."""
+    """BCN codec constants."""
 
     available = True
 
     class FORMAT(enum.IntEnum):
-        """BCn compression format."""
+        """BCN compression format."""
 
         BC1 = 1  # DXT1
         BC2 = 2  # DXT3
@@ -62,7 +66,7 @@ class BCN:
 
 
 class BcnError(RuntimeError):
-    """BCn codec exceptions."""
+    """BCN codec exceptions."""
 
 
 def bcn_version():
@@ -70,31 +74,42 @@ def bcn_version():
     return f'bcdec {BCDEC_VERSION_MAJOR}.{BCDEC_VERSION_MINOR}'
 
 
-def bcn_check(const uint8_t[::1] data):
-    """Return whether data is BCn encoded."""
-    return None
+def bcn_check(const uint8_t[::1] data, /):
+    """Return whether data is BCN encoded or None if unknown."""
 
 
-def bcn_encode(data, out=None):
-    """Return BCn encoded data (not implemented)."""
+def bcn_encode(
+    data,
+    /,
+    *,
+    out=None,
+):
+    """Return BCN encoded data (not implemented)."""
     raise NotImplementedError('bcn_encode')
 
 
-def bcn_decode(data, format, shape=None, out=None):
-    """Return decoded BCn data."""
+def bcn_decode(
+    data,
+    /,
+    format,
+    *,
+    shape=None,
+    out=None,
+):
+    """Return decoded BCN data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.nbytes
         ssize_t width, height, i, ret
-        char *psrc = NULL
-        char *pdst = NULL
+        char* psrc = NULL
+        char* pdst = NULL
         int ndim, bcn
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if not 128 < srcsize <= 2147483647:
+    if not 128 < srcsize <= INT32_MAX:
         raise ValueError(f'input size {srcsize} out of bounds')
 
     if shape is None and hasattr(out, 'shape'):
@@ -174,8 +189,8 @@ cdef ssize_t _bcn_decode(
     ssize_t height,
     int bcn,
 ) nogil:
-    # Decode BCn encoded array.
-    # TODO: move this function to C file
+    # Decode BCN encoded array.
+    # TODO: move this function to a C file
     cdef:
         int pitch
         ssize_t size, i, j
@@ -319,20 +334,31 @@ class DdsError(RuntimeError):
 dds_version = bcn_version
 
 
-def dds_check(const uint8_t[::1] data):
-    """Return whether data is DDS encoded."""
+def dds_check(const uint8_t[::1] data, /):
+    """Return whether data is DDS encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:4])
 
     return sig == b'DDS '
 
 
-def dds_encode(data, out=None):
+def dds_encode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return DDS encoded data (not implemented)."""
     raise NotImplementedError('dds_encode')
 
 
-def dds_decode(data, mipmap=0, out=None):
+def dds_decode(
+    data,
+    /,
+    *,
+    mipmap=0,
+    out=None,
+):
     """Return decoded DDS data.
 
     Only BCn-compressed formats are supported. Mipmaps cannot be accessed.
@@ -346,14 +372,14 @@ def dds_decode(data, mipmap=0, out=None):
         unsigned int fourcc, mipmaps
         DDS_HEADER_t* dds_header = NULL
         DDS_HEADER_DXT10_t* dx10_header = NULL
-        char *psrc = NULL
-        char *pdst = NULL
-        ssize_t ret
+        char* psrc = NULL
+        char* pdst = NULL
+        ssize_t ret = 0
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if not 128 < srcsize <= 2147483647:
+    if not 128 < srcsize <= INT32_MAX:
         raise ValueError(f'input size {srcsize} out of bounds')
 
     sig = bytes(src[:4])
@@ -474,14 +500,14 @@ def dds_decode(data, mipmap=0, out=None):
         raise DdsError(f'fourcc {fourcc_str!r} ({fourcc}) not supported')
 
     if depth > 1:
-        shape = (depth,) + shape
+        shape = (depth, *shape)
 
     # TODO: support mipmap: calculate offset and reduce shape
 
     if textures > 1:
-        shape = (textures,) + shape
+        shape = (textures, *shape)
     if cubes > 1:
-        shape = (cubes, ) + shape
+        shape = (cubes, *shape)
 
     out = _create_array(out, shape, dtype)
     dst = out
