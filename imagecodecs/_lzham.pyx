@@ -1,13 +1,12 @@
 # imagecodecs/_lzham.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""LZHAM codec for the imagecodecs package."""
+"""LZHAM  codec for the imagecodecs package.
+
+LZHAM stands for Lempel-Ziv Huffman Arithmetic Markov.
+
+"""
 
 include '_shared.pxi'
 
@@ -84,16 +87,21 @@ def lzham_version():
     return 'lzham ' + lzham_z_version().decode()
 
 
-def lzham_check(data):
-    """Return whether data is LZHAM encoded."""
+def lzham_check(const uint8_t[::1] data, /):
+    """Return whether data is LZHAM encoded or None if unknown."""
 
 
-def lzham_encode(data, level=None, out=None):
+def lzham_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return LZHAM encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
         ssize_t dstsize
         lzham_z_ulong srclen, dstlen
         int ret
@@ -109,13 +117,13 @@ def lzham_encode(data, level=None, out=None):
     if out is None:
         if dstsize < 0:
             # TODO: use streaming APIs
-            dstsize = <ssize_t> lzham_z_compressBound(<lzham_z_ulong> srcsize)
+            dstsize = _compress_bound(src.size)
         out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.size
-    dstlen = <lzham_z_ulong> dstsize
-    srclen = <lzham_z_ulong> srcsize
+    dstlen = <lzham_z_ulong> dst.size  # validates overflow
+    srclen = <lzham_z_ulong> src.size  # validates overflow
 
     with nogil:
         ret = lzham_z_compress2(
@@ -132,7 +140,12 @@ def lzham_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def lzham_decode(data, out=None):
+def lzham_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded LZHAM data."""
     cdef:
         const uint8_t[::1] src
@@ -150,17 +163,13 @@ def lzham_decode(data, out=None):
         return _lzham_decode(data, outtype)
 
     if out is None:
-        if dstsize < 0:
-            raise NotImplementedError  # TODO
-            # lzham_z_ulong lzham_z_deflateBound(
-            #     lzham_z_streamp pStream, lzham_z_ulong source_len);
         out = _create_output(outtype, dstsize)
 
     src = data
     dst = out
     dstsize = dst.size
-    dstlen = <lzham_z_ulong> dstsize
-    srclen = <lzham_z_ulong> src.size
+    dstlen = <lzham_z_ulong> dst.size  # validates overflow
+    srclen = <lzham_z_ulong> src.size  # validates overflow
 
     with nogil:
         ret = lzham_z_uncompress(
@@ -181,13 +190,13 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
     cdef:
         output_t* output = NULL
         lzham_z_stream stream
-        ssize_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.size
+        size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int ret
 
     try:
         with nogil:
-
             stream.next_in = <unsigned char*> &src[0]
             stream.avail_in = 0
             stream.zalloc = NULL
@@ -198,42 +207,46 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
             if ret != LZHAM_Z_OK:
                 raise LzhamError('lzham_z_inflateInit', ret)
 
-            output = output_new(
-                NULL,
-                max(4096, (srcsize * 2) + (4096 - srcsize * 2) % 4096)
-            )
+            if incsize > 268435456:  # 256 MB
+                incsize = 268435456
+            output = output_new(NULL, 3 * incsize)  # 3/2 srcsize
             if output == NULL:
                 raise MemoryError('output_new failed')
 
             stream.next_out = <unsigned char*> output.data
             stream.avail_out = 0
             left = <size_t> output.size
-            size = <size_t> srcsize
+            size = srcsize
 
             while ret == LZHAM_Z_OK or ret == LZHAM_Z_BUF_ERROR:
 
+                if stream.avail_in == 0:
+                    # decode from chunks <= UINT32_MAX
+                    if ret == LZHAM_Z_BUF_ERROR:
+                        break
+                    if size > <size_t> UINT32_MAX:
+                        stream.avail_in = <unsigned int> UINT32_MAX
+                    else:
+                        stream.avail_in = <unsigned int> size
+                    size -= stream.avail_in
+
                 if stream.avail_out == 0:
                     if left == 0:
-                        left = output.size * 2
+                        # resize output buffer
+                        left = incsize
+                        if output.size > SIZE_MAX - left:
+                            raise MemoryError('output buffer size overflow')
                         if output_resize(output, output.size + left) == 0:
                             raise MemoryError('output_resize failed')
                         stream.next_out = (
                             <unsigned char*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295U:
-                        stream.avail_out = <unsigned int> 4294967295U
+                    # decode to chunks <= UINT32_MAX
+                    if left > <size_t> UINT32_MAX:
+                        stream.avail_out = <unsigned int> UINT32_MAX
                     else:
                         stream.avail_out = <unsigned int> left
                     left -= stream.avail_out
-
-                if stream.avail_in == 0:
-                    if ret == LZHAM_Z_BUF_ERROR:
-                        break
-                    if size > <size_t> 4294967295U:
-                        stream.avail_in = <unsigned int> 4294967295U
-                    else:
-                        stream.avail_in = <unsigned int> size
-                    size -= stream.avail_in
 
                 ret = lzham_z_inflate(&stream, LZHAM_Z_NO_FLUSH)
 
@@ -241,7 +254,10 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
                 raise LzhamError('lzham_z_inflate', ret)
 
         out = _create_output(
-            outtype, stream.total_out, <const char*> output.data
+            outtype,
+            # stream.total_out might overflow
+            stream.next_out - <unsigned char*> output.data,
+            <const char*> output.data
         )
 
     finally:
@@ -253,9 +269,14 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
     return out
 
 
+cdef ssize_t _compress_bound(const ssize_t srcsize) noexcept nogil:
+    # replacement for lzham_z_compressBound
+    return 64 + srcsize + ((srcsize + 4095) / 4096) * 4
+
+
 # CRC #########################################################################
 
-def lzham_crc32(data):
+def lzham_crc32(data, /):
     """Return cyclic redundancy checksum CRC-32 of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -268,7 +289,7 @@ def lzham_crc32(data):
     return int(crc)
 
 
-def lzham_adler32(data):
+def lzham_adler32(data, /):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
