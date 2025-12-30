@@ -1,13 +1,12 @@
 # imagecodecs/_sperr.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2023-2025, Christoph Gohlke
+# Copyright (c) 2023-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""SPERR codec for the imagecodecs package."""
+"""SPERR (SPECK with Error-bounding) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -78,19 +77,20 @@ def sperr_version():
     )
 
 
-def sperr_check(const uint8_t[::1] data):
-    """Return whether data is SPERR encoded."""
-    return None
+def sperr_check(const uint8_t[::1] data, /):
+    """Return whether data is SPERR encoded or None if unknown."""
 
 
 def sperr_encode(
     data,
+    /,
     double level,
     mode,
+    *,
     chunks=None,
     header=True,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return SPERR encoded data."""
     cdef:
@@ -101,7 +101,7 @@ def sperr_encode(
         size_t dst_len
         size_t dimx, dimy, dimz
         size_t chunk_x, chunk_y, chunk_z
-        size_t nthreads = <size_t> _default_threads(numthreads)
+        size_t nthreads = _default_threads(numthreads)
         int out_inc_header = bool(header)
         int is_float, mode_, ret
 
@@ -116,6 +116,9 @@ def sperr_encode(
         dimz = 1
         dimy = <size_t> src.shape[0]
         dimx = <size_t> src.shape[1]
+        chunk_x = 0
+        chunk_y = 0
+        chunk_z = 0
     elif src.ndim == 3:
         dimz = <size_t> src.shape[0]
         dimy = <size_t> src.shape[1]
@@ -130,11 +133,12 @@ def sperr_encode(
             chunk_x = <size_t> chunks[2]
     else:
         raise ValueError(f'invalid {src.ndim=}')
+
     if (
-        dimx * dimy * dimz > <size_t> 4294967295U
-        or dimx > 2147483647
-        or dimy > 2147483647
-        or dimz > 2147483647
+        dimx * dimy * dimz > <size_t> UINT32_MAX
+        or dimx > <size_t> INT32_MAX
+        or dimy > <size_t> INT32_MAX
+        or dimz > <size_t> INT32_MAX
     ):
         raise ValueError(f'invalid {dimx=}, {dimy=}, or {dimz=}')
 
@@ -205,11 +209,13 @@ def sperr_encode(
 
 def sperr_decode(
     data,
+    /,
+    *,
     shape=None,
     dtype=None,
     header=True,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return decoded SPERR data.
 
@@ -229,7 +235,7 @@ def sperr_decode(
         void* dst_ptr = NULL
         size_t ndim = 0
         size_t dimx, dimy, dimz
-        size_t nthreads = <size_t> _default_threads(numthreads)
+        size_t nthreads = _default_threads(numthreads)
         int out_inc_header = bool(header)
         int is_float, ret
 
@@ -290,7 +296,7 @@ def sperr_decode(
     elif shape is None or dtype is None:
         raise ValueError('shape and dtype required if header=False')
 
-    if dimx > 2147483647 or dimy > 2147483647 or dimz > 2147483647:
+    if dimx > INT32_MAX or dimy > INT32_MAX or dimz > INT32_MAX:
         raise ValueError(f'invalid {dimx=}, {dimy=}, or {dimz=}')
 
     out = _create_array(out, shape, dtype)
@@ -323,9 +329,7 @@ def sperr_decode(
             if ret != 0 or dst_ptr == NULL:
                 raise SperrError('sperr_decomp_3d', ret)
         try:
-            if dstlen != <ssize_t> (
-                dimx * dimy * dimz * (4 if is_float else 8)
-            ):
+            if dstlen != dimx * dimy * dimz * (4 if is_float else 8):
                 raise ValueError(f'invalid output size {out.nbytes=}')
             memcpy(<void*> &dst.data[0], <const void*> dst_ptr, dstlen)
         finally:
