@@ -1,13 +1,12 @@
 # imagecodecs/_png.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2018-2025, Christoph Gohlke
+# Copyright (c) 2018-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""PNG codec for the imagecodecs package."""
+"""PNG (Portable Network Graphics) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -98,16 +97,19 @@ def png_version():
     return 'libpng ' + PNG_LIBPNG_VER_STRING.decode()
 
 
-def png_check(const uint8_t[::1] data):
-    """Return whether data is PNG encoded image."""
-    cdef:
-        bytes sig = bytes(data[:8])
-
-    return sig == b'\x89PNG\r\n\x1a\n'
+def png_check(const uint8_t[::1] data, /):
+    """Return whether data is PNG encoded image or None if unknown."""
+    return png_sig_cmp(&data[0], 0, 8) == 0
 
 
 def png_encode(
-    data, level=None, strategy=None, filter=None, out=None
+    data,
+    /,
+    level=None,
+    *,
+    strategy=None,
+    filter=None,
+    out=None,
 ):
     """Return PNG encoded image.
 
@@ -146,8 +148,8 @@ def png_encode(
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
         and samples <= 4
         and src.strides[src.ndim - 1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
@@ -158,7 +160,7 @@ def png_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = png_size_max(srcsize)  # TODO: use dynamic mempng
+            dstsize = _png_size_max(srcsize)  # TODO: use dynamic mempng
         out = _create_output(outtype, dstsize)
         mempng.owner = 0
     else:
@@ -169,7 +171,6 @@ def png_encode(
 
     try:
         with nogil:
-
             mempng.data = <png_bytep> &dst[0]
             mempng.size = <png_size_t> dstsize
             mempng.offset = 0
@@ -251,7 +252,12 @@ def png_encode(
     return _return_output(out, dstsize, mempng.offset, outgiven)
 
 
-def png_decode(data, out=None):
+def png_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded PNG image."""
     cdef:
         numpy.ndarray dst
@@ -389,7 +395,7 @@ def png_decode(data, out=None):
 
 cdef void png_error_callback(
     png_structp png_ptr,
-    png_const_charp msg
+    png_const_charp msg,
 ) noexcept nogil:
     cdef:
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
@@ -402,9 +408,12 @@ cdef void png_error_callback(
 
 cdef void png_warn_callback(
     png_structp png_ptr,
-    png_const_charp msg
+    png_const_charp msg,
 ) noexcept with gil:
-    _log_warning('PNG warning: %s', msg.decode().strip())
+    try:
+        _log_warning('PNG warning: %s', msg.decode().strip())
+    except Exception:
+        pass
 
 
 ctypedef struct mempng_t:
@@ -418,7 +427,7 @@ ctypedef struct mempng_t:
 cdef void png_read_data_fn(
     png_structp png_ptr,
     png_bytep dst,
-    png_size_t size
+    png_size_t size,
 ) noexcept nogil:
     """PNG read callback function."""
     cdef:
@@ -443,7 +452,7 @@ cdef void png_read_data_fn(
 cdef void png_write_data_fn(
     png_structp png_ptr,
     png_bytep src,
-    png_size_t size
+    png_size_t size,
 ) noexcept nogil:
     """PNG write callback function."""
     cdef:
@@ -462,8 +471,7 @@ cdef void png_write_data_fn(
         newsize = mempng.offset + size
         if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
-            newsize = newsize + newsize // 4
-            newsize = (((newsize - 1) // 4096) + 1) * 4096
+            newsize = _align_ssize_t(newsize + newsize // 4)
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
             png_error(png_ptr, b'png_write_data_fn realloc failed')
@@ -478,14 +486,11 @@ cdef void png_write_data_fn(
     mempng.offset += size
 
 
-cdef void png_output_flush_fn(
-    png_structp png_ptr
-) noexcept nogil:
+cdef void png_output_flush_fn(png_structp png_ptr) noexcept nogil:
     """PNG flush callback function."""
-    pass
 
 
-cdef ssize_t png_size_max(ssize_t size) nogil:
+cdef ssize_t _png_size_max(ssize_t size) noexcept nogil:
     """Return upper bound size of PNG stream from uncompressed image size."""
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
