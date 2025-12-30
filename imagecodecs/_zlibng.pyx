@@ -1,13 +1,12 @@
 # imagecodecs/_zlibng.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Zlib-ng codec for the imagecodecs package."""
+"""ZLIBNG (ZLIB next generation) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -90,8 +89,8 @@ def zlibng_version():
     return f'zlib_ng {ZLIBNG_VERSION.decode()}'
 
 
-def zlibng_check(data):
-    """Return whether data is DEFLATE encoded."""
+def zlibng_check(const uint8_t[::1] data, /):
+    """Return whether data is DEFLATE encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:2])
 
@@ -103,10 +102,16 @@ def zlibng_check(data):
         or sig == b'\x78\xDA'
     ):
         return True
-    return None  # maybe
+    return None
 
 
-def zlibng_encode(data, level=None, out=None):
+def zlibng_encode(
+    data,
+    /,
+    level=None,
+    *,
+    out=None,
+):
     """Return DEFLATE encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -150,7 +155,12 @@ def zlibng_encode(data, level=None, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def zlibng_decode(data, out=None):
+def zlibng_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded DEFLATE data."""
     cdef:
         const uint8_t[::1] src
@@ -168,8 +178,6 @@ def zlibng_decode(data, out=None):
         return _zlibng_decode(data, outtype)
 
     if out is None:
-        if dstsize < 0:
-            raise NotImplementedError  # TODO
         out = _create_output(outtype, dstsize)
 
     src = data
@@ -192,18 +200,18 @@ def zlibng_decode(data, out=None):
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-cdef _zlibng_decode(const uint8_t[::1] src, outtype):
+def _zlibng_decode(const uint8_t[::1] src, outtype):
     """Decompress using streaming API."""
     cdef:
         output_t* output = NULL
         zng_stream stream
-        ssize_t srcsize = src.size
+        size_t srcsize = <size_t> src.size
+        size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int32_t ret
 
     try:
         with nogil:
-
             stream.next_in = <const uint8_t*> &src[0]
             stream.avail_in = 0
             stream.zalloc = NULL
@@ -214,42 +222,46 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
             if ret != Z_OK:
                 raise ZlibngError('zng_inflateInit', ret)
 
-            output = output_new(
-                NULL,
-                max(4096, (srcsize * 2) + (4096 - srcsize * 2) % 4096)
-            )
+            if incsize > 268435456:  # 256 MB
+                incsize = 268435456
+            output = output_new(NULL, 3 * incsize)  # 3/2 srcsize
             if output == NULL:
                 raise MemoryError('output_new failed')
 
             stream.next_out = <uint8_t*> output.data
             stream.avail_out = 0
             left = <size_t> output.size
-            size = <size_t> srcsize
+            size = srcsize
 
             while ret == Z_OK or ret == Z_BUF_ERROR:
 
+                if stream.avail_in == 0:
+                    # decode from chunks <= UINT32_MAX
+                    if ret == Z_BUF_ERROR:
+                        break
+                    if size > <size_t> UINT32_MAX:
+                        stream.avail_in = <uint32_t> UINT32_MAX
+                    else:
+                        stream.avail_in = <uint32_t> size
+                    size -= stream.avail_in
+
                 if stream.avail_out == 0:
                     if left == 0:
-                        left = output.size * 2
+                        # resize output buffer
+                        left = incsize
+                        if output.size > SIZE_MAX - left:
+                            raise MemoryError('output buffer size overflow')
                         if output_resize(output, output.size + left) == 0:
                             raise MemoryError('output_resize failed')
                         stream.next_out = (
                             <uint8_t*> output.data + (output.size - left)
                         )
-                    if left > <size_t> 4294967295U:
-                        stream.avail_out = <uint32_t> 4294967295U
+                    # decode to chunks <= UINT32_MAX
+                    if left > <size_t> UINT32_MAX:
+                        stream.avail_out = <uint32_t> UINT32_MAX
                     else:
                         stream.avail_out = <uint32_t> left
                     left -= stream.avail_out
-
-                if stream.avail_in == 0:
-                    if ret == Z_BUF_ERROR:
-                        break
-                    if size > <size_t> 4294967295U:
-                        stream.avail_in = <uint32_t> 4294967295U
-                    else:
-                        stream.avail_in = <uint32_t> size
-                    size -= stream.avail_in
 
                 ret = zng_inflate(&stream, Z_NO_FLUSH)
 
@@ -271,7 +283,11 @@ cdef _zlibng_decode(const uint8_t[::1] src, outtype):
 
 # CRC #########################################################################
 
-def zlibng_crc32(data, value=None):
+def zlibng_crc32(
+    data,
+    /,
+    value=None,
+):
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
@@ -284,7 +300,11 @@ def zlibng_crc32(data, value=None):
     return int(crc) & 0xffffffff
 
 
-def zlibng_adler32(data, value=None):
+def zlibng_adler32(
+    data,
+    /,
+    value=None,
+):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
