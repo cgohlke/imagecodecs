@@ -1,13 +1,12 @@
 # imagecodecs/_zfp.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -83,8 +82,8 @@ def zfp_version():
     return 'zfp ' + ZFP_VERSION_STRING.decode()
 
 
-def zfp_check(const uint8_t[::1] data):
-    """Return whether data is ZFP encoded."""
+def zfp_check(const uint8_t[::1] data, /):
+    """Return whether data is ZFP encoded or None if unknown."""
     cdef:
         bytes sig = bytes(data[:3])
 
@@ -93,13 +92,15 @@ def zfp_check(const uint8_t[::1] data):
 
 def zfp_encode(
     data,
+    /,
     level=None,
+    *,
     mode=None,
     execution=None,
     chunksize=None,
     header=True,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return ZFP encoded data."""
     cdef:
@@ -116,9 +117,12 @@ def zfp_encode(
         uint ndim = src.ndim
         ssize_t itemsize = src.itemsize
         uint precision
-        uint threads = <uint> _default_threads(numthreads)
+        uint threads = _default_threads(numthreads)
         uint chunk_size = 0
-        uint minbits, maxbits, maxprec, minexp
+        uint minbits = 0
+        uint maxbits = 0
+        uint maxprec = 0
+        uint minexp = 0
         size_t nx, ny, nz, nw
         ptrdiff_t sx, sy, sz, sw
         zfp_bool ret
@@ -293,11 +297,13 @@ def zfp_encode(
 
 def zfp_decode(
     data,
+    /,
+    *,
     shape=None,
     dtype=None,
     strides=None,
     numthreads=None,
-    out=None
+    out=None,
 ):
     """Return decoded ZFP data."""
     cdef:
@@ -310,7 +316,7 @@ def zfp_decode(
         zfp_type ztype
         ssize_t ndim
         size_t size
-        # uint threads = <uint> _default_threads(numthreads)
+        # uint threads = _default_threads(numthreads)
         size_t nx, ny, nz, nw
         ptrdiff_t sx = 0
         ptrdiff_t sy = 0
