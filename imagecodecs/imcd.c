@@ -1,7 +1,7 @@
 /* imagecodecs/imcd.c */
 
 /*
-Copyright (c) 2008-2025, Christoph Gohlke.
+Copyright (c) 2008-2026, Christoph Gohlke.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -513,7 +513,7 @@ ssize_t imcd_byteshuffle(
         /* TODO: do not temporarily modify src */
         if (delta) {
             /* undo byte differencing; separate for interleaved samples */
-            for (i = samples; i < size*itemsize; i++) {
+            for (i = samples; i < size * itemsize; i++) {
                 srcptr[i] += srcptr[i - samples];
             }
         }
@@ -871,7 +871,7 @@ ssize_t imcd_ccittrle_decode(
     uint8_t* srcptr = (uint8_t*)src;
     uint8_t* dstptr = dst;
     const uint8_t* srcend = srcptr + srcsize;
-    const uint8_t* dstend = dstptr + dstsize;
+    /* const uint8_t* dstend = dstptr + dstsize; */
 
     if ((srcptr == NULL) || (srcsize < 0) || (dstptr == NULL) || (dstsize < 0))
     {
@@ -1119,7 +1119,7 @@ ssize_t imcd_packints_encode(
     const int bps  /** number of bits in integer */
     )
 {
-    ssize_t i, j, k;
+    ssize_t i, j;
     ssize_t itemsize;
     uint8_t value;
 
@@ -1599,7 +1599,7 @@ ssize_t imcd_bfloat16_encode(
         }
         else {
             /* memcpy(&uvalue, &src[i], 4); */
-            uvalue = *((uint32_t *) &fvalue);
+            uvalue = *((uint32_t*) &fvalue);
             uvalue += 0x7fff + ((uvalue >> 16) & 1);
             f1 = (uvalue >> 16) & 0xFF;
             f0 = (uvalue >> 24) & 0xFF;
@@ -1845,15 +1845,15 @@ ssize_t _lzw_alloc_buffer(
     }
     else {
         /* reallocate buffer */
-        void *tmp = NULL;
+        void* tmp = NULL;
         buffersize = (((buffersize-1) / LZW_BUFFERSIZE) + 1) * LZW_BUFFERSIZE;
-        tmp = realloc((void *)handle->buffer, buffersize);
+        tmp = realloc((void*)handle->buffer, buffersize);
         if (tmp == NULL) {
             free(handle->buffer);
             handle->buffer = NULL;
         }
         else {
-            handle->buffer = (uint8_t *)tmp;
+            handle->buffer = (uint8_t*)tmp;
         }
     }
 
@@ -2129,7 +2129,7 @@ ssize_t imcd_lzw_decode(
     uint8_t* dst,
     const ssize_t dstsize)
 {
-    const uint8_t *dstin = dst;
+    const uint8_t* dstin = dst;
     imcd_lzw_table_t* table;
     uint8_t* buffer;
     uint32_t tablesize = 258;
@@ -2372,16 +2372,16 @@ ssize_t imcd_lzw_encode_size(const ssize_t srcsize)
 
 /* Encode LZW. */
 ssize_t imcd_lzw_encode(
-    const uint8_t *src,
+    const uint8_t* src,
     const ssize_t srcsize,
-    uint8_t *dst,
+    uint8_t* dst,
     const ssize_t dstsize
 ) {
     ssize_t i = 0;
     ssize_t dstindex = 0;
     ssize_t srcindex = 0;
-    int *hash_keys = NULL;
-    int *hash_values = NULL;
+    int* hash_keys = NULL;
+    int* hash_values = NULL;
     int hashkey = 0;
     int hashcode = 0;
     int nextcode = LZW_FIRST;
@@ -2538,9 +2538,9 @@ ssize_t imcd_lzw_encode(
 
 /* search for bytes in bytes */
 ssize_t imcd_memsearch(
-    const char *src,
+    const char* src,
     const ssize_t srclen,
-    const char *dst,
+    const char* dst,
     const ssize_t dstlen) {
     for (ssize_t i = 0; i < srclen; i++) {
         if (src[i] == dst[0]) {
@@ -2563,9 +2563,9 @@ ssize_t imcd_memsearch(
 
 /* search for bytes in string; stop at null character */
 ssize_t imcd_strsearch(
-    const char *src,
+    const char* src,
     const ssize_t srclen,
-    const char *dst,
+    const char* dst,
     const ssize_t dstlen) {
     for (ssize_t i = 0; i < srclen; i++) {
         if (src[i] == '\0') {
