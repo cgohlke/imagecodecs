@@ -1,13 +1,12 @@
 # imagecodecs/_brotli.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2019-2025, Christoph Gohlke
+# Copyright (c) 2019-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Brotli codec for the imagecodecs package."""
+"""BROTLI codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -61,6 +60,7 @@ class BrotliError(RuntimeError):
 
     def __init__(self, func, err):
         err = {
+            None: 'NULL',
             True: 'True',
             False: 'False',
             BROTLI_DECODER_RESULT_ERROR: 'BROTLI_DECODER_RESULT_ERROR',
@@ -79,15 +79,21 @@ def brotli_version():
     cdef:
         uint32_t ver = BrotliDecoderVersion()
 
-    return 'brotli {}.{}.{}'.format(ver >> 24, (ver >> 12) & 4095, ver & 4095)
+    return f'brotli {ver >> 24}.{(ver >> 12) & 0xFFF}.{ver & 0xFFF}'
 
 
-def brotli_check(data):
-    """Return whether data is BROTLI encoded."""
+def brotli_check(const uint8_t[::1] data, /):
+    """Return whether data is BROTLI encoded or None if unknown."""
 
 
 def brotli_encode(
-    data, level=None, mode=None, lgwin=None, out=None
+    data,
+    /,
+    level=None,
+    *,
+    mode=None,
+    lgwin=None,
+    out=None,
 ):
     """Return BROTLI encoded data."""
     cdef:
@@ -98,9 +104,19 @@ def brotli_encode(
         size_t encoded_size
         BROTLI_BOOL ret = BROTLI_FALSE
         BrotliEncoderMode mode_ = BROTLI_MODE_GENERIC if mode is None else mode
-        int quality_ = _default_value(level, 11, 0, 11)
-        int lgwin_ = _default_value(lgwin, 22, 10, 24)
-        # int lgblock_ = _default_value(lgblock, 0, 16, 24)
+        int quality_ = _default_value(
+            # anything higher than 9 is very slow
+            level, 4, BROTLI_MIN_QUALITY, BROTLI_MAX_QUALITY
+        )
+        int lgwin_ = _default_value(
+            lgwin, 22, BROTLI_MIN_WINDOW_BITS, BROTLI_MAX_WINDOW_BITS
+        )
+        # int lgblock_ = _default_value(
+        #     lgblock,
+        #     0,
+        #     BROTLI_MIN_INPUT_BLOCK_BITS,
+        #     BROTLI_MAX_INPUT_BLOCK_BITS
+        # )
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -110,7 +126,9 @@ def brotli_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use streaming interface with dynamic buffer
-            dstsize = <ssize_t> BrotliEncoderMaxCompressedSize(<size_t> srcsize)
+            dstsize = <ssize_t> BrotliEncoderMaxCompressedSize(
+                <size_t> srcsize
+            )
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -134,7 +152,12 @@ def brotli_encode(
     return _return_output(out, dstsize, encoded_size, outgiven)
 
 
-def brotli_decode(data, out=None):
+def brotli_decode(
+    data,
+    /,
+    *,
+    out=None,
+):
     """Return decoded BROTLI data."""
     cdef:
         const uint8_t[::1] src = data
@@ -149,10 +172,10 @@ def brotli_decode(data, out=None):
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
+    if out is None and dstsize < 0:
+        return _brotli_decode(data, outtype)
+
     if out is None:
-        if dstsize < 0:
-            # TODO: use streaming API with dynamic buffer
-            dstsize = srcsize * 4
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -171,3 +194,138 @@ def brotli_decode(data, out=None):
 
     del dst
     return _return_output(out, dstsize, decoded_size, outgiven)
+
+
+cdef _brotli_decode(const uint8_t[::1] src, outtype):
+    """Decompress using streaming API."""
+    cdef:
+        output_t* output = NULL
+        uint8_t* next_in = NULL
+        uint8_t* next_out = NULL
+        size_t srcsize = <size_t> src.size
+        size_t available_in, available_out, incsize
+        BrotliDecoderState* state = NULL
+        BrotliDecoderResult ret = BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT
+
+    try:
+        with nogil:
+            state = BrotliDecoderCreateInstance(NULL, NULL, NULL)
+            if state == NULL:
+                raise BrotliError('BrotliDecoderCreateInstance', None)
+
+            output = output_new(NULL, _align_size_t(srcsize * 2))
+            if output == NULL:
+                raise MemoryError('output_new failed')
+
+            next_in = <uint8_t*> &src[0]
+            available_in = srcsize
+            next_out = output.data
+            available_out = output.size
+
+            while ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+
+                ret = BrotliDecoderDecompressStream(
+                    state,
+                    &available_in,
+                    <const uint8_t**> &next_in,
+                    &available_out,
+                    &next_out,
+                    NULL
+                )
+
+                if (
+                    ret == BROTLI_DECODER_RESULT_ERROR
+                    or ret == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT
+                ):
+                    raise BrotliError('BrotliDecoderDecompressStream', ret)
+
+                output.pos = output.size - available_out
+
+                if ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+                    incsize = _align_size_t(srcsize)
+                    if output_resize(output, output.size + incsize) == 0:
+                        raise MemoryError('output_resize failed')
+                    next_out = output.data + output.pos
+                    available_out += incsize
+
+        if ret != BROTLI_DECODER_RESULT_SUCCESS:
+            raise BrotliError('BrotliDecoderDecompressStream', ret)
+
+        out = _create_output(
+            outtype, output.pos, <const char*> output.data
+        )
+
+    finally:
+        output_del(output)
+        if state != NULL:
+            BrotliDecoderDestroyInstance(state)
+
+    return out
+
+
+# Output Stream ###############################################################
+
+ctypedef struct output_t:
+    uint8_t* data
+    size_t size
+    size_t pos
+    size_t used
+    int owner
+
+
+cdef output_t* output_new(uint8_t* data, size_t size) noexcept nogil:
+    """Return new output."""
+    cdef:
+        output_t* output = <output_t*> calloc(1, sizeof(output_t))
+
+    if output == NULL:
+        return NULL
+    output.size = size
+    output.used = 0
+    output.pos = 0
+    if data == NULL:
+        output.owner = 1
+        output.data = <uint8_t*> malloc(size)
+    else:
+        output.owner = 0
+        output.data = data
+    if output.data == NULL:
+        free(output)
+        return NULL
+    return output
+
+
+cdef void output_del(output_t* output) noexcept nogil:
+    """Free output."""
+    if output != NULL:
+        if output.owner != 0:
+            free(output.data)
+        free(output)
+
+
+cdef int output_seek(output_t* output, size_t pos) noexcept nogil:
+    """Seek output to position."""
+    if output == NULL or pos > output.size:
+        return 0
+    output.pos = pos
+    if pos > output.used:
+        output.used = pos
+    return 1
+
+
+cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
+    """Resize output."""
+    cdef:
+        uint8_t* tmp
+
+    if output == NULL or newsize == 0 or output.used > output.size:
+        return 0
+    if newsize == output.size or output.owner == 0:
+        return 1
+
+    tmp = <uint8_t*> realloc(<void*> output.data, newsize)
+    if tmp == NULL:
+        return 0
+    output.data = tmp
+    output.size = newsize
+    return 1
