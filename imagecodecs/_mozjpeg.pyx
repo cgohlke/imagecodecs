@@ -1,13 +1,12 @@
 # imagecodecs/_mozjpeg.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2021-2025, Christoph Gohlke
+# Copyright (c) 2021-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""MOZJPEG codec for the imagecodecs package."""
+"""MOZJPEG (Mozilla JPEG Encoder) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -84,9 +83,11 @@ def mozjpeg_version():
     )
 
 
-def mozjpeg_check(const uint8_t[::1] data):
-    """Return whether data is JPEG encoded image."""
-    sig = bytes(data[:10])
+def mozjpeg_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEG encoded image or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:10])
+
     return (
         sig[:4] == b'\xFF\xD8\xFF\xDB'
         or sig[:4] == b'\xFF\xD8\xFF\xEE'
@@ -98,7 +99,9 @@ def mozjpeg_check(const uint8_t[::1] data):
 
 def mozjpeg_encode(
     data,
+    /,
     level=None,
+    *,
     colorspace=None,
     outcolorspace=None,
     subsampling=None,
@@ -107,7 +110,7 @@ def mozjpeg_encode(
     notrellis=None,
     quanttable=None,
     progressive=None,
-    out=None
+    out=None,
 ):
     """Return JPEG encoded image."""
     cdef:
@@ -124,7 +127,7 @@ def mozjpeg_encode(
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
-        char msg[200]  # JMSG_LENGTH_MAX
+        char[200] msg  # JMSG_LENGTH_MAX
         int h_samp_factor = 0
         int v_samp_factor = 0
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
@@ -136,7 +139,7 @@ def mozjpeg_encode(
     if not (
         src.dtype == numpy.uint8
         and src.ndim in {2, 3}
-        # src.nbytes <= 2147483647 and  # limit to 2 GB
+        # src.nbytes <= INT32_MAX and  # limit to 2 GB
         and samples in {1, 3, 4}
         and src.strides[src.ndim-1] == src.itemsize
         and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
@@ -195,7 +198,7 @@ def mozjpeg_encode(
     if out is not None:
         dst = out
         dstsize = dst.nbytes
-        outsize = <unsigned long> dstsize
+        outsize = <unsigned long> dst.size  # validates overflow
         outbuffer = <unsigned char*> &dst[0]
 
     with nogil:
@@ -274,11 +277,13 @@ def mozjpeg_encode(
 
 def mozjpeg_decode(
     data,
+    /,
+    *,
     tables=None,
     colorspace=None,
     outcolorspace=None,
     shape=None,
-    out=None
+    out=None,
 ):
     """Return decoded JPEG image."""
     cdef:
@@ -286,7 +291,7 @@ def mozjpeg_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
         unsigned long tablesize = 0
-        ssize_t srcsize = src.size
+        size_t srcsize = <size_t> src.size
         ssize_t dstsize
         ssize_t rowstride
         my_error_mgr err
@@ -296,14 +301,13 @@ def mozjpeg_decode(
         J_COLOR_SPACE out_color_space
         JDIMENSION width = 0
         JDIMENSION height = 0
-        char msg[200]  # JMSG_LENGTH_MAX
+        char[200] msg  # JMSG_LENGTH_MAX
 
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if srcsize >= 4294967296U:
-        # limit to 4 GB
-        raise ValueError('data too large')
+    if srcsize > ULONG_MAX:
+        raise ValueError(f'{srcsize=} > {ULONG_MAX}')
 
     if colorspace is None:
         jpeg_color_space = JCS_UNKNOWN
@@ -326,7 +330,6 @@ def mozjpeg_decode(
         width = <JDIMENSION> shape[1]
 
     with nogil:
-
         cinfo.err = jpeg_std_error(&err.pub)
         err.pub.error_exit = my_error_exit
         err.pub.output_message = my_output_message
@@ -399,7 +402,7 @@ cdef void my_output_message(jpeg_common_struct* cinfo) noexcept nogil:
     pass
 
 
-cdef _jcs_colorspace(colorspace):
+cdef J_COLOR_SPACE _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
