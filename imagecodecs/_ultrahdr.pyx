@@ -1,13 +1,12 @@
 # imagecodecs/_ultrahdr.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2024-2025, Christoph Gohlke
+# Copyright (c) 2024-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Ultra HDR (JPEG_R) codec for the imagecodecs package."""
+"""ULTRAHDR (Ultra HDR, JPEG_R) codec for the imagecodecs package."""
 
 include '_shared.pxi'
 
@@ -44,12 +43,12 @@ from libultrahdr cimport *
 
 
 class ULTRAHDR:
-    """Ultra HDR codec constants."""
+    """ULTRAHDR codec constants."""
 
     available = True
 
     class CG(enum.IntEnum):
-        """Ultra HDR color gamut."""
+        """ULTRAHDR color gamut."""
 
         UNSPECIFIED = UHDR_CG_UNSPECIFIED
         BT_709 = UHDR_CG_BT_709
@@ -57,7 +56,7 @@ class ULTRAHDR:
         BT_2100 = UHDR_CG_BT_2100
 
     class CT(enum.IntEnum):
-        """Ultra HDR color transfer."""
+        """ULTRAHDR color transfer."""
 
         UNSPECIFIED = UHDR_CT_UNSPECIFIED
         LINEAR = UHDR_CT_LINEAR
@@ -66,28 +65,28 @@ class ULTRAHDR:
         SRGB = UHDR_CT_SRGB
 
     class CR(enum.IntEnum):
-        """Ultra HDR color range."""
+        """ULTRAHDR color range."""
 
         UNSPECIFIED = UHDR_CR_UNSPECIFIED
         LIMITED_RANGE = UHDR_CR_LIMITED_RANGE
         FULL_RANGE = UHDR_CR_FULL_RANGE
 
     class CODEC(enum.IntEnum):
-        """Ultra HDR codec."""
+        """ULTRAHDR codec."""
 
         JPEG = UHDR_CODEC_JPG
         HEIF = UHDR_CODEC_HEIF
         AVIF = UHDR_CODEC_AVIF
 
     class USAGE(enum.IntEnum):
-        """Ultra HDR codec."""
+        """ULTRAHDR codec."""
 
         REALTIME = UHDR_USAGE_REALTIME
         QUALITY = UHDR_USAGE_BEST_QUALITY
 
 
 class UltrahdrError(RuntimeError):
-    """Ultra HDR codec exceptions."""
+    """ULTRAHDR codec exceptions."""
 
     def __init__(self, func, code=None, detail=None):
         if code is None:
@@ -105,14 +104,16 @@ def ultrahdr_version():
     return 'libultrahdr ' + UHDR_LIB_VERSION_STR.decode()
 
 
-def ultrahdr_check(const uint8_t[::1] data):
-    """Return whether data is Ultra HDR encoded."""
+def ultrahdr_check(const uint8_t[::1] data, /):
+    """Return whether data is ULTRAHDR encoded or None if unknown."""
     return bool(is_uhdr_image(<void*> &data[0], <int> data.size))
 
 
 def ultrahdr_encode(
     data,
+    /,
     level=None,
+    *,
     scale=None,
     gamut=None,
     transfer=None,
@@ -120,9 +121,9 @@ def ultrahdr_encode(
     crange=None,
     usage=None,
     codec=None,
-    out=None
+    out=None,
 ):
-    """Return Ultra HDR encoded data.
+    """Return ULTRAHDR encoded data.
 
     Only 64bppRGBAHalfFloat and 32bppRGBA1010102 data are supported.
 
@@ -147,11 +148,11 @@ def ultrahdr_encode(
         src.ndim not in {2, 3}
         or src.shape[0] > 65535
         or src.shape[1] > 65535
-        or src.nbytes > 2147483647
+        or src.nbytes > INT32_MAX
         or (src.ndim == 2 and src.dtype.char not in 'IL')
         or (src.ndim == 3 and (src.dtype.char != 'e' or src.shape[2] != 4))
     ):
-        raise ValueError('data shape not supported')
+        raise ValueError('data shape or dtype not supported')
 
     if usage is not None:
         preset = usage
@@ -309,23 +310,30 @@ def ultrahdr_encode(
 
 def ultrahdr_decode(
     data,
+    /,
+    *,
     dtype=None,
     transfer=None,
     boost=None,
     gpu=False,
-    out=None
+    out=None,
 ):
-    """Return decoded Ultra HDR image."""
+    """Return decoded ULTRAHDR image.
+
+    dtype controls output format and color transfer:
+
+        - float16 (default): linear RGBA, shape (H, W, 4)
+        - uint8: SRGB RGBA, shape (H, W, 4)
+        - uint16: unpacked RGBA1010102, Hybrid Log-Gamma (HLG), shape (H, W, 4)
+        - uint32: packed RGBA1010102, Hybrid Log-Gamma (HLG), shape (H, W)
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t i, j, instride, outstride, width, height, bpp
-        uint32_t temp = 0
-        uint16_t color = 0
+        ssize_t width, height, bpp
         bint enable_gpu = bool(gpu)
         float display_boost = 0.0 if boost is None else boost
-        char* outptr = NULL
-        char* inptr = NULL
         uhdr_codec_private_t* decoder = NULL
         uhdr_compressed_image_t compressed_image
         uhdr_raw_image_t* raw_image
@@ -342,10 +350,9 @@ def ultrahdr_decode(
     elif dtype.char == 'B':
         fmt = UHDR_IMG_FMT_32bppRGBA8888
         otf = UHDR_CT_SRGB
-    # elif dtype.char == 'H':
-    #     # TODO: this is disabled because of crashes in CRT
-    #     fmt = UHDR_IMG_FMT_32bppRGBA1010102
-    #     otf = UHDR_CT_HLG  # or UHDR_CT_PQ
+    elif dtype.char == 'H':
+        fmt = UHDR_IMG_FMT_32bppRGBA1010102
+        otf = UHDR_CT_HLG  # or UHDR_CT_PQ
     elif dtype.kind == 'u' and dtype.itemsize == 4:
         fmt = UHDR_IMG_FMT_32bppRGBA1010102
         otf = UHDR_CT_HLG  # or UHDR_CT_PQ
@@ -425,16 +432,6 @@ def ultrahdr_decode(
             if height < 0:
                 raise UltrahdrError('uhdr_dec_get_image_height', height)
 
-            with gil:
-                if dtype.itemsize == 4:
-                    out = _create_array(out, (height, width), dtype)
-                    bpp = dtype.itemsize
-                else:
-                    out = _create_array(out, (height, width, 4), dtype)
-                    bpp = dtype.itemsize * 4
-                dst = out
-                outptr = dst.data
-
             error = uhdr_decode(decoder)
             if error.error_code != UHDR_CODEC_OK:
                 raise UltrahdrError(
@@ -451,48 +448,84 @@ def ultrahdr_decode(
                     f' != ({height}, {width})'
                 )
 
-            inptr = <char*> raw_image.planes[UHDR_PLANE_PACKED]
-            instride = raw_image.stride[UHDR_PLANE_PACKED] * bpp
-            outstride = width * bpp
+            with gil:
+                if dtype.itemsize == 4:
+                    out = _create_array(out, (height, width), dtype)
+                    bpp = 4
+                else:
+                    out = _create_array(out, (height, width, 4), dtype)
+                    bpp = dtype.itemsize * 4
+                dst = out
 
             if fmt == UHDR_IMG_FMT_32bppRGBA1010102 and bpp == 8:
-                # unpack RGBA1010102
-                # TODO: this crashes in msvcrt, why?
-                instride /= 2
-                for i in range(raw_image.h):
-                    for j in range(raw_image.w):
-                        memcpy(<void*> &temp, <const void*> inptr[j * 4], 4)
-                        j *= 8
-                        # 10 bit red
-                        color = <uint16_t> (temp & 4095)
-                        memcpy(<void*> (outptr + j), <const void*> &color, 2)
-                        # 10 bit green
-                        color = <uint16_t> ((temp >> 10) & 4095)
-                        memcpy(
-                            <void*> (outptr + j + 2), <const void*> &color, 2
-                        )
-                        # 10 bit blue
-                        color = <uint16_t> ((temp >> 20) & 4095)
-                        memcpy(
-                            <void*> (outptr + j + 4), <const void*> &color, 2
-                        )
-                        # 2 bit alpha
-                        color = <uint16_t> ((temp >> 30) & 3)
-                        memcpy(
-                            <void*> (outptr + j + 6), <const void*> &color, 2
-                        )
-                    inptr += instride
-                    outptr += outstride
+                _uhdr_unpack_rgba1010102(
+                    <uint16_t*> dst.data,
+                    <uint32_t*> raw_image.planes[UHDR_PLANE_PACKED],
+                    <ssize_t> raw_image.stride[UHDR_PLANE_PACKED],
+                    height,
+                    width
+                )
             else:
-                for i in range(raw_image.h):
-                    memcpy(
-                        outptr + i * outstride,
-                        inptr + i * instride,
-                        outstride
-                    )
+                _uhdr_copy_image(
+                    dst.data,
+                    <char*> raw_image.planes[UHDR_PLANE_PACKED],
+                    width * bpp,
+                    <ssize_t> raw_image.stride[UHDR_PLANE_PACKED] * bpp,
+                    height
+                )
 
     finally:
         if decoder != NULL:
             uhdr_release_decoder(decoder)
 
     return dst
+
+
+cdef inline void _uhdr_copy_image(
+    char* dst,
+    char* src,
+    const ssize_t dststride,
+    const ssize_t srcstride,
+    const ssize_t height,
+) noexcept nogil:
+    """Copy decoded image."""
+    cdef:
+        ssize_t i
+
+    for i in range(height):
+        memcpy(
+            <void*> (dst + i * dststride),
+            <const void*> (src + i * srcstride),
+            dststride
+        )
+
+
+cdef inline void _uhdr_unpack_rgba1010102(
+    uint16_t* dst,
+    uint32_t* src,
+    const ssize_t stride,
+    const ssize_t height,
+    const ssize_t width,
+) noexcept nogil:
+    """Unpack UHDR_IMG_FMT_32bppRGBA1010102 to uint16."""
+    cdef:
+        ssize_t i, j, k
+        uint32_t rgba
+
+    k = 0
+    for j in range(height):
+        for i in range(width):
+            rgba = src[i]
+            # 10 bit red
+            dst[k] = <uint16_t> (rgba & 0x3ff)
+            k += 1
+            # 10 bit green
+            dst[k] = <uint16_t> ((rgba >> 10) & 0x3ff)
+            k += 1
+            # 10 bit blue
+            dst[k] = <uint16_t> ((rgba >> 20) & 0x3ff)
+            k += 1
+            # 2 bit alpha
+            dst[k] = <uint16_t> ((rgba >> 30) & 0x3)  # << 8
+            k += 1
+        src += stride
