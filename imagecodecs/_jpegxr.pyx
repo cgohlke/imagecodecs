@@ -1,13 +1,12 @@
 # imagecodecs/_jpegxr.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2016-2025, Christoph Gohlke
+# Copyright (c) 2016-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""JPEG XR codec for the imagecodecs package.
+"""JPEGXR (JPEG eXtended Range) codec for the imagecodecs package.
 
 The JPEG XR format is also known as HD Photo or Windows Media Photo.
 
@@ -106,17 +105,19 @@ def jpegxr_version():
     return f'jxrlib {ver >> 8}.{ver & 255}'
 
 
-def jpegxr_check(data):
-    """Return whether data is JPEGXR encoded image."""
+def jpegxr_check(const uint8_t[::1] data, /):
+    """Return whether data is JPEGXR encoded image or None if unknown."""
 
 
 def jpegxr_encode(
     data,
+    /,
     level=None,
+    *,
     photometric=None,
     hasalpha=None,
     resolution=None,
-    out=None
+    out=None,
 ):
     """Return JPEGXR encoded image."""
     cdef:
@@ -176,8 +177,7 @@ def jpegxr_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
         if dstsize <= 0:
-            dstsize = srcsize // 2
-            dstsize = (((dstsize - 1) // 4096) + 1) * 4096
+            dstsize = _align_ssize_t(srcsize // 2)
         elif dstsize < 4096:
             dstsize = 4096
         outbuffer = <U8*> malloc(dstsize)
@@ -275,7 +275,13 @@ def jpegxr_encode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
-def jpegxr_decode(data, fp2int=False, out=None):
+def jpegxr_decode(
+    data,
+    /,
+    *,
+    fp2int=False,
+    out=None,
+):
     """Return decoded JPEGXR image.
 
     fp2int: bool
@@ -380,7 +386,7 @@ def jpegxr_decode(data, fp2int=False, out=None):
 cdef ERR WriteWS_Memory(
     WMPStream* pWS,
     const void* pv,
-    size_t cb
+    size_t cb,
 ) noexcept nogil:
     """Replacement for WriteWS_Memory to keep track of bytes written."""
     if pWS.state.buf.cbCur + cb < pWS.state.buf.cbCur:
@@ -401,7 +407,7 @@ cdef ERR WriteWS_Memory(
 cdef ERR WriteWS_Realloc(
     WMPStream* pWS,
     const void* pv,
-    size_t cb
+    size_t cb,
 ) noexcept nogil:
     """Replacement for WriteWS_Memory to realloc buffers on overflow.
 
@@ -416,14 +422,14 @@ cdef ERR WriteWS_Realloc(
     if pWS.state.buf.cbBuf < newsize:
         if newsize <= pWS.state.buf.cbBuf * 1.125:
             # moderate upsize: overallocate
-            newsize = newsize + newsize // 8
-            newsize = (((newsize-1) // 4096) + 1) * 4096
+            newsize = _align_size_t(newsize + newsize // 8)
         else:
             # major upsize: resize to exact size
-            newsize = newsize + 1
+            newsize = _align_size_t(newsize + 1)
         pWS.state.buf.pbBuf = <U8*> realloc(
             <void*> pWS.state.buf.pbBuf,
-            newsize)
+            newsize
+        )
         if pWS.state.buf.pbBuf == NULL:
             return WMP_errOutOfMemory
         pWS.state.buf.cbBuf = newsize
@@ -439,7 +445,7 @@ cdef ERR WriteWS_Realloc(
 
 
 cdef Bool EOSWS_Realloc(
-    WMPStream* pWS
+    WMPStream* pWS,
 ) noexcept nogil:
     """Replacement for EOSWS_Memory."""
     # return pWS.state.buf.cbBuf <= pWS.state.buf.cbCur
@@ -449,7 +455,7 @@ cdef Bool EOSWS_Realloc(
 cdef ERR PKCodecFactory_CreateDecoderFromBytes(
     void* bytes,
     size_t len,
-    PKImageDecode** ppDecode
+    PKImageDecode** ppDecode,
 ) noexcept nogil:
     """Create PKImageDecode from byte string."""
     cdef:
@@ -484,7 +490,7 @@ cdef ERR jxr_decode_guid(
     int* typenum,
     ssize_t* samples,
     U8* alpha,
-    bint fp2int
+    bint fp2int,
 ) noexcept nogil:
     """Return dtype, samples, alpha from GUID.
 
@@ -757,7 +763,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
     numpy.dtype dtype,
     ssize_t samples,
     int photometric,
-    int* alpha
+    int* alpha,
 ) noexcept nogil:
     """Return pixel format GUID from dtype, samples, and photometric."""
     cdef:
@@ -866,7 +872,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
     return GUID_PKPixelFormatDontCare
 
 
-cdef _jxr_encode_photometric(photometric):
+cdef int _jxr_encode_photometric(photometric):
     """Return PK_PI value from photometric argument."""
     if photometric is None:
         return -1
@@ -949,7 +955,7 @@ cdef ERR jxr_set_encoder(
     PKPixelInfo* pixelinfo,
     double quality,
     int alpha,
-    int pi
+    int pi,
 ) noexcept nogil:
     """Set encoder compression parameters from level argument and pixel format.
 
@@ -1029,7 +1035,7 @@ cdef ERR jxr_set_encoder(
     return WMP_errSuccess
 
 
-cdef _pixelformat_str(PKPixelFormatGUID* pf):
+cdef str _pixelformat_str(PKPixelFormatGUID* pf):
     """Return PKPixelFormatGUID as string."""
     return (
         'PKPixelFormatGUID '
