@@ -1,13 +1,12 @@
 # imagecodecs/_heif.pyx
 # distutils: language = c
-# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: cdivision = True
 # cython: nonecheck = False
 # cython: freethreading_compatible = True
 
-# Copyright (c) 2022-2025, Christoph Gohlke
+# Copyright (c) 2022-2026, Christoph Gohlke
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -36,7 +35,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""HEIF codec for the imagecodecs package.
+"""HEIF (High Efficiency Image File Format) codec for the imagecodecs package.
 
 Libheif does not currently support image sequences/tracks, or bursts.
 This implementation reads and writes sequences of top level images only.
@@ -54,7 +53,7 @@ class HEIF:
     available = True
 
     class COMPRESSION(enum.IntEnum):
-        """HEIF codec compression levels."""
+        """HEIF codec compression types."""
 
         UNDEFINED = heif_compression_undefined
         HEVC = heif_compression_HEVC  # H.265
@@ -89,8 +88,8 @@ def heif_version():
     return 'libheif ' + heif_get_version().decode()
 
 
-def heif_check(const uint8_t[::1] data):
-    """Return whether data is HEIF encoded image."""
+def heif_check(const uint8_t[::1] data, /):
+    """Return whether data is HEIF encoded image or None if unknown."""
     cdef:
         heif_filetype_result result
 
@@ -110,11 +109,13 @@ def heif_check(const uint8_t[::1] data):
 
 def heif_encode(
     data,
+    /,
     level=None,
+    *,
     bitspersample=None,
     photometric=None,
     compression=None,
-    out=None
+    out=None,
 ):
     """Return HEIF encoded image."""
     cdef:
@@ -150,10 +151,10 @@ def heif_encode(
         src.dtype in {numpy.uint8, numpy.uint16}
         # and numpy.PyArray_ISCONTIGUOUS(src)
         and src.ndim in {2, 3, 4}
-        and src.shape[0] <= 2147483647
-        and src.shape[1] <= 2147483647
-        and src.shape[src.ndim - 1] <= 2147483647
-        and src.shape[src.ndim - 2] <= 2147483647
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
+        and src.shape[src.ndim - 1] <= INT32_MAX
+        and src.shape[src.ndim - 2] <= INT32_MAX
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
@@ -214,8 +215,10 @@ def heif_encode(
         compressed = output_new(
             NULL,
             max(
-                <ssize_t> 32768,
-                src.size // <ssize_t> (4 if lossless != 0 else 16)
+                <size_t> 32768,
+                _align_size_t(
+                    <size_t> src.size // (4 if lossless != 0 else 16)
+                )
             )
         )
     if compressed == NULL:
@@ -454,7 +457,14 @@ def heif_encode(
     return out
 
 
-def heif_decode(data, index=0, photometric=None, out=None):
+def heif_decode(
+    data,
+    /,
+    index=0,
+    *,
+    photometric=None,
+    out=None,
+):
     """Return decoded HEIF image.
 
     By default, the first top level image is returned. If index is None, all
@@ -527,7 +537,7 @@ def heif_decode(data, index=0, photometric=None, out=None):
 
             if imageindex >= imagecount:
                 raise IndexError(
-                    f'index {imageindex} out of range {imagecount}'
+                    f'index {imageindex} out of range [0, {imagecount}]'
                 )
 
             if imagecount == 1:
@@ -722,7 +732,7 @@ def heif_decode(data, index=0, photometric=None, out=None):
     return out
 
 
-cdef _heif_photometric(photometric):
+cdef heif_colorspace _heif_photometric(photometric):
     """Return heif_colorspace value from photometric argument."""
     if photometric is None:
         return heif_colorspace_undefined
@@ -746,7 +756,7 @@ cdef _heif_photometric(photometric):
     raise ValueError(f'{photometric=!r} not supported')
 
 
-cdef _heif_compression(compression):
+cdef heif_compression_format _heif_compression(compression):
     """Return heif_compression_format value from compression argument."""
     if compression is None:
         return heif_compression_HEVC
@@ -850,7 +860,7 @@ cdef int output_write(
     if output == NULL:
         return 0
     if output.pos + size > output.size:
-        if output_resize(output, output.pos + size) == 0:
+        if output_resize(output, _align_size_t(output.pos + size)) == 0:
             return 0
     memcpy(<void*> (output.data + output.pos), data, size)
     output.pos += size
