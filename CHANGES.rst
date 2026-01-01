@@ -1,9 +1,25 @@
 Revisions
 ---------
 
+2026.1.1
+
+- Pass 7850 tests.
+- Enforce positional-only and keyword-only parameters (breaking).
+- Base numcodecs.Jpeg on JPEG8 codec (breaking).
+- Add HTJ2K codec based on OpenJPH library (#125).
+- Add MESHOPT codec based on meshoptimizer library.
+- Fix decoding concatenated ZStandard frames.
+- Fix potential issues in TIFF and WEBP codecs.
+- Fix pyi stub file.
+- Change default Brotli compression level to 4.
+- Use Brotli streaming API for decoding.
+- Enable decoding UltraHDR to uint16.
+- Tweak memory allocation and reallocation strategies.
+- Use fused types.
+- Improve code quality.
+
 2025.11.11
 
-- Pass 7525 tests.
 - Fix EER superresolution decoding (breaking; see tifffile #313).
 - Add option to eer_decode to add to uint16 array.
 - Add option to specify CICP/NCLX parameters in avif_encode (#131).
