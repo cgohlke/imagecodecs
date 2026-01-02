@@ -694,13 +694,11 @@ def customize_build_mingw(
     for ext in (
         'brunsli',
         'heif',
-        'htj2k',
         'jetraw',
         'jpegxs',
         'lzfse',
         'lzham',
         'lzo',
-        'meshopt',
         'mozjpeg',
         'openzl',
         'pcodec',
