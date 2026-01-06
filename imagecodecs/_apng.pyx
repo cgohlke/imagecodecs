@@ -99,10 +99,7 @@ def apng_version():
 
 def apng_check(const uint8_t[::1] data, /):
     """Return whether data is APNG encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:8])
-
-    return sig == b'\x89PNG\r\n\x1a\n'
+    return png_sig_cmp(&data[0], 0, 8) == 0
 
 
 def apng_encode(
