@@ -279,8 +279,8 @@ def customize_build_default(
 ) -> None:
     """Customize default, minimal build.
 
-    Only build extensions required by core dependent libraries (tifffile,
-    and czifile).
+    Only build extensions required by core dependent libraries
+    (tifffile, liffile, and czifile).
 
     Works on Ubuntu 24.04
 
@@ -336,7 +336,7 @@ def customize_build_cgohlke(
     options['library_dirs'].append(os.path.join(inclib, 'include'))
 
     # remove unstable extensions
-    extensions.pop('brunsli', None)
+    # extensions.pop('brunsli', None)
     extensions.pop('pcodec', None)
     # extensions.pop('sperr', None)
     # extensions.pop('sz3', None)
@@ -694,13 +694,11 @@ def customize_build_mingw(
     for ext in (
         'brunsli',
         'heif',
-        'htj2k',
         'jetraw',
         'jpegxs',
         'lzfse',
         'lzham',
         'lzo',
-        'meshopt',
         'mozjpeg',
         'openzl',
         'pcodec',
