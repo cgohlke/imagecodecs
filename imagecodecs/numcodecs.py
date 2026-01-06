@@ -118,7 +118,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any, Literal
 
-    from numpy.typing import DTypeLike, NDArray
+    from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 
 class Aec(Codec):
@@ -1003,6 +1003,8 @@ class Htj2k(Codec):
         tile: tuple[int, int] | None = None,
         resolutions: int | None = None,
         reversible: bool | None = None,
+        tlm: bool | None = None,
+        tilepart: int | None = None,
         skipres: int | None = None,
         resilient: bool = False,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1017,6 +1019,8 @@ class Htj2k(Codec):
         self.tile = None if tile is None else (int(tile[0]), int(tile[1]))
         self.resolutions = None if resolutions is None else int(resolutions)
         self.reversible = None if reversible is None else bool(reversible)
+        self.tlm = None if tlm is None else bool(tlm)
+        self.tilepart = None if tilepart is None else int(tilepart)
         self.skipres = None if skipres is None else int(skipres)
         self.resilient = bool(resilient)
         self.squeeze = squeeze
@@ -1031,6 +1035,8 @@ class Htj2k(Codec):
             tile=self.tile,
             resolutions=self.resolutions,
             reversible=self.reversible,
+            tlm=self.tlm,
+            tilepart=self.tilepart,
         )
 
     def decode(self, buf, out=None):
@@ -2210,8 +2216,26 @@ class Tiff(Codec):
     def __init__(
         self,
         *,
+        # decode
         index: int | None = None,
         asrgb: bool = False,
+        # encode
+        bigtiff: bool | None = None,
+        byteorder: int | str | None = None,
+        photometric: int | str | None = None,
+        planarconfig: int | str | None = None,
+        extrasample: int | None = None,
+        tile: tuple[int, int] | None = None,
+        rowsperstrip: int | None = None,
+        compression: int | str | None = None,
+        level: int | None = None,
+        predictor: bool | int | None = None,
+        colormap: ArrayLike | None = None,
+        description: str | None = None,
+        datetime: str | None = None,
+        resolution: tuple[float, float] | None = None,
+        resolutionunit: int | None = None,
+        software: str | None = None,
         verbose: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
@@ -2219,15 +2243,54 @@ class Tiff(Codec):
             msg = 'imagecodecs.TIFF not available'
             raise ValueError(msg)
 
+        self.bigtiff = None if bigtiff is None else bool(bigtiff)
+        self.byteorder = byteorder
+        self.photometric = photometric
+        self.planarconfig = planarconfig
+        self.extrasample = extrasample
+        self.tile = tile
+        self.rowsperstrip = rowsperstrip
+        self.compression = compression
+        self.level = None if level is None else int(level)
+        self.predictor = predictor
+        self.colormap = (
+            None
+            if colormap is None
+            else numpy.ascontiguousarray(colormap, dtype=numpy.uint16)
+        )
+        self.resolution = resolution
+        self.resolutionunit = resolutionunit
+        self.description = description
+        self.datetime = datetime
+        self.software = software
+
         self.index = index
         self.asrgb = bool(asrgb)
         self.verbose = verbose
         self.squeeze = squeeze
 
     def encode(self, buf):
-        # TODO: not implemented
         buf = _image(buf, self.squeeze)
-        return imagecodecs.tiff_encode(buf)
+        return imagecodecs.tiff_encode(
+            buf,
+            bigtiff=self.bigtiff,
+            byteorder=self.byteorder,
+            level=self.level,
+            photometric=self.photometric,
+            planarconfig=self.planarconfig,
+            extrasample=self.extrasample,
+            tile=self.tile,
+            rowsperstrip=self.rowsperstrip,
+            compression=self.compression,
+            predictor=self.predictor,
+            colormap=self.colormap,
+            resolution=self.resolution,
+            resolutionunit=self.resolutionunit,
+            description=self.description,
+            datetime=self.datetime,
+            software=self.software,
+            verbose=self.verbose,
+        )
 
     def decode(self, buf, out=None):
         return imagecodecs.tiff_decode(
