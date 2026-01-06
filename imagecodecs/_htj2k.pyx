@@ -49,6 +49,12 @@ class HTJ2K:
 
     available = True
 
+    class TILEPART(enum.IntFlag):
+        """HTJ2K tile parts divisions."""
+
+        RESOLUTIONS = 1
+        COMPONENTS = 2
+
 
 class Htj2kError(RuntimeError):
     """HTJ2K codec exceptions."""
@@ -97,6 +103,8 @@ def htj2k_encode(
     tile=None,
     resolutions=None,
     reversible=None,
+    tlm=None,  # tile length marker
+    tilepart=None,  # 1: resolutions, 2: components, 3: both
     out=None,
 ):
     """Return HTJ2K encoded image."""
@@ -115,6 +123,9 @@ def htj2k_encode(
         float quantization_step = _default_value(level, 0.0, 0.0, 1.0)
         bint is_signed = src.dtype.kind == 'i'
         bint is_reversible = reversible
+        bint tlm_needed = tlm
+        bint at_resolutions = False
+        bint at_components = False
         bint color_transform = False
         bint is_planar = False
         char* profile = NULL  # *IMF* and BROADCAST
@@ -128,13 +139,17 @@ def htj2k_encode(
     width = <ui32> src.shape[1]
     samples = 1 if src.ndim == 2 else <ui32> src.shape[2]
 
-    if tile is not None:
-        tile_w, tile_h = tile
-    else:
+    if tile is None:
         tile_w = 0
         tile_h = 0
         if srcsize > UINT32_MAX:
             raise ValueError('single tile size must not exceed 4 GB')
+    else:
+        tile_w, tile_h = tile
+
+    if tilepart is not None:
+        at_resolutions = tilepart & 1  # HTJ2K.TILEPART.RESOLUTIONS
+        at_components = tilepart & 2  # HTJ2K.TILEPART.COMPONENTS
 
     if quantization_step < 0.00001:
         quantization_step = 0.0
@@ -158,6 +173,8 @@ def htj2k_encode(
 
             cs = new codestream()
             cs.set_planar(is_planar)
+            cs.set_tilepart_divisions(at_resolutions, at_components)
+            cs.request_tlm_marker(tlm_needed)
             if profile != NULL:
                 cs.set_profile(profile)
             cs.access_siz().set_image_extent(point(width, height))
