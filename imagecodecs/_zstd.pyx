@@ -92,7 +92,9 @@ def zstd_encode(
         size_t srcsize = src.size
         ssize_t dstsize
         size_t ret
-        int compresslevel = _default_value(level, 5, 1, 22)
+        int compresslevel = _default_value(
+            level, ZSTD_CLEVEL_DEFAULT, 0, 22  # ZSTD_CLEVEL_DEFAULT = 3
+        )
 
     if data is out:
         raise ValueError('cannot encode in-place')
