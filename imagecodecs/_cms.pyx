@@ -294,7 +294,7 @@ def cms_profile(
         cmsCIExyYTRIPLE Primaries
         cmsCIExyYTRIPLE* pPrimaries = NULL
         # cmsToneCurve TransferFunction
-        cmsToneCurve* ppTransferFunction[3]
+        (cmsToneCurve*)[3] ppTransferFunction
         cmsUInt32Number BytesNeeded
         cmsBool ret
         ssize_t tfcount = 0
@@ -419,46 +419,43 @@ def cms_profile(
             hProfile = cmsCreateNULLProfile()
             if hProfile == NULL:
                 raise CmsError('cmsCreateNULLProfile returned NULL')
-        else:
-            if profile == 'gray':
-                hProfile = cmsCreateGrayProfile(
-                    pWhitePoint, ppTransferFunction[0]
+        elif profile == 'gray':
+            hProfile = cmsCreateGrayProfile(pWhitePoint, ppTransferFunction[0])
+            if hProfile == NULL:
+                raise CmsError('cmsCreateGrayProfile returned NULL')
+        elif profile == 'rgb':
+            if ppTransferFunction[0] == NULL:
+                hProfile = cmsCreateRGBProfile(pWhitePoint, pPrimaries, NULL)
+            else:
+                hProfile = cmsCreateRGBProfile(
+                    pWhitePoint, pPrimaries, ppTransferFunction
                 )
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateGrayProfile returned NULL')
-            elif profile == 'rgb':
-                if ppTransferFunction[0] == NULL:
-                    hProfile = cmsCreateRGBProfile(
-                        pWhitePoint, pPrimaries, NULL
-                    )
-                else:
-                    hProfile = cmsCreateRGBProfile(
-                        pWhitePoint, pPrimaries, ppTransferFunction
-                    )
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateRGBProfile returned NULL')
-            elif profile == 'srgb':
-                hProfile = cmsCreate_sRGBProfile()
-                if hProfile == NULL:
-                    raise CmsError('cmsCreate_sRGBProfile returned NULL')
-            elif profile == 'xyz':
-                hProfile = cmsCreateXYZProfile()
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateXYZProfile returned NULL')
-            elif profile == 'lab2':
-                hProfile = cmsCreateLab2Profile(pWhitePoint)
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateLab2Profile returned NULL')
-            elif profile == 'lab4':
-                hProfile = cmsCreateLab4Profile(pWhitePoint)
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateLab4Profile returned NULL')
-            elif profile == 'null':
-                hProfile = cmsCreateNULLProfile()
-                if hProfile == NULL:
-                    raise CmsError('cmsCreateNULLProfile returned NULL')
-            elif profile == 'adobergb':
-                hProfile = _cms_adobe_rgb_compatible()
+            if hProfile == NULL:
+                raise CmsError('cmsCreateRGBProfile returned NULL')
+        elif profile == 'srgb':
+            hProfile = cmsCreate_sRGBProfile()
+            if hProfile == NULL:
+                raise CmsError('cmsCreate_sRGBProfile returned NULL')
+        elif profile == 'xyz':
+            hProfile = cmsCreateXYZProfile()
+            if hProfile == NULL:
+                raise CmsError('cmsCreateXYZProfile returned NULL')
+        elif profile == 'lab2':
+            hProfile = cmsCreateLab2Profile(pWhitePoint)
+            if hProfile == NULL:
+                raise CmsError('cmsCreateLab2Profile returned NULL')
+        elif profile == 'lab4':
+            hProfile = cmsCreateLab4Profile(pWhitePoint)
+            if hProfile == NULL:
+                raise CmsError('cmsCreateLab4Profile returned NULL')
+        elif profile == 'null':
+            hProfile = cmsCreateNULLProfile()
+            if hProfile == NULL:
+                raise CmsError('cmsCreateNULLProfile returned NULL')
+        elif profile == 'adobergb':
+            hProfile = _cms_adobe_rgb_compatible()
+        elif profile == 'linearrgb':
+            hProfile = _cms_linear_rgb()
 
         if hProfile == NULL:
             raise ValueError(f'failed to create CMS {profile=!r}')
@@ -491,7 +488,7 @@ def cms_profile_validate(
     profile,
     /,
     *,
-    verbose=False,
+    verbose=None,
 ):
     """Raise CmsError if ICC profile is invalid."""
     cdef:
@@ -659,7 +656,6 @@ def _cms_format(
     if ndim < 2:
         raise ValueError('invalid shape')
 
-    # TODO: float16 segfaulting
     if dtype.char not in 'BHdfe':
         raise ValueError(f'{dtype=!r} not supported')
 
@@ -876,7 +872,7 @@ cdef cmsHPROFILE _cms_open_profile(object profile):
     return hProfile
 
 
-cdef cmsHPROFILE _cms_adobe_rgb_compatible() nogil:
+cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     """Return handle to Adobe RGB compatible CMS profile."""
     cdef:
         cmsHPROFILE hProfile = NULL
@@ -904,9 +900,10 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() nogil:
     black.Y = 0
     black.Z = 0
 
-    transferfunction = cmsBuildGamma(<cmsContext> NULL, 2.19921875)
-
     hProfile = cmsCreateProfilePlaceholder(<cmsContext> NULL)
+    if hProfile == NULL:
+        return NULL
+
     cmsSetProfileVersion(hProfile, 2.1)
 
     mlu = cmsMLUalloc(<cmsContext> NULL, 1)
@@ -952,10 +949,63 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() nogil:
     ret = cmsWriteTag(hProfile, cmsSigGreenColorantTag, <void*> &color.Green)
     ret = cmsWriteTag(hProfile, cmsSigBlueColorantTag, <void*> &color.Blue)
 
+    transferfunction = cmsBuildGamma(<cmsContext> NULL, 2.19921875)
+    if transferfunction == NULL:
+        cmsCloseProfile(hProfile)
+        return NULL
     ret = cmsWriteTag(hProfile, cmsSigRedTRCTag, <void*> transferfunction)
+    cmsFreeToneCurve(transferfunction)
 
     cmsLinkTag(hProfile, cmsSigGreenTRCTag, cmsSigRedTRCTag)
     cmsLinkTag(hProfile, cmsSigBlueTRCTag, cmsSigRedTRCTag)
+
+    return hProfile
+
+
+cdef cmsHPROFILE _cms_linear_rgb() noexcept nogil:
+    """Return handle to linear RGB CMS profile."""
+    cdef:
+        cmsHPROFILE hProfile = NULL
+        cmsCIExyY whitepoint
+        cmsCIExyYTRIPLE primaries
+        (cmsToneCurve*)[3] transferfunction
+        cmsMLU* mlu = NULL
+
+    # ITU-R Recommendation 709 Primaries
+    primaries.Red.x = 0.6400
+    primaries.Red.y = 0.3300
+    primaries.Red.Y = 1.0
+    primaries.Green.x = 0.3000
+    primaries.Green.y = 0.6000
+    primaries.Green.Y = 1.0
+    primaries.Blue.x = 0.1500
+    primaries.Blue.y = 0.0600
+    primaries.Blue.Y = 1.0
+
+    # CIE Standard Illuminant D65
+    whitepoint.x = 0.3127
+    whitepoint.y = 0.3290
+    whitepoint.Y = 1.0
+
+    transferfunction[0] = cmsBuildGamma(<cmsContext> NULL, 1.0)
+    if transferfunction[0] == NULL:
+        return NULL
+    transferfunction[1] = transferfunction[2] = transferfunction[0]
+
+    hProfile = cmsCreateRGBProfileTHR(
+        <cmsContext> NULL, &whitepoint, &primaries, transferfunction
+    )
+    cmsFreeToneCurve(transferfunction[0])
+    if hProfile == NULL:
+        return NULL
+
+    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
+    if mlu == NULL:
+        cmsCloseProfile(hProfile)
+        return NULL
+    cmsMLUsetASCII(mlu, b'en', b'US\0', 'Linear RGB')
+    cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
+    cmsMLUfree(mlu)
 
     return hProfile
 
