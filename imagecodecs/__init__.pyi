@@ -666,7 +666,7 @@ class APNG:
         RLE = ...
         FIXED = ...
 
-    class FILTER(enum.IntEnum):  # IntFlag
+    class FILTER(enum.IntEnum):
 
         NO = ...
         NONE = ...
@@ -1279,7 +1279,7 @@ def cms_transform(
     outdtype: DTypeLike | None = None,
     intent: CMS.INTENT | int | None = None,
     flags: CMS.FLAGS | int | None = None,
-    verbose: bool | None = None,
+    verbose: int | None = None,
     out: int | bytearray | None = None,
 ) -> NDArray[Any]: ...
 
@@ -1299,7 +1299,7 @@ def cms_profile_validate(
     profile: bytes,
     /,
     *,
-    verbose: bool = False,
+    verbose: int | None = None,
 ) -> None: ...
 
 class DDS:
@@ -1615,6 +1615,11 @@ class HTJ2K:
 
     available: bool
 
+    class TILEPART(enum.IntFlag):
+
+        RESOLUTIONS = ...
+        COMPONENTS = ...
+
 class Htj2kError(RuntimeError): ...
 
 def htj2k_init(
@@ -1633,6 +1638,8 @@ def htj2k_encode(
     tile: tuple[int, int] | None = None,
     resolutions: int | None = None,
     reversible: bool | None = None,
+    tlm: bool | None = None,
+    tilepart: HTJ2K.TILEPART | int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def htj2k_decode(
@@ -2567,7 +2574,7 @@ class PNG:
         RLE = ...
         FIXED = ...
 
-    class FILTER(enum.IntEnum):  # IntFlag
+    class FILTER(enum.IntEnum):
 
         NO = ...
         NONE = ...
@@ -2911,7 +2918,7 @@ class TIFF:
         LZMA = ...
         ZSTD = ...
         WEBP = ...
-        # LERC = ...
+        LERC = ...
         # JXL = ...
 
     class PHOTOMETRIC(enum.IntEnum):
@@ -2941,6 +2948,18 @@ class TIFF:
         ASSOCALPHA = ...
         UNASSALPHA = ...
 
+    class RESUNIT(enum.IntEnum):
+
+        NONE = ...
+        INCH = ...
+        CENTIMETER = ...
+
+    class FILETYPE(enum.IntFlag):
+
+        REDUCEDIMAGE = ...
+        PAGE = ...
+        MASK = ...
+
 class TiffError(RuntimeError): ...
 
 def tiff_version() -> str: ...
@@ -2951,25 +2970,27 @@ def tiff_encode(
     level: int | None = None,
     *,
     bigtiff: bool | None = None,
-    append: bool | None = None,
-    photometric: TIFF.PHOTOMETRIC | int | None = None,
-    planarconfig: TIFF.PLANARCONFIG | int | None = None,
-    extrasamples: tuple[TIFF.EXTRASAMPLE | int, ...] | None = None,
+    byteorder: TIFF.ENDIAN | int | str | None = None,
+    photometric: TIFF.PHOTOMETRIC | int | str | None = None,
+    planarconfig: TIFF.PLANARCONFIG | int | str | None = None,
+    extrasample: TIFF.EXTRASAMPLE | int | str | None = None,
     # volumetric: bool = False,
     tile: tuple[int, int] | None = None,
     rowsperstrip: int | None = None,
-    bitspersample: int | None = None,
-    compression: TIFF.COMPRESSION | int | None = None,
-    predictor: TIFF.PREDICTOR | int | None = None,
-    # colormap: NDArray[Any] | None = None,
+    compression: TIFF.COMPRESSION | int | str | None = None,
+    predictor: bool | TIFF.PREDICTOR | int | None = None,
+    colormap: ArrayLike | None = None,
+    iccprofile: bytes | None = None,
+    resolution: tuple[float, float] | None = None,
+    resolutionunit: TIFF.RESUNIT | int | str | None = None,
+    subfiletype: TIFF.FILETYPE | int | None = None,
     description: str | None = None,
     datetime: str | None = None,
-    resolution: tuple[float, float] | None = None,
-    subfiletype: int = 0,
     software: str | None = None,
-    verbose: bool | None = None,
+    verbose: int | None = None,
+    appendto: bytes | bytearray | None = None,
     out: int | bytearray | None = None,
-) -> NoReturn: ...
+) -> bytes | bytearray: ...
 def tiff_decode(
     data: BytesLike,
     /,
