@@ -53,7 +53,7 @@ Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.1.1
+:Version: 2026.1.14
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -83,13 +83,13 @@ This revision was tested with the following requirements and dependencies
 (other versions may work):
 
 - `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
-- `numpy <https://pypi.org/project/numpy>`_ 2.4.0
+- `numpy <https://pypi.org/project/numpy>`_ 2.4.1
 - `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.16.5
   (optional, for Zarr file format 2 compatible codecs)
 
 Build requirements:
 
-- `cython <https://github.com/cython/cython>`_ 3.2.3
+- `cython <https://github.com/cython/cython>`_ 3.2.4
 - `brotli <https://github.com/google/brotli>`_ 1.2.0
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.6
@@ -102,7 +102,7 @@ Build requirements:
 - `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.4
 - `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.3.0
   (`aom <https://aomedia.googlesource.com/aom>`_ 3.13.1,
-  `dav1d <https://github.com/videolan/dav1d>`_ 1.5.2,
+  `dav1d <https://github.com/videolan/dav1d>`_ 1.5.3,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.8.1,
   `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 3.1.2,
   `libyuv <https://chromium.googlesource.com/libyuv/libyuv>`_ main,
@@ -124,7 +124,7 @@ Build requirements:
 - `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.4
 - `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.0
-- `pcodec <https://github.com/mwlon/pcodec>`_ 0.4.7 (unstable)
+- `pcodec <https://github.com/mwlon/pcodec>`_ 0.4.9 (unstable)
 - `snappy <https://github.com/google/snappy>`_ 1.2.2
 - `sperr <https://github.com/NCAR/SPERR>`_ 0.8.4
 - `sz3 <https://github.com/szcompressor/SZ3>`_ 3.3.2
@@ -181,9 +181,16 @@ Test requirements:
 Revisions
 ---------
 
+2026.1.14
+
+- Pass 8281 tests.
+- Add tiff_encode function.
+- Add extra options for HTJ2K (#134).
+- Add linear RGB option to cms_profile.
+- Change ZSTD default compression level to 3.
+
 2026.1.1
 
-- Pass 7850 tests.
 - Enforce positional-only and keyword-only parameters (breaking).
 - Base numcodecs.Jpeg on JPEG8 codec (breaking).
 - Add HTJ2K codec based on OpenJPH library (#125).
@@ -230,15 +237,6 @@ Revisions
 - Drop support for Python 3.9, deprecate Python 3.10.
 
 2024.12.30
-
-- Fix out parameter array not zeroed in some cases.
-- Fix ultrahdr_encode with linear rgbaf16 input (#108).
-- Fix jpegls_encode with level greater than 9 (#119).
-- Fix jpeg8_encode with bitspersample and lossless=False (#116).
-- Fix excessive buffer allocation in lz4h5_encode (#112).
-- Fix build error with libjpeg (#111).
-
-2024.9.22
 
 - …
 
@@ -291,7 +289,7 @@ Wheels may not be available for all platforms and all releases.
 
 Not all features are available on all platforms.
 
-The ``tiff``, ``bcn``, ``dds``, ``dicomrle``, ``eer``, ``lzo``, ``packints``,
+The ``bcn``, ``dds``, ``dicomrle``, ``eer``, ``lzo``, ``packints``,
 and ``jpegsof3`` codecs are currently decode-only.
 
 The ``brunsli`` and ``pcodec`` codecs are distributed as source code only
@@ -436,11 +434,11 @@ True
 
 Not all codecs are fully implemented, raising exceptions at runtime:
 
->>> from imagecodecs import tiff_encode
->>> tiff_encode(array)
+>>> from imagecodecs import packints_encode
+>>> packints_encode(array, 8)
 Traceback (most recent call last):
  ...
-NotImplementedError: tiff_encode
+NotImplementedError: packints_encode
 
 Write the numpy array to a JP2 file:
 
@@ -502,7 +500,7 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2026.1.1'
+__version__ = '2026.1.14'
 
 import contextlib
 import importlib
