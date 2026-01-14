@@ -31,7 +31,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2026.1.1
+:Version: 2026.1.14
 
 """
 
@@ -93,6 +93,10 @@ else:
     numcodecs.register_codecs()
 
 DATA_PATH = pathlib.Path(os.path.dirname(__file__)) / 'data'
+TIFF_PATH = DATA_PATH / 'tiff/'
+TIFF_FILES = [
+    os.path.split(f)[-1][:-4] for f in glob.glob(str(TIFF_PATH / '*.tif'))
+]
 
 IS_32BIT = sys.maxsize < 2**32
 IS_WIN = sys.platform == 'win32'
@@ -2683,6 +2687,8 @@ def test_cms_profile():
     cms_profile_validate(profile)
     profile = cms_profile('adobergb')
     cms_profile_validate(profile)
+    profile = cms_profile('linearrgb')
+    cms_profile_validate(profile)
 
     primaries = [
         2748779008 / 4294967295,
@@ -4323,6 +4329,26 @@ def test_htj2k_reversible():
     assert_array_equal(data, decoded)
 
 
+@pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
+def test_htj2k_tile():
+    """Test HTJ2K codec tiling."""
+    data = image_data('rgb', numpy.uint8)
+
+    encoded = imagecodecs.htj2k_encode(
+        data,
+        level=0.0,
+        tile=(16, 16),
+        tlm=True,
+        tilepart=(
+            imagecodecs.HTJ2K.TILEPART.COMPONENTS
+            | imagecodecs.HTJ2K.TILEPART.RESOLUTIONS
+        ),
+    )
+    assert imagecodecs.htj2k_check(encoded)
+    decoded = imagecodecs.htj2k_decode(encoded)
+    assert_array_equal(data, decoded)
+
+
 @pytest.mark.parallel_threads(1)
 @pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
 @pytest.mark.parametrize('verbose', [0, 1])
@@ -4582,12 +4608,24 @@ def test_spng_encode(itype, dtype, level):
         'png',
         'qoi',
         'spng',
+        'tiff',
         'webp',
     ],
 )
 def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     """Test various image codecs."""
-    if codec == 'jpeg8':
+    encodeargs = {}
+    decodeargs = {}
+    if codec == 'tiff':
+        if not imagecodecs.TIFF.available:
+            pytest.skip(f'{codec} missing')
+        if itype in {'view', 'rgba', 'graya'} or deout == 'view':
+            pytest.xfail('tiff does not support this case')
+        encode = imagecodecs.tiff_encode
+        decode = imagecodecs.tiff_decode
+        check = imagecodecs.tiff_check
+        decodeargs['index'] = None
+    elif codec == 'jpeg8':
         if not imagecodecs.JPEG8.available:
             pytest.skip(f'{codec} missing')
         if imagecodecs.JPEG.legacy and dtype == 'uint16':
@@ -4606,18 +4644,14 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if itype in {'view', 'graya'} or deout == 'view':
             pytest.xfail('jpeg8 does not support this case')
         decode = imagecodecs.jpeg_decode
+        encode = imagecodecs.jpeg_encode
         check = imagecodecs.jpeg_check
         if level is not None:
             # duplicate test
             # pytest.skip(f'{codec} does not support level')
             level = None
-
-        def encode(
-            data, bitspersample=12 if dtype == 'uint16' else 8, **kwargs
-        ):
-            return imagecodecs.jpeg_encode(
-                data, bitspersample=bitspersample, lossless=True, **kwargs
-            )
+        encodeargs['bitspersample'] = 12 if dtype == 'uint16' else 8
+        encodeargs['lossless'] = True
 
     elif codec == 'mozjpeg':
         if not imagecodecs.MOZJPEG.available:
@@ -4643,11 +4677,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             # pytest.skip(f'{codec} does not support level')
             level = None
         if dtype == 'uint16':
-
-            def encode(data, **kwargs):
-                return imagecodecs.ljpeg_encode(
-                    data, bitspersample=12, **kwargs
-                )
+            encodeargs['bitspersample'] = 12
 
     elif codec == 'jpegls':
         if not imagecodecs.JPEGLS.available:
@@ -4666,10 +4696,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if dtype != 'uint8' or itype.startswith('gray'):
             pytest.xfail('webp does not support this case')
         if itype == 'rgba':
-
-            def decode(data, out=None):
-                return imagecodecs.webp_decode(data, hasalpha=True, out=out)
-
+            decodeargs['hasalpha'] = True
         if level:
             level += 95
     elif codec == 'png':
@@ -4739,10 +4766,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         decode = imagecodecs.htj2k_decode
 
         if itype == 'graya':
-
-            def decode(data, *args, **kwargs):
-                del args
-                return imagecodecs.htj2k_decode(data, planar=False, **kwargs)
+            decodeargs['planar'] = False
 
     elif codec == 'jpeg2k':
         if not imagecodecs.JPEG2K.available:
@@ -4752,13 +4776,12 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         if level and level > 0:
             level = 100 - level  # psnr
         check = imagecodecs.jpeg2k_check
+        encode = imagecodecs.jpeg2k_encode
+        decode = imagecodecs.jpeg2k_decode
 
         # enable verbose mode for rare failures
-        def encode(data, *args, **kwargs):
-            return imagecodecs.jpeg2k_encode(data, *args, verbose=3, **kwargs)
-
-        def decode(data, *args, **kwargs):
-            return imagecodecs.jpeg2k_decode(data, *args, verbose=3, **kwargs)
+        encodeargs['verbose'] = 3
+        decodeargs['verbose'] = 3
 
     elif codec == 'jpegxl':
         if not imagecodecs.JPEGXL.available:
@@ -4810,11 +4833,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         encode = imagecodecs.avif_encode
         check = imagecodecs.avif_check
         if dtype == 'uint16':
-
-            def encode(data, **kwargs):
-                return imagecodecs.avif_encode(
-                    data, bitspersample=12, **kwargs
-                )
+            encodeargs['bitspersample'] = 12
 
         if level:
             level += 95
@@ -4843,21 +4862,20 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
     itemsize = dtype.itemsize
     data = image_data(itype, dtype)
     shape = data.shape
-    kwargs = {} if level is None else {'level': level}
+    if level is not None:
+        encodeargs['level'] = level
 
     if enout == 'new':
-        encoded = encode(data, **kwargs)
+        encoded = encode(data, **encodeargs)
     elif enout == 'out':
-        encoded = numpy.zeros(
-            3 * shape[0] * shape[1] * shape[2] * itemsize, 'uint8'
-        )
-        ret = encode(data, out=encoded, **kwargs)
+        encoded = numpy.zeros(1048576, 'uint8')
+        ret = encode(data, out=encoded, **encodeargs)
         if codec in {'brunsli'}:
             # Brunsli decoder doesn't like extra bytes
             encoded = encoded[: len(ret)]
     elif enout == 'bytearray':
-        encoded = bytearray(3 * shape[0] * shape[1] * shape[2] * itemsize)
-        ret = encode(data, out=encoded, **kwargs)
+        encoded = bytearray(1048576)
+        ret = encode(data, out=encoded, **encodeargs)
         if codec in {'brunsli'}:
             # Brunsli decoder doesn't like extra bytes
             encoded = encoded[: len(ret)]
@@ -4866,17 +4884,17 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
         assert check(encoded) in {None, True}
 
     if deout == 'new':
-        decoded = decode(encoded)
+        decoded = decode(encoded, **decodeargs)
     elif deout == 'out':
         decoded = numpy.zeros(shape, dtype)
-        decode(encoded, out=numpy.squeeze(decoded))
+        decode(encoded, out=numpy.squeeze(decoded), **decodeargs)
     elif deout == 'view':
         temp = numpy.zeros((shape[0] + 5, shape[1] + 5, shape[2]), dtype)
         decoded = temp[2 : 2 + shape[0], 3 : 3 + shape[1], :]
-        decode(encoded, out=numpy.squeeze(decoded))
+        decode(encoded, out=numpy.squeeze(decoded), **decodeargs)
     elif deout == 'bytearray':
         decoded = bytearray(shape[0] * shape[1] * shape[2] * itemsize)
-        decoded = decode(encoded, out=decoded)
+        decoded = decode(encoded, out=decoded, **decodeargs)
         decoded = numpy.asarray(decoded, dtype=dtype).reshape(shape)
 
     if itype == 'gray':
@@ -4962,17 +4980,11 @@ def test_png_rgba_palette():
         assert tuple(image[6, 16]) == (141, 37, 52, 255)
 
 
-TIFF_PATH = DATA_PATH / 'tiff/'
-TIFF_FILES = [
-    os.path.split(f)[-1][:-4] for f in glob.glob(str(TIFF_PATH / '*.tif'))
-]
-
-
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
 @pytest.mark.skipif(tifffile is None, reason='tifffile missing')
 @pytest.mark.parametrize('asrgb', [False, True])
 @pytest.mark.parametrize('name', TIFF_FILES)
-def test_tiff_files(name, asrgb):
+def test_tiff_decode_files(name, asrgb):
     """Test TIFF decode with existing files against tifffile."""
     decode = imagecodecs.tiff_decode
     if (
@@ -5019,7 +5031,7 @@ def test_tiff_files(name, asrgb):
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
 @pytest.mark.skipif(tifffile is None, reason='tifffile missing')
 @pytest.mark.parametrize('index', [0, 3, 10, 1048576, None, list, slice])
-def test_tiff_index(index):
+def test_tiff_decode_index(index):
     """Test TIFF decoder index arguments."""
     filename = TIFF_PATH / 'gray.series.u1.tif'
     with open(filename, 'rb') as fh:
@@ -5051,7 +5063,7 @@ def test_tiff_index(index):
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='')
 @pytest.mark.skipif(tifffile is None, reason='tifffile missing')
-def test_tiff_asrgb():
+def test_tiff_decode_asrgb():
     """Test TIFF decoder asrgb arguments."""
     filename = TIFF_PATH / 'gray.series.u1.tif'
     with open(filename, 'rb') as fh:
@@ -5066,6 +5078,409 @@ def test_tiff_asrgb():
     decoded = imagecodecs.tiff_decode(encoded, index=[1, 3, 5, 7], asrgb=True)
     assert decoded.shape[-1] == 4
     assert_array_equal(data, decoded[..., :3])
+
+
+@pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
+def test_tiff_encode():
+    """Test TIFF encoder options."""
+    data = image_data('rgba', numpy.uint16).squeeze()
+    colormap = numpy.arange(65536, dtype=numpy.uint16)
+    colormap = numpy.stack((colormap, colormap[::-1], colormap), axis=0)
+    if imagecodecs.CMS.available:
+        iccprofile = imagecodecs.cms_profile('srgb')
+    else:
+        iccprofile = None
+
+    encoded = imagecodecs.tiff_encode(
+        data,
+        12,  # level
+        bigtiff=True,
+        byteorder=imagecodecs.TIFF.ENDIAN.BIG,
+        photometric=imagecodecs.TIFF.PHOTOMETRIC.RGB,
+        extrasample=imagecodecs.TIFF.EXTRASAMPLE.UNASSALPHA,
+        planarconfig=imagecodecs.TIFF.PLANARCONFIG.CONTIG,
+        compression=imagecodecs.TIFF.COMPRESSION.DEFLATE,
+        predictor=imagecodecs.TIFF.PREDICTOR.HORIZONTAL,
+        tile=None,
+        rowsperstrip=17,
+        resolution=(72.0, 73.0),
+        resolutionunit=imagecodecs.TIFF.RESUNIT.CENTIMETER,
+        description='Test imagecodecs.tiff_encode',
+        software='imagecodecs',
+        datetime='2026:01:01 12:00:00',
+        iccprofile=iccprofile,
+        verbose=1,
+        out=bytearray,
+    )
+    assert isinstance(encoded, bytearray)
+    assert imagecodecs.tiff_check(encoded)
+    decoded = imagecodecs.tiff_decode(encoded, index=0)
+    assert_array_equal(decoded, data.reshape(decoded.shape))
+
+    encoded = imagecodecs.tiff_encode(
+        data[..., 0],
+        subfiletype=imagecodecs.TIFF.FILETYPE.PAGE,
+        photometric='palette',
+        compression='lzw',
+        predictor=True,
+        tile=(32, 32),
+        resolutionunit='none',
+        colormap=colormap,
+        description='',
+        appendto=encoded,  # append to previous tiff
+        verbose=1,
+        out=bytes,
+    )
+    assert isinstance(encoded, bytes)
+    assert imagecodecs.tiff_check(encoded)
+    decoded = imagecodecs.tiff_decode(encoded, index=1)
+    assert_array_equal(decoded, data[..., 0].reshape(decoded.shape))
+
+    data = image_data('rgb', numpy.uint8, frames=True).squeeze()[:3]
+    encoded = imagecodecs.tiff_encode(
+        data,
+        level=100,
+        photometric=imagecodecs.TIFF.PHOTOMETRIC.YCBCR,
+        compression=imagecodecs.TIFF.COMPRESSION.JPEG,
+        tile=(16, 16),
+        description='jpeg',
+        appendto=encoded,  # append to previous tiff
+        verbose=1,
+        out=bytearray,
+    )
+    assert isinstance(encoded, bytearray)
+    assert imagecodecs.tiff_check(encoded)
+    decoded = imagecodecs.tiff_decode(encoded, index=slice(2, None))
+    assert_allclose(decoded, data.reshape(decoded.shape), atol=4)
+
+    # with open('test_tiff_encode.tif', 'wb') as fh:
+    #     fh.write(encoded)
+
+    if tifffile is None:
+        return
+
+    with tifffile.TiffFile(io.BytesIO(encoded)) as tif:
+        assert tif.byteorder == '>'
+        assert tif.is_bigtiff
+        assert len(tif.pages) == 5
+        page = tif.pages.first
+        assert page.photometric == tifffile.PHOTOMETRIC.RGB
+        assert page.extrasamples == (tifffile.EXTRASAMPLE.UNASSALPHA,)
+        assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
+        assert page.compression == tifffile.COMPRESSION.ADOBE_DEFLATE
+        assert page.predictor == tifffile.PREDICTOR.HORIZONTAL
+        assert page.resolutionunit == tifffile.RESUNIT.CENTIMETER
+        assert page.resolution == (72.0, 73.0)
+        assert page.description == 'Test imagecodecs.tiff_encode'
+        assert page.tags['Software'].value == 'imagecodecs'
+        assert page.tags['DateTime'].value == '2026:01:01 12:00:00'
+        assert page.iccprofile == iccprofile
+        assert page.rowsperstrip == 17
+        page = tif.pages[1]
+        assert page.subfiletype == tifffile.FILETYPE.PAGE
+        assert page.photometric == tifffile.PHOTOMETRIC.PALETTE
+        assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
+        assert page.compression == tifffile.COMPRESSION.LZW
+        assert page.predictor == tifffile.PREDICTOR.HORIZONTAL
+        assert page.resolutionunit == tifffile.RESUNIT.NONE
+        assert page.resolution == (1.0, 1.0)
+        assert page.description == ''
+        assert page.tile == (32, 32)
+        assert_array_equal(page.colormap, colormap)
+        page = tif.pages[2]
+        assert page.photometric == tifffile.PHOTOMETRIC.YCBCR
+        assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
+        assert page.compression == tifffile.COMPRESSION.JPEG
+        assert page.tile == (16, 16)
+        assert page.description == 'jpeg'
+        page = tif.pages[4]
+        assert page.photometric == tifffile.PHOTOMETRIC.YCBCR
+        assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
+        assert page.compression == tifffile.COMPRESSION.JPEG
+        assert page.tile == (16, 16)
+        assert page.description == ''
+
+
+@pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
+@pytest.mark.parametrize(
+    ('shape', 'dtype', 'kwargs', 'shaped', 'photometric'),
+    [
+        # scalar
+        (2, 'u1', {}, (1, 1, 1, 1, 2, 1), 'minisblack'),
+        # 1D
+        ((2,), 'u1', {}, (1, 1, 1, 1, 2, 1), 'minisblack'),
+        # 2D
+        ((2, 3), 'u1', {}, (1, 1, 1, 2, 3, 1), 'minisblack'),
+        # 3D
+        ((2, 4, 5), 'u1', {}, (2, 1, 1, 4, 5, 1), 'minisblack'),
+        # 3D, auto RGB
+        ((2, 4, 3), 'u1', {}, (1, 1, 1, 2, 4, 3), 'rgb'),
+        # 3D, auto RGBA
+        ((2, 3, 4), 'u2', {}, (1, 1, 1, 2, 3, 4), 'rgb'),
+        # 3D, float gray
+        ((2, 4, 3), 'f4', {}, (2, 1, 1, 4, 3, 1), 'minisblack'),
+        # 3D, miniswhite
+        (
+            (2, 4, 3),
+            'u1',
+            {'photometric': 'miniswhite'},
+            (2, 1, 1, 4, 3, 1),
+            'miniswhite',
+        ),
+        # 3D, RGB, planar
+        (
+            (3, 4, 3),
+            'u4',
+            {'planarconfig': 'separate', 'photometric': 'rgb'},
+            (1, 3, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 3D, auto RGB, planar
+        (
+            (3, 4, 3),
+            'u1',
+            {'planarconfig': 'separate'},
+            (1, 3, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 3D, auto RGB, extrasamples
+        (
+            (3, 4, 5),
+            'u1',
+            {'extrasample': 'unassalpha'},
+            (1, 1, 1, 3, 4, 5),
+            'rgb',
+        ),
+        # 3D, auto RGB, planar, extrasamples
+        (
+            (5, 4, 3),
+            'u1',
+            {'extrasample': 'unassalpha', 'planarconfig': 'separate'},
+            (1, 5, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 3D, gray, extrasamples
+        (
+            (3, 4, 5),
+            'u1',
+            {'photometric': 'minisblack', 'extrasample': 'unassalpha'},
+            (1, 1, 1, 3, 4, 5),
+            'minisblack',
+        ),
+        # 3D, gray, planar, extrasamples
+        (
+            (5, 4, 3),
+            'u1',
+            {
+                'photometric': 'minisblack',
+                'extrasample': 'unassalpha',
+                'planarconfig': 'separate',
+            },
+            (1, 5, 1, 4, 3, 1),
+            'minisblack',
+        ),
+        # 5D
+        ((2, 3, 2, 4, 5), 'u1', {}, (12, 1, 1, 4, 5, 1), 'minisblack'),
+        # 5D, auto RGB
+        ((2, 3, 2, 4, 3), 'u1', {}, (6, 1, 1, 2, 4, 3), 'rgb'),
+        # 5D, auto RGBA
+        ((2, 3, 2, 3, 4), 'u1', {}, (6, 1, 1, 2, 3, 4), 'rgb'),
+        # 5D, float, gray
+        ((2, 3, 2, 4, 3), 'f4', {}, (12, 1, 1, 4, 3, 1), 'minisblack'),
+        # 5D, miniswhite
+        (
+            (2, 3, 2, 4, 3),
+            'u1',
+            {'photometric': 'miniswhite'},
+            (12, 1, 1, 4, 3, 1),
+            'miniswhite',
+        ),
+        # 5D, RGB, planar
+        (
+            (2, 3, 3, 4, 3),
+            'u4',
+            {'planarconfig': 'separate', 'photometric': 'rgb'},
+            (6, 3, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 5D, auto RGB, planar
+        (
+            (2, 3, 3, 4, 3),
+            'u1',
+            {'planarconfig': 'separate'},
+            (6, 3, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 5D, auto RGB, extrasamples
+        (
+            (2, 3, 3, 4, 5),
+            'u1',
+            {'extrasample': 'unassalpha'},
+            (6, 1, 1, 3, 4, 5),
+            'rgb',
+        ),
+        # 5D, auto RGB, planar, extrasamples
+        (
+            (2, 3, 5, 4, 3),
+            'u1',
+            {'extrasample': 'unassalpha', 'planarconfig': 'separate'},
+            (6, 5, 1, 4, 3, 1),
+            'rgb',
+        ),
+        # 5D, gray, extrasamples
+        (
+            (2, 3, 3, 4, 5),
+            'u1',
+            {'photometric': 'minisblack', 'extrasample': 'unassalpha'},
+            (6, 1, 1, 3, 4, 5),
+            'minisblack',
+        ),
+        # 5D, gray, planar, extrasamples
+        (
+            (2, 3, 5, 4, 3),
+            'u1',
+            {
+                'photometric': 'minisblack',
+                'extrasample': 'unassalpha',
+                'planarconfig': 'separate',
+            },
+            (6, 5, 1, 4, 3, 1),
+            'minisblack',
+        ),
+        # 3D, many pages
+        ((2**15, 1, 1), 'u1', {}, (2**15, 1, 1, 1, 1, 1), 'minisblack'),
+        # 3D, many extrasamples
+        (
+            (1, 1, 2**16 - 1),
+            'u1',
+            {'extrasample': 'unassalpha'},
+            (1, 1, 1, 1, 1, 2**16 - 1),
+            'rgb',
+        ),
+    ],
+)
+def test_tiff_encode_heuristics(shape, dtype, kwargs, shaped, photometric):
+    """Test TIFF encoder heuristics."""
+    data = RNG.integers(0, 256, size=shape).astype(dtype)
+
+    # tiled
+    encoded = imagecodecs.tiff_encode(data, tile=(16, 16), **kwargs)
+    assert imagecodecs.tiff_check(encoded)
+    decoded = imagecodecs.tiff_decode(encoded, index=None)
+    assert_array_equal(decoded, data.reshape(decoded.shape))
+
+    # striped
+    encoded = imagecodecs.tiff_encode(data, **kwargs)
+    decoded = imagecodecs.tiff_decode(encoded, index=None)
+    assert_array_equal(decoded, data.reshape(decoded.shape))
+
+    if tifffile is None:
+        return
+
+    with tifffile.TiffFile(io.BytesIO(encoded)) as tif:
+        page = tif.pages.first
+        assert len(tif.pages) == shaped[0]
+        assert page.shaped == shaped[1:]
+        assert page.photometric == tifffile.enumarg(
+            tifffile.PHOTOMETRIC, photometric
+        )
+        if shaped[1] == 1:
+            assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
+        else:
+            assert page.planarconfig == tifffile.PLANARCONFIG.SEPARATE
+        photometric_samples = {
+            tifffile.PHOTOMETRIC.RGB: 3,
+            tifffile.PHOTOMETRIC.MINISBLACK: 1,
+            tifffile.PHOTOMETRIC.MINISWHITE: 1,
+        }[page.photometric]
+        assert len(page.extrasamples) == (
+            page.shaped[0] + page.shaped[-1] - photometric_samples - 1
+        )
+
+
+pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
+
+
+@pytest.mark.parametrize(
+    'compression',
+    ['deflate', 'lzma', 'zstd', 'lzw', 'packbits', 'jpeg', 'webp', 'lerc'],
+)
+@pytest.mark.parametrize('level', [None, -1, 8])
+@pytest.mark.parametrize('predictor', [None, True])
+@pytest.mark.parametrize('dtype', ['u1', 'u2', 'f2'])
+@pytest.mark.parametrize('tile', [None, (16, 16)])
+def test_tiff_encode_compression(compression, level, predictor, dtype, tile):
+    """Test TIFF encoder compression."""
+    data = image_data('rgb', dtype).squeeze()
+    if compression == 'packbits':
+        if predictor:
+            pytest.xfail('tiff/packbits does not support predictor')
+    elif compression == 'jpeg':
+        if dtype != 'u1' or predictor:
+            pytest.xfail('tiff/jpeg does not support this case')
+        if level is not None and level > 0:
+            level = 100
+    elif compression == 'webp':
+        if dtype != 'u1' or predictor:
+            pytest.xfail('tiff/webp does not support this case')
+        if level is not None and level > 0:
+            level = 100
+    elif compression == 'lerc':
+        if predictor:
+            pytest.xfail('tiff/lerc does not support this case')
+        if level is not None and level > 0:
+            level = 0.1
+
+    encoded = imagecodecs.tiff_encode(
+        data,
+        level=level,
+        compression=compression,
+        predictor=predictor,
+        photometric='rgb',
+        tile=tile,
+    )
+    decoded = imagecodecs.tiff_decode(encoded)
+    assert decoded.dtype == dtype
+    if compression == 'jpeg':
+        atol = 4 if level is None or level > 0 else 16
+        assert_allclose(decoded, data.reshape(decoded.shape), atol=atol)
+    elif compression == 'webp' and level is not None and level < 0:
+        assert_allclose(decoded, data.reshape(decoded.shape), atol=50)
+    else:
+        assert_array_equal(decoded, data.reshape(decoded.shape))
+
+    if tifffile is None:
+        return
+
+    with tifffile.TiffFile(io.BytesIO(encoded)) as tif:
+        page = tif.pages.first
+        assert page.tile == tile
+
+
+@pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
+@pytest.mark.parametrize(
+    ('shape', 'kwargs', 'exc'),
+    [
+        ((2, 4, 1), {'photometric': 'rgb'}, ValueError),
+        ((2, 4, 3), {'photometric': 100}, ValueError),
+        ((2, 4, 1), {'photometric': 'palette'}, ValueError),
+        ((2, 4, 3), {'compression': 100}, ValueError),
+        ((2, 4, 3), {'predictor': 100}, ValueError),
+        ((2, 4, 3), {'planarconfig': 100}, ValueError),
+        ((2, 4, 3), {'extrasample': 100}, ValueError),
+        ((2, 4, 3), {'resolution': 100}, TypeError),
+        ((2, 4, 3), {'resolutionunit': 100}, ValueError),
+        ((2, 4, 3), {'tile': (15, 13)}, imagecodecs.TiffError),
+        ((2, 4, 3), {'out': 100}, imagecodecs.TiffError),
+        ((2, 4, 3), {'out': bytearray(100)}, imagecodecs.TiffError),
+        ((4, 3, 2**16), {'extrasample': 1}, ValueError),
+    ],
+)
+def test_tiff_encode_errors(shape, kwargs, exc):
+    """Test TIFF encoder exceptions."""
+    data = numpy.ones(shape, dtype=numpy.uint8)
+    with pytest.raises(exc):
+        imagecodecs.tiff_encode(data, **kwargs)
 
 
 @pytest.mark.skipif(tifffile is None, reason='tifffile module missing')
@@ -5328,7 +5743,7 @@ def test_numcodecs_register(caplog):
         'spng',
         'sz3',
         'szip',
-        'tiff',  # no encoder
+        'tiff',
         'ultrahdr',
         'webp',
         'xor',
@@ -5689,8 +6104,7 @@ def test_numcodecs(codec, photometric):
     elif codec == 'tiff':
         if not imagecodecs.TIFF.available:
             pytest.skip(f'{codec} not found')
-        pytest.xfail('TIFF encode not implemented')
-        compressor = numcodecs.Tiff()
+        compressor = numcodecs.Tiff(level=6, predictor=True)
     elif codec == 'webp':
         if not imagecodecs.WEBP.available:
             pytest.skip(f'{codec} not found')
