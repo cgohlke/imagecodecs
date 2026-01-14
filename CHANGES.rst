@@ -1,9 +1,16 @@
 Revisions
 ---------
 
+2026.1.14
+
+- Pass 8281 tests.
+- Add tiff_encode function.
+- Add extra options for HTJ2K (#134).
+- Add linear RGB option to cms_profile.
+- Change ZSTD default compression level to 3.
+
 2026.1.1
 
-- Pass 7850 tests.
 - Enforce positional-only and keyword-only parameters (breaking).
 - Base numcodecs.Jpeg on JPEG8 codec (breaking).
 - Add HTJ2K codec based on OpenJPH library (#125).
