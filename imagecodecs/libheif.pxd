@@ -1,6 +1,6 @@
 # imagecodecs/libheif.pxd
 
-# Cython declarations for the `libheif 1.21.1` library.
+# Cython declarations for the `libheif 1.21.2` library.
 # https://github.com/strukturag/libheif
 
 from libc.stdint cimport (
