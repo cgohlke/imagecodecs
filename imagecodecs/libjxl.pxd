@@ -1,6 +1,6 @@
 # imagecodecs/libjxl.pxd
 
-# Cython declarations for the `libjxl 0.11.1` library.
+# Cython declarations for the `libjxl 0.11.2` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport (
@@ -206,15 +206,6 @@ cdef extern from 'jxl/color_encoding.h' nogil:
         double gamma
         JxlRenderingIntent rendering_intent
 
-    ctypedef struct JxlInverseOpsinMatrix:
-        float[3][3] opsin_inv_matrix
-        float[3] opsin_biases
-        float[3] quant_biases
-
-    ctypedef struct JxlInverseOpsinMatrix:
-        float[3][3] opsin_inv_matrix
-        float[3] opsin_biases
-        float[3] quant_biases
 
 cdef extern from 'jxl/memory_manager.h' nogil:
 
