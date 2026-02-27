@@ -79,7 +79,7 @@ def lzfse_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t dst_size
 
@@ -99,7 +99,7 @@ def lzfse_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     with nogil:
         dst_size = lzfse_encode_buffer(
@@ -126,7 +126,7 @@ def lzfse_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t dst_size
 
@@ -147,7 +147,7 @@ def lzfse_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     if dstsize == 0 or srcsize == 12:
         return _return_output(out, dstsize, 0, outgiven)
