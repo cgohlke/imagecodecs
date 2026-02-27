@@ -106,7 +106,7 @@ def ultrahdr_version():
 
 def ultrahdr_check(const uint8_t[::1] data, /):
     """Return whether data is ULTRAHDR encoded or None if unknown."""
-    return bool(is_uhdr_image(<void*> &data[0], <int> data.size))
+    return bool(is_uhdr_image(<void*> &data[0], <int> data.nbytes))
 
 
 def ultrahdr_encode(
@@ -362,10 +362,13 @@ def ultrahdr_decode(
     if transfer is not None:
         otf = transfer
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     memset(<void*> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
     compressed_image.data = <void*> &src[0]
-    compressed_image.data_sz = <size_t> src.size
-    compressed_image.capacity = <size_t> src.size
+    compressed_image.data_sz = <size_t> src.nbytes
+    compressed_image.capacity = <size_t> src.nbytes
     compressed_image.cg = UHDR_CG_UNSPECIFIED
     compressed_image.ct = UHDR_CT_UNSPECIFIED
     compressed_image.range = UHDR_CR_UNSPECIFIED
