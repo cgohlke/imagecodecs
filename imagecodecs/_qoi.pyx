@@ -79,7 +79,7 @@ def qoi_encode(
 ):
     """Return QOI encoded image."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = numpy.ascontiguousarray(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         void* buffer = NULL
@@ -99,7 +99,7 @@ def qoi_encode(
     desc.width = <unsigned int> src.shape[1]
     desc.height = <unsigned int> src.shape[0]
     desc.channels = <unsigned int> samples
-    desc.colorspace = qoi.QOI_LINEAR if samples < 3 else qoi.QOI_SRGB
+    desc.colorspace = qoi.QOI_SRGB if samples == 3 else qoi.QOI_LINEAR
 
     with nogil:
         buffer = qoi.qoi_encode(
@@ -120,8 +120,8 @@ def qoi_encode(
         if dstsize < <ssize_t> out_len:
             raise ValueError('output too small')
 
-        # with nogil: ?
-        memcpy(<void*> &dst[0], <const void*> buffer, <size_t> out_len)
+        with nogil:
+            memcpy(<void*> &dst[0], <const void*> buffer, <size_t> out_len)
     finally:
         free(buffer)
 
@@ -140,6 +140,7 @@ def qoi_decode(
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.nbytes
+        ssize_t dstbytes
         void* buffer = NULL
         qoi.qoi_desc desc
 
@@ -167,9 +168,10 @@ def qoi_decode(
 
         out = _create_array(out, shape, numpy.uint8)
         dst = out
+        dstbytes = dst.nbytes
 
-        # with nogil: ?
-        memcpy(<void*> dst.data, <const void*> buffer, dst.size)
+        with nogil:
+            memcpy(<void*> dst.data, <const void*> buffer, <size_t> dstbytes)
     finally:
         free(buffer)
 
