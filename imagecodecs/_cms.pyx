@@ -164,6 +164,9 @@ def cms_transform(
         cmsHTRANSFORM hTransform = NULL
         cmsUInt32Number numpixels
 
+    if data is out:
+        raise ValueError('cannot transform in-place')
+
     data = numpy.ascontiguousarray(data)
     src = data
 
