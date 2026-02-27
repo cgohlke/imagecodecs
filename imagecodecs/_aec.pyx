@@ -134,7 +134,7 @@ def aec_encode(
             flags_ |= AEC_DATA_SIGNED
         bits_per_sample = <unsigned int> (view.itemsize * 8)
 
-    srcsize = src.size
+    srcsize = src.nbytes
 
     if bitspersample is not None:
         if bitspersample > bits_per_sample > 8:
@@ -155,7 +155,7 @@ def aec_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     try:
         with nogil:
@@ -203,7 +203,7 @@ def aec_decode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t byteswritten
         int ret = AEC_OK
@@ -232,7 +232,7 @@ def aec_decode(
         if out.dtype.kind == 'i':
             flags_ |= AEC_DATA_SIGNED
 
-    if bitspersample:
+    if bitspersample is not None:
         bits_per_sample = bitspersample
 
     if bits_per_sample > 32:
@@ -249,7 +249,7 @@ def aec_decode(
         dst = out
     except ValueError:
         dst = numpy.ravel(out).view('uint8')
-    dstsize = <int> dst.size
+    dstsize = dst.nbytes
 
     try:
         with nogil:
