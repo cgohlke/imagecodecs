@@ -117,13 +117,13 @@ def lzham_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use streaming APIs
-            dstsize = _compress_bound(src.size)
+            dstsize = _compress_bound(src.nbytes)
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
-    dstlen = <lzham_z_ulong> dst.size  # validates overflow
-    srclen = <lzham_z_ulong> src.size  # validates overflow
+    dstsize = dst.nbytes
+    dstlen = <lzham_z_ulong> dst.nbytes  # validates overflow
+    srclen = <lzham_z_ulong> src.nbytes  # validates overflow
 
     with nogil:
         ret = lzham_z_compress2(
@@ -167,9 +167,9 @@ def lzham_decode(
 
     src = data
     dst = out
-    dstsize = dst.size
-    dstlen = <lzham_z_ulong> dst.size  # validates overflow
-    srclen = <lzham_z_ulong> src.size  # validates overflow
+    dstsize = dst.nbytes
+    dstlen = <lzham_z_ulong> dst.nbytes  # validates overflow
+    srclen = <lzham_z_ulong> src.nbytes  # validates overflow
 
     with nogil:
         ret = lzham_z_uncompress(
@@ -190,7 +190,7 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
     cdef:
         output_t* output = NULL
         lzham_z_stream stream
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int ret
@@ -271,7 +271,7 @@ cdef _lzham_decode(const uint8_t[::1] src, outtype):
 
 cdef ssize_t _compress_bound(const ssize_t srcsize) noexcept nogil:
     # replacement for lzham_z_compressBound
-    return 64 + srcsize + ((srcsize + 4095) / 4096) * 4
+    return 64 + srcsize + ((srcsize + 4095) // 4096) * 4
 
 
 # CRC #########################################################################
@@ -280,7 +280,7 @@ def lzham_crc32(data, /):
     """Return cyclic redundancy checksum CRC-32 of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         lzham_z_ulong crc = 0
 
     with nogil:
@@ -293,7 +293,7 @@ def lzham_adler32(data, /):
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         lzham_z_ulong adler
 
     with nogil:
