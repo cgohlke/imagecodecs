@@ -89,7 +89,7 @@ def zstd_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        size_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t ret
         int compresslevel = _default_value(
@@ -103,7 +103,7 @@ def zstd_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = <ssize_t> ZSTD_compressBound(srcsize)
+            dstsize = <ssize_t> ZSTD_compressBound(<size_t> srcsize)
             if dstsize <= 0:
                 raise ZstdError('ZSTD_compressBound', f'{dstsize}')
         if dstsize < 64:
@@ -111,14 +111,14 @@ def zstd_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     with nogil:
         ret = ZSTD_compress(
             <void*> &dst[0],
             <size_t> dstsize,
             <void*> &src[0],
-            srcsize,
+            <size_t> srcsize,
             compresslevel
         )
     if ZSTD_isError(ret):
@@ -138,7 +138,7 @@ def zstd_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        size_t srcsize = <size_t> src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t ret
         uint64_t cntsize
@@ -150,7 +150,7 @@ def zstd_decode(
 
     if out is None:
         if dstsize < 0:
-            cntsize = _zstd_content_size(<uint8_t*> &src[0], srcsize)
+            cntsize = _zstd_content_size(<uint8_t*> &src[0], <size_t> srcsize)
             if cntsize == ZSTD_CONTENTSIZE_ERROR:
                 raise ZstdError('ZSTD_getFrameContentSize', f'{cntsize}')
             if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > INT32_MAX:
@@ -160,14 +160,14 @@ def zstd_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <size_t> dst.size
+    dstsize = dst.nbytes
 
     with nogil:
         ret = ZSTD_decompress(
             <void*> &dst[0],
             <size_t> dstsize,
             <void*> &src[0],
-            srcsize
+            <size_t> srcsize
         )
     if ZSTD_isError(ret):
         raise ZstdError('ZSTD_decompress', err=ret)
@@ -187,7 +187,7 @@ cdef _zstd_decode(
         ZSTD_inBuffer zinput
         ZSTD_outBuffer zoutput
         size_t ret
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t outsize = ZSTD_DStreamOutSize()
         # increase output size by ~1/2 input size, min 128 KB
         size_t incsize = max((srcsize // outsize) * outsize // 2, outsize)
