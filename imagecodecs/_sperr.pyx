@@ -105,6 +105,9 @@ def sperr_encode(
         int out_inc_header = bool(header)
         int is_float, mode_, ret
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if src.dtype.char == 'd':
         is_float = 0
     elif src.dtype.char == 'f':
@@ -197,7 +200,7 @@ def sperr_encode(
             dstsize = dst.nbytes
             if <size_t> dstsize < dst_len:
                 raise ValueError(
-                    f'output buffer too small {dstsize} < {dst.nbytes}'
+                    f'output buffer too small {dstsize} < {dst_len}'
                 )
             memcpy(<void*> &dst[0], <const void*> dst_ptr, dst_len)
             del dst
@@ -230,7 +233,7 @@ def sperr_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        size_t src_len = <size_t> src.size
+        size_t src_len = <size_t> src.nbytes
         size_t dstlen
         void* dst_ptr = NULL
         size_t ndim = 0
@@ -303,36 +306,37 @@ def sperr_decode(
     dst = out
     dstlen = dst.nbytes
 
-    with nogil:
-        if ndim == 2:
-            ret = sperr_decomp_2d(
-                <const void*> &src[10 * out_inc_header],
-                src_len - 10 * out_inc_header,
-                is_float,
-                dimx,
-                dimy,
-                &dst_ptr
-            )
-            if ret != 0 or dst_ptr == NULL:
-                raise SperrError('sperr_decomp_2d', ret)
-        else:
-            ret = sperr_decomp_3d(
-                <const void*> &src[0],
-                src_len,
-                is_float,
-                nthreads,
-                &dimx,
-                &dimy,
-                &dimz,
-                &dst_ptr
-            )
-            if ret != 0 or dst_ptr == NULL:
-                raise SperrError('sperr_decomp_3d', ret)
-        try:
-            if dstlen != dimx * dimy * dimz * (4 if is_float else 8):
-                raise ValueError(f'invalid output size {out.nbytes=}')
-            memcpy(<void*> &dst.data[0], <const void*> dst_ptr, dstlen)
-        finally:
-            free(dst_ptr)
+    try:
+        with nogil:
+            if ndim == 2:
+                ret = sperr_decomp_2d(
+                    <const void*> &src[10 * out_inc_header],
+                    src_len - 10 * out_inc_header,
+                    is_float,
+                    dimx,
+                    dimy,
+                    &dst_ptr
+                )
+                if ret != 0 or dst_ptr == NULL:
+                    raise SperrError('sperr_decomp_2d', ret)
+            else:
+                ret = sperr_decomp_3d(
+                    <const void*> &src[0],
+                    src_len,
+                    is_float,
+                    nthreads,
+                    &dimx,
+                    &dimy,
+                    &dimz,
+                    &dst_ptr
+                )
+                if ret != 0 or dst_ptr == NULL:
+                    raise SperrError('sperr_decomp_3d', ret)
+
+        if dstlen != dimx * dimy * dimz * (4 if is_float else 8):
+            raise ValueError(f'invalid output size {out.nbytes=}')
+        memcpy(<void*> &dst.data[0], <const void*> dst_ptr, dstlen)
+    finally:
+        free(dst_ptr)
 
     return out
