@@ -84,7 +84,7 @@ def lz4_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        int srcsize = <int> src.size
+        int srcsize = <int> src.nbytes
         int dstsize
         int offset = 4 if header else 0
         int ret
@@ -94,7 +94,7 @@ def lz4_encode(
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if src.size > LZ4_MAX_INPUT_SIZE:
+    if src.nbytes > LZ4_MAX_INPUT_SIZE:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -110,9 +110,9 @@ def lz4_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int> dst.size - offset
+    dstsize = <int> dst.nbytes - offset
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     if hc:
@@ -165,7 +165,7 @@ def lz4_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        int srcsize = <int> src.size
+        int srcsize = <int> src.nbytes
         int dstsize
         int offset = 4 if header else 0
         int ret
@@ -173,7 +173,7 @@ def lz4_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > INT32_MAX:
+    if src.nbytes > INT32_MAX:
         raise ValueError('data too large')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -192,9 +192,9 @@ def lz4_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int> dst.size
+    dstsize = <int> dst.nbytes
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
@@ -243,7 +243,7 @@ lz4h5_version = lz4_version
 
 def lz4h5_check(const uint8_t[::1] data, /):
     """Return whether data is LZ4H5 encoded or None if unknown."""
-    if data.size < 12:
+    if data.nbytes < 12:
         return False
     return None
 
@@ -260,7 +260,7 @@ def lz4h5_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstpos = 12
         ssize_t srcpos = 0
@@ -277,7 +277,7 @@ def lz4h5_encode(
     elif 0 < blocksize <= LZ4_MAX_INPUT_SIZE:
         blksize = blocksize
     else:
-        raise ValueError('invalid block size {blocksize}')
+        raise ValueError(f'invalid block size {blocksize}')
 
     nblocks = (srcsize - 1) // blksize + 1
 
@@ -292,7 +292,7 @@ def lz4h5_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     if dstsize < nblocks * 4 + 12:
         raise Lz4h5Error(f'output too small {dstsize} < {nblocks}*4+12')
 
@@ -344,7 +344,7 @@ def lz4h5_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t orisize
         ssize_t srcpos = 12
@@ -356,8 +356,8 @@ def lz4h5_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size < 12:
-        raise Lz4h5Error(f'LZ4H5 data too short {src.size} < 12')
+    if src.nbytes < 12:
+        raise Lz4h5Error(f'LZ4H5 data too short {srcsize} < 12')
 
     orisize = <ssize_t> read_i8be(&src[0])
     blksize = <int> read_i4be(&src[8])
@@ -377,7 +377,7 @@ def lz4h5_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     if dstsize < orisize:
         raise Lz4h5Error(
