@@ -100,7 +100,7 @@ def deflate_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t srclen, dstlen
         libdeflate_compressor* compressor = NULL
@@ -138,7 +138,7 @@ def deflate_encode(
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size
+        dstsize = dst.nbytes
         dstlen = <size_t> dstsize
         srclen = <size_t> srcsize
 
@@ -186,7 +186,7 @@ def deflate_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t srclen, dstlen
         size_t actual_out_nbytes_ret
@@ -211,7 +211,7 @@ def deflate_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     dstlen = <size_t> dstsize
     srclen = <size_t> srcsize
 
@@ -285,7 +285,7 @@ def gzip_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t srclen, dstlen
         libdeflate_compressor* compressor = NULL
@@ -312,7 +312,7 @@ def gzip_encode(
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size
+        dstsize = dst.nbytes
         dstlen = <size_t> dstsize
         srclen = <size_t> srcsize
 
@@ -349,7 +349,7 @@ def gzip_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t srclen, dstlen
         size_t actual_out_nbytes_ret
@@ -377,7 +377,7 @@ def gzip_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     dstlen = <size_t> dstsize
     srclen = <size_t> srcsize
 
@@ -416,7 +416,7 @@ def deflate_crc32(
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         uint32_t crc = 0 if value is None else value
 
     with nogil:
@@ -432,7 +432,7 @@ def deflate_adler32(
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         uint32_t adler = 1 if value is None else value
 
     with nogil:
