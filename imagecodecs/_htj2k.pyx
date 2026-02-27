@@ -135,6 +135,9 @@ def htj2k_encode(
     if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
         raise ValueError(f'invalid data ndim={src.ndim} or dtype={src.dtype}')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     height = <ui32> src.shape[0]
     width = <ui32> src.shape[1]
     samples = 1 if src.ndim == 2 else <ui32> src.shape[2]
@@ -300,7 +303,7 @@ def htj2k_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         codestream* cs = NULL
         mem_infile* file = NULL
         ui32 skipped_res_for_data = 0
