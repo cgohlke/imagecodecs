@@ -124,7 +124,7 @@ def brunsli_encode(
     else:
         # existing JPEG stream
         src = data
-    srcsize = src.size
+    srcsize = src.nbytes
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -144,7 +144,7 @@ def brunsli_encode(
             out = _create_output(outtype, dstsize, dstptr)
         if dstptr == NULL:
             dst = out
-            dstsize = dst.size
+            dstsize = dst.nbytes
             if <size_t> dstsize < sink.byteswritten:
                 raise ValueError('output too small')
             memcpy(<void*> &dst[0], <const void*> sink.data, sink.byteswritten)
@@ -167,9 +167,12 @@ def brunsli_decode(
     """Return decoded BRUNSLI/JPEG image."""
     cdef:
         const uint8_t[::1] src = data
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         brunsli_sink_t* sink = NULL
         int ret
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
 
     sink = brunsli_sink_new(_align_size_t(srcsize * 2))
     if sink == NULL:
