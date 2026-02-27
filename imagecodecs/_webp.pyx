@@ -216,7 +216,7 @@ def webp_encode(
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size
+        dstsize = dst.nbytes
         if <size_t> dstsize < output_size:
             raise RuntimeError('output too small')
 
@@ -256,7 +256,7 @@ def webp_decode(
         raise ValueError('cannot decode in-place')
 
     webp_data.bytes = &src[0]
-    webp_data.size = <size_t> src.size
+    webp_data.size = <size_t> src.nbytes
 
     demux = WebPDemux(&webp_data)
     if demux == NULL:
