@@ -129,6 +129,9 @@ def zfp_encode(
         double tolerance, rate
         bint bheader = header
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if src.dtype == numpy.int32:
         ztype = zfp_type_int32
     elif src.dtype == numpy.int64:
@@ -265,7 +268,7 @@ def zfp_encode(
                     ret = zfp_stream_set_omp_threads(zfp, threads)
                     if ret == zfp_false:
                         raise ZfpError('zfp_stream_set_omp_threads failed')
-                if chunk_size > zfp_false:
+                if chunk_size > 0:
                     ret = zfp_stream_set_omp_chunk_size(zfp, chunk_size)
                     if ret == zfp_false:
                         raise ZfpError('zfp_stream_set_omp_chunk_size failed')
@@ -273,8 +276,8 @@ def zfp_encode(
             byteswritten = zfp_write_header(
                 zfp,
                 field,
-                ZFP_HEADER_MAGIC | ZFP_HEADER_MODE
-                if bheader == 0 else ZFP_HEADER_FULL
+                ZFP_HEADER_FULL
+                if bheader else ZFP_HEADER_MAGIC | ZFP_HEADER_MODE
             )
             if byteswritten == 0:
                 raise ZfpError('zfp_write_header failed')
@@ -309,7 +312,7 @@ def zfp_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         zfp_stream* zfp = NULL
         bitstream* stream = NULL
         zfp_field* field = NULL
@@ -395,7 +398,7 @@ def zfp_decode(
         if field == NULL:
             raise ZfpError('zfp_field_alloc failed')
 
-        stream = stream_open(<void*> &src[0], srcsize)
+        stream = stream_open(<void*> &src[0], <size_t> srcsize)
         if stream == NULL:
             raise ZfpError('stream_open failed')
 
