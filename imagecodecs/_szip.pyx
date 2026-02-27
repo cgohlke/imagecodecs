@@ -108,10 +108,11 @@ def szip_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t dstlen
         SZ_com_t_s param
+        uint8_t* pdst
         int offset = 4 if header else 0
         int ret
 
@@ -190,7 +191,7 @@ def szip_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstsize_header = 0
         size_t dstlen
@@ -229,7 +230,7 @@ def szip_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     dstlen = <size_t> dstsize
 
     with nogil:
@@ -240,7 +241,7 @@ def szip_decode(
             <size_t> (srcsize - offset),
             &param
         )
-    if ret < 0:
+    if ret != SZ_OK:
         raise SzipError('SZ_BufftoBuffDecompress', ret)
 
     if dstsize_header > 0:
@@ -293,7 +294,7 @@ def szip_params(
         pixels_per_scanline = pixels_in_line
 
     options_mask &= ~(SZ_LSB_OPTION_MASK | SZ_MSB_OPTION_MASK)
-    if data.dtype.byteorder != '>':
+    if numpy.dtype(data.dtype).str[0] != '>':
         options_mask |= SZ_LSB_OPTION_MASK
     else:
         options_mask |= SZ_MSB_OPTION_MASK
