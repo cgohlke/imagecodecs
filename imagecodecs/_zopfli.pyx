@@ -61,8 +61,7 @@ class ZopfliError(RuntimeError):
 
 def zopfli_version():
     """Return Zopfli library version string."""
-    # TODO: use version from header when available
-    return 'zopfli 1.0.x'
+    return 'zopfli 1.0.3'
 
 
 # zopfli_check = zlib_check
@@ -77,11 +76,11 @@ def zopfli_encode(
     out=None,
     **kwargs,
 ):
-    """Return DEFLATE encoded data."""
+    """Return ZOPFLI encoded data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t outsize = 0
         ZopfliOptions options
@@ -109,6 +108,8 @@ def zopfli_encode(
             )
         if 'blocksplitting' in kwargs:
             options.blocksplitting = bool(kwargs['blocksplitting'])
+        if 'blocksplittinglast' in kwargs:
+            options.blocksplittinglast = bool(kwargs['blocksplittinglast'])
         if 'blocksplittingmax' in kwargs:
             options.blocksplittingmax = _default_value(
                 kwargs['blocksplittingmax'], 15, 0, 32768 - 1
@@ -134,7 +135,7 @@ def zopfli_encode(
             out = _create_output(outtype, dstsize, <const char*> buffer)
         else:
             dst = out
-            dstsize = dst.size
+            dstsize = dst.nbytes
             if dstsize < <ssize_t> outsize:
                 raise RuntimeError('output too small')
             memcpy(<void*> &dst[0], <const void*> buffer, outsize)
