@@ -93,7 +93,7 @@ def heif_check(const uint8_t[::1] data, /):
     cdef:
         heif_filetype_result result
 
-    if data.size < 12:
+    if data.nbytes < 12:
         return False
     result = heif_check_filetype(<const uint8_t*> &data[0], 12)
     if result == heif_filetype_no:
@@ -158,6 +158,9 @@ def heif_encode(
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     compression_format = _heif_compression(compression)
     colorspace = _heif_photometric(photometric)
 
@@ -217,7 +220,7 @@ def heif_encode(
             max(
                 <size_t> 32768,
                 _align_size_t(
-                    <size_t> src.size // (4 if lossless != 0 else 16)
+                    <size_t> src.nbytes // (4 if lossless != 0 else 16)
                 )
             )
         )
@@ -478,7 +481,7 @@ def heif_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t imageindex = -1 if index is None else index
         ssize_t height, width, samples, imagecount
         ssize_t col, row, rowsize, srcindex, dstindex
