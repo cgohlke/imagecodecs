@@ -55,8 +55,8 @@ class MeshoptError(RuntimeError):
 def meshopt_version():
     """Return meshoptimizer library version string."""
     return 'meshoptimizer {}.{}.{}'.format(
-        MESHOPTIMIZER_VERSION / 1000,
-        MESHOPTIMIZER_VERSION % 1000 / 10,
+        MESHOPTIMIZER_VERSION // 1000,
+        MESHOPTIMIZER_VERSION % 1000 // 10,
         MESHOPTIMIZER_VERSION % 10
     )
 
@@ -101,7 +101,7 @@ def meshopt_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     with nogil:
         ret = meshopt_encodeVertexBufferLevel(
@@ -134,7 +134,7 @@ def meshopt_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         size_t vertex_count, vertex_size
         int ret
 
