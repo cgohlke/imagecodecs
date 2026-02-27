@@ -99,6 +99,8 @@ def apng_version():
 
 def apng_check(const uint8_t[::1] data, /):
     """Return whether data is APNG encoded image or None if unknown."""
+    if data.shape[0] < 8:
+        return False
     return png_sig_cmp(&data[0], 0, 8) == 0
 
 
@@ -115,9 +117,12 @@ def apng_encode(
 ):
     """Return APNG encoded image.
 
+    The delay parameter specifies the frame delay in milliseconds
+    (numerator with a fixed denominator of 1000).
+
     For fast encoding, matching OpenCV settings, set:
 
-    - level=1 (APNG.LEVEL.SPEED)
+    - level=1 (APNG.COMPRESSION.SPEED)
     - strategy=3 (APNG.STRATEGY.RLE)
     - filter=16 (APNG.FILTER.SUB)
 
@@ -129,7 +134,7 @@ def apng_encode(
         ssize_t srcsize = src.nbytes
         ssize_t rowstride
         png_bytep rowptr = NULL
-        int color_type
+        int color_type = PNG_COLOR_TYPE_GRAY
         int bit_depth = src.itemsize * 8
         int level_ = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
@@ -197,7 +202,6 @@ def apng_encode(
 
     rowptr = <png_bytep> &src.data[0]
     rowstride = width * samples * src.itemsize
-    bit_depth = src.itemsize * 8
 
     try:
         with nogil:
@@ -705,14 +709,14 @@ cdef void png_composite_uint16(
                 i += samples
                 j += samples
                 continue
-            if alpha == 255:
+            if alpha == 65535:
                 for s in range(samples):
                     background[j] = foreground[i]
                     i += 1
                     j += 1
                 continue
             for s in range(samples):
-                png_composite(
+                png_composite_16(
                     background[j],
                     foreground[i],
                     alpha,
@@ -850,7 +854,7 @@ cdef void png_output_flush_fn(png_structp png_ptr) noexcept nogil:
 cdef ssize_t _apng_size_max(ssize_t size, ssize_t frames) noexcept nogil:
     """Return upper bound size of APNG stream from uncompressed image size."""
     # TODO: review this
-    size /= frames
+    size = (size + frames - 1) / frames  # ceiling division per frame
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
     size += 8 + 25 + 16 + 44 + 12 + 64  # sig IHDR gAMA cHRM IEND
