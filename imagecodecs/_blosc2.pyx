@@ -141,7 +141,7 @@ def blosc2_encode(
             src = view.tobytes()  # copy non-contiguous
         ctypesize = <int32_t> view.itemsize
 
-    srcsize = src.size
+    srcsize = src.nbytes
 
     if srcsize > INT32_MAX - BLOSC2_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
@@ -218,7 +218,7 @@ def blosc2_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     with nogil:
         if nthreads == 0:
@@ -265,7 +265,7 @@ def blosc2_decode(
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         int32_t nbytes, cbytes, blocksize
         int16_t nthreads = _default_threads(numthreads)
         blosc2_context* context = NULL
@@ -275,7 +275,7 @@ def blosc2_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src.size > INT32_MAX:
+    if src.nbytes > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -296,7 +296,7 @@ def blosc2_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     if dstsize > INT32_MAX:
         raise ValueError('output size larger than 2 GB')
 
