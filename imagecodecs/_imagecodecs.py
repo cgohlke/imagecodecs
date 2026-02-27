@@ -462,7 +462,7 @@ def floatpred_decode(data, /, *, axis=-2, dist=1, out=None):
 
 
 @notimplemented
-def floatpred_encode(data, /, *, axis=-1, dist=1, out=None):
+def floatpred_encode(data, /, *, axis=-2, dist=1, out=None):
     """Encode Floating Point Predictor."""
 
 
@@ -910,7 +910,7 @@ def lzham_encode(data, /, level=None, *, out=None):
 @notimplemented(lzham)
 def lzham_decode(data, /, *, out=None):
     """Decompress LZHAM."""
-    return lzham.decompress(data, out)
+    return lzham.decompress(data)
 
 
 @notimplemented(zfp)
@@ -918,18 +918,20 @@ def zfp_encode(
     data, /, level=None, *, mode=None, execution=None, header=True, out=None
 ):
     """Compress ZFP."""
+    del execution
     kwargs = {'write_header': header}
-    if mode in {None, zfp.mode_null, 'R', 'reversible'}:  # zfp.mode_reversible
-        pass
-    elif mode in {zfp.mode_fixed_precision, 'p', 'precision'}:
-        kwargs['precision'] = -1 if level is None else level
-    elif mode in {zfp.mode_fixed_rate, 'r', 'rate'}:
-        kwargs['rate'] = -1 if level is None else level
-    elif mode in {zfp.mode_fixed_accuracy, 'a', 'accuracy'}:
-        kwargs['tolerance'] = -1 if level is None else level
-    elif mode in {zfp.mode_expert, 'c', 'expert'}:
-        _minbits, _maxbits, _maxprec, _minexp = level
-        raise NotImplementedError
+    match mode:
+        case None | zfp.mode_null | 'R' | 'reversible':  # zfp.mode_reversible
+            pass
+        case zfp.mode_fixed_precision | 'p' | 'precision':
+            kwargs['precision'] = -1 if level is None else level
+        case zfp.mode_fixed_rate | 'r' | 'rate':
+            kwargs['rate'] = -1 if level is None else level
+        case zfp.mode_fixed_accuracy | 'a' | 'accuracy':
+            kwargs['tolerance'] = -1 if level is None else level
+        case zfp.mode_expert | 'c' | 'expert':
+            _minbits, _maxbits, _maxprec, _minexp = level
+            raise NotImplementedError
     return zfp.compress_numpy(data, **kwargs)
 
 
