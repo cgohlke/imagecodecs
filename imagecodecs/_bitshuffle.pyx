@@ -115,7 +115,7 @@ def bitshuffle_encode(
             raise BitshuffleError('bshuf_bitshuffle', ret)
         return out
 
-    srcsize = src.size
+    srcsize = src.nbytes
     elem_size = itemsize
 
     if elem_size < 1:
@@ -132,7 +132,7 @@ def bitshuffle_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     if dstsize < srcsize:
         raise RuntimeError('output too small')
@@ -141,7 +141,7 @@ def bitshuffle_encode(
         ret = bshuf_bitshuffle(
             <void*> &src[0],
             <void*> &dst[0],
-            srcsize / elem_size,
+            srcsize // elem_size,
             elem_size,
             block_size
         )
@@ -191,7 +191,7 @@ def bitshuffle_decode(
             raise BitshuffleError('bshuf_bitunshuffle', ret)
         return out
 
-    srcsize = src.size
+    srcsize = src.nbytes
     elem_size = itemsize
 
     if elem_size < 1:
@@ -208,7 +208,7 @@ def bitshuffle_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     if dstsize < srcsize:
         raise RuntimeError('output too small')
