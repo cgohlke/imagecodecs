@@ -99,7 +99,7 @@ def brotli_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t encoded_size
         BROTLI_BOOL ret = BROTLI_FALSE
@@ -132,7 +132,7 @@ def brotli_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     encoded_size = <size_t> dstsize
 
     with nogil:
@@ -163,7 +163,7 @@ def brotli_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         size_t decoded_size
         BrotliDecoderResult ret
 
@@ -179,7 +179,7 @@ def brotli_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     decoded_size = <size_t> dstsize
 
     with nogil:
@@ -202,7 +202,7 @@ cdef _brotli_decode(const uint8_t[::1] src, outtype):
         output_t* output = NULL
         uint8_t* next_in = NULL
         uint8_t* next_out = NULL
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t available_in, available_out, incsize
         BrotliDecoderState* state = NULL
         BrotliDecoderResult ret = BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT
