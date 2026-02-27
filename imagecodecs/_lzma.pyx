@@ -104,7 +104,7 @@ def lzma_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstlen
         uint32_t preset = _default_value(level, 6, 0, 9)
@@ -121,11 +121,11 @@ def lzma_encode(
         if dstsize < 0:
             dstsize = lzma_stream_buffer_bound(srcsize)
             if dstsize == 0:
-                raise LzmaError('lzma_stream_buffer_bound', '0')
+                raise LzmaError('lzma_stream_buffer_bound', 0)
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     try:
         with nogil:
@@ -160,7 +160,7 @@ def lzma_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstlen
         lzma_ret ret
@@ -177,7 +177,7 @@ def lzma_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     try:
         with nogil:
@@ -215,6 +215,8 @@ cdef _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
         raise ValueError('invalid LZMA data')
     try:
         index = lzma_index_init(NULL)
+        if index == NULL:
+            raise MemoryError('lzma_index_init returned NULL')
         offset = size - LZMA_STREAM_HEADER_SIZE
         ret = lzma_stream_footer_decode(&options, &data[offset])
         if ret != LZMA_OK:
