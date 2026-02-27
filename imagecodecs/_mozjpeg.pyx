@@ -136,6 +136,9 @@ def mozjpeg_encode(
         bint no_trellis = bool(notrellis)
         bint optimize_scans = progressive is None or progressive
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         src.dtype == numpy.uint8
         and src.ndim in {2, 3}
@@ -198,7 +201,7 @@ def mozjpeg_encode(
     if out is not None:
         dst = out
         dstsize = dst.nbytes
-        outsize = <unsigned long> dst.size  # validates overflow
+        outsize = <unsigned long> dst.nbytes  # validates overflow
         outbuffer = <unsigned char*> &dst[0]
 
     with nogil:
@@ -291,7 +294,7 @@ def mozjpeg_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
         unsigned long tablesize = 0
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         ssize_t dstsize
         ssize_t rowstride
         my_error_mgr err
@@ -321,7 +324,7 @@ def mozjpeg_decode(
 
     if tables is not None:
         tables_ = tables
-        tablesize = tables_.size
+        tablesize = tables_.nbytes
 
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
