@@ -92,7 +92,7 @@ def bz2_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstlen = 0
         int ret
@@ -113,7 +113,7 @@ def bz2_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     memset(<void*> &strm, 0, sizeof(bz_stream))
     ret = BZ2_bzCompressInit(&strm, compresslevel, 0, 0)
@@ -152,7 +152,7 @@ def bz2_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t dstlen = 0
         int ret
@@ -173,7 +173,7 @@ def bz2_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     memset(<void*> &strm, 0, sizeof(bz_stream))
     ret = BZ2_bzDecompressInit(&strm, 0, 0)
