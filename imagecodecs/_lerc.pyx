@@ -277,7 +277,7 @@ def lerc_decode(
     ):
         src = zlib_decode(data)
 
-    srcsize = src.size
+    srcsize = src.nbytes
 
     ret = lerc_getBlobInfo(
         <const unsigned char*> &src[0],
@@ -332,7 +332,13 @@ def lerc_decode(
     else:
         shape = nRows, nCols
 
-    out = _create_array(out, shape, dtype, None, nValidPixels != nRows * nCols)
+    out = _create_array(
+        out,
+        shape,
+        dtype,
+        None,
+        nValidPixels != <int> (<ssize_t> nRows * nCols)
+    )
     dst = out
 
     if nMasks > 0:
