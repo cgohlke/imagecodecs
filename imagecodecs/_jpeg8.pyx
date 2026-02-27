@@ -143,6 +143,9 @@ def jpeg8_encode(
         int data_precision = 8 if src.dtype == numpy.uint8 else 12
         int predictor_selection_value = 0
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         (src.dtype == numpy.uint8 or src.dtype == numpy.uint16)
         and src.ndim in {2, 3}
@@ -221,7 +224,7 @@ def jpeg8_encode(
     if out is not None:
         dst = out
         dstsize = dst.nbytes
-        outsize = <unsigned long> dst.size  # validates overflow
+        outsize = <unsigned long> dst.nbytes  # validates overflow
         outbuffer = <unsigned char*> &dst[0]
 
     with nogil:
@@ -323,7 +326,7 @@ def jpeg8_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
         unsigned long tablesize = 0
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         ssize_t dstsize
         ssize_t rowstride
         my_error_mgr err
@@ -355,7 +358,7 @@ def jpeg8_decode(
 
     if tables is not None:
         tables_ = tables
-        tablesize = tables_.size
+        tablesize = tables_.nbytes
 
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
