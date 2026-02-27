@@ -137,6 +137,9 @@ def jpeg8_encode(
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if src.dtype == numpy.uint16:
         raise ValueError('dtype uint16 not supported by legacy JPEG codec')
     if lossless:
@@ -206,7 +209,7 @@ def jpeg8_encode(
     if out is not None:
         dst = out
         dstsize = dst.nbytes
-        outsize = <unsigned long> dst.size  # validates overflow
+        outsize = <unsigned long> dst.nbytes  # validates overflow
         outbuffer = <unsigned char*> &dst[0]
 
     with nogil:
@@ -291,7 +294,7 @@ def jpeg8_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] tables_
         unsigned long tablesize = 0
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         ssize_t dstsize
         ssize_t rowstride
         my_error_mgr err
@@ -321,7 +324,7 @@ def jpeg8_decode(
 
     if tables is not None:
         tables_ = tables
-        tablesize = tables_.size
+        tablesize = tables_.nbytes
 
     if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
         # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
