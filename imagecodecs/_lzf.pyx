@@ -78,7 +78,7 @@ def lzf_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         unsigned int ret
         uint8_t* pdst
@@ -103,9 +103,9 @@ def lzf_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size - offset
+    dstsize = dst.nbytes - offset
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
@@ -140,12 +140,12 @@ def lzf_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
         unsigned int ret
         ssize_t offset = 4 if header else 0
 
-    global errno
+    global errno  # keep this
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -169,9 +169,9 @@ def lzf_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int> dst.size
+    dstsize = dst.nbytes
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     with nogil:
