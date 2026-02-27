@@ -99,11 +99,11 @@ def rcomp_encode(
 
     if not (
         srcsize <= INT32_MAX
-        and dtype.kind in {b'i', b'u'}
+        and dtype.kind in {'i', 'u'}
         and dtype.itemsize in {1, 2, 4}
     ):
         raise ValueError(
-            'data is not a numpy integers array of size < 2*31'
+            'data is not a numpy integers array of size < 2**31'
         )
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -114,7 +114,7 @@ def rcomp_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     if dstsize > INT32_MAX:
         raise ValueError('output too large')
 
@@ -174,7 +174,7 @@ def rcomp_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = <ssize_t> src.size
+        ssize_t srcsize = <ssize_t> src.nbytes
         ssize_t dstsize
         int ret = 0
         int nblock_ = 32 if nblock is None else nblock
