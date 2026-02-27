@@ -63,13 +63,20 @@ class SnappyError(RuntimeError):
 
 def snappy_version():
     """Return Snappy library version string."""
-    # TODO: use version from header when available
-    # TODO: SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header
-    return 'snappy 1.2.x'
+    # SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header only
+    return 'snappy 1.2.2'
 
 
 def snappy_check(const uint8_t[::1] data, /):
     """Return whether data is SNAPPY encoded or None if unknown."""
+    cdef:
+        snappy_status ret
+
+    ret = snappy_validate_compressed_buffer(
+        <const char*> &data[0],
+        <size_t> data.nbytes
+    )
+    return ret == SNAPPY_OK
 
 
 def snappy_encode(
@@ -82,7 +89,7 @@ def snappy_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         size_t output_length = snappy_max_compressed_length(<size_t> srcsize)
         snappy_status ret
@@ -100,7 +107,7 @@ def snappy_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     if <size_t> dstsize < output_length:
         # snappy_compress requires at least (32+len(data)+len(data)/6) bytes
@@ -149,7 +156,7 @@ def snappy_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         size_t output_length, result
         snappy_status ret
 
@@ -171,7 +178,7 @@ def snappy_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     output_length = <size_t> dstsize
 
     with nogil:
