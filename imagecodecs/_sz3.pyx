@@ -52,6 +52,7 @@ class SZ3:
 
         ABS = 0
         REL = 1
+        # VR_REL = 1
         ABS_AND_REL = 2
         ABS_OR_REL = 3
         # PSNR = 4
@@ -92,10 +93,14 @@ def sz3_encode(
         unsigned char* buffer = NULL
         size_t r1, r2, r3, r4, r5
         size_t outSize = 0
+        ssize_t dstsize
         double absErrBound = 0.0 if abs is None else abs
         double relBoundRatio = 0.0 if rel is None else rel
         double pwrBoundRatio = 0.0  # if pwr is None else pwr
         int errBoundMode, dataType
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
     if mode is None:
         errBoundMode = ABS
@@ -103,6 +108,8 @@ def sz3_encode(
         errBoundMode = ABS
     elif mode in {REL, 'rel'}:
         errBoundMode = REL
+    # elif mode in {VR_REL, 'vr_rel'}:
+    #     errBoundMode = VR_REL
     elif mode in {ABS_AND_REL, 'abs_and_rel'}:
         errBoundMode = ABS_AND_REL
     elif mode in {ABS_OR_REL, 'abs_or_rel'}:
