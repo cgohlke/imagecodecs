@@ -100,6 +100,9 @@ def jpegls_encode(
         size_t byteswritten
         size_t size_in_bytes
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
@@ -266,7 +269,7 @@ def jpegls_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t itemsize = 0
         charls_jpegls_errc ret
