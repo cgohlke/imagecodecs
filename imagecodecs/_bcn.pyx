@@ -109,7 +109,7 @@ def bcn_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if not 128 < srcsize <= INT32_MAX:
+    if not 8 <= srcsize <= INT32_MAX:
         raise ValueError(f'input size {srcsize} out of bounds')
 
     if shape is None and hasattr(out, 'shape'):
@@ -277,7 +277,7 @@ cdef ssize_t _bcn_decode(
             while i < width:
                 i += 4
                 bcdec_bc6h_half(
-                    <float*> psrc, <float*> pdst, pitch, 0
+                    <const void*> psrc, <void*> pdst, pitch, 0
                 )
                 psrc += BCDEC_BC6H_BLOCK_SIZE
                 pdst += 24
@@ -293,7 +293,7 @@ cdef ssize_t _bcn_decode(
             while i < width:
                 i += 4
                 bcdec_bc6h_half(
-                    <float*> psrc, <float*> pdst, pitch, 1
+                    <const void*> psrc, <void*> pdst, pitch, 1
                 )
                 psrc += BCDEC_BC6H_BLOCK_SIZE
                 pdst += 24
@@ -411,6 +411,8 @@ def dds_decode(
 
     if mipmap >= mipmaps:
         raise ValueError(f'{mipmap=} out of range')
+    if mipmap != 0:
+        raise NotImplementedError(f'{mipmap=} not supported')
 
     textures = 1
     if dds_header.caps & DDS_SURFACE_FLAGS_CUBEMAP:
