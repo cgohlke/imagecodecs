@@ -139,6 +139,9 @@ def jpeg2k_encode(
         int irreversible = 0 if reversible else 1
         bint tcp_mct = bool(mct)
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
         raise ValueError('invalid data shape or dtype')
 
@@ -487,7 +490,7 @@ def jpeg2k_decode(
 
     try:
         memopj.data = <OPJ_UINT8*> &src[0]
-        memopj.size = src.size
+        memopj.size = src.nbytes
         memopj.offset = 0
         memopj.written = 0
         memopj.owner = 0
