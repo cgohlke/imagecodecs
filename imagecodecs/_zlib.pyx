@@ -131,13 +131,13 @@ def zlib_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use streaming APIs
-            dstsize = _compress_bound(src.size)
+            dstsize = _compress_bound(src.nbytes)
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
-    dstlen = <unsigned long> dst.size  # validates overflow
-    srclen = <unsigned long> src.size  # validates overflow
+    dstsize = dst.nbytes
+    dstlen = <unsigned long> dst.nbytes  # validates overflow
+    srclen = <unsigned long> src.nbytes  # validates overflow
 
     with nogil:
         ret = compress2(
@@ -181,9 +181,9 @@ def zlib_decode(
 
     src = data
     dst = out
-    dstsize = dst.size
-    dstlen = <unsigned long> dst.size  # validates overflow
-    srclen = <unsigned long> src.size  # validates overflow
+    dstsize = dst.nbytes
+    dstlen = <unsigned long> dst.nbytes  # validates overflow
+    srclen = <unsigned long> src.nbytes  # validates overflow
 
     with nogil:
         # uncompress2 is not available on manylinux
@@ -205,7 +205,7 @@ def _zlib_decode(const uint8_t[::1] src, outtype):
     cdef:
         output_t* output = NULL
         z_stream stream
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int ret
@@ -277,9 +277,7 @@ def _zlib_decode(const uint8_t[::1] src, outtype):
 
     finally:
         output_del(output)
-        ret = inflateEnd(&stream)
-        if ret != Z_OK:
-            raise ZlibError('inflateEnd', ret)
+        inflateEnd(&stream)
 
     return out
 
@@ -299,7 +297,7 @@ def zlib_crc32(
     """Return CRC32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        uInt srcsize = <uInt> src.size
+        uInt srcsize = <uInt> src.nbytes
         uLong crc = 0 if value is None else value
 
     with nogil:
@@ -316,7 +314,7 @@ def zlib_adler32(
     """Return Adler-32 checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        uInt srcsize = <uInt> src.size
+        uInt srcsize = <uInt> src.nbytes
         uLong adler = 1 if value is None else value
 
     with nogil:
