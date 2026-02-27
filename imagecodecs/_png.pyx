@@ -99,6 +99,8 @@ def png_version():
 
 def png_check(const uint8_t[::1] data, /):
     """Return whether data is PNG encoded image or None if unknown."""
+    if data.shape[0] < 8:
+        return False
     return png_sig_cmp(&data[0], 0, 8) == 0
 
 
@@ -115,7 +117,7 @@ def png_encode(
 
     For fast encoding, matching OpenCV settings, set:
 
-    - level=1 (PNG.LEVEL.SPEED)
+    - level=1 (PNG.COMPRESSION.SPEED)
     - strategy=3 (PNG.STRATEGY.RLE)
     - filter=16 (PNG.FILTER.SUB)
 
@@ -141,8 +143,8 @@ def png_encode(
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp rowpointers = NULL
-        png_uint_32 width = <png_uint_32> src.shape[1]
-        png_uint_32 height = <png_uint_32> src.shape[0]
+        png_uint_32 width = 0
+        png_uint_32 height = 0
         png_uint_32 row
 
     if not (
@@ -156,11 +158,15 @@ def png_encode(
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
+    width = <png_uint_32> src.shape[1]
+    height = <png_uint_32> src.shape[0]
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            dstsize = _png_size_max(srcsize)  # TODO: use dynamic mempng
+            # TODO: use dynamic mempng
+            dstsize = _png_size_max(srcsize)
         out = _create_output(outtype, dstsize)
         mempng.owner = 0
     else:
@@ -468,7 +474,7 @@ cdef void png_write_data_fn(
         if not mempng.owner:
             png_error(png_ptr, b'png_write_data_fn output stream too small')
             return
-        newsize = mempng.offset + size
+        newsize = _align_ssize_t(mempng.offset + size)
         if newsize <= <ssize_t> (<double> mempng.size * 1.25):
             # moderate upsize: overallocate
             newsize = _align_ssize_t(newsize + newsize // 4)
