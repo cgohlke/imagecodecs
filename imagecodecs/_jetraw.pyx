@@ -99,30 +99,38 @@ def jetraw_init(
     cdef:
         char* charp = NULL
         jetraw.CHARTYPE* wcharp = NULL
+        int verbose_
         jetraw.dp_status status = jetraw.dp_success
 
     if verbose is not None:
-        with global_lock:
-            jetraw.dpcore_set_loglevel(verbose)
+        verbose_ = verbose
+        with nogil:
+            with global_lock:
+                jetraw.dpcore_set_loglevel(verbose_)
 
     if parameters is None:
-        with global_lock:
-            jetraw.dpcore_init()
+        with nogil:
+            with global_lock:
+                jetraw.dpcore_init()
     elif sys.platform == 'win32':
         # TODO: conditional compilation
         wcharp = PyUnicode_AsWideCharString(parameters, NULL)
         if wcharp == NULL:
             raise ValueError('PyUnicode_AsWideCharString returned NULL')
-        with global_lock:
-            status = jetraw.dpcore_load_parameters(wcharp)
+        with nogil:
+            with global_lock:
+                status = jetraw.dpcore_load_parameters(wcharp)
         if status != jetraw.dp_success:
             raise JetrawError('dpcore_load_parameters', status)
         PyMem_Free(<void*> wcharp)
     else:
         bytestr = parameters.encode()
         charp = bytestr
-        with global_lock:
-            jetraw.dpcore_load_parameters(charp)
+        with nogil:
+            with global_lock:
+                status = jetraw.dpcore_load_parameters(charp)
+        if status != jetraw.dp_success:
+            raise JetrawError('dpcore_load_parameters', status)
 
 
 def jetraw_encode(
@@ -167,11 +175,11 @@ def jetraw_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = min(max(src.size, <ssize_t> 1024), <ssize_t> INT32_MAX)
+            dstsize = min(max(src.nbytes, <ssize_t> 1024), <ssize_t> INT32_MAX)
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     if dstsize > INT32_MAX:
         raise RuntimeError('output too large')
     pdstlen = <int32_t> dstsize
@@ -213,7 +221,7 @@ def jetraw_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         jetraw.dp_status status = jetraw.dp_success
 
