@@ -71,7 +71,7 @@ def lzo_version():
 
 def lzo_check(const uint8_t[::1] data, /):
     """Return whether data is LZO encoded or None if unknown."""
-    if data.size > 5 and (data[0] != 0xf0 or data[0] != 0xf1):
+    if data.nbytes > 5 and (data[0] == 0xf0 or data[0] == 0xf1):
         return True
     return None
 
@@ -99,7 +99,7 @@ def lzo_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t offset = 5 if header else 0
         size_t output_len
@@ -126,7 +126,7 @@ def lzo_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     output_len = <size_t> dstsize
 
     with nogil:
@@ -139,4 +139,5 @@ def lzo_decode(
     if ret != EResult_Success:
         raise LzoError('lzokay_decompress', ret)
 
+    del dst
     return _return_output(out, dstsize, <ssize_t> output_len, outgiven)
