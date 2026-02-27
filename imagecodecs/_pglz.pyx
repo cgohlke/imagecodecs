@@ -84,7 +84,7 @@ def pglz_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         int32 ret
         uint8_t* pdst
@@ -121,21 +121,22 @@ def pglz_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size - offset
+    dstsize = dst.nbytes - offset
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     if dstsize < PGLZ_MAX_OUTPUT(srcsize):
         raise ValueError('output too small')
 
-    with global_lock:
-        ret = pglz_compress(
-            <const char*> &src[0],
-            <int32> srcsize,
-            <char*> &dst[offset],
-            pglz_strategy
-        )
+    with nogil:
+        with global_lock:
+            ret = pglz_compress(
+                <const char*> &src[0],
+                <int32> srcsize,
+                <char*> &dst[offset],
+                pglz_strategy
+            )
 
     if header:
         pdst = <uint8_t*> &dst[0]
@@ -169,7 +170,7 @@ def pglz_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t rawsize = 0
         int32 ret
         bint check_complete = bool(checkcomplete)  # allow partial results
@@ -198,16 +199,17 @@ def pglz_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
-    if dst.size > INT32_MAX:
+    if dst.nbytes > INT32_MAX:
         raise ValueError('output too large')
 
     if header and srcsize == offset + rawsize:
         # copy uncompressed
         if rawsize > dstsize:
             raise ValueError('output too small')
-        memcpy(<void*> &dst[0], <const void*> &src[offset], rawsize)
+        with nogil:
+            memcpy(<void*> &dst[0], <const void*> &src[offset], rawsize)
         ret = <int32> rawsize
 
     else:
