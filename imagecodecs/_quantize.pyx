@@ -103,7 +103,7 @@ def quantize_encode(
     src = data
     src_size = <size_t> src.size
 
-    if src.dtype.kind != b'f' and src.itemsize not in {4, 8}:
+    if src.dtype.kind != 'f' or src.itemsize not in {4, 8}:
         raise ValueError('not a floating-point array')
 
     if src.itemsize == 4:
