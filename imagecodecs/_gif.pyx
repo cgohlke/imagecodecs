@@ -112,6 +112,9 @@ def gif_encode(
     ):
         raise ValueError('invalid data shape or dtype')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if src.ndim > 2:
         imagecount = <int> src.shape[0]
         height = <GifWord> src.shape[1]
@@ -135,7 +138,7 @@ def gif_encode(
         memgif.owner = 0
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
 
     cmap = _create_array(colormap, (256, 3), numpy.uint8)
     if colormap is None:
@@ -209,7 +212,7 @@ def gif_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         GifFileType* gif
         SavedImage* image
         GifImageDesc* descr
