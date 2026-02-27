@@ -143,6 +143,9 @@ def jpegxr_encode(
         U32 stride
         ERR err
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if (
         dtype not in {
             numpy.bool_,
@@ -301,7 +304,7 @@ def jpegxr_decode(
         U32 stride
         ERR err
         U8 alpha
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t dstsize
         ssize_t samples
         int typenum
