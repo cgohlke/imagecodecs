@@ -123,7 +123,7 @@ def jpegxl_version():
 def jpegxl_check(const uint8_t[::1] data, /):
     """Return whether data is JPEGXL encoded image or None if unknown."""
     cdef:
-        JxlSignature sig = JxlSignatureCheck(&data[0], min(data.size, 16))
+        JxlSignature sig = JxlSignatureCheck(&data[0], min(data.nbytes, 16))
 
     return sig != JXL_SIG_NOT_ENOUGH_BYTES and sig != JXL_SIG_INVALID
 
@@ -599,7 +599,7 @@ def jpegxl_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t dstsize = 0
         size_t samples = 0
         size_t frames = 0
@@ -618,6 +618,9 @@ def jpegxl_decode(
         size_t channel_index
         bint keep_orientation = bool(keeporientation)
         bint is_planar = False
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
 
     # TODO: decode from ISOBMFF container ("box")
 
@@ -907,7 +910,7 @@ def jpegxl_encode_jpeg(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         size_t avail_out = 0
         uint8_t* next_out = NULL
         output_t* output = NULL
@@ -917,6 +920,9 @@ def jpegxl_encode_jpeg(
         JxlEncoderStatus status = JXL_ENC_SUCCESS
         JXL_BOOL use_container = bool(usecontainer)
         size_t num_threads = _default_threads(numthreads)
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -1040,13 +1046,16 @@ def jpegxl_decode_jpeg(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         output_t* output = NULL
         void* runner = NULL
         JxlDecoder* decoder = NULL
         JxlDecoderStatus status = JXL_DEC_SUCCESS
         JxlSignature signature
         size_t num_threads = _default_threads(numthreads)
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
 
     signature = JxlSignatureCheck(&src[0], srcsize)
     if signature != JXL_SIG_CODESTREAM and signature != JXL_SIG_CONTAINER:
