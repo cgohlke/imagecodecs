@@ -143,6 +143,9 @@ def jpegxs_encode(
         xs_config_t xs_config
         bint ret = False
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     memset(<void*> &xs_image, 0, sizeof(xs_image))
     memset(<void*> &xs_config, 0, sizeof(xs_config))
 
@@ -248,7 +251,7 @@ def jpegxs_encode(
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size
+        dstsize = dst.nbytes
 
         with nogil:
             ret = xs_enc_image(
@@ -282,7 +285,7 @@ def jpegxs_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        size_t srcsize = src.size
+        size_t srcsize = src.nbytes
         ssize_t s, i, j, itemsize
         uint8_t* dst8 = NULL
         uint16_t* dst16 = NULL
