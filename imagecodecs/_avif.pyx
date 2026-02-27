@@ -246,6 +246,9 @@ def avif_encode(
         avifMatrixCoefficients matrix_ = AVIF_MATRIX_COEFFICIENTS_UNSPECIFIED
         avifResult res
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3, 4}
@@ -433,7 +436,7 @@ def avif_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     if <size_t> dstsize < raw.size:
         raise ValueError('output too small')
     memcpy(<void*> &dst[0], <const void*> raw.data, raw.size)
@@ -457,7 +460,7 @@ def avif_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t frameindex = -1 if index is None else index
         ssize_t samples, size, itemsize, i, imagecount
         bint monochrome = 0  # must be initialized
