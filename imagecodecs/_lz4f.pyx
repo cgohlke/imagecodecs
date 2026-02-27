@@ -99,7 +99,7 @@ def lz4f_encode(
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         const uint8_t[::1] dst  # must be const to write to bytes
-        size_t srcsize = <size_t> src.size
+        size_t srcsize = <size_t> src.nbytes
         ssize_t dstsize
         size_t ret
         LZ4F_preferences_t prefs
@@ -109,13 +109,13 @@ def lz4f_encode(
 
     memset(<void*> &prefs, 0, sizeof(LZ4F_preferences_t))
     prefs.frameInfo.contentSize = srcsize
-    if level:
+    if level is not None:
         prefs.compressionLevel = _default_value(level, 0, -1, LZ4HC_CLEVEL_MAX)
-    if blocksizeid:
+    if blocksizeid is not None:
         prefs.frameInfo.blockSizeID = <LZ4F_blockSizeID_t> blocksizeid
-    if contentchecksum:
+    if contentchecksum is not None:
         prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
-    if blockchecksum:
+    if blockchecksum is not None:
         prefs.frameInfo.blockChecksumFlag = LZ4F_blockChecksumEnabled
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -128,7 +128,7 @@ def lz4f_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <size_t> dst.size
+    dstsize = <ssize_t> dst.nbytes
 
     with nogil:
         ret = LZ4F_compressFrame(
@@ -155,7 +155,7 @@ def lz4f_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize = <ssize_t> src.size
+        ssize_t srcsize = <ssize_t> src.nbytes
         ssize_t dstsize
         size_t byteswritten, bytesread, ret
         size_t srcindex = 0
@@ -208,7 +208,7 @@ def lz4f_decode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = dst.size
+    dstsize = dst.nbytes
     byteswritten = <size_t> dstsize
     bytesread = <size_t> srcsize - srcindex
 
@@ -230,11 +230,7 @@ def lz4f_decode(
             if LZ4F_isError(<LZ4F_errorCode_t> ret):
                 raise Lz4fError('LZ4F_decompress', <LZ4F_errorCode_t> ret)
     finally:
-        ret = LZ4F_freeDecompressionContext(dctx)
-        if LZ4F_isError(<LZ4F_errorCode_t> ret):
-            raise Lz4fError(
-                'LZ4F_freeDecompressionContext', <LZ4F_errorCode_t> ret
-            )
+        LZ4F_freeDecompressionContext(dctx)
 
     del dst
     return _return_output(out, dstsize, byteswritten, outgiven)
