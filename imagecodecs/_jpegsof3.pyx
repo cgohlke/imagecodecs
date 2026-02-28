@@ -106,16 +106,17 @@ def jpegsof3_decode(
 ):
     """Return decoded JPEGSOF3 image.
 
-    Beware, the input data must be writable and is modified in-place!
+    The input data is copied internally because the decoder modifies the
+    buffer in-place during unpadding. The caller's buffer is not modified.
 
     RGB images are returned as non-contiguous arrays as samples are decoded
     into separate frames first (RRGGBB).
 
     """
     cdef:
+        numpy.ndarray src  # owned writable copy of input
         numpy.ndarray dst
-        const uint8_t[::1] src = _writable_input(data)
-        ssize_t srcsize = src.size
+        ssize_t srcsize
         ssize_t dstsize
         int dimX, dimY, bits, frames
         int ret = JPEGSOF3_OK
@@ -123,9 +124,14 @@ def jpegsof3_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
+    src = numpy.frombuffer(data, dtype=numpy.uint8).copy()
+    srcsize = src.nbytes
+
+    # read only the SOF header, returns before the unpadding step,
+    # so src is unmodified and can be reused for the decode call below
     with nogil:
         ret = decode_jpegsof3(
-            <unsigned char*> &src[0],
+            <unsigned char*> src.data,
             srcsize,
             NULL,
             0,
@@ -153,7 +159,7 @@ def jpegsof3_decode(
 
     with nogil:
         ret = decode_jpegsof3(
-            <unsigned char*> &src[0],
+            <unsigned char*> src.data,
             srcsize,
             <unsigned char*> dst.data,
             dstsize,
