@@ -107,6 +107,10 @@ def ljpeg_encode(
     ):
         raise ValueError('invalid data shape or dtype')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    src_dtype = src.dtype
     if src.dtype == numpy.uint8:
         src = src.astype(numpy.uint16)
 
@@ -114,8 +118,8 @@ def ljpeg_encode(
     height = <int> src.shape[0]
     width = <int> src.shape[1]
 
-    if bitspersample is None or src.dtype == numpy.uint8:
-        bitdepth = data.itemsize * 8
+    if bitspersample is None or src_dtype == numpy.uint8:
+        bitdepth = src_dtype.itemsize * 8
     elif 8 <= bitspersample <= 16:
         bitdepth = bitspersample
     else:
@@ -180,10 +184,10 @@ def ljpeg_decode(
     cdef:
         numpy.ndarray dst
         numpy.ndarray table
-        const uint8_t[::1] src = _writable_input(data)
+        const uint8_t[::1] src = data
         uint16_t* target = NULL
         uint16_t* linearize_table = NULL
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         int linearize_length = 0
         int width = 0
         int height = 0
