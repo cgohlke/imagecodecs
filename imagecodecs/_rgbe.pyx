@@ -110,6 +110,9 @@ def rgbe_encode(
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if (
         out is not None
         and not header
@@ -126,7 +129,7 @@ def rgbe_encode(
             if stream == NULL:
                 raise MemoryError('rgbe_stream_new failed')
             ret = RGBE_WritePixels(
-                stream, <float*> src.data, <int> (size // 4)
+                stream, <const float*> src.data, <int> (size // 4)
             )
             rgbe_stream_del(stream)
         if ret != RGBE_RETURN_SUCCESS:
@@ -170,13 +173,13 @@ def rgbe_encode(
                     raise RgbeError('RGBE_WriteHeader', ret)
             if dorle:
                 ret = RGBE_WritePixels_RLE(
-                    stream, <float*> src.data, width, height
+                    stream, <const float*> src.data, width, height
                 )
                 if ret != RGBE_RETURN_SUCCESS:
                     raise RgbeError('RGBE_WritePixels_RLE', ret)
             else:
                 ret = RGBE_WritePixels(
-                    stream, <float*> src.data, width * height
+                    stream, <const float*> src.data, width * height
                 )
                 if ret != RGBE_RETURN_SUCCESS:
                     raise RgbeError('RGBE_WritePixels', ret)
@@ -329,5 +332,3 @@ def rgbe_decode(
 
     del dst
     return out
-
-    # TODO: replace header parsing with Python regex
