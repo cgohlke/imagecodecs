@@ -34,7 +34,7 @@ cdef extern from 'rgbe.h' nogil:
         rgbe_stream_t* fp,
         int width,
         int height,
-        rgbe_header_info* info
+        const rgbe_header_info* info
     )
 
     int RGBE_ReadHeader(
@@ -46,7 +46,7 @@ cdef extern from 'rgbe.h' nogil:
 
     int RGBE_WritePixels(
         rgbe_stream_t* fp,
-        float* data,
+        const float* data,
         int numpixels
     )
 
@@ -58,7 +58,7 @@ cdef extern from 'rgbe.h' nogil:
 
     int RGBE_WritePixels_RLE(
         rgbe_stream_t* fp,
-        float* data,
+        const float* data,
         int scanline_width,
         int num_scanlines
     )
