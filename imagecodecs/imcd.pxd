@@ -39,6 +39,18 @@ cdef extern from 'imcd.h' nogil:
         const bint decode
     )
 
+    ssize_t imcd_diff(
+        void* src,
+        const ssize_t srcsize,
+        const ssize_t srcstride,
+        void* dst,
+        const ssize_t dstsize,
+        const ssize_t dststride,
+        const ssize_t itemsize,
+        const char itemtype,
+        const bint decode
+    )
+
     ssize_t imcd_xor(
         void* src,
         const ssize_t srcsize,
@@ -98,29 +110,6 @@ cdef extern from 'imcd.h' nogil:
         const ssize_t dstsize
     )
 
-    ssize_t imcd_ccittrle_decode_size(
-        const uint8_t* src,
-        const ssize_t srcsize
-    )
-
-    ssize_t imcd_ccittrle_encode_size(
-        const ssize_t srcsize
-    )
-
-    ssize_t imcd_ccittrle_decode(
-        const uint8_t* src,
-        const ssize_t srcsize,
-        uint8_t* dst,
-        const ssize_t dstsize
-    )
-
-    ssize_t imcd_ccittrle_encode(
-        const uint8_t* src,
-        const ssize_t srcsize,
-        uint8_t* dst,
-        const ssize_t dstsize
-    )
-
     ssize_t imcd_packints_decode(
         const uint8_t* src,
         const ssize_t srcsize,
@@ -134,6 +123,38 @@ cdef extern from 'imcd.h' nogil:
         const ssize_t srcsize,
         uint8_t* dst,
         const ssize_t dstsize,
+        const int bps
+    )
+
+    ssize_t imcd_packints_decode_lsb(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t items,
+        const int bps
+    )
+
+    ssize_t imcd_packints_encode_lsb(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t items,
+        const int bps
+    )
+
+    ssize_t imcd_packints_decode_msb(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t items,
+        const int bps
+    )
+
+    ssize_t imcd_packints_encode_msb(
+        const uint8_t* src,
+        const ssize_t srcsize,
+        uint8_t* dst,
+        const ssize_t items,
         const int bps
     )
 
@@ -241,15 +262,15 @@ cdef extern from 'imcd.h' nogil:
     ssize_t imcd_memsearch(
         const char* src,
         const ssize_t srclen,
-        const char* dst,
-        const ssize_t dstlen
+        const char* needle,
+        const ssize_t needlelen
     )
 
     ssize_t imcd_strsearch(
         const char* src,
         const ssize_t srclen,
-        const char* dst,
-        const ssize_t dstlen
+        const char* needle,
+        const ssize_t needlelen
     )
 
 cdef extern from 'fenv.h' nogil:
