@@ -53,10 +53,14 @@ This file contains the following changes, mostly to the
 - Enable 1..16 bit, 1..255 frames (not tested).
 - Fix JPEG with multiple DHTs.
 - Use UNUSED macro instead of #pragma unused.
+- Fix out of bound reads.
+- Fix inverted output buffer size checks.
+- Fix integer overflow in pixel count calculation.
+- Fix point transform bitmask extraction.
 
 The changes are released under the BSD 3-Clause License:
 
-Copyright (c) 2018-2023, Christoph Gohlke
+Copyright (c) 2018-2026, Christoph Gohlke
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -93,7 +97,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #define UNUSED(arg) ((void)&(arg))
 
 unsigned char
-readByte(unsigned char *lRawRA, ssize_t *lRawPos, ssize_t lRawSz)
+readByte(
+    unsigned char *lRawRA,
+    ssize_t *lRawPos,
+    ssize_t lRawSz)
 {
     unsigned char ret = 0x00;
     if (*lRawPos < lRawSz)
@@ -103,7 +110,10 @@ readByte(unsigned char *lRawRA, ssize_t *lRawPos, ssize_t lRawSz)
 }
 
 uint16_t
-readWord(unsigned char *lRawRA, ssize_t *lRawPos, ssize_t lRawSz)
+readWord(
+    unsigned char *lRawRA,
+    ssize_t *lRawPos,
+    ssize_t lRawSz)
 {
     return (
         (readByte(lRawRA, lRawPos, lRawSz) << 8) +
@@ -111,8 +121,12 @@ readWord(unsigned char *lRawRA, ssize_t *lRawPos, ssize_t lRawSz)
 }
 
 int
-readBit(unsigned char *lRawRA, ssize_t *lRawPos, int *lCurrentBitPos)
+readBit(
+    unsigned char *lRawRA,
+    ssize_t *lRawPos,
+    int *lCurrentBitPos)
 {
+    // TODO: no bounds check; lRawPos may exceed unpadded data length
     // Read the next single bit
     int result = (lRawRA[*lRawPos] >> (7 - *lCurrentBitPos)) & 1;
     (*lCurrentBitPos)++;
@@ -124,15 +138,20 @@ readBit(unsigned char *lRawRA, ssize_t *lRawPos, int *lCurrentBitPos)
 }
 
 int
-bitMask(int bits)
+bitMask(
+    int bits)
 {
     return ((2 << (bits - 1)) - 1);
 }
 
 int
 readBits(
-    unsigned char *lRawRA, ssize_t *lRawPos, int *lCurrentBitPos, int lNum)
+    unsigned char *lRawRA,
+    ssize_t *lRawPos,
+    int *lCurrentBitPos,
+    int lNum)
 {
+    // TODO: no bounds check; reads 3 bytes without validating lRawPos
     // lNum: bits to read, not to exceed 16
     int result = lRawRA[*lRawPos];
     result = (result << 8) + lRawRA[(*lRawPos) + 1];
@@ -166,8 +185,9 @@ decodePixelDifference(
     int *lCurrentBitPos,
     const struct HufTables &l)
 {
+    // TODO: no bounds check; reads 2 bytes without validating lRawPos
     int lByte = (lRawRA[*lRawPos] << *lCurrentBitPos) +
-                (lRawRA[*lRawPos + 1] >> (8 - *lCurrentBitPos));
+        (lRawRA[*lRawPos + 1] >> (8 - *lCurrentBitPos));
     lByte = lByte & 255;
     int lHufValSSSS = l.LookUpRA[lByte];
     if (lHufValSSSS < 255) {
@@ -175,7 +195,8 @@ decodePixelDifference(
         *lCurrentBitPos = l.SSSSszRA[lHufValSSSS] + *lCurrentBitPos;
         *lRawPos = *lRawPos + (*lCurrentBitPos >> 3);
         *lCurrentBitPos = *lCurrentBitPos & 7;
-    } else {
+    }
+    else {
         // full SSSS is not in the first 8-bits
         int lInput = lByte;
         int lInputBits = 8;
@@ -185,10 +206,12 @@ decodePixelDifference(
             lInput = (lInput << 1) + readBit(lRawRA, lRawPos, lCurrentBitPos);
             if (l.DHTliRA[lInputBits] != 0) {
                 // if any entries with this length
-                for (int lI = l.DHTstartRA[lInputBits];
-                     lI <=
-                     (l.DHTstartRA[lInputBits] + l.DHTliRA[lInputBits] - 1);
-                     lI++) {
+                for (
+                    int lI = l.DHTstartRA[lInputBits];
+                    lI <=
+                    (l.DHTstartRA[lInputBits] + l.DHTliRA[lInputBits] - 1);
+                    lI++)
+                {
                     if (lInput == l.HufCode[lI]) {
                         lHufValSSSS = l.HufVal[lI];
                     }
@@ -209,7 +232,8 @@ decodePixelDifference(
     if (lHufValSSSS == 1) {
         if (readBit(lRawRA, lRawPos, lCurrentBitPos) == 0) {
             return -1;
-        } else {
+        }
+        else {
             return 1;
         }
     }
@@ -259,6 +283,7 @@ decode_jpegsof3(
     uint16_t SOFydim = 0;
     uint16_t SOFxdim = 0;
     // ssize_t SOSarrayPos;  // SOFarrayPos
+    int lDiff = 0;
     int lnHufTables = 0;
     int lFrameCount = 1;
     const int kmaxFrames = 4;  // 255
@@ -277,8 +302,10 @@ decode_jpegsof3(
                 return JPEGSOF3_INVALID_HEADER_TAG;
             }
             btMarkerType = readByte(lRawRA, &lRawPos, lRawSz);
-            if ((btMarkerType == 0x01) || (btMarkerType == 0xFF) ||
-                ((btMarkerType >= 0xD0) && (btMarkerType <= 0xD7))) {
+            if (
+                (btMarkerType == 0x01) || (btMarkerType == 0xFF) ||
+                ((btMarkerType >= 0xD0) && (btMarkerType <= 0xD7)))
+            {
                 // only process segments with length fields
                 btMarkerType = 0;
             }
@@ -290,9 +317,11 @@ decode_jpegsof3(
             // Segment larger than image
             return JPEGSOF3_SEGMENT_GT_IMAGE;
         }
-        if (((btMarkerType >= 0xC0) && (btMarkerType <= 0xC3)) ||
+        if (
+            ((btMarkerType >= 0xC0) && (btMarkerType <= 0xC3)) ||
             ((btMarkerType >= 0xC5) && (btMarkerType <= 0xCB)) ||
-            ((btMarkerType >= 0xCD) && (btMarkerType <= 0xCF))) {
+            ((btMarkerType >= 0xCD) && (btMarkerType <= 0xCF)))
+        {
             // if Start-Of-Frame (SOF) marker
             SOFprecision = readByte(lRawRA, &lRawPos, lRawSz);
             SOFydim = readWord(lRawRA, &lRawPos, lRawSz);
@@ -308,17 +337,23 @@ decode_jpegsof3(
                 // Not a lossless JPEG ITU-T81 image (SoF must be 0XC3)
                 return JPEGSOF3_INVALID_ITU_T81;
             }
-            if ((SOFprecision < 2) || (SOFprecision > 16) || (SOFnf < 1) ||
-                (SOFnf > kmaxFrames)) {
+            if (
+                (SOFprecision < 2) || (SOFprecision > 16) || (SOFnf < 1) ||
+                (SOFnf > kmaxFrames))
+            {
                 // Data must be 2..16 bit, 1..4 frames
                 return JPEGSOF3_INVALID_BIT_DEPTH;
             }
             if (lImgRA8 == NULL) {
                 return JPEGSOF3_OK;
             }
-        } else if (btMarkerType == 0xC4) {
+        }
+        else if (btMarkerType == 0xC4) {
             // if SOF marker else if define-Huffman-tables marker (DHT)
             do {
+                if (lFrameCount > kmaxFrames) {
+                    return JPEGSOF3_TABLE_CORRUPTED;
+                }
                 // we read but ignore DHTtcth.
                 uint8_t DHTnLi = readByte(lRawRA, &lRawPos, lRawSz);
                 UNUSED(DHTnLi);
@@ -349,9 +384,11 @@ decode_jpegsof3(
                     // set the huffman size values
                     if (l[lFrameCount].DHTliRA[lInc] > 0) {
                         l[lFrameCount].DHTstartRA[lInc] = lIncY + 1;
-                        for (int lIncX = 1;
-                             lIncX <= l[lFrameCount].DHTliRA[lInc];
-                             lIncX++) {
+                        for (
+                            int lIncX = 1;
+                            lIncX <= l[lFrameCount].DHTliRA[lInc];
+                            lIncX++)
+                        {
                             lIncY++;
                             btS1 = readByte(lRawRA, &lRawPos, lRawSz);
                             l[lFrameCount].HufVal[lIncY] = btS1;
@@ -360,7 +397,8 @@ decode_jpegsof3(
                                 // unsigned ints ALWAYS > 0,
                                 // so no need for(btS1 >= 0)
                                 l[lFrameCount].HufSz[lIncY] = lInc;
-                            } else {
+                            }
+                            else {
                                 // Huffman size array corrupted
                                 return JPEGSOF3_TABLE_SIZE_CORRUPTED;
                             }
@@ -387,13 +425,15 @@ decode_jpegsof3(
             } while ((lSegmentEnd - lRawPos) >= 18);
             lnHufTables = lFrameCount - 1;
             lRawPos = lSegmentEnd;
-        } else if (btMarkerType == 0xDD) {
+        }
+        else if (btMarkerType == 0xDD) {
             // if DHT marker else if Define restart interval (DRI) marker
             // btMarkerType == 0xDD: unsupported Restart Segments
             return JPEGSOF3_INVALID_RESTART_SEGMENTS;
             // lRestartSegmentSz = ReadWord(lRawRA, &lRawPos, lRawSz);
             // lRawPos = lSegmentEnd;
-        } else if (btMarkerType == 0xDA) {
+        }
+        else if (btMarkerType == 0xDA) {
             // if DRI marker else if read Start of Scan (SOS) marker
             SOSns = readByte(lRawRA, &lRawPos, lRawSz);
             // if Ns = 1 then NOT interleaved, else interleaved: see B.2.3
@@ -417,9 +457,10 @@ decode_jpegsof3(
             // #pragma unused(SOSse)
             // lower 4bits= pointtransform
             SOSahal = readByte(lRawRA, &lRawPos, lRawSz);
-            SOSpttrans = SOSahal & 16;
+            SOSpttrans = SOSahal & 0x0F;
             lRawPos = lSegmentEnd;
-        } else {
+        }
+        else {
             // if SOS marker else skip marker
             lRawPos = lSegmentEnd;
         }
@@ -439,11 +480,18 @@ decode_jpegsof3(
     // UNUSED(lIsRestartSegments);
 
     do {
+        if (lIncI >= lRawSz) {
+            return JPEGSOF3_SEGMENT_GT_IMAGE;
+        }
         lRawRA[lIncO] = lRawRA[lIncI];  // crash when using read-only input
         if (lRawRA[lIncI] == 255) {
+            if (lIncI + 1 >= lRawSz) {
+                return JPEGSOF3_SEGMENT_GT_IMAGE;
+            }
             if (lRawRA[lIncI + 1] == 0) {
                 lIncI = lIncI + 1;
-            } else if (lRawRA[lIncI + 1] == 0xD9) {
+            }
+            else if (lRawRA[lIncI + 1] == 0xD9) {
                 // end of padding
                 lIncO = -666;
             }
@@ -481,8 +529,10 @@ decode_jpegsof3(
         for (int lSz = 1; lSz <= 8; lSz++) {
             // set the huffman lookup table for keys with lengths <= 8
             if (l[lFrameCount].DHTliRA[lSz] > 0) {
-                for (int lIncX = 1; lIncX <= l[lFrameCount].DHTliRA[lSz];
-                     lIncX++) {
+                for (
+                    int lIncX = 1; lIncX <= l[lFrameCount].DHTliRA[lSz];
+                    lIncX++)
+                {
                     lIncY++;
                     int lHufVal = l[lFrameCount].HufVal[lIncY];  // SSSS
                     l[lFrameCount].SSSSszRA[lHufVal] = lSz;
@@ -492,12 +542,15 @@ decode_jpegsof3(
                         // fill in all possible bits that exceed
                         // the huffman table
                         int lInc = bitMask(8 - lSz);
-                        for (int lCurrentBitPos = 0; lCurrentBitPos <= lInc;
-                             lCurrentBitPos++) {
+                        for (
+                            int lCurrentBitPos = 0; lCurrentBitPos <= lInc;
+                            lCurrentBitPos++)
+                        {
                             l[lFrameCount].LookUpRA[k + lCurrentBitPos] =
                                 lHufVal;
                         }
-                    } else {
+                    }
+                    else {
                         // SSSS
                         l[lFrameCount].LookUpRA[k] = lHufVal;
                     }
@@ -510,14 +563,16 @@ decode_jpegsof3(
     // for all 3 colour planes. In this case, replicate the correct values
     if (lnHufTables < SOFnf) {
         // use single Hufman table for each frame
-        for (int lFrameCount = lnHufTables + 1; lFrameCount <= SOFnf;
-             lFrameCount++) {
+        for (
+            int lFrameCount = lnHufTables + 1; lFrameCount <= SOFnf;
+            lFrameCount++)
+        {
             l[lFrameCount] = l[lnHufTables];
         }
     }
 
     // NEXT: uncompress data: different loops for different predictors
-    ssize_t lItems = SOFxdim * SOFydim * SOFnf;
+    ssize_t lItems = (ssize_t)SOFxdim * SOFydim * SOFnf;
     int lCurrentBitPos = 0;  // read in a new byte
     // depending on SOSss, we see Table H.1
     int lPredA = 0;
@@ -526,25 +581,29 @@ decode_jpegsof3(
     if (SOSss == 2) {
         // predictor selection 2: above
         lPredA = SOFxdim - 1;
-    } else if (SOSss == 3) {
+    }
+    else if (SOSss == 3) {
         // predictor selection 3: above+left
         lPredA = SOFxdim;
-    } else if ((SOSss == 4) || (SOSss == 5)) {
+    }
+    else if ((SOSss == 4) || (SOSss == 5)) {
         // these use left, above and above+left WEIGHT LEFT
         lPredA = 0;            // Ra left
         lPredB = SOFxdim - 1;  // Rb directly above
         lPredC = SOFxdim;      // Rc UpperLeft:above and to the left
-    } else if (SOSss == 6) {
+    }
+    else if (SOSss == 6) {
         // also use left, above and above+left, WEIGHT ABOVE
         lPredB = 0;
         lPredA = SOFxdim - 1;  // Rb directly above
         lPredC = SOFxdim;      // Rc UpperLeft:above and to the left
-    } else {
+    }
+    else {
         lPredA = 0;  // Ra: directly to left
     }
     if ((SOFprecision > 8) && (SOFnf == 1)) {
         // 16 bit, 1 frame
-        if (lItems * 2 < lImgSz) {
+        if (lItems * 2 > lImgSz) {
             // output array too small
             return JPEGSOF3_INVALID_OUTPUT;
         }
@@ -561,65 +620,89 @@ decode_jpegsof3(
             if (lIncX > 1) {
                 lPredicted = lImgRA16[lPx - 1];
             }
-            lImgRA16[lPx] =
-                lPredicted +
-                decodePixelDifference(lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+            lDiff = decodePixelDifference(
+                lRawRA,
+                &lRawPos,
+                &lCurrentBitPos,
+                l[1]
+            );
+            lImgRA16[lPx] = lPredicted + lDiff;
         }
         for (int lIncY = 2; lIncY <= SOFydim; lIncY++) {
             // for all subsequent rows
             lPx++;
             lPredicted = lImgRA16[lPx - SOFxdim];  // use ABOVE
-            lImgRA16[lPx] =
-                lPredicted +
-                decodePixelDifference(lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+            lDiff = decodePixelDifference(
+                lRawRA,
+                &lRawPos,
+                &lCurrentBitPos,
+                l[1]
+            );
+            lImgRA16[lPx] = lPredicted + lDiff;
             if (SOSss == 4) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted = lImgRA16[lPx - lPredA] +
-                                 lImgRA16[lPx - lPredB] -
-                                 lImgRA16[lPx - lPredC];
+                        lImgRA16[lPx - lPredB] -
+                        lImgRA16[lPx - lPredC];
                     lPx++;
-                    lImgRA16[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA16[lPx] = lPredicted + lDiff;
                 }
-            } else if ((SOSss == 5) || (SOSss == 6)) {
+            }
+            else if ((SOSss == 5) || (SOSss == 6)) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted =
                         lImgRA16[lPx - lPredA] +
                         ((lImgRA16[lPx - lPredB] - lImgRA16[lPx - lPredC]) >>
-                         1);
+                            1);
                     lPx++;
-                    lImgRA16[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA16[lPx] = lPredicted + lDiff;
                 }
-            } else if (SOSss == 7) {
+            }
+            else if (SOSss == 7) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPx++;
                     lPredicted =
                         (lImgRA16[lPx - 1] + lImgRA16[lPx - SOFxdim]) >> 1;
-                    lImgRA16[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA16[lPx] = lPredicted + lDiff;
                 }
-            } else {
+            }
+            else {
                 // SOSss 1,2,3 read single values
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted = lImgRA16[lPx - lPredA];
                     lPx++;
-                    lImgRA16[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA16[lPx] = lPredicted + lDiff;
                 }
             }
         }
-    } else if ((SOFprecision > 8) && (SOFnf > 1)) {
+    }
+    else if ((SOFprecision > 8) && (SOFnf > 1)) {
         // 16 bit, 3 frames
-        if (lItems * 2 < lImgSz) {
+        if (lItems * 2 > lImgSz) {
             // output array too small
             return JPEGSOF3_INVALID_OUTPUT;
         }
@@ -627,7 +710,7 @@ decode_jpegsof3(
         ssize_t lPx[kmaxFrames + 1];
         int lPredicted[kmaxFrames + 1];  // pixel position
         for (int f = 1; f <= SOFnf; f++) {
-            lPx[f] = ((f - 1) * (SOFxdim * SOFydim)) - 1;
+            lPx[f] = ((f - 1) * ((ssize_t)SOFxdim * SOFydim)) - 1;
             lPredicted[f] = 1 << (SOFprecision - 1 - SOSpttrans);
         }
         for (ssize_t i = 0; i < lItems; i++) {
@@ -641,10 +724,13 @@ decode_jpegsof3(
                 if (lIncX > 1) {
                     lPredicted[f] = lImgRA16[lPx[f] - 1];
                 }
-                lImgRA16[lPx[f]] =
-                    lPredicted[f] +
-                    decodePixelDifference(
-                        lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                lDiff = decodePixelDifference(
+                    lRawRA,
+                    &lRawPos,
+                    &lCurrentBitPos,
+                    l[f]
+                );
+                lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
             }
         }
         for (int lIncY = 2; lIncY <= SOFydim; lIncY++) {
@@ -652,75 +738,94 @@ decode_jpegsof3(
             for (int f = 1; f <= SOFnf; f++) {
                 lPx[f]++;
                 lPredicted[f] = lImgRA16[lPx[f] - SOFxdim];  // use ABOVE
-                lImgRA16[lPx[f]] =
-                    lPredicted[f] +
-                    decodePixelDifference(
-                        lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                lDiff = decodePixelDifference(
+                    lRawRA,
+                    &lRawPos,
+                    &lCurrentBitPos,
+                    l[f]
+                );
+                lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
             }
             if (SOSss == 4) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA16[lPx[f] - lPredA] +
-                                        lImgRA16[lPx[f] - lPredB] -
-                                        lImgRA16[lPx[f] - lPredC];
+                            lImgRA16[lPx[f] - lPredB] -
+                            lImgRA16[lPx[f] - lPredC];
                         lPx[f]++;
-                        lImgRA16[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else if ((SOSss == 5) || (SOSss == 6)) {
+            }
+            else if ((SOSss == 5) || (SOSss == 6)) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA16[lPx[f] - lPredA] +
-                                        ((lImgRA16[lPx[f] - lPredB] -
-                                          lImgRA16[lPx[f] - lPredC]) >>
-                                         1);
+                            ((lImgRA16[lPx[f] - lPredB] -
+                                lImgRA16[lPx[f] - lPredC]) >>
+                                1);
                         lPx[f]++;
-                        lImgRA16[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else if (SOSss == 7) {
+            }
+            else if (SOSss == 7) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPx[f]++;
                         lPredicted[f] = (lImgRA16[lPx[f] - 1] +
-                                         lImgRA16[lPx[f] - SOFxdim]) >>
-                                        1;
-                        lImgRA16[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                            lImgRA16[lPx[f] - SOFxdim]) >>
+                            1;
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else {
+            }
+            else {
                 // SOSss 1,2,3 read single values
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA16[lPx[f] - lPredA];
                         lPx[f]++;
-                        lImgRA16[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
             }
         }
-    } else if ((SOFprecision <= 8) && (SOFnf > 1)) {
+    }
+    else if ((SOFprecision <= 8) && (SOFnf > 1)) {
         // 8-bit, 3 frames
-        if (lItems < lImgSz) {
+        if (lItems > lImgSz) {
             // output array too small
             return JPEGSOF3_INVALID_OUTPUT;
         }
         ssize_t lPx[kmaxFrames + 1];
         int lPredicted[kmaxFrames + 1];  // pixel position
         for (int f = 1; f <= SOFnf; f++) {
-            lPx[f] = ((f - 1) * (SOFxdim * SOFydim)) - 1;
+            lPx[f] = ((f - 1) * ((ssize_t)SOFxdim * SOFydim)) - 1;
             lPredicted[f] = 1 << (SOFprecision - 1 - SOSpttrans);
         }
         for (ssize_t i = 0; i < lItems; i++) {
@@ -734,9 +839,13 @@ decode_jpegsof3(
                 if (lIncX > 1) {
                     lPredicted[f] = lImgRA8[lPx[f] - 1];
                 }
-                lImgRA8[lPx[f]] = lPredicted[f] +
-                                  decodePixelDifference(
-                                      lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                lDiff = decodePixelDifference(
+                    lRawRA,
+                    &lRawPos,
+                    &lCurrentBitPos,
+                    l[f]
+                );
+                lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
             }
         }
         for (int lIncY = 2; lIncY <= SOFydim; lIncY++) {
@@ -744,67 +853,87 @@ decode_jpegsof3(
             for (int f = 1; f <= SOFnf; f++) {
                 lPx[f]++;
                 lPredicted[f] = lImgRA8[lPx[f] - SOFxdim];  // use ABOVE
-                lImgRA8[lPx[f]] = lPredicted[f] +
-                                  decodePixelDifference(
-                                      lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                lDiff = decodePixelDifference(
+                    lRawRA,
+                    &lRawPos,
+                    &lCurrentBitPos,
+                    l[f]
+                );
+                lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
             }
             if (SOSss == 4) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA8[lPx[f] - lPredA] +
-                                        lImgRA8[lPx[f] - lPredB] -
-                                        lImgRA8[lPx[f] - lPredC];
+                            lImgRA8[lPx[f] - lPredB] -
+                            lImgRA8[lPx[f] - lPredC];
                         lPx[f]++;
-                        lImgRA8[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else if ((SOSss == 5) || (SOSss == 6)) {
+            }
+            else if ((SOSss == 5) || (SOSss == 6)) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA8[lPx[f] - lPredA] +
-                                        ((lImgRA8[lPx[f] - lPredB] -
-                                          lImgRA8[lPx[f] - lPredC]) >>
-                                         1);
+                            ((lImgRA8[lPx[f] - lPredB] -
+                                lImgRA8[lPx[f] - lPredC]) >>
+                                1);
                         lPx[f]++;
-                        lImgRA8[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else if (SOSss == 7) {
+            }
+            else if (SOSss == 7) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPx[f]++;
                         lPredicted[f] = (lImgRA8[lPx[f] - 1] +
-                                         lImgRA8[lPx[f] - SOFxdim]) >>
-                                        1;
-                        lImgRA8[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                            lImgRA8[lPx[f] - SOFxdim]) >>
+                            1;
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
-            } else {
+            }
+            else {
                 // SOSss 1,2,3 read single values
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     for (int f = 1; f <= SOFnf; f++) {
                         lPredicted[f] = lImgRA8[lPx[f] - lPredA];
                         lPx[f]++;
-                        lImgRA8[lPx[f]] =
-                            lPredicted[f] +
-                            decodePixelDifference(
-                                lRawRA, &lRawPos, &lCurrentBitPos, l[f]);
+                        lDiff = decodePixelDifference(
+                            lRawRA,
+                            &lRawPos,
+                            &lCurrentBitPos,
+                            l[f]
+                        );
+                        lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
                 }
             }
         }
-    } else {
+    }
+    else {
         // 8-bit, 1 frame
-        if (lItems < lImgSz) {
+        if (lItems > lImgSz) {
             // output array too small
             return JPEGSOF3_INVALID_OUTPUT;
         }
@@ -820,57 +949,80 @@ decode_jpegsof3(
             if (lIncX > 1) {
                 lPredicted = lImgRA8[lPx - 1];
             }
-            lImgRA8[lPx] =
-                lPredicted +
-                decodePixelDifference(lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+            int lDiff = decodePixelDifference(
+                lRawRA,
+                &lRawPos,
+                &lCurrentBitPos,
+                l[1]
+            );
+            lImgRA8[lPx] = lPredicted + lDiff;
         }
         for (int lIncY = 2; lIncY <= SOFydim; lIncY++) {
             // for all subsequent rows
             lPx++;
             lPredicted = lImgRA8[lPx - SOFxdim];  // use ABOVE
-            lImgRA8[lPx] =
-                lPredicted +
-                decodePixelDifference(lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+            lDiff = decodePixelDifference(
+                lRawRA,
+                &lRawPos,
+                &lCurrentBitPos,
+                l[1]
+            );
+            lImgRA8[lPx] = lPredicted + lDiff;
             if (SOSss == 4) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted = lImgRA8[lPx - lPredA] +
-                                 lImgRA8[lPx - lPredB] - lImgRA8[lPx - lPredC];
+                        lImgRA8[lPx - lPredB] - lImgRA8[lPx - lPredC];
                     lPx++;
-                    lImgRA8[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA8[lPx] = lPredicted + lDiff;
                 }
-            } else if ((SOSss == 5) || (SOSss == 6)) {
+            }
+            else if ((SOSss == 5) || (SOSss == 6)) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted =
                         lImgRA8[lPx - lPredA] +
                         ((lImgRA8[lPx - lPredB] - lImgRA8[lPx - lPredC]) >> 1);
                     lPx++;
-                    lImgRA8[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA8[lPx] = lPredicted + lDiff;
                 }
-            } else if (SOSss == 7) {
+            }
+            else if (SOSss == 7) {
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPx++;
                     lPredicted =
                         (lImgRA8[lPx - 1] + lImgRA8[lPx - SOFxdim]) >> 1;
-                    lImgRA8[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA8[lPx] = lPredicted + lDiff;
                 }
-            } else {
+            }
+            else {
                 // SOSss 1,2,3 read single values
                 for (int lIncX = 2; lIncX <= SOFxdim; lIncX++) {
                     lPredicted = lImgRA8[lPx - lPredA];
                     lPx++;
-                    lImgRA8[lPx] =
-                        lPredicted +
-                        decodePixelDifference(
-                            lRawRA, &lRawPos, &lCurrentBitPos, l[1]);
+                    lDiff = decodePixelDifference(
+                        lRawRA,
+                        &lRawPos,
+                        &lCurrentBitPos,
+                        l[1]
+                    );
+                    lImgRA8[lPx] = lPredicted + lDiff;
                 }
             }
         }
