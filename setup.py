@@ -26,11 +26,11 @@ if LIMITED_API and not sysconfig.get_config_var('Py_GIL_DISABLED'):
         ('Py_LIMITED_API', 0x030B0000),
         ('CYTHON_LIMITED_API', '1'),
     ]
-    options = {'bdist_wheel': {'py_limited_api': 'cp311'}}
+    setup_options = {'bdist_wheel': {'py_limited_api': 'cp311'}}
 else:
     py_limited_api = False
     define_macros = []
-    options = {}
+    setup_options = {}
 
 
 def search(pattern: str, string: str, flags: int = 0) -> str:
@@ -177,6 +177,10 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     'brotli': ext(libraries=['brotlienc', 'brotlidec', 'brotlicommon']),
     'brunsli': ext(libraries=['brunslidec-c', 'brunslienc-c']),
     'bz2': ext(libraries=['bz2']),
+    'ccitt': ext(
+        sources=['3rdparty/ccitt/ccitt.c'],
+        include_dirs=['3rdparty/ccitt'],
+    ),
     'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
     # 'exr': ext(
@@ -236,6 +240,11 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
         sources=['3rdparty/postgresql/pg_lzcompress.c'],
         include_dirs=['3rdparty/postgresql'],
     ),
+    'pixarlog': ext(
+        sources=['3rdparty/pixarlog/pixarlog.c'],
+        include_dirs=['3rdparty/pixarlog'],
+        libraries=['z'],
+    ),
     'png': ext(libraries=['png']),
     'qoi': ext(
         include_dirs=['3rdparty/qoi'],
@@ -263,7 +272,7 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     ),
     'sz3': ext(libraries=['SZ3c']),
     'szip': ext(libraries=['sz']),
-    'tiff': ext(libraries=['tiff']),
+    'tiff': ext(sources=['imagecodecs/imcd.c'], libraries=['tiff']),
     'ultrahdr': ext(libraries=['uhdr', 'jpeg']),
     'webp': ext(libraries=['webp', 'webpdemux']),
     'zfp': ext(libraries=['zfp']),
@@ -332,12 +341,12 @@ def customize_build_cgohlke(
     """Customize build for Windows development environment with static libs."""
     inclib = os.environ.get('INCLIB', '.')
 
-    options['include_dirs'].append(os.path.join(inclib, 'lib'))
-    options['library_dirs'].append(os.path.join(inclib, 'include'))
+    options['include_dirs'].append(os.path.join(inclib, 'include'))
+    options['library_dirs'].append(os.path.join(inclib, 'lib'))
 
     # remove unstable extensions
     # extensions.pop('brunsli', None)
-    extensions.pop('pcodec', None)
+    # extensions.pop('pcodec', None)
     # extensions.pop('sperr', None)
     # extensions.pop('sz3', None)
 
@@ -510,7 +519,7 @@ def customize_build_cibuildwheel(
         'mozjpeg',
         'brunsli',
         'openzl',
-        'pcodec',
+        # 'pcodec',
         # 'sperr',
         # 'sz3',
     ):
@@ -720,6 +729,21 @@ def customize_build_mingw(
     extensions['jpegxr']['include_dirs'].append(sys.prefix + '/include/jxrlib')
 
 
+_only = [
+    s.strip()
+    for s in os.environ.get('IMAGECODECS_ONLY', '').split(',')
+    if s.strip()
+]
+if _only:
+    # Build only the specified extension(s), for example:
+    #   set IMAGECODECS_ONLY=ccitt
+    #   python setup.py build_ext --inplace
+    # 'shared' and 'imcd' are always kept as they are required by most modules.
+    _keep = {'shared', 'imcd', *_only}
+    for _name in list(EXTENSIONS.keys()):
+        if _name not in _keep:
+            EXTENSIONS.pop(_name)
+
 if 'sdist' not in sys.argv:
     # customize builds based on environment
     try:
@@ -745,12 +769,13 @@ def extension(name: str) -> Extension:
     """Return setuptools Extension."""
     opt = EXTENSIONS[name]
     sources = opt['sources']
-    fname = f'imagecodecs/_{name}'
-    if all(not n.startswith(fname) for n in sources):
-        sources = [fname + '.pyx', *sources]
+    filename = f'imagecodecs/_{name}'
+    if all(not n.startswith(filename) for n in sources):
+        sources = [filename + '.pyx', *sources]
     return Extension(
         f'imagecodecs._{name}',
         sources=sources,
+        py_limited_api=opt['py_limited_api'],
         **{
             key: (OPTIONS[key] + opt[key])
             for key in (
@@ -762,7 +787,6 @@ def extension(name: str) -> Extension:
                 'extra_link_args',
                 'extra_objects',
                 'depends',
-                'py_limited_api',
             )
         },
     )
@@ -823,7 +847,7 @@ setup(
         # 'Documentation': 'https://',
     },
     python_requires='>=3.11',
-    install_requires=['numpy'],
+    install_requires=['numpy>=2.0'],
     extras_require={
         'all': ['matplotlib', 'tifffile', 'numcodecs'],
         'test': [
@@ -858,7 +882,7 @@ setup(
         'console_scripts': ['imagecodecs=imagecodecs.__main__:main']
     },
     ext_modules=EXT_MODULES,
-    options=options,
+    options=setup_options,
     zip_safe=False,
     platforms=['any'],
     classifiers=[
