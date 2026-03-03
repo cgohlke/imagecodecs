@@ -124,7 +124,6 @@ cdef _return_output(out, ssize_t size, ssize_t used, outgiven):
                 raise MemoryError('PyByteArray_Resize failed')
         else:
             # copy of bytes
-            # TODO: use _PyBytes_Resize?
             out = out[:used]
     elif numpy.PyArray_Check(out):
         # slice of user numpy array
@@ -137,6 +136,9 @@ cdef _return_output(out, ssize_t size, ssize_t used, outgiven):
 
 cdef _create_array(out, shape, dtype, strides=None, zero=False, contig=True):
     """Return numpy array of shape and dtype from output argument."""
+    cdef:
+        ssize_t dstsize
+
     if out is None or isinstance(out, numbers.Integral):
         if zero:
             return numpy.zeros(shape, dtype)
