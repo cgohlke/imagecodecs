@@ -46,6 +46,9 @@ __all__ = [
     'Brotli',
     'Byteshuffle',
     'Bz2',
+    'Ccittfax3',
+    'Ccittfax4',
+    'Ccittrle',
     'Checksum',
     'Cms',
     'Codec',
@@ -82,6 +85,7 @@ __all__ = [
     'Packints',
     'Pcodec',
     'Pglz',
+    'Pixarlog',
     'Png',
     'Qoi',
     'Quantize',
@@ -106,6 +110,7 @@ __all__ = [
 
 import base64
 import contextlib
+import logging
 from typing import TYPE_CHECKING
 
 import numpy
@@ -570,6 +575,99 @@ class Bz2(Codec):
         return imagecodecs.bz2_decode(buf, out=_flat(out))
 
 
+class Ccittfax3(Codec):
+    """CCITT Fax3 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_ccittfax3'
+
+    def __init__(
+        self,
+        *,
+        height: int = 0,
+        width: int = 0,
+        t4options: int = 0,
+    ) -> None:
+        if not imagecodecs.CCITTFAX3.available:
+            msg = 'imagecodecs.CCITTFAX3 not available'
+            raise ValueError(msg)
+
+        self.height = int(height)
+        self.width = int(width)
+        self.t4options = int(t4options)
+
+    def encode(self, buf):
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.ccittfax3_decode(
+            buf,
+            height=self.height,
+            width=self.width,
+            t4options=self.t4options,
+            out=out,
+        )
+
+
+class Ccittfax4(Codec):
+    """CCITT Fax4 codec for numcodecs."""
+
+    codec_id = 'imagecodecs_ccittfax4'
+
+    def __init__(
+        self,
+        *,
+        height: int = 0,
+        width: int = 0,
+    ) -> None:
+        if not imagecodecs.CCITTFAX4.available:
+            msg = 'imagecodecs.CCITTFAX4 not available'
+            raise ValueError(msg)
+
+        self.height = int(height)
+        self.width = int(width)
+
+    def encode(self, buf):
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.ccittfax4_decode(
+            buf,
+            height=self.height,
+            width=self.width,
+            out=out,
+        )
+
+
+class Ccittrle(Codec):
+    """CCITT RLE codec for numcodecs."""
+
+    codec_id = 'imagecodecs_ccittrle'
+
+    def __init__(
+        self,
+        *,
+        height: int = 0,
+        width: int = 0,
+    ) -> None:
+        if not imagecodecs.CCITTRLE.available:
+            msg = 'imagecodecs.CCITTRLE not available'
+            raise ValueError(msg)
+
+        self.height = int(height)
+        self.width = int(width)
+
+    def encode(self, buf):
+        raise NotImplementedError
+
+    def decode(self, buf, out=None):
+        return imagecodecs.ccittrle_decode(
+            buf,
+            height=self.height,
+            width=self.width,
+            out=out,
+        )
+
+
 class Checksum(Codec):
     """Checksum codec for numcodecs."""
 
@@ -693,7 +791,7 @@ class Cms(Codec):
             msg = 'imagecodecs.CMS not available'
             raise ValueError(msg)
 
-    def encode(self, buf, out=None):
+    def encode(self, buf):
         # return imagecodecs.cms_transform(buf)
         raise NotImplementedError
 
@@ -713,7 +811,7 @@ class Dds(Codec):
             raise ValueError(msg)
         self.mipmap = mipmap
 
-    def encode(self, buf, out=None):
+    def encode(self, buf):
         # buf = _image(buf, self.squeeze)
         raise NotImplementedError
 
@@ -803,7 +901,7 @@ class Dicomrle(Codec):
 
         self.dtype = numpy.dtype(dtype).str  # TODO: preserve endianness
 
-    def encode(self, buf, out=None):
+    def encode(self, buf):
         # buf = _image(buf, self.squeeze)
         raise NotImplementedError
 
@@ -1771,7 +1869,12 @@ class Packints(Codec):
     codec_id = 'imagecodecs_packints'
 
     def __init__(
-        self, *, dtype: DTypeLike, bitspersample: int, runlen: int = 0
+        self,
+        *,
+        dtype: DTypeLike,
+        bitspersample: int,
+        bitorder: Literal['>', '<'] | None = None,
+        runlen: int = 0,
     ) -> None:
         if not imagecodecs.PACKINTS.available:
             msg = 'imagecodecs.PACKINTS not available'
@@ -1779,16 +1882,27 @@ class Packints(Codec):
 
         self.dtype = numpy.dtype(dtype).str
         self.bitspersample = bitspersample
+        self.bitorder = bitorder
         self.runlen = runlen
 
     def encode(self, buf):
-        raise NotImplementedError
+        buf = numpy.asarray(buf)
+        if buf.dtype != self.dtype:
+            msg = f'{buf.dtype=} does not match {self.dtype=}'
+            raise ValueError(msg)
+        return imagecodecs.packints_encode(
+            buf,
+            self.bitspersample,
+            bitorder=self.bitorder,
+            runlen=self.runlen,
+        )
 
     def decode(self, buf, out=None):
         return imagecodecs.packints_decode(
             buf,
             self.dtype,
             self.bitspersample,
+            bitorder=self.bitorder,
             runlen=self.runlen,
             out=out,
         )
@@ -1805,6 +1919,7 @@ class Pcodec(Codec):
         shape: tuple[int, ...],
         dtype: DTypeLike,
         level: int | None = None,
+        pagesize: int | None = None,
     ) -> None:
         if not imagecodecs.PCODEC.available:
             msg = 'imagecodecs.PCODEC not available'
@@ -1813,9 +1928,12 @@ class Pcodec(Codec):
         self.shape = tuple(shape)
         self.dtype = numpy.dtype(dtype).str
         self.level = None if level is None else int(level)
+        self.pagesize = None if pagesize is None else int(pagesize)
 
     def encode(self, buf):
-        return imagecodecs.pcodec_encode(buf, level=self.level)
+        return imagecodecs.pcodec_encode(
+            buf, level=self.level, pagesize=self.pagesize
+        )
 
     def decode(self, buf, out=None):
         return imagecodecs.pcodec_decode(
@@ -1854,6 +1972,47 @@ class Pglz(Codec):
             header=self.header,
             checkcomplete=self.checkcomplete,
             out=_flat(out),
+        )
+
+
+class Pixarlog(Codec):
+    """Pixarlog codec for numcodecs."""
+
+    codec_id = 'imagecodecs_pixarlog'
+
+    def __init__(
+        self,
+        *,
+        shape: tuple[int, ...],
+        dtype: DTypeLike | None = None,
+        level: int | None = None,
+        deflate: bool = True,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.PIXARLOG.available:
+            msg = 'imagecodecs.PIXARLOG not available'
+            raise ValueError(msg)
+
+        self.shape = tuple(shape)
+        self.dtype = None if dtype is None else numpy.dtype(dtype).str
+        self.level = None if level is None else int(level)
+        self.deflate = bool(deflate)
+        self.squeeze = squeeze
+
+    def encode(self, buf):
+        buf = _image(buf, self.squeeze)
+        return imagecodecs.pixarlog_encode(
+            buf, level=self.level, deflate=self.deflate
+        )
+
+    def decode(self, buf, out=None):
+        shape = _squeeze_shape(self.shape, self.squeeze)
+        return imagecodecs.pixarlog_decode(
+            buf,
+            shape=shape,
+            dtype=self.dtype,
+            deflate=self.deflate,
+            out=out,
         )
 
 
@@ -2222,15 +2381,19 @@ class Tiff(Codec):
         # encode
         bigtiff: bool | None = None,
         byteorder: int | str | None = None,
+        subfiletype: int | None = None,
         photometric: int | str | None = None,
         planarconfig: int | str | None = None,
         extrasample: int | None = None,
         tile: tuple[int, int] | None = None,
         rowsperstrip: int | None = None,
+        bitspersample: int | None = None,
         compression: int | str | None = None,
+        subcodec: int | str | None = None,
         level: int | None = None,
         predictor: bool | int | None = None,
         colormap: ArrayLike | None = None,
+        iccprofile: bytes | None = None,
         description: str | None = None,
         datetime: str | None = None,
         resolution: tuple[float, float] | None = None,
@@ -2245,12 +2408,15 @@ class Tiff(Codec):
 
         self.bigtiff = None if bigtiff is None else bool(bigtiff)
         self.byteorder = byteorder
+        self.subfiletype = subfiletype
         self.photometric = photometric
         self.planarconfig = planarconfig
         self.extrasample = extrasample
         self.tile = tile
         self.rowsperstrip = rowsperstrip
+        self.bitspersample = bitspersample
         self.compression = compression
+        self.subcodec = subcodec
         self.level = None if level is None else int(level)
         self.predictor = predictor
         self.colormap = (
@@ -2258,6 +2424,7 @@ class Tiff(Codec):
             if colormap is None
             else numpy.ascontiguousarray(colormap, dtype=numpy.uint16)
         )
+        self.iccprofile = iccprofile
         self.resolution = resolution
         self.resolutionunit = resolutionunit
         self.description = description
@@ -2273,17 +2440,21 @@ class Tiff(Codec):
         buf = _image(buf, self.squeeze)
         return imagecodecs.tiff_encode(
             buf,
+            level=self.level,
             bigtiff=self.bigtiff,
             byteorder=self.byteorder,
-            level=self.level,
+            subfiletype=self.subfiletype,
             photometric=self.photometric,
             planarconfig=self.planarconfig,
             extrasample=self.extrasample,
             tile=self.tile,
             rowsperstrip=self.rowsperstrip,
+            bitspersample=self.bitspersample,
             compression=self.compression,
+            subcodec=self.subcodec,
             predictor=self.predictor,
             colormap=self.colormap,
+            iccprofile=self.iccprofile,
             resolution=self.resolution,
             resolutionunit=self.resolutionunit,
             description=self.description,
@@ -2639,6 +2810,22 @@ def _image(
     return arr.reshape(shape)
 
 
+def _squeeze_shape(
+    shape: tuple[int, ...],
+    squeeze: Literal[False] | Sequence[int] | None = None,
+    /,
+) -> tuple[int, ...]:
+    """Return squeezed shape with at least 2 dimensions."""
+    if squeeze is None:
+        shape = tuple(s for s in shape if s > 1)
+        if len(shape) < 2:
+            shape = (1,) * (2 - len(shape)) + shape
+        return shape
+    if not squeeze:
+        return shape
+    return tuple(i for i, j in zip(shape, squeeze, strict=True) if not j)
+
+
 def register_codecs(
     codecs: Any = None,
     *,
@@ -2666,20 +2853,15 @@ def register_codecs(
         else:
             if not force:
                 if verbose:
-                    log_warning(
-                        f'numcodec {cls.codec_id!r} already registered'
+                    logging.getLogger(__name__).warning(
+                        'numcodec %s already registered', cls.codec_id
                     )
                 continue
             if verbose:
-                log_warning(f'replacing registered numcodec {cls.codec_id!r}')
+                logging.getLogger(__name__).warning(
+                    'replacing registered numcodec %s', cls.codec_id
+                )
         register_codec(cls)
-
-
-def log_warning(msg: Any, *args: Any, **kwargs: Any) -> None:
-    """Log message with level WARNING."""
-    import logging
-
-    logging.getLogger(__name__).warning(msg, *args, **kwargs)
 
 
 # mypy: allow-untyped-defs, allow-untyped-calls
