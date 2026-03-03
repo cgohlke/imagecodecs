@@ -1,19 +1,22 @@
 # imagecodecs/pcodec.pxd
 
-# Cython declarations for the `pcodec 0.4.7` library.
+# Cython declarations for the `pcodec 1.0.1` library.
 # https://github.com/mwlon/pcodec
 
 cdef extern from 'cpcodec.h' nogil:
 
-    unsigned char PCO_TYPE_U32
-    unsigned char PCO_TYPE_U64
-    unsigned char PCO_TYPE_I32
-    unsigned char PCO_TYPE_I64
-    unsigned char PCO_TYPE_F32
-    unsigned char PCO_TYPE_F64
-    unsigned char PCO_TYPE_U16
-    unsigned char PCO_TYPE_I16
-    unsigned char PCO_TYPE_F16
+    enum:
+        PCO_TYPE_U32
+        PCO_TYPE_U64
+        PCO_TYPE_I32
+        PCO_TYPE_I64
+        PCO_TYPE_F32
+        PCO_TYPE_F64
+        PCO_TYPE_U16
+        PCO_TYPE_I16
+        PCO_TYPE_F16
+        PCO_TYPE_U8
+        PCO_TYPE_I8
 
     ctypedef enum PcoError:
         PcoSuccess
@@ -21,26 +24,30 @@ cdef extern from 'cpcodec.h' nogil:
         PcoCompressionError
         PcoDecompressionError
 
-    ctypedef struct PcoFfiVec:
-        const void* ptr
-        size_t len
-        const void* raw_box
+    ctypedef struct PcoChunkConfig:
+        unsigned int compression_level
+        size_t max_page_n
 
-    PcoError pco_simpler_compress(
-        const void* nums,
-        size_t len,
+    size_t pco_standalone_guarantee_file_size(
+        size_t n,
         unsigned char dtype,
-        unsigned int level,
-        PcoFfiVec* dst
-    )
+    ) nogil
 
-    PcoError pco_simple_decompress(
-        const void* compressed,
-        size_t len,
+    PcoError pco_standalone_simple_compress_into(
+        const void *nums,
+        size_t n,
         unsigned char dtype,
-        PcoFfiVec* dst
-    )
+        const PcoChunkConfig *config,
+        void *dst,
+        size_t dst_cap,
+        size_t *n_written,
+    ) nogil
 
-    PcoError pco_free_pcovec(
-        PcoFfiVec* ffi_vec
-    )
+    PcoError pco_standalone_simple_decompress_into(
+        const void *compressed,
+        size_t compressed_len,
+        unsigned char dtype,
+        void *dst,
+        size_t dst_cap,
+        size_t *n_written,
+    ) nogil
