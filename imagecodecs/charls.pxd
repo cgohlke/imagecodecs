@@ -1,6 +1,6 @@
 # imagecodecs/charls.pxd
 
-# Cython declarations for the `CharLS 2.4.2` library.
+# Cython declarations for the `CharLS 2.4.3` library.
 # https://github.com/team-charls/charls
 
 from libc.stdint cimport int32_t, uint32_t
@@ -178,6 +178,14 @@ cdef extern from 'charls/charls.h' nogil:
 
     const void* charls_get_jpegls_category()
 
+    const char* charls_get_version_string()
+
+    void charls_get_version_number(
+        int32_t* major,
+        int32_t* minor,
+        int32_t* patch
+    )
+
     const char* charls_get_error_message(
         charls_jpegls_errc error_value
     )
@@ -226,8 +234,14 @@ cdef extern from 'charls/charls.h' nogil:
         charls_jpegls_pc_parameters* preset_coding_parameters
     )
 
+    charls_jpegls_errc charls_jpegls_decoder_get_color_transformation(
+        const charls_jpegls_decoder* decoder,
+        charls_color_transformation* color_transformation
+    )
+
     charls_jpegls_errc charls_jpegls_decoder_get_destination_size(
         const charls_jpegls_decoder* decoder,
+        uint32_t stride,
         size_t* destination_size_bytes
     )
 
@@ -348,4 +362,9 @@ cdef extern from 'charls/charls.h' nogil:
 
     charls_jpegls_errc charls_jpegls_encoder_rewind(
         charls_jpegls_encoder* encoder
+    )
+
+    charls_jpegls_errc charls_validate_spiff_header(
+        const charls_spiff_header* spiff_header,
+        const charls_frame_info* frame_info
     )
