@@ -1,6 +1,6 @@
 # imagecodecs/libpng.pxd
 
-# Cython declarations for the `libpng 1.6.53` library with APNG patch.
+# Cython declarations for the `libpng 1.6.55` library with APNG patch.
 # https://github.com/glennrp/libpng
 # https://sourceforge.net/projects/libpng-apng/
 
@@ -112,8 +112,12 @@ cdef extern from 'png.h' nogil:
     int PNG_INFO_sCAL
     int PNG_INFO_IDAT
     int PNG_INFO_eXIf
+    int PNG_INFO_cICP
+    int PNG_INFO_cLLI
+    int PNG_INFO_mDCV
     int PNG_INFO_acTL
     int PNG_INFO_fcTL
+    int PNG_INFO_fdAT
     int PNG_TRANSFORM_IDENTITY
     int PNG_TRANSFORM_STRIP_16
     int PNG_TRANSFORM_STRIP_ALPHA
@@ -283,7 +287,7 @@ cdef extern from 'png.h' nogil:
     ctypedef png_fixed_point** png_fixed_point_pp
     ctypedef double** png_doublepp
     ctypedef char*** png_charppp
-    ctypedef char* png_libpng_version_1_6_37
+    ctypedef char* png_libpng_version_1_6_55
     ctypedef png_struct_def png_struct
     ctypedef png_struct* png_const_structp
     ctypedef png_struct* png_structp
@@ -2118,4 +2122,110 @@ cdef extern from 'png.h' nogil:
     void png_write_frame_tail(
         png_structp png_ptr,
         png_infop info_ptr
+    )
+
+    png_uint_32 png_get_cICP(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_bytep colour_primaries,
+        png_bytep transfer_function,
+        png_bytep matrix_coefficients,
+        png_bytep video_full_range_flag
+    )
+
+    void png_set_cICP(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_byte colour_primaries,
+        png_byte transfer_function,
+        png_byte matrix_coefficients,
+        png_byte video_full_range_flag
+    )
+
+    png_uint_32 png_get_cLLI(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        double* maximum_content_light_level,
+        double* maximum_frame_average_light_level
+    )
+
+    png_uint_32 png_get_cLLI_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_uint_32p maximum_content_light_level_scaled_by_10000,
+        png_uint_32p maximum_frame_average_light_level_scaled_by_10000
+    )
+
+    void png_set_cLLI(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        double maximum_content_light_level,
+        double maximum_frame_average_light_level
+    )
+
+    void png_set_cLLI_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_uint_32 maximum_content_light_level_scaled_by_10000,
+        png_uint_32 maximum_frame_average_light_level_scaled_by_10000
+    )
+
+    png_uint_32 png_get_mDCV(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        double* white_x,
+        double* white_y,
+        double* red_x,
+        double* red_y,
+        double* green_x,
+        double* green_y,
+        double* blue_x,
+        double* blue_y,
+        double* mastering_display_maximum_luminance,
+        double* mastering_display_minimum_luminance
+    )
+
+    png_uint_32 png_get_mDCV_fixed(
+        png_const_structrp png_ptr,
+        png_const_inforp info_ptr,
+        png_fixed_point* int_white_x,
+        png_fixed_point* int_white_y,
+        png_fixed_point* int_red_x,
+        png_fixed_point* int_red_y,
+        png_fixed_point* int_green_x,
+        png_fixed_point* int_green_y,
+        png_fixed_point* int_blue_x,
+        png_fixed_point* int_blue_y,
+        png_uint_32p mastering_display_maximum_luminance_scaled_by_10000,
+        png_uint_32p mastering_display_minimum_luminance_scaled_by_10000
+    )
+
+    void png_set_mDCV(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        double white_x,
+        double white_y,
+        double red_x,
+        double red_y,
+        double green_x,
+        double green_y,
+        double blue_x,
+        double blue_y,
+        double mastering_display_maximum_luminance,
+        double mastering_display_minimum_luminance
+    )
+
+    void png_set_mDCV_fixed(
+        png_const_structrp png_ptr,
+        png_inforp info_ptr,
+        png_fixed_point int_white_x,
+        png_fixed_point int_white_y,
+        png_fixed_point int_red_x,
+        png_fixed_point int_red_y,
+        png_fixed_point int_green_x,
+        png_fixed_point int_green_y,
+        png_fixed_point int_blue_x,
+        png_fixed_point int_blue_y,
+        png_uint_32 mastering_display_maximum_luminance_scaled_by_10000,
+        png_uint_32 mastering_display_minimum_luminance_scaled_by_10000
     )
