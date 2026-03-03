@@ -1,6 +1,6 @@
 # imagecodecs/blosc2.pxd
 
-# Cython declarations for the `c-blosc2 2.22.0` library.
+# Cython declarations for the `c-blosc2 2.23.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
@@ -87,6 +87,7 @@ cdef extern from 'blosc2.h' nogil:
 
     int BLOSC2_MAXDICTSIZE
     int BLOSC2_MAXBLOCKSIZE
+    int BLOSC2_MAXTYPESIZE
 
     int BLOSC2_DEFINED_CODECS_START
     int BLOSC2_DEFINED_CODECS_STOP
@@ -196,6 +197,7 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC2_ERROR_INVALID_INDEX
     int BLOSC2_ERROR_METALAYER_NOT_FOUND
     int BLOSC2_ERROR_MAX_BUFSIZE_EXCEEDED
+    int BLOSC2_ERROR_TUNER
 
     const char* blosc2_error_string(
         int error_code
@@ -328,6 +330,7 @@ cdef extern from 'blosc2.h' nogil:
     )
 
     int BLOSC2_IO_FILESYSTEM
+    int BLOSC2_IO_FILESYSTEM_MMAP
     int BLOSC_IO_LAST_BLOSC_DEFINED
     int BLOSC_IO_LAST_REGISTERED
 
@@ -391,8 +394,6 @@ cdef extern from 'blosc2.h' nogil:
         const char* name
         void* params
 
-    const blosc2_io_cb BLOSC2_IO_CB_DEFAULTS
-
     const blosc2_io BLOSC2_IO_DEFAULTS
 
     int blosc2_register_io_cb(
@@ -406,30 +407,30 @@ cdef extern from 'blosc2.h' nogil:
     ctypedef struct blosc2_context:
         pass
 
-    ctypedef struct blosc2_btuner:
-        void (*init)(
+    ctypedef struct blosc2_tuner:
+        int (*init)(
             void* config,
             blosc2_context* cctx,
             blosc2_context* dctx
         ) nogil
-        void (*next_blocksize)(
+        int (*next_blocksize)(
             blosc2_context* context
         ) nogil
-        void (*next_cparams)(
+        int (*next_cparams)(
             blosc2_context* context
         ) nogil
-        void (*update)(
+        int (*update)(
             blosc2_context* context,
             double ctime
         ) nogil
-        void (*free)(
+        int (*free)(
             blosc2_context* context
         ) nogil
-        int id 'id_'
+        int id
         char* name
 
     int blosc2_register_tuner(
-        blosc2_btuner* tuner
+        blosc2_tuner* tuner
     )
 
     ctypedef struct blosc2_prefilter_params:
@@ -445,6 +446,7 @@ cdef extern from 'blosc2.h' nogil:
         uint8_t* ttmp
         size_t ttmp_nbytes
         blosc2_context* ctx
+        bool output_is_disposable
 
     ctypedef struct blosc2_postfilter_params:
         void* user_data
@@ -495,6 +497,7 @@ cdef extern from 'blosc2.h' nogil:
         void* schunk
         blosc2_postfilter_fn postfilter
         blosc2_postfilter_params* postparams
+        int32_t typesize
 
     const blosc2_dparams BLOSC2_DPARAMS_DEFAULTS
 
@@ -966,7 +969,8 @@ cdef extern from 'blosc2.h' nogil:
         uint8_t*,
         int32_t,
         uint8_t,
-        blosc2_cparams*
+        blosc2_cparams*,
+        uint8_t
     ) nogil
 
     ctypedef int (*blosc2_filter_backward_cb)(
@@ -974,7 +978,8 @@ cdef extern from 'blosc2.h' nogil:
         uint8_t*,
         int32_t,
         uint8_t,
-        blosc2_dparams*
+        blosc2_dparams*,
+        uint8_t
     ) nogil
 
     ctypedef struct blosc2_filter:
@@ -1068,11 +1073,11 @@ cdef extern from 'b2nd.h' nogil:
 
     ctypedef struct b2nd_array_t:
         blosc2_schunk* sc
-        int64_t[8] shape
-        int32_t[8] chunkshape
-        int64_t[8] extshape
-        int32_t[8] blockshape
-        int64_t[8] extchunkshape
+        int64_t[16] shape  # B2ND_MAX_DIM
+        int32_t[16] chunkshape  # B2ND_MAX_DIM
+        int64_t[16] extshape  # B2ND_MAX_DIM
+        int32_t[16] blockshape  # B2ND_MAX_DIM
+        int64_t[16] extchunkshape  # B2ND_MAX_DIM
         int64_t nitems
         int32_t chunknitems
         int64_t extnitems
@@ -1080,12 +1085,12 @@ cdef extern from 'b2nd.h' nogil:
         int64_t extchunknitems
         int8_t ndim
         chunk_cache_s chunk_cache
-        int64_t[8] item_array_strides
-        int64_t[8] item_chunk_strides
-        int64_t[8] item_extchunk_strides
-        int64_t[8] item_block_strides
-        int64_t[8] block_chunk_strides
-        int64_t[8] chunk_array_strides
+        int64_t[16] item_array_strides  # B2ND_MAX_DIM
+        int64_t[16] item_chunk_strides  # B2ND_MAX_DIM
+        int64_t[16] item_extchunk_strides  # B2ND_MAX_DIM
+        int64_t[16] item_block_strides  # B2ND_MAX_DIM
+        int64_t[16] block_chunk_strides  # B2ND_MAX_DIM
+        int64_t[16] chunk_array_strides  # B2ND_MAX_DIM
         char* dtype
         int8_t dtype_format
 
@@ -1116,6 +1121,11 @@ cdef extern from 'b2nd.h' nogil:
     )
 
     int b2nd_zeros(
+        b2nd_context_t* ctx,
+        b2nd_array_t** array
+    )
+
+    int b2nd_nans(
         b2nd_context_t* ctx,
         b2nd_array_t** array
     )
@@ -1205,7 +1215,8 @@ cdef extern from 'b2nd.h' nogil:
     int b2nd_expand_dims(
         const b2nd_array_t* array,
         b2nd_array_t** view,
-        const int8_t axis
+        const bool* axis,
+        const uint8_t final_dims
     )
 
     int b2nd_get_slice_cbuffer(
@@ -1274,7 +1285,7 @@ cdef extern from 'b2nd.h' nogil:
     )
 
     int b2nd_get_orthogonal_selection(
-        b2nd_array_t* array,
+        const b2nd_array_t* array,
         int64_t** selection,
         int64_t* selection_size,
         void* buffer,
