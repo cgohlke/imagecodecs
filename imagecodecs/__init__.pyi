@@ -57,6 +57,9 @@ __all__ = [
     'BRUNSLI',
     'BYTESHUFFLE',
     'BZ2',
+    'CCITTFAX3',
+    'CCITTFAX4',
+    'CCITTRLE',
     'CMS',
     'DDS',
     'DEFLATE',
@@ -98,6 +101,7 @@ __all__ = [
     'PACKINTS',
     'PCODEC',
     'PGLZ',
+    'PIXARLOG',
     'PNG',
     'QOI',
     'QUANTIZE',
@@ -131,6 +135,9 @@ __all__ = [
     'BrunsliError',
     'ByteshuffleError',
     'Bz2Error',
+    'Ccittfax3Error',
+    'Ccittfax4Error',
+    'CcittrleError',
     'CmsError',
     'DdsError',
     'DeflateError',
@@ -172,6 +179,7 @@ __all__ = [
     'PackintsError',
     'PcodecError',
     'PglzError',
+    'PixarlogError',
     'PngError',
     'QoiError',
     'QuantizeError',
@@ -248,6 +256,18 @@ __all__ = [
     'bz2_decode',
     'bz2_encode',
     'bz2_version',
+    'ccittfax3_check',
+    'ccittfax3_decode',
+    'ccittfax3_encode',
+    'ccittfax3_version',
+    'ccittfax4_check',
+    'ccittfax4_decode',
+    'ccittfax4_encode',
+    'ccittfax4_version',
+    'ccittrle_check',
+    'ccittrle_decode',
+    'ccittrle_encode',
+    'ccittrle_version',
     'cms_check',
     'cms_decode',
     'cms_encode',
@@ -429,6 +449,10 @@ __all__ = [
     'pglz_decode',
     'pglz_encode',
     'pglz_version',
+    'pixarlog_check',
+    'pixarlog_decode',
+    'pixarlog_encode',
+    'pixarlog_version',
     'png_check',
     'png_decode',
     'png_encode',
@@ -588,8 +612,10 @@ def imagefileext() -> tuple[str, ...]: ...
 def cython_version() -> str: ...
 def numpy_abi_version() -> str: ...
 def imcd_version() -> str: ...
+def ccitt_version() -> str: ...
 
 class ImcdError(RuntimeError): ...
+class CcittError(RuntimeError): ...
 
 class AEC:
     available: bool
@@ -1199,6 +1225,82 @@ def bz2_decode(
     *,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray: ...
+
+class CCITTFAX3:
+
+    available: bool
+
+Ccittfax3Error = CcittError
+ccittfax3_version = ccitt_version
+
+def ccittfax3_check(data: BytesLike, /) -> bool | None: ...
+def ccittfax3_encode(
+    data: BytesLike | ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    axis: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def ccittfax3_decode(
+    data: BytesLike,
+    /,
+    height: int = 0,
+    width: int = 0,
+    *,
+    t4options: int = 0,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
+class CCITTFAX4:
+
+    available: bool
+
+Ccittfax4Error = CcittError
+ccittfax4_version = ccitt_version
+
+def ccittfax4_check(data: BytesLike, /) -> bool | None: ...
+def ccittfax4_encode(
+    data: BytesLike | ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    axis: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def ccittfax4_decode(
+    data: BytesLike,
+    /,
+    height: int = 0,
+    width: int = 0,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
+class CCITTRLE:
+
+    available: bool
+
+CcittrleError = CcittError
+ccittrle_version = ccitt_version
+
+def ccittrle_check(data: BytesLike, /) -> bool | None: ...
+def ccittrle_encode(
+    data: BytesLike | ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    axis: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def ccittrle_decode(
+    data: BytesLike,
+    /,
+    height: int = 0,
+    width: int = 0,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
 class CMS:
 
@@ -2331,35 +2433,6 @@ def meshopt_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
-# TODO: MONO12P codec implementation pending
-# class MONO12P:
-#
-#     available: bool
-#
-# Mono12pError = ImcdError
-# mono12p_version = imcd_version
-#
-# def mono12p_check(data: BytesLike, /) -> bool | None: ...
-#
-# def mono12p_encode(
-#     data: ArrayLike,
-#     /,
-#     msfirst: bool = False,
-#     *,
-#     axis: int = -1,
-#     out: int | bytearray | None = None,
-# ) -> bytes | bytearray: ...
-#
-#
-# def mono12p_decode(
-#     data: BytesLike,
-#     /,
-#     msfirst: bool = False,
-#     *,
-#     runlen: int = 0,
-#     out: NDArray[Any] | None = None,
-# ) -> NDArray[Any]: ...
-
 class MOZJPEG:
 
     available: bool
@@ -2486,15 +2559,17 @@ def packints_encode(
     bitspersample: int,
     /,
     *,
-    axis: int = -1,
+    bitorder: Literal['>', '<'] | None = None,
+    runlen: int = 0,
     out: int | bytearray | None = None,
-) -> NoReturn: ...
+) -> bytes | bytearray: ...
 def packints_decode(
     data: BytesLike,
     dtype: DTypeLike,
     bitspersample: int,
     /,
     *,
+    bitorder: Literal['>', '<'] | None = None,
     runlen: int = 0,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
@@ -2512,6 +2587,7 @@ def pcodec_encode(
     /,
     level: int | None = None,
     *,
+    pagesize: int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def pcodec_decode(
@@ -2547,6 +2623,32 @@ def pglz_decode(
     checkcomplete: bool | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray: ...
+
+class PIXARLOG:
+
+    available: bool
+
+class PixarlogError(RuntimeError): ...
+
+def pixarlog_version() -> str: ...
+def pixarlog_check(data: BytesLike, /) -> bool | None: ...
+def pixarlog_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    deflate: bool = True,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def pixarlog_decode(
+    data: BytesLike,
+    /,
+    *,
+    shape: tuple[int, ...] | None = None,
+    dtype: DTypeLike | None = None,
+    deflate: bool = True,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
 class PNG:
 
@@ -2910,6 +3012,9 @@ class TIFF:
     class COMPRESSION(enum.IntEnum):
 
         NONE = ...
+        CCITTRLE = ...
+        CCITTFAX3 = ...
+        CCITTFAX4 = ...
         LZW = ...
         JPEG = ...
         PACKBITS = ...
@@ -2919,6 +3024,7 @@ class TIFF:
         ZSTD = ...
         WEBP = ...
         LERC = ...
+        PIXARLOG = ...
         # JXL = ...
 
     class PHOTOMETRIC(enum.IntEnum):
@@ -2971,19 +3077,21 @@ def tiff_encode(
     *,
     bigtiff: bool | None = None,
     byteorder: TIFF.ENDIAN | int | str | None = None,
+    subfiletype: TIFF.FILETYPE | int | None = None,
     photometric: TIFF.PHOTOMETRIC | int | str | None = None,
     planarconfig: TIFF.PLANARCONFIG | int | str | None = None,
     extrasample: TIFF.EXTRASAMPLE | int | str | None = None,
     # volumetric: bool = False,
     tile: tuple[int, int] | None = None,
     rowsperstrip: int | None = None,
+    bitspersample: int | None = None,
     compression: TIFF.COMPRESSION | int | str | None = None,
+    subcodec: int | str | None = None,
     predictor: bool | TIFF.PREDICTOR | int | None = None,
     colormap: ArrayLike | None = None,
     iccprofile: bytes | None = None,
     resolution: tuple[float, float] | None = None,
     resolutionunit: TIFF.RESUNIT | int | str | None = None,
-    subfiletype: TIFF.FILETYPE | int | None = None,
     description: str | None = None,
     datetime: str | None = None,
     software: str | None = None,
