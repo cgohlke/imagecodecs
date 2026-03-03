@@ -40,6 +40,7 @@
 include '_shared.pxi'
 
 from cpython.pycapsule cimport PyCapsule_GetPointer, PyCapsule_New
+from imcd cimport imcd_packints_decode, imcd_packints_encode
 from libc.stdio cimport SEEK_CUR, SEEK_END, SEEK_SET
 from libtiff cimport *
 
@@ -47,8 +48,20 @@ from libtiff cimport *
 cdef extern from '<stdio.h>':
     int vsnprintf(char* s, size_t n, const char* format, va_list arg) nogil
 
-# private definition in tiffiop.h
-cdef const tdir_t TIFF_MAX_DIR_COUNT = 1048576
+
+cdef:
+    const tdir_t TIFF_MAX_DIR_COUNT = 1048576  # private def in tiffiop.h
+
+    # index constants for the sizes[] geometry array
+    const int SZ_SAMPLEFORMAT = 0  # error payload on failure, 1 on success
+    const int SZ_PLANES = 1  # 1 for CONTIG, samplesperpixel for SEPARATE
+    const int SZ_DEPTH = 2  # imagedepth, usually 1
+    const int SZ_LENGTH = 3  # imagelength (rows)
+    const int SZ_WIDTH = 4  # imagewidth  (columns)
+    const int SZ_SAMPLES = 5  # samplesperpixel for CONTIG, 1 for SEPARATE
+    const int SZ_ITEMSIZE = 6  # itemsize of output container dtype in bytes
+    const int SZ_TRUESAMPLES = 7  # non-zero when asrgb forces RGBA
+    const int SZ_BPS = 8  # non-standard bps for packints unpacking; else 0
 
 
 class _TIFF:
@@ -72,6 +85,9 @@ class _TIFF:
         """TIFF codec compression schemes."""
 
         NONE = COMPRESSION_NONE
+        CCITTRLE = COMPRESSION_CCITTRLE
+        CCITTFAX3 = COMPRESSION_CCITTFAX3
+        CCITTFAX4 = COMPRESSION_CCITTFAX4
         LZW = COMPRESSION_LZW
         JPEG = COMPRESSION_JPEG
         PACKBITS = COMPRESSION_PACKBITS
@@ -81,6 +97,7 @@ class _TIFF:
         ZSTD = COMPRESSION_ZSTD
         WEBP = COMPRESSION_WEBP
         LERC = COMPRESSION_LERC
+        PIXARLOG = COMPRESSION_PIXARLOG
         # JXL = COMPRESSION_JXL
 
     class PHOTOMETRIC(enum.IntEnum):
@@ -188,8 +205,9 @@ def tiff_encode(
     # volumetric=False,
     tile=None,
     rowsperstrip=None,
-    # bitspersample=None,
+    bitspersample=None,
     compression=None,
+    subcodec=None,  # for lerc
     predictor=None,
     colormap=None,
     iccprofile=None,
@@ -209,6 +227,8 @@ def tiff_encode(
         const uint8_t[::1] buf  # must be const to write to bytes
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* tile_ = NULL
+        uint8_t* tile_packed_ = NULL
+        uint8_t* rowbuf = NULL
         uint16_t* palptr = NULL
         TIFF* tif = NULL
         TIFFOpenOptions* openoptions = NULL
@@ -216,10 +236,11 @@ def tiff_encode(
         uint32_t planarconfig_ = PLANARCONFIG_CONTIG
         uint32_t photometric_ = PHOTOMETRIC_MINISBLACK
         uint32_t compression_ = COMPRESSION_NONE
-        uint32_t subcodec_ = LERC_ADD_COMPRESSION_ZSTD
+        uint32_t subcodec_ = LERC_ADD_COMPRESSION_NONE
         uint32_t sampleformat_ = SAMPLEFORMAT_UINT
         uint32_t predictor_ = PREDICTOR_NONE
         uint32_t resolutionunit_ = RESUNIT_NONE
+        uint32_t pixarlogdatafmt_ = PIXARLOGDATAFMT_8BIT
         uint16_t extrasample_ = EXTRASAMPLE_UNSPECIFIED
         uint16_t* extrasamples_ = NULL
         int32_t level_ = -1
@@ -231,6 +252,9 @@ def tiff_encode(
         ssize_t itemsize = src.dtype.itemsize
         ssize_t ndim = src.ndim
         ssize_t dstsize, incsize, rowsize, framesize, tilesize, memtif_len, i
+        ssize_t packedrowsize = 0
+        ssize_t tile_packedrowsize = 0
+        int bps_encode = 0
         ssize_t frames = 1
         ssize_t planes = 1  # planar samples
         ssize_t length = 1
@@ -262,9 +286,13 @@ def tiff_encode(
         sampleformat_ = SAMPLEFORMAT_INT
     elif src.dtype.kind == 'c':
         sampleformat_ = SAMPLEFORMAT_COMPLEXIEEEFP
+    elif src.dtype.kind == 'b':
+        sampleformat_ = SAMPLEFORMAT_UINT
     else:
-        # TODO: support bool
         raise ValueError(f'{src.dtype.kind=!r} not supported')
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
     if appendto is None or len(appendto) == 0:
         if bigtiff is None:
@@ -297,7 +325,7 @@ def tiff_encode(
             compression_ = COMPRESSION_ADOBE_DEFLATE
             level_ = _default_value(level, 6, 0, 12)
     elif compression in {
-        COMPRESSION_DEFLATE, COMPRESSION_ADOBE_DEFLATE, 'deflate'
+        COMPRESSION_DEFLATE, COMPRESSION_ADOBE_DEFLATE, 'deflate',
     }:
         compression_ = COMPRESSION_ADOBE_DEFLATE
         level_ = _default_value(level, 6, -1, 12)
@@ -306,29 +334,41 @@ def tiff_encode(
         level_ = _default_value(level, 3, -1, 22)  # ZSTD_CLEVEL_DEFAULT = 3
     elif compression in {COMPRESSION_LZW, 'lzw'}:
         compression_ = COMPRESSION_LZW
-    elif compression in {COMPRESSION_LZMA, 'lzma'}:
-        compression_ = COMPRESSION_LZMA
-        level_ = _default_value(level, 6, -1, 9)
-    elif compression in {COMPRESSION_PACKBITS, 'packbits'}:
-        compression_ = COMPRESSION_PACKBITS
-    elif compression in {COMPRESSION_LERC, 'lerc'}:
-        compression = COMPRESSION_LERC
-        maxzerror = _default_value(level, 0.0, -1.0, None)
-        # TODO: support LERC subcodec and compression level
-        subcodec_ = LERC_ADD_COMPRESSION_ZSTD
-        level_ = 3 if maxzerror >= 0.0 else -1  # ZSTD_CLEVEL_DEFAULT
     elif compression in {COMPRESSION_JPEG, 'jpeg'}:
         compression_ = COMPRESSION_JPEG
         level_ = _default_value(level, 95, -1, 100)
     elif compression in {COMPRESSION_WEBP, 'webp'}:
         compression_ = COMPRESSION_WEBP
         level_ = _default_value(level, 100, -1, 100)
-    # elif compression in {COMPRESSION_CCITTFAX3, 'ccitt3'}:
-    #     compression = COMPRESSION_CCITTFAX3
-    # elif compression in {COMPRESSION_CCITTFAX4, 'ccitt4'}:
-    #     compression = COMPRESSION_CCITTFAX4
+    elif compression in {COMPRESSION_LZMA, 'lzma'}:
+        compression_ = COMPRESSION_LZMA
+        level_ = _default_value(level, 6, -1, 9)
+    elif compression in {COMPRESSION_PACKBITS, 'packbits'}:
+        compression_ = COMPRESSION_PACKBITS
+    elif compression in {COMPRESSION_LERC, 'lerc'}:
+        compression_ = COMPRESSION_LERC
+        maxzerror = _default_value(level, 0.0, 0.0, None)
+        if subcodec is None:
+            subcodec_ = LERC_ADD_COMPRESSION_NONE
+        elif subcodec in {LERC_ADD_COMPRESSION_ZSTD, 'zstd'}:
+            subcodec_ = LERC_ADD_COMPRESSION_ZSTD
+            level_ = 3  # ZSTD_CLEVEL_DEFAULT
+        elif subcodec in {LERC_ADD_COMPRESSION_DEFLATE, 'deflate'}:
+            subcodec_ = LERC_ADD_COMPRESSION_DEFLATE
+            level_ = 6  # Z_DEFAULT_COMPRESSION
+        else:
+            raise ValueError(f'{subcodec=} not supported')
+    elif compression in {COMPRESSION_CCITTRLE, 'ccittrle'}:
+        compression_ = COMPRESSION_CCITTRLE
+    elif compression in {COMPRESSION_CCITTFAX3, 'ccittfax3'}:
+        compression_ = COMPRESSION_CCITTFAX3
+    elif compression in {COMPRESSION_CCITTFAX4, 'ccittfax4'}:
+        compression_ = COMPRESSION_CCITTFAX4
+    elif compression in {COMPRESSION_PIXARLOG, 'pixarlog'}:
+        compression_ = COMPRESSION_PIXARLOG
+        level_ = _default_value(level, 6, -1, 12)
     # elif compression in {COMPRESSION_JXL, 'jxl'}:
-    #     compression = COMPRESSION_JXL
+    #     compression_ = COMPRESSION_JXL
 
     elif compression in {COMPRESSION_NONE, 'none'}:
         compression_ = COMPRESSION_NONE
@@ -536,6 +576,37 @@ def tiff_encode(
             raise MemoryError('failed to allocate tile')
         rowsperstrip_ = 0
 
+    # determine bps_encode: explicit bitspersample param, or bool implies bps=1
+    if bitspersample is None:
+        if src.dtype.kind == 'b':
+            bps_encode = 1
+    else:
+        bps_encode = int(bitspersample)
+
+    if bps_encode != 0:
+        if bps_encode < 1 or bps_encode > 32:
+            raise ValueError(f'{bitspersample=} out of range 1-32')
+        if sampleformat_ not in {SAMPLEFORMAT_UINT, SAMPLEFORMAT_INT}:
+            raise ValueError('bitspersample requires uint or int data')
+        bitspersample_ = <uint16_t> bps_encode
+        if bps_encode == itemsize * 8:
+            # standard bit depth matches dtype. skip packints path
+            bps_encode = 0
+        else:
+            packedrowsize = (width * samples * bps_encode + 7) // 8
+            rowbuf = <uint8_t*> malloc(packedrowsize)
+            if rowbuf == NULL:
+                raise MemoryError('failed to allocate rowbuf')
+            if tile is not None:
+                tile_packedrowsize = (
+                    tile_width * samples * bps_encode + 7
+                ) // 8
+                tile_packed_ = <uint8_t*> malloc(
+                    tile_packedrowsize * tile_length
+                )
+                if tile_packed_ == NULL:
+                    raise MemoryError('failed to allocate tile_packed')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is not None:
@@ -694,6 +765,19 @@ def tiff_encode(
                         if ret == 0:
                             raise TiffError(memtifobj)
 
+                    elif compression_ == COMPRESSION_PIXARLOG:
+                        if sampleformat_ == SAMPLEFORMAT_IEEEFP:
+                            pixarlogdatafmt_ = PIXARLOGDATAFMT_FLOAT
+                        elif bitspersample_ == 16:
+                            pixarlogdatafmt_ = PIXARLOGDATAFMT_16BIT
+                        else:
+                            pixarlogdatafmt_ = PIXARLOGDATAFMT_8BIT
+                        ret = TIFFSetField(
+                            tif, TIFFTAG_PIXARLOGDATAFMT, pixarlogdatafmt_
+                        )
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+
                     if level_ < 0:
                         pass
                     elif compression_ == COMPRESSION_ADOBE_DEFLATE:
@@ -709,18 +793,26 @@ def tiff_encode(
                         if ret == 0:
                             raise TiffError(memtifobj)
                     elif compression_ == COMPRESSION_LERC:
-                        ret = TIFFSetField(
-                            tif, TIFFTAG_LERC_MAXZERROR, maxzerror
-                        )
-                        if ret == 0:
-                            raise TiffError(memtifobj)
+                        if maxzerror > 0.0:
+                            ret = TIFFSetField(
+                                tif, TIFFTAG_LERC_MAXZERROR, maxzerror
+                            )
+                            if ret == 0:
+                                raise TiffError(memtifobj)
                         if level_ > 0:
                             ret = TIFFSetField(
                                 tif, TIFFTAG_LERC_ADD_COMPRESSION, subcodec_
                             )
                             if ret == 0:
                                 raise TiffError(memtifobj)
-                            ret = TIFFSetField(tif, TIFFTAG_ZSTD_LEVEL, level_)
+                            if subcodec_ == LERC_ADD_COMPRESSION_DEFLATE:
+                                ret = TIFFSetField(
+                                    tif, TIFFTAG_ZIPQUALITY, level_
+                                )
+                            elif subcodec_ == LERC_ADD_COMPRESSION_ZSTD:
+                                ret = TIFFSetField(
+                                    tif, TIFFTAG_ZSTD_LEVEL, level_
+                                )
                             if ret == 0:
                                 raise TiffError(memtifobj)
                     elif compression_ == COMPRESSION_JPEG:
@@ -736,6 +828,12 @@ def tiff_encode(
                             ret = TIFFSetField(tif, TIFFTAG_WEBP_LEVEL, level_)
                             if ret == 0:
                                 raise TiffError(memtifobj)
+                    elif compression_ == COMPRESSION_PIXARLOG:
+                        ret = TIFFSetField(
+                            tif, TIFFTAG_PIXARLOGQUALITY, level_
+                        )
+                        if ret == 0:
+                            raise TiffError(memtifobj)
 
                 if rowsperstrip_ > 0:
                     ret = TIFFSetField(
@@ -789,40 +887,77 @@ def tiff_encode(
 
                 if rowsperstrip_ > 0:
                     # write strips
-                    if <ssize_t> TIFFScanlineSize64(tif) != rowsize:
-                        raise ValueError(
-                            f'{TIFFScanlineSize64(tif)=} != {rowsize=}'
+                    if bps_encode != 0:
+                        ret = _tif_encode_striped_packints(
+                            tif,
+                            srcptr + i * framesize,
+                            rowbuf,
+                            planes,
+                            length,
+                            width * samples,
+                            itemsize,
+                            packedrowsize,
+                            bps_encode
                         )
-                    ret = _tif_encode_striped(
-                        tif,
-                        srcptr + i * framesize,
-                        planes,
-                        length,
-                        rowsize
-                    )
-                    if ret < 0:
-                        raise TiffError(memtifobj)
+                        if ret < 0:
+                            raise TiffError(memtifobj)
+                    else:
+                        if <ssize_t> TIFFScanlineSize64(tif) != rowsize:
+                            raise ValueError(
+                                f'{TIFFScanlineSize64(tif)=} != {rowsize=}'
+                            )
+                        ret = _tif_encode_striped(
+                            tif,
+                            srcptr + i * framesize,
+                            planes,
+                            length,
+                            rowsize
+                        )
+                        if ret < 0:
+                            raise TiffError(memtifobj)
                 else:
                     # write tiles
-                    if <ssize_t> TIFFTileSize(tif) != tilesize:
-                        raise ValueError(
-                            f'{TIFFTileSize(tif)=} != {tilesize=}'
+                    if bps_encode != 0:
+                        ret = _tif_encode_tiled_packints(
+                            tif,
+                            srcptr + i * framesize,
+                            tile_,
+                            tile_packed_,
+                            planes,
+                            length,
+                            width,
+                            tile_length,
+                            tile_width,
+                            tilesize,
+                            rowsize,
+                            samples * itemsize,
+                            tile_packedrowsize,
+                            tile_width * samples,
+                            itemsize,
+                            bps_encode
                         )
-                    ret = _tif_encode_tiled(
-                        tif,
-                        srcptr + i * framesize,
-                        tile_,
-                        planes,
-                        length,
-                        width,
-                        tile_length,
-                        tile_width,
-                        tilesize,
-                        rowsize,
-                        samples * itemsize
-                    )
-                    if ret < 0:
-                        raise TiffError(memtifobj)
+                        if ret < 0:
+                            raise TiffError(memtifobj)
+                    else:
+                        if <ssize_t> TIFFTileSize(tif) != tilesize:
+                            raise ValueError(
+                                f'{TIFFTileSize(tif)=} != {tilesize=}'
+                            )
+                        ret = _tif_encode_tiled(
+                            tif,
+                            srcptr + i * framesize,
+                            tile_,
+                            planes,
+                            length,
+                            width,
+                            tile_length,
+                            tile_width,
+                            tilesize,
+                            rowsize,
+                            samples * itemsize
+                        )
+                        if ret < 0:
+                            raise TiffError(memtifobj)
 
                 ret = TIFFWriteDirectory(tif)
                 if ret == 0:
@@ -838,6 +973,8 @@ def tiff_encode(
 
     finally:
         free(tile_)
+        free(tile_packed_)
+        free(rowbuf)
         free(extrasamples_)
         if tif != NULL:
             TIFFClose(tif)
@@ -873,9 +1010,11 @@ def tiff_decode(
     """
     cdef:
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         uint8_t* outptr
         uint8_t* tile = NULL
+        uint8_t* scanbuf = NULL
+        uint8_t* tile_unpacked = NULL
         numpy.npy_intp* strides
         memtif_t* memtif = NULL
         TIFF* tif = NULL
@@ -884,14 +1023,17 @@ def tiff_decode(
         int dirraise = 0
         tdir_t dirnum, dirstart, dirstop, dirstep
         int ret
+        int bps_
         uint32_t strip
         ssize_t i, size, sizeleft, outindex, imagesize, images
-        ssize_t[8] sizes
-        ssize_t[8] sizes2
+        ssize_t items_per_row, scansize
+        ssize_t[9] sizes
+        ssize_t[9] sizes2
         char[2] dtype
         char[2] dtype2
         bint rgb = asrgb
         int isrgb, isrgb2, istiled, istiled2
+        uint16_t compression_ = 0
 
     if data is out:
         raise ValueError('cannot decode in-place')
@@ -980,15 +1122,16 @@ def tiff_decode(
 
             isrgb = rgb
             ret = _tiff_decode_ifd(tif, &sizes[0], &dtype[0], &isrgb, &istiled)
+            TIFFGetFieldDefaulted(tif, TIFFTAG_COMPRESSION, &compression_)
             if ret == 0:
                 raise TiffError(memtifobj)
             if ret == -1:
                 raise ValueError(
-                    f'sampleformat {int(sizes[0])} and '
-                    f'bitspersample {int(sizes[6])} not supported'
+                    f'sampleformat {int(sizes[SZ_SAMPLEFORMAT])} and '
+                    f'bitspersample {int(sizes[SZ_ITEMSIZE])} not supported'
                 )
 
-            # if sizes[2] > 1:
+            # if sizes[SZ_DEPTH] > 1:
             #     raise NotImplementedError(f'libtiff does not support depth')
 
             if dirlist.size > 1 and dirlist.index == 1:
@@ -1018,12 +1161,13 @@ def tiff_decode(
 
                     if (
                         ret < 0
-                        or sizes[1] != sizes2[1]
-                        or sizes[2] != sizes2[2]
-                        or sizes[3] != sizes2[3]
-                        or sizes[4] != sizes2[4]
-                        or sizes[5] != sizes2[5]
-                        or sizes[6] != sizes2[6]
+                        or sizes[SZ_PLANES] != sizes2[SZ_PLANES]
+                        or sizes[SZ_DEPTH] != sizes2[SZ_DEPTH]
+                        or sizes[SZ_LENGTH] != sizes2[SZ_LENGTH]
+                        or sizes[SZ_WIDTH] != sizes2[SZ_WIDTH]
+                        or sizes[SZ_SAMPLES] != sizes2[SZ_SAMPLES]
+                        or sizes[SZ_ITEMSIZE] != sizes2[SZ_ITEMSIZE]
+                        or sizes[SZ_BPS] != sizes2[SZ_BPS]
                         or dtype[0] != dtype2[0]
                         or istiled != istiled2
                         or isrgb != isrgb2
@@ -1048,22 +1192,29 @@ def tiff_decode(
 
             # ssize_t overflow detected during _create_array() call below
             imagesize = (
-                sizes[1] * sizes[2] * sizes[3] * sizes[4] * sizes[5] * sizes[6]
+                sizes[SZ_PLANES]
+                * sizes[SZ_DEPTH]
+                * sizes[SZ_LENGTH]
+                * sizes[SZ_WIDTH]
+                * sizes[SZ_SAMPLES]
+                * sizes[SZ_ITEMSIZE]
             )
 
         shape = (
             images,
-            int(sizes[1]),
-            int(sizes[2]),
-            int(sizes[3]),
-            int(sizes[4]),
-            int(sizes[5])
+            int(sizes[SZ_PLANES]),
+            int(sizes[SZ_DEPTH]),
+            int(sizes[SZ_LENGTH]),
+            int(sizes[SZ_WIDTH]),
+            int(sizes[SZ_SAMPLES])
         )
         shapeout = tuple(
             s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
         )
 
-        out = _create_array(out, shapeout, f'{dtype.decode()}{int(sizes[6])}')
+        out = _create_array(
+            out, shapeout, f'{dtype.decode()}{int(sizes[SZ_ITEMSIZE])}'
+        )
         out = out.reshape(shape)
         outptr = <uint8_t*> numpy.PyArray_DATA(out)
         strides = numpy.PyArray_STRIDES(out)
@@ -1077,8 +1228,8 @@ def tiff_decode(
                         raise TiffError(memtifobj)
                     ret = TIFFReadRGBAImageOriented(
                         tif,
-                        <uint32_t> sizes[4],
-                        <uint32_t> sizes[3],
+                        <uint32_t> sizes[SZ_WIDTH],
+                        <uint32_t> sizes[SZ_LENGTH],
                         <uint32_t*> &outptr[i * imagesize],
                         ORIENTATION_TOPLEFT,
                         0
@@ -1091,49 +1242,115 @@ def tiff_decode(
                 tile = <uint8_t*> malloc(size)
                 if tile == NULL:
                     raise MemoryError('failed to allocate tile buffer')
-                for i in range(images):
-                    ret = _tiff_set_directory(tif, dirlist.data[i])
-                    if ret == 0:
-                        raise TiffError(memtifobj)
-                    ret = _tiff_decode_tiled(
-                        tif,
-                        &outptr[i * imagesize],
-                        sizes,
-                        strides,
-                        tile,
-                        size
+                if sizes[SZ_BPS] != 0:
+                    bps_ = <int> sizes[SZ_BPS]
+                    tile_unpacked = <uint8_t*> malloc(
+                        (size * 8 // bps_) * sizes[SZ_ITEMSIZE]
                     )
-                    if ret == 0:
-                        raise TiffError(memtifobj)
-                    if ret < 0:
-                        # TODO: libtiff does not seem to handle tiledepth > 1
-                        raise TiffError(f'_tiff_decode_tiled returned {ret}')
+                    if tile_unpacked == NULL:
+                        raise MemoryError(
+                            'failed to allocate tile_unpacked buffer'
+                        )
+                    for i in range(images):
+                        ret = _tiff_set_directory(tif, dirlist.data[i])
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        ret = _tiff_decode_tiled_packints(
+                            tif,
+                            &outptr[i * imagesize],
+                            sizes,
+                            strides,
+                            tile,
+                            tile_unpacked,
+                            size,
+                            bps_
+                        )
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        if ret < 0:
+                            raise TiffError(
+                                f'_tiff_decode_tiled_packints returned {ret}'
+                            )
+                else:
+                    for i in range(images):
+                        ret = _tiff_set_directory(tif, dirlist.data[i])
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        ret = _tiff_decode_tiled(
+                            tif,
+                            &outptr[i * imagesize],
+                            sizes,
+                            strides,
+                            tile,
+                            size
+                        )
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        if ret < 0:
+                            # TODO: libtiff does not seem to handle
+                            # tiledepth > 1
+                            raise TiffError(
+                                f'_tiff_decode_tiled returned {ret}'
+                            )
 
             else:
-                for i in range(images):
-                    ret = _tiff_set_directory(tif, dirlist.data[i])
-                    if ret == 0:
-                        raise TiffError(memtifobj)
-                    if TIFFIsTiled(tif) != 0:
-                        raise RuntimeError('not a strip image')
-                    outindex = i * imagesize
-                    sizeleft = imagesize
-                    for strip in range(TIFFNumberOfStrips(tif)):
-                        size = TIFFReadEncodedStrip(
-                            tif,
-                            strip,
-                            <void*> &outptr[outindex],
-                            sizeleft
+                if sizes[SZ_BPS] != 0:
+                    bps_ = <int> sizes[SZ_BPS]
+                    items_per_row = sizes[SZ_WIDTH] * sizes[SZ_SAMPLES]
+                    scansize = TIFFScanlineSize(tif)
+                    scanbuf = <uint8_t*> malloc(scansize)
+                    if scanbuf == NULL:
+                        raise MemoryError(
+                            'failed to allocate scanline buffer'
                         )
-                        if size < 0:
+                    for i in range(images):
+                        ret = _tiff_set_directory(tif, dirlist.data[i])
+                        if ret == 0:
                             raise TiffError(memtifobj)
-                        outindex += size
-                        sizeleft -= size
-                        if sizeleft <= 0:
-                            break
+                        ret = _tiff_decode_scanlines_packints(
+                            tif,
+                            &outptr[i * imagesize],
+                            scanbuf,
+                            scansize,
+                            sizes[SZ_PLANES],
+                            sizes[SZ_LENGTH],
+                            items_per_row,
+                            sizes[SZ_ITEMSIZE],
+                            bps_
+                        )
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        if ret < 0:
+                            raise TiffError(
+                                f'imcd_packints_decode returned {ret}'
+                            )
+                else:
+                    for i in range(images):
+                        ret = _tiff_set_directory(tif, dirlist.data[i])
+                        if ret == 0:
+                            raise TiffError(memtifobj)
+                        if TIFFIsTiled(tif) != 0:
+                            raise RuntimeError('not a strip image')
+                        outindex = i * imagesize
+                        sizeleft = imagesize
+                        for strip in range(TIFFNumberOfStrips(tif)):
+                            size = TIFFReadEncodedStrip(
+                                tif,
+                                strip,
+                                <void*> &outptr[outindex],
+                                sizeleft
+                            )
+                            if size < 0:
+                                raise TiffError(memtifobj)
+                            outindex += size
+                            sizeleft -= size
+                            if sizeleft <= 0:
+                                break
 
     finally:
         free(tile)
+        free(scanbuf)
+        free(tile_unpacked)
         dirlist_del(dirlist)
         if tif != NULL:
             TIFFClose(tif)
@@ -1141,16 +1358,16 @@ def tiff_decode(
             TIFFOpenOptionsFree(openoptions)
         memtif_del(memtif)
 
-    if not rgb and isrgb and sizes[7] > 0:
+    if not rgb and isrgb and sizes[SZ_TRUESAMPLES] > 0:
         # discard Alpha channel if JPEG compression, YCBCR...
-        out = out[..., : sizes[7]]
+        out = out[..., : sizes[SZ_TRUESAMPLES]]
         shape = (
             images,
-            int(sizes[1]),
-            int(sizes[2]),
-            int(sizes[3]),
-            int(sizes[4]),
-            int(sizes[7])
+            int(sizes[SZ_PLANES]),
+            int(sizes[SZ_DEPTH]),
+            int(sizes[SZ_LENGTH]),
+            int(sizes[SZ_WIDTH]),
+            int(sizes[SZ_TRUESAMPLES])
         )
         out = out.reshape(
             tuple(s for i, s in enumerate(shape) if s > 1 or i in {3, 4})
@@ -1160,6 +1377,21 @@ def tiff_decode(
         out = out.reshape(shapeout)
 
     return out
+
+
+cdef inline int _tiff_set_directory(
+    TIFF* tif,
+    tdir_t dirnum,
+) noexcept nogil:
+    """Set current directory, avoiding TIFFSetDirectory if possible."""
+    cdef:
+        ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
+
+    if diff == 1:
+        return TIFFReadDirectory(tif)
+    if diff == 0:
+        return 1
+    return TIFFSetDirectory(tif, dirnum)
 
 
 cdef int _tif_encode_striped(
@@ -1231,6 +1463,111 @@ cdef int _tif_encode_tiled(
     return 1
 
 
+cdef int _tif_encode_striped_packints(
+    TIFF* tif,
+    uint8_t* srcptr,
+    uint8_t* rowbuf,
+    const ssize_t planes,
+    const ssize_t length,
+    const ssize_t items_per_row,
+    const ssize_t itemsize,
+    const ssize_t packedrowsize,
+    const int bps,
+) noexcept nogil:
+    """Encode stripes with non-standard bits-per-sample."""
+    cdef:
+        ssize_t p, y
+        ssize_t ret
+        int ret2
+
+    for p in range(planes):
+        for y in range(length):
+            ret = imcd_packints_encode(
+                srcptr,
+                items_per_row * itemsize,
+                rowbuf,
+                items_per_row,
+                bps
+            )
+            if ret < 0:
+                return <int> ret
+            ret2 = TIFFWriteScanline(
+                tif,
+                <void*> rowbuf,
+                <uint32_t> y,
+                <uint16_t> p
+            )
+            if ret2 < 0:
+                return -1
+            srcptr += items_per_row * itemsize
+    return 1
+
+
+cdef int _tif_encode_tiled_packints(
+    TIFF* tif,
+    uint8_t* srcptr,
+    uint8_t* tile,
+    uint8_t* tile_packed,
+    const ssize_t planes,
+    const ssize_t length,
+    const ssize_t width,
+    const ssize_t tile_length,
+    const ssize_t tile_width,
+    const ssize_t tilesize,
+    const ssize_t rowstride,
+    const ssize_t colstride,
+    const ssize_t tile_packedrowsize,
+    const ssize_t items_per_tilerow,
+    const ssize_t itemsize,
+    const int bps,
+) noexcept nogil:
+    """Encode tiles with non-standard bits-per-sample."""
+    cdef:
+        ssize_t p, y, x, i
+        ssize_t copy_bytes
+        ssize_t packed_tile_bytes = tile_packedrowsize * tile_length
+        ssize_t ret
+        tmsize_t ret2
+
+    for p in range(planes):
+        for y from 0 <= y < length by tile_length:
+            for x from 0 <= x < width by tile_width:
+                # assemble unpacked tile pixels
+                memset(<void*> tile, 0, tilesize)
+                copy_bytes = min(tile_width, width - x) * colstride
+                for i in range(min(tile_length, length - y)):
+                    memcpy(
+                        tile + i * tile_width * colstride,
+                        srcptr + ((y + i) * rowstride + x * colstride),
+                        copy_bytes
+                    )
+                # pack tile row by row into tile_packed
+                memset(<void*> tile_packed, 0, packed_tile_bytes)
+                for i in range(tile_length):
+                    ret = imcd_packints_encode(
+                        tile + i * items_per_tilerow * itemsize,
+                        items_per_tilerow * itemsize,
+                        tile_packed + i * tile_packedrowsize,
+                        items_per_tilerow,
+                        bps
+                    )
+                    if ret < 0:
+                        return -1
+                # write packed tile
+                ret2 = TIFFWriteTile(
+                    tif,
+                    <void*> tile_packed,
+                    <uint32_t> x,
+                    <uint32_t> y,
+                    <uint32_t> 0,  # z, depth
+                    <uint16_t> p
+                )
+                if ret2 < 0:
+                    return -1
+        srcptr += length * rowstride
+    return 1
+
+
 cdef int _tiff_decode_ifd(
     TIFF* tif,
     ssize_t* sizes,
@@ -1238,12 +1575,7 @@ cdef int _tiff_decode_ifd(
     int* asrgb,
     int* istiled,
 ) noexcept nogil:
-    """Get normalized image shape and dtype from current IFD tags.
-
-    'sizes' contains images, planes, depth, length, width, samples, itemsize,
-    true_samples.
-
-    """
+    """Get normalized image shape and dtype from current IFD tags."""
     cdef:
         uint32_t imagewidth, imagelength, imagedepth
         uint16_t planarconfig, photometric, bitspersample, sampleformat
@@ -1289,39 +1621,39 @@ cdef int _tiff_decode_ifd(
 
     if compression == COMPRESSION_JPEG:
         asrgb[0] = 1
-        sizes[7] = <ssize_t> samplesperpixel
+        sizes[SZ_TRUESAMPLES] = <ssize_t> samplesperpixel
         ret = TIFFSetField(tif, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB)
         if ret == 0:
             return 0
     elif compression == COMPRESSION_OJPEG or photometric == PHOTOMETRIC_YCBCR:
         asrgb[0] = 1
-        sizes[7] = <ssize_t> samplesperpixel
+        sizes[SZ_TRUESAMPLES] = <ssize_t> samplesperpixel
     elif photometric == PHOTOMETRIC_SEPARATED:
         asrgb[0] = 1
-        sizes[7] = 3  # CMYK -> RGB
+        sizes[SZ_TRUESAMPLES] = 3  # CMYK -> RGB
     else:
-        sizes[7] = 0
+        sizes[SZ_TRUESAMPLES] = 0
 
     if asrgb[0] != 0:
         istiled[0] = 0  # don't care
     else:
         istiled[0] = TIFFIsTiled(tif)
 
-    sizes[0] = 1
-    sizes[3] = <ssize_t> imagelength
-    sizes[4] = <ssize_t> imagewidth
+    sizes[SZ_SAMPLEFORMAT] = 1
+    sizes[SZ_LENGTH] = <ssize_t> imagelength
+    sizes[SZ_WIDTH] = <ssize_t> imagewidth
     if asrgb[0]:
-        sizes[1] = 1
-        sizes[2] = 1
-        sizes[5] = 4
+        sizes[SZ_PLANES] = 1
+        sizes[SZ_DEPTH] = 1
+        sizes[SZ_SAMPLES] = 4
     elif planarconfig == PLANARCONFIG_CONTIG:
-        sizes[1] = 1
-        sizes[2] = <ssize_t> imagedepth
-        sizes[5] = <ssize_t> samplesperpixel
+        sizes[SZ_PLANES] = 1
+        sizes[SZ_DEPTH] = <ssize_t> imagedepth
+        sizes[SZ_SAMPLES] = <ssize_t> samplesperpixel
     else:
-        sizes[1] = <ssize_t> samplesperpixel
-        sizes[2] = <ssize_t> imagedepth
-        sizes[5] = 1
+        sizes[SZ_PLANES] = <ssize_t> samplesperpixel
+        sizes[SZ_DEPTH] = <ssize_t> imagedepth
+        sizes[SZ_SAMPLES] = 1
 
     dtype[1] = 0
     if asrgb[0]:
@@ -1329,7 +1661,7 @@ cdef int _tiff_decode_ifd(
     elif photometric == PHOTOMETRIC_LOGLUV:
         # return LogLuv as float32
         dtype[0] = b'f'
-        sizes[0] = <ssize_t> SAMPLEFORMAT_IEEEFP
+        sizes[SZ_SAMPLEFORMAT] = <ssize_t> SAMPLEFORMAT_IEEEFP
         bitspersample = 32
         ret = TIFFSetField(tif, TIFFTAG_SGILOGDATAFMT, SGILOGDATAFMT_FLOAT)
         if ret == 0:
@@ -1345,8 +1677,8 @@ cdef int _tiff_decode_ifd(
             and bitspersample != 32
             and bitspersample != 64
         ):
-            sizes[0] = <ssize_t> sampleformat
-            sizes[6] = <ssize_t> bitspersample
+            sizes[SZ_SAMPLEFORMAT] = <ssize_t> sampleformat
+            sizes[SZ_ITEMSIZE] = <ssize_t> bitspersample
             return -1
     elif sampleformat == SAMPLEFORMAT_COMPLEXIEEEFP:
         dtype[0] = b'c'
@@ -1355,37 +1687,48 @@ cdef int _tiff_decode_ifd(
             and bitspersample != 64
             and bitspersample != 128
         ):
-            sizes[0] = <ssize_t> sampleformat
-            sizes[6] = <ssize_t> bitspersample
+            sizes[SZ_SAMPLEFORMAT] = <ssize_t> sampleformat
+            sizes[SZ_ITEMSIZE] = <ssize_t> bitspersample
             return -1
     else:
         # sampleformat == SAMPLEFORMAT_VOID
         # sampleformat == SAMPLEFORMAT_COMPLEXINT
-        sizes[0] = <ssize_t> sampleformat
-        sizes[6] = <ssize_t> bitspersample
+        sizes[SZ_SAMPLEFORMAT] = <ssize_t> sampleformat
+        sizes[SZ_ITEMSIZE] = <ssize_t> bitspersample
         return -1
 
+    sizes[SZ_BPS] = 0
     if asrgb[0]:
-        sizes[6] = 1
-    # TODO: support 1, 2, and 4 bit integers
-    # elif bitspersample == 1:
-    #     dtype[0] = b'b'
-    #     sizes[6] = 1
-    # elif bitspersample < 8:
-    #     sizes[6] = 1
+        sizes[SZ_ITEMSIZE] = 1
     elif bitspersample == 8:
-        sizes[6] = 1
+        sizes[SZ_ITEMSIZE] = 1
     elif bitspersample == 16:
-        sizes[6] = 2
+        sizes[SZ_ITEMSIZE] = 2
     elif bitspersample == 32:
-        sizes[6] = 4
+        sizes[SZ_ITEMSIZE] = 4
     elif bitspersample == 64:
-        sizes[6] = 8
+        sizes[SZ_ITEMSIZE] = 8
     elif bitspersample == 128:
-        sizes[6] = 16
+        sizes[SZ_ITEMSIZE] = 16
+    elif dtype[0] == b'u' or dtype[0] == b'i':
+        # non-standard bit depths: 1-7, 9-15, 17-31
+        if bitspersample == 1 and dtype[0] == b'u':
+            dtype[0] = b'b'  # return 1-bit uint as bool
+            sizes[SZ_ITEMSIZE] = 1
+        elif bitspersample <= 8:
+            sizes[SZ_ITEMSIZE] = 1
+        elif bitspersample <= 16:
+            sizes[SZ_ITEMSIZE] = 2
+        elif bitspersample <= 32:
+            sizes[SZ_ITEMSIZE] = 4
+        else:
+            sizes[SZ_SAMPLEFORMAT] = <ssize_t> sampleformat
+            sizes[SZ_ITEMSIZE] = <ssize_t> bitspersample
+            return -1
+        sizes[SZ_BPS] = <ssize_t> bitspersample
     else:
-        sizes[0] = <ssize_t> sampleformat
-        sizes[6] = <ssize_t> bitspersample
+        sizes[SZ_SAMPLEFORMAT] = <ssize_t> sampleformat
+        sizes[SZ_ITEMSIZE] = <ssize_t> bitspersample
         return -1
 
     return 1
@@ -1430,11 +1773,11 @@ cdef int _tiff_decode_tiled(
     else:
         tiledepth = <ssize_t> value
 
-    imageplane = sizes[1]
-    imagedepth = sizes[2]
-    imagelength = sizes[3]
-    imagewidth = sizes[4]
-    samplesize = sizes[5] * sizes[6]
+    imageplane = sizes[SZ_PLANES]
+    imagedepth = sizes[SZ_DEPTH]
+    imagelength = sizes[SZ_LENGTH]
+    imagewidth = sizes[SZ_WIDTH]
+    samplesize = sizes[SZ_SAMPLES] * sizes[SZ_ITEMSIZE]
     sizeleft = imageplane * imagedepth * imagelength * imagewidth * samplesize
     sp = strides[1]
     sd = strides[2]
@@ -1476,19 +1819,111 @@ cdef int _tiff_decode_tiled(
     return 1
 
 
-cdef inline int _tiff_set_directory(
+cdef int _tiff_decode_scanlines_packints(
     TIFF* tif,
-    tdir_t dirnum,
+    uint8_t* dst,
+    uint8_t* scanbuf,
+    const ssize_t scansize,
+    const ssize_t planes,
+    const ssize_t length,
+    const ssize_t items_per_row,
+    const ssize_t itemsize,
+    const int bps,
 ) noexcept nogil:
-    """Set current directory, avoiding TIFFSetDirectory if possible."""
+    """Decode non-standard bitspersample strip image row by row."""
     cdef:
-        ssize_t diff = <ssize_t> dirnum - <ssize_t> TIFFCurrentDirectory(tif)
+        ssize_t p, y
+        ssize_t ret
 
-    if diff == 1:
-        return TIFFReadDirectory(tif)
-    if diff == 0:
-        return 1
-    return TIFFSetDirectory(tif, dirnum)
+    for p in range(planes):
+        for y in range(length):
+            if TIFFReadScanline(
+                tif, <void*> scanbuf, <uint32_t> y, <uint16_t> p
+            ) < 0:
+                return -1
+            ret = imcd_packints_decode(
+                scanbuf, scansize, dst, items_per_row, bps
+            )
+            if ret < 0:
+                return <int> ret
+            dst += items_per_row * itemsize
+    return 1
+
+
+cdef int _tiff_decode_tiled_packints(
+    TIFF* tif,
+    uint8_t* dst,
+    ssize_t* sizes,
+    numpy.npy_intp* strides,
+    uint8_t* tile_packed,
+    uint8_t* tile_unpacked,
+    const ssize_t tile_packed_size,
+    const int bps,
+) noexcept nogil:
+    """Decode tiled non-standard bitspersample image."""
+    cdef:
+        ssize_t imagelength, imagewidth, samplesize, itemsize
+        ssize_t tilelength, tilewidth
+        ssize_t tiledlength, tiledwidth
+        ssize_t tp, tl, tw, tileindex
+        ssize_t h, i, row_packed_bytes, copy_bytes
+        ssize_t sp, sl, sw
+        uint32_t value
+        tmsize_t size
+        ssize_t ret
+
+    if TIFFIsTiled(tif) == 0:
+        return 0
+
+    ret = TIFFGetFieldDefaulted(tif, TIFFTAG_TILEWIDTH, &value)
+    if ret == 0:
+        return 0
+    tilewidth = <ssize_t> value
+
+    ret = TIFFGetFieldDefaulted(tif, TIFFTAG_TILELENGTH, &value)
+    if ret == 0:
+        return 0
+    tilelength = <ssize_t> value
+
+    imagelength = sizes[SZ_LENGTH]
+    imagewidth = sizes[SZ_WIDTH]
+    itemsize = sizes[SZ_ITEMSIZE]
+    samplesize = sizes[SZ_SAMPLES] * itemsize
+    row_packed_bytes = (tilewidth * sizes[SZ_SAMPLES] * bps + 7) // 8
+    tiledwidth = (imagewidth + tilewidth - 1) // tilewidth
+    tiledlength = (imagelength + tilelength - 1) // tilelength
+    sp = strides[1]
+    sl = strides[3]
+    sw = strides[4]
+
+    for tileindex in range(TIFFNumberOfTiles(tif)):
+        size = TIFFReadEncodedTile(
+            tif, <uint32_t> tileindex, <void*> tile_packed, tile_packed_size
+        )
+        if size < 0:
+            return 0
+        tp = tileindex // (tiledwidth * tiledlength)
+        tl = (tileindex // tiledwidth) % tiledlength * tilelength
+        tw = tileindex % tiledwidth * tilewidth
+        copy_bytes = min(tilewidth, imagewidth - tw) * samplesize
+
+        for h in range(min(tilelength, imagelength - tl)):
+            ret = imcd_packints_decode(
+                tile_packed + h * row_packed_bytes,
+                row_packed_bytes,
+                tile_unpacked,
+                tilewidth * sizes[SZ_SAMPLES],
+                bps
+            )
+            if ret < 0:
+                return <int> ret
+            i = tp * sp + (tl + h) * sl + tw * sw
+            memcpy(
+                <void*> &dst[i],
+                <const void*> tile_unpacked,
+                copy_bytes
+            )
+    return 1
 
 
 ctypedef struct dirlist_t:
