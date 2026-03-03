@@ -1,6 +1,6 @@
 # imagecodecs/giflib.pxd
 
-# Cython declarations for the `giflib 5.2.2` library.
+# Cython declarations for the `giflib 6.1.1` library.
 # http://giflib.sourceforge.net
 
 cdef extern from 'gif_lib.h' nogil:
@@ -57,7 +57,7 @@ cdef extern from 'gif_lib.h' nogil:
     int D_GIF_ERR_IMAGE_DEFECT
     int D_GIF_ERR_EOF_TOO_SOON
 
-    int GIF_ASPECT_RATIO(int n)  # ((n)+15.0/64.0)
+    double GIF_ASPECT_RATIO(int n)  # ((n)+15.0/64.0)
 
     ctypedef unsigned char GifPixelType
     ctypedef unsigned char* GifRowType
@@ -165,7 +165,8 @@ cdef extern from 'gif_lib.h' nogil:
     )
 
     int EGifSpew(
-        GifFileType* ifFile
+        GifFileType* GifFile,
+        int* ErrorCode
     )
 
     const char* EGifGetGifVersion(
@@ -359,7 +360,7 @@ cdef extern from 'gif_lib.h' nogil:
 
     void GifApplyTranslation(
         SavedImage* Image,
-        GifPixelType* Translation
+        const GifPixelType* Translation
     )
 
     int GifAddExtensionBlock(
