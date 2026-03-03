@@ -69,7 +69,7 @@ class PcodecError(RuntimeError):
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 0.4.7'
+    return 'pcodec 1.0.1'
 
 
 def pcodec_check(const uint8_t[::1] data, /):
@@ -81,17 +81,21 @@ def pcodec_encode(
     /,
     level=None,
     *,
-    out=None,
+    pagesize=None,
+    out=None
 ):
     """Return PCODEC encoded data."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
-        const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize, pcovec_len
-        unsigned int pcolevel = _default_value(level, 8, 0, 12)
+        const uint8_t[::1] dst
+        ssize_t dstsize
+        PcoChunkConfig config
         unsigned char pcotype
-        PcoFfiVec pcovec
+        size_t bound, n_written
         PcoError ret
+
+    config.compression_level = _default_value(level, 8, 0, 12)
+    config.max_page_n = 0 if pagesize is None else <size_t> pagesize
 
     if src.size > INT32_MAX:
         raise ValueError(f'invalid {src.size=}')
@@ -101,41 +105,36 @@ def pcodec_encode(
     except KeyError:
         raise ValueError(f'{src.dtype=} not supported')
 
-    with nogil:
-        memset(<void*> &pcovec, 0, sizeof(PcoFfiVec))
+    out, dstsize, outgiven, outtype = _parse_output(out)
+    if out is None:
+        bound = pco_standalone_guarantee_file_size(
+            <size_t> src.size, pcotype
+        )
+        if bound == 0:
+            raise PcodecError(
+                'pco_standalone_guarantee_file_size', PcoInvalidType
+            )
+        out = _create_output(outtype, <ssize_t> bound)
 
-        ret = pco_simpler_compress(
+    dst = out
+    dstsize = dst.nbytes
+
+    with nogil:
+        ret = pco_standalone_simple_compress_into(
             <const void*> src.data,
             <size_t> src.size,
             pcotype,
-            pcolevel,
-            &pcovec
+            &config,
+            <void*> &dst[0],
+            <size_t> dstsize,
+            &n_written,
         )
-        if ret != PcoSuccess:
-            raise PcodecError('pco_simpler_compress', ret)
+    del dst
 
-        pcovec_len = <ssize_t> pcovec.len
+    if ret != PcoSuccess:
+        raise PcodecError('pco_standalone_simple_compress_into', ret)
 
-    try:
-        out, dstsize, outgiven, outtype = _parse_output(out)
-        if out is None:
-            dstsize = pcovec_len
-            out = _create_output(
-                outtype, dstsize, <const char*> pcovec.ptr
-            )
-        else:
-            dst = out
-            dstsize = dst.nbytes
-            if dstsize < pcovec_len:
-                raise ValueError(
-                    f'output buffer too small {dstsize=} < {pcovec.len=}'
-                )
-            memcpy(<void*> &dst[0], pcovec.ptr, pcovec.len)
-            del dst
-    finally:
-        pco_free_pcovec(&pcovec)
-
-    return _return_output(out, dstsize, pcovec_len, outgiven)
+    return _return_output(out, dstsize, <ssize_t> n_written, outgiven)
 
 
 def pcodec_decode(
@@ -144,15 +143,15 @@ def pcodec_decode(
     shape=None,
     dtype=None,
     *,
-    out=None,
+    out=None
 ):
     """Return decoded PCODEC data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        size_t src_len = src.size
+        size_t src_len = <size_t> src.size
         unsigned char pcotype
-        PcoFfiVec pcovec
+        size_t n_written
         PcoError ret
 
     if isinstance(out, numpy.ndarray):
@@ -169,39 +168,43 @@ def pcodec_decode(
     except KeyError:
         raise ValueError(f'{dtype=} not supported')
 
+    if shape is None:
+        raise ValueError('shape not specified')
+
+    out = _create_array(out, shape, dtype)
+    dst = out
+
     with nogil:
-        memset(<void*> &pcovec, 0, sizeof(PcoFfiVec))
-
-        ret = pco_simple_decompress(
-            <const void*> &src[0], src_len, pcotype, &pcovec
+        ret = pco_standalone_simple_decompress_into(
+            <const void*> &src[0],
+            src_len,
+            pcotype,
+            <void*> &dst.data[0],
+            <size_t> dst.size,
+            &n_written,
         )
-        if ret != PcoSuccess:
-            raise PcodecError('pco_simple_decompress', ret)
 
-    try:
-        if shape is None:
-            shape = (int(pcovec.len),)
-        out = _create_array(out, shape, dtype)
-        dst = out
-        if out.size != pcovec.len:
-            raise ValueError(
-                f'invalid output size {out.size=} != {pcovec.len=}'
-            )
-        memcpy(<void*> &dst.data[0], pcovec.ptr, dst.nbytes)
-    finally:
-        pco_free_pcovec(&pcovec)
+    if ret != PcoSuccess:
+        raise PcodecError('pco_standalone_simple_decompress_into', ret)
+
+    if n_written != <size_t> dst.size:
+        raise ValueError(
+            f'decompressed element count mismatch: {n_written=} != {dst.size=}'
+        )
 
     return out
 
 
 PCO_TYPE = {
+    ('u', 1): PCO_TYPE_U8,
+    ('u', 2): PCO_TYPE_U16,
     ('u', 4): PCO_TYPE_U32,
     ('u', 8): PCO_TYPE_U64,
+    ('i', 1): PCO_TYPE_I8,
+    ('i', 2): PCO_TYPE_I16,
     ('i', 4): PCO_TYPE_I32,
     ('i', 8): PCO_TYPE_I64,
+    ('f', 2): PCO_TYPE_F16,
     ('f', 4): PCO_TYPE_F32,
     ('f', 8): PCO_TYPE_F64,
-    ('u', 2): PCO_TYPE_U16,
-    ('i', 2): PCO_TYPE_I16,
-    ('f', 2): PCO_TYPE_F16,
 }
