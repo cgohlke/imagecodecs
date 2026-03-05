@@ -436,6 +436,7 @@ def bmp(data):
     ext = 'bmp'
     ext = '_%s%i.%s' % (data.dtype.kind, data.itemsize, ext)
     imcwrite('rgb' + ext, getdata(data, 'rgb'), encode)
+    imcwrite('rgba' + ext, getdata(data, 'rgba'), encode)
     imcwrite('gray' + ext, getdata(data, 'gray'), encode)
 
 
@@ -502,7 +503,7 @@ def jls(data):
 
 def j2k(data):
     """..."""
-    encode = imagecodecs.j2k_encode
+    encode = imagecodecs.jpeg2k_encode
     ext = 'j2k'
     ext = '_%s%i.%s' % (data.dtype.kind, data.itemsize, ext)
     imcwrite('rgb_alpha' + ext, getdata(data, 'rgba'), encode)
@@ -577,6 +578,7 @@ def rgbe(data):
 
 def tif(data):
     """..."""
+    encode = imagecodecs.tiff_encode
     ext = '_%s%i.tif' % (data.dtype.kind, data.itemsize)
     kwargs = dict(metadata=False, datetime=False, software='')
     tifwrite('gray' + ext, getdata(data, 'gray'), rowsperstrip=17, **kwargs)
@@ -584,6 +586,19 @@ def tif(data):
         'gray_tiled' + ext, getdata(data, 'gray'), tile=(16, 16), **kwargs
     )
     if data.dtype == numpy.bool_:
+        imcwrite('gray' + ext, getdata(data, 'gray'), encode)
+        for compression in ('ccittrle', 'ccittfax3', 'ccittfax4'):
+            ext1 = '_%s%i_%s.tif' % (
+                data.dtype.kind,
+                data.itemsize,
+                compression,
+            )
+            imcwrite(
+                'gray' + ext1,
+                getdata(data, 'gray'),
+                encode,
+                compression=compression,
+            )
         return
     tifwrite(
         'rgb_alpha' + ext,
@@ -692,6 +707,23 @@ def tif(data):
             extrasamples=['UNASSALPHA'],
             rowsperstrip=17,
             **kwargs,
+        )
+
+    if data.dtype in ('uint8', 'uint16', 'float32'):
+        ext1 = '_%s%i_pixarlog.tif' % (data.dtype.kind, data.itemsize)
+        imcwrite(
+            'gray' + ext1,
+            getdata(data, 'gray'),
+            encode,
+            compression='pixarlog',
+            photometric='minisblack',
+        )
+        imcwrite(
+            'rgb' + ext1,
+            getdata(data, 'rgb'),
+            encode,
+            compression='pixarlog',
+            photometric='rgb',
         )
 
     data = getdata(data, 'rgb')
