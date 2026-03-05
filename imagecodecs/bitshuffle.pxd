@@ -1,6 +1,6 @@
 # imagecodecs/bitshuffle.pxd
 
-# Cython declarations for the `Bitshuffle 0.5.1` library.
+# Cython declarations for the `Bitshuffle 0.5.2` library.
 # https://github.com/kiyo-masui/bitshuffle
 
 from libc.stdint cimport int64_t
@@ -69,8 +69,7 @@ cdef extern from 'bitshuffle.h' nogil:
         const void* inp,
         void* out,
         const size_t size,
-        const size_t
-        elem_size,
+        const size_t elem_size,
         size_t block_size,
         const int comp_lvl
     )
