@@ -650,7 +650,7 @@ cdef extern from 'zstd.h' nogil:
         size_t srcSize
     )
 
-    ZSTD_compressSequencesAndLiterals(
+    size_t ZSTD_compressSequencesAndLiterals(
         ZSTD_CCtx* cctx,
         void* dst,
         size_t dstCapacity,
@@ -883,6 +883,16 @@ cdef extern from 'zstd.h' nogil:
     size_t ZSTD_CCtx_setCParams(
         ZSTD_CCtx* cctx,
         ZSTD_compressionParameters cparams
+    )
+
+    size_t ZSTD_CCtx_setFParams(
+        ZSTD_CCtx* cctx,
+        ZSTD_frameParameters fparams
+    )
+
+    size_t ZSTD_CCtx_setParams(
+        ZSTD_CCtx* cctx,
+        ZSTD_parameters params
     )
 
     size_t ZSTD_compress_advanced(
