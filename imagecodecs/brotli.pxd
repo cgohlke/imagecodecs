@@ -162,6 +162,7 @@ cdef extern from 'brotli/encode.h' nogil:
         BROTLI_PARAM_LARGE_WINDOW
         BROTLI_PARAM_NPOSTFIX
         BROTLI_PARAM_NDIRECT
+        BROTLI_PARAM_STREAM_OFFSET
 
     ctypedef struct BrotliEncoderState:
         pass
