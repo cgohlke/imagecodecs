@@ -1,5 +1,5 @@
-#ifndef _H_RGBE
-#define _H_RGBE
+#ifndef RGBE_H
+#define RGBE_H
 /* THIS CODE CARRIES NO GUARANTEE OF USABILITY OR FITNESS FOR ANY PURPOSE.
  * WHILE THE AUTHORS HAVE TRIED TO ENSURE THE PROGRAM WORKS CORRECTLY,
  * IT IS STRICTLY USE AT YOUR OWN RISK.  */
@@ -10,7 +10,7 @@
 
 #include <stddef.h>
 
-#define RGBE_VERSION "2022.12.22"
+#define RGBE_VERSION "2026.3.6"
 
 #ifndef HAVE_SSIZE_T
 #if defined(_MSC_VER)
@@ -50,56 +50,110 @@ typedef struct {
     char *data;
     size_t size;
     size_t pos;
-    char owner;
+    int owner;
 } rgbe_stream_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* read or write headers */
 /* you may set rgbe_header_info to null if you want to */
 int
 RGBE_WriteHeader(
-    rgbe_stream_t *fp, int width, int height, rgbe_header_info *info);
+    rgbe_stream_t *fp,
+    int width,
+    int height,
+    const rgbe_header_info *info
+);
 
 int
 RGBE_ReadHeader(
-    rgbe_stream_t *fp, int *width, int *height, rgbe_header_info *info);
+    rgbe_stream_t *fp,
+    int *width,
+    int *height,
+    rgbe_header_info *info
+);
 
 /* read or write pixels */
 /* can read or write pixels in chunks of any size including single pixels*/
 int
-RGBE_WritePixels(rgbe_stream_t *fp, float *data, int numpixels);
+RGBE_WritePixels(
+    rgbe_stream_t *fp,
+    const float *data,
+    int numpixels
+);
 
 int
-RGBE_ReadPixels(rgbe_stream_t *fp, float *data, int numpixels);
+RGBE_ReadPixels(
+    rgbe_stream_t *fp,
+    float *data,
+    int numpixels
+);
 
 /* read or write run length encoded files */
 /* must be called to read or write whole scanlines */
 int
 RGBE_WritePixels_RLE(
-    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines);
+    rgbe_stream_t *fp,
+    const float *data,
+    int scanline_width,
+    int num_scanlines
+);
 
 int
 RGBE_ReadPixels_RLE(
-    rgbe_stream_t *fp, float *data, int scanline_width, int num_scanlines);
+    rgbe_stream_t *fp,
+    float *data,
+    int scanline_width,
+    int num_scanlines
+);
 
 /* FILE-like memory-stream */
 
 rgbe_stream_t *
-rgbe_stream_new(size_t size, char *data);
+rgbe_stream_new(
+    size_t size,
+    char *data
+);
 
 void
-rgbe_stream_del(rgbe_stream_t *stream);
+rgbe_stream_del(
+    rgbe_stream_t *stream
+);
 
 size_t
-rgbe_stream_read(void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream);
+rgbe_stream_read(
+    void *ptr,
+    size_t size,
+    size_t nmemb,
+    rgbe_stream_t *stream
+);
 
 size_t
 rgbe_stream_write(
-    const void *ptr, size_t size, size_t nmemb, rgbe_stream_t *stream);
+    const void *ptr,
+    size_t size,
+    size_t nmemb,
+    rgbe_stream_t *stream
+);
 
 int
-rgbe_stream_printf(rgbe_stream_t *stream, const char *format, ...);
+rgbe_stream_printf(
+    rgbe_stream_t *stream,
+    const char *format,
+    ...
+);
 
 char *
-rgbe_stream_gets(char *str, size_t n, rgbe_stream_t *stream);
+rgbe_stream_gets(
+    char *str,
+    size_t n,
+    rgbe_stream_t *stream
+);
 
-#endif /* _H_RGBE */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* RGBE_H */
