@@ -3,6 +3,9 @@
 # Cython declarations for the `libjpeg 8d` library.
 # http://libjpeg.sourceforge.net/
 
+from libc.stdio cimport FILE
+
+
 cdef extern from 'jpeglib.h' nogil:
 
     int JPEG_LIB_VERSION
@@ -194,4 +197,144 @@ cdef extern from 'jpeglib.h' nogil:
         J_COLOR_SPACE colorspace
     )
 
-# TODO: add missing declarations
+    ctypedef JSAMPARRAY* JSAMPIMAGE
+
+    ctypedef jpeg_marker_struct* jpeg_saved_marker_ptr
+
+    ctypedef struct jpeg_marker_struct:
+        jpeg_marker_struct* next
+        unsigned int marker
+        unsigned int original_length
+        unsigned int data_length
+        JOCTET* data
+
+    ctypedef struct jvirt_sarray_control:
+        pass
+
+    ctypedef struct jvirt_barray_control:
+        pass
+
+    ctypedef jvirt_sarray_control* jvirt_sarray_ptr
+
+    ctypedef jvirt_barray_control* jvirt_barray_ptr
+
+    int JPEG_SUSPENDED
+    int JPEG_HEADER_OK
+    int JPEG_HEADER_TABLES_ONLY
+
+    int JPEG_REACHED_SOS
+    int JPEG_REACHED_EOI
+    int JPEG_ROW_COMPLETED
+    int JPEG_SCAN_COMPLETED
+
+    int JPEG_RST0
+    int JPEG_EOI
+    int JPEG_APP0
+    int JPEG_COM
+
+    void jpeg_stdio_dest(
+        jpeg_compress_struct* cinfo,
+        FILE* outfile
+    )
+
+    void jpeg_stdio_src(
+        jpeg_decompress_struct* cinfo,
+        FILE* infile
+    )
+
+    void jpeg_simple_progression(
+        jpeg_compress_struct* cinfo
+    )
+
+    void jpeg_suppress_tables(
+        jpeg_compress_struct* cinfo,
+        boolean suppress
+    )
+
+    void jpeg_write_marker(
+        jpeg_compress_struct* cinfo,
+        int marker,
+        const JOCTET* dataptr,
+        unsigned int datalen
+    )
+
+    JDIMENSION jpeg_write_raw_data(
+        jpeg_compress_struct* cinfo,
+        JSAMPIMAGE data,
+        JDIMENSION num_lines
+    )
+
+    void jpeg_calc_jpeg_dimensions(
+        jpeg_compress_struct* cinfo
+    )
+
+    JDIMENSION jpeg_read_raw_data(
+        jpeg_decompress_struct* cinfo,
+        JSAMPIMAGE data,
+        JDIMENSION max_lines
+    )
+
+    boolean jpeg_has_multiple_scans(
+        jpeg_decompress_struct* cinfo
+    )
+
+    boolean jpeg_start_output(
+        jpeg_decompress_struct* cinfo,
+        int scan_number
+    )
+
+    boolean jpeg_finish_output(
+        jpeg_decompress_struct* cinfo
+    )
+
+    boolean jpeg_input_complete(
+        jpeg_decompress_struct* cinfo
+    )
+
+    void jpeg_new_colormap(
+        jpeg_decompress_struct* cinfo
+    )
+
+    int jpeg_consume_input(
+        jpeg_decompress_struct* cinfo
+    )
+
+    void jpeg_calc_output_dimensions(
+        jpeg_decompress_struct* cinfo
+    )
+
+    void jpeg_save_markers(
+        jpeg_decompress_struct* cinfo,
+        int marker_code,
+        unsigned int length_limit
+    )
+
+    jvirt_barray_ptr* jpeg_read_coefficients(
+        jpeg_decompress_struct* cinfo
+    )
+
+    void jpeg_write_coefficients(
+        jpeg_compress_struct* cinfo,
+        jvirt_barray_ptr* coef_arrays
+    )
+
+    void jpeg_copy_critical_parameters(
+        jpeg_decompress_struct* srcinfo,
+        jpeg_compress_struct* dstinfo
+    )
+
+    void jpeg_abort_compress(
+        jpeg_compress_struct* cinfo
+    )
+
+    void jpeg_abort_decompress(
+        jpeg_decompress_struct* cinfo
+    )
+
+    void jpeg_abort(
+        jpeg_common_struct* cinfo
+    )
+
+    void jpeg_destroy(
+        jpeg_common_struct* cinfo
+    )
