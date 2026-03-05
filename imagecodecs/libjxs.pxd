@@ -12,7 +12,7 @@ cdef extern from 'libjxs.h' nogil:
     ctypedef int32_t xs_data_in_t
 
     int MAX_NDECOMP_H
-    int MAX_NDECOMP_V2
+    int MAX_NDECOMP_V
     int MAX_NCOMPS
 
     int MAX_NFILTER_TYPES
@@ -135,8 +135,8 @@ cdef extern from 'libjxs.h' nogil:
         uint8_t Fs
         uint8_t Rm
         uint8_t Sd
-        uint8_t[99] lvl_gains  # MAX_NBANDS
-        uint8_t[99] lvl_priorities  # MAX_NBANDS
+        uint8_t[41] lvl_gains  # MAX_NBANDS + 1
+        uint8_t[41] lvl_priorities  # MAX_NBANDS + 1
         xs_nlt_t Tnlt
         xs_nlt_parameters_t Tnlt_params
         xs_cts_parameters_t tetrix_params
