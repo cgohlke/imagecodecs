@@ -1,6 +1,6 @@
 # imagecodecs/zlib_ng.pxd
 
-# Cython declarations for the `zlib-ng 2.3.2` library.
+# Cython declarations for the `zlib-ng 2.3.3` library.
 # https://github.com/zlib-ng/zlib-ng
 
 from libc.stdint cimport int32_t, uint8_t, uint32_t
@@ -14,6 +14,7 @@ cdef extern from 'zlib-ng.h' nogil:
     int ZLIBNG_VER_MINOR
     int ZLIBNG_VER_REVISION
     int ZLIBNG_VER_STATUS
+    int ZLIBNG_VER_STATUSH
     int ZLIBNG_VER_MODIFIED
 
     ctypedef int z_off_t
@@ -348,7 +349,7 @@ cdef extern from 'zlib-ng.h' nogil:
 
     int32_t zng_gzsetparams(
         gzFile file,
-        uint32_t level,
+        int32_t level,
         int32_t strategy
     )
 
@@ -507,4 +508,29 @@ cdef extern from 'zlib-ng.h' nogil:
         uint32_t crc1,
         uint32_t crc2,
         const uint32_t op
+    )
+
+    # deflate parameter API
+
+    ctypedef enum zng_deflate_param:
+        Z_DEFLATE_LEVEL
+        Z_DEFLATE_STRATEGY
+        Z_DEFLATE_REPRODUCIBLE
+
+    ctypedef struct zng_deflate_param_value:
+        zng_deflate_param param
+        void* buf
+        size_t size
+        int32_t status
+
+    int32_t zng_deflateSetParams(
+        zng_stream* strm,
+        zng_deflate_param_value* params,
+        size_t count
+    )
+
+    int32_t zng_deflateGetParams(
+        zng_stream* strm,
+        zng_deflate_param_value* params,
+        size_t count
     )
