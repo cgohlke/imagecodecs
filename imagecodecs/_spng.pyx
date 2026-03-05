@@ -122,6 +122,9 @@ def spng_encode(
     ):
         raise ValueError('invalid data shape or dtype')
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     ihdr.width = <uint32_t> src.shape[1]
     ihdr.height = <uint32_t> src.shape[0]
     ihdr.bit_depth = <uint8_t> (src.dtype.itemsize * 8)
@@ -197,7 +200,7 @@ def spng_encode(
             out = _create_output(outtype, dstsize)
 
         dst = out
-        dstsize = dst.size
+        dstsize = dst.nbytes
         if <size_t> dstsize < output_size:
             raise RuntimeError('output too small')
 
@@ -229,7 +232,7 @@ def spng_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        ssize_t srcsize = src.size
+        ssize_t srcsize = src.nbytes
         ssize_t itemsize
         size_t out_size
         int samples = 0
