@@ -1,6 +1,6 @@
 # imagecodecs/libjpeg_turbo.pxd
 
-# Cython declarations for the `libjpeg-turbo 3.1.4` library.
+# Cython declarations for the `libjpeg-turbo 3.1.3` library.
 # https://github.com/libjpeg-turbo/libjpeg-turbo
 
 from libc.stdio cimport FILE
