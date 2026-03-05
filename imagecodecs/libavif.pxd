@@ -1,6 +1,6 @@
 # imagecodecs/libavif.pxd
 
-# Cython declarations for the `libavif 1.3.0` library.
+# Cython declarations for the `libavif 1.4.0` library.
 # https://github.com/AOMediaCodec/libavif
 
 from libc.stdint cimport int32_t, uint8_t, uint16_t, uint32_t, uint64_t
@@ -409,6 +409,7 @@ cdef extern from 'avif/avif.h' nogil:
         avifSignedFraction[3] alternateOffset
         avifUnsignedFraction baseHdrHeadroom
         avifUnsignedFraction alternateHdrHeadroom
+        avifBool useBaseColorSpace
         avifRWData altICC
         avifColorPrimaries altColorPrimaries
         avifTransferCharacteristics altTransferCharacteristics
@@ -553,9 +554,9 @@ cdef extern from 'avif/avif.h' nogil:
         AVIF_RGB_FORMAT_BGRA
         AVIF_RGB_FORMAT_ABGR
         AVIF_RGB_FORMAT_RGB_565
-        AVIF_RGB_FORMAT_GRAY,
-        AVIF_RGB_FORMAT_GRAYA,
-        AVIF_RGB_FORMAT_AGRAY,
+        AVIF_RGB_FORMAT_GRAY
+        AVIF_RGB_FORMAT_GRAYA
+        AVIF_RGB_FORMAT_AGRAY
         AVIF_RGB_FORMAT_COUNT
 
     uint32_t avifRGBFormatChannelCount(
@@ -740,6 +741,7 @@ cdef extern from 'avif/avif.h' nogil:
         AVIF_STRICT_DISABLED
         AVIF_STRICT_PIXI_REQUIRED
         AVIF_STRICT_CLAP_VALID
+        AVIF_STRICT_ALPHA_ISPE_REQUIRED
         AVIF_STRICT_ENABLED
 
     ctypedef uint32_t avifStrictFlags
@@ -777,6 +779,7 @@ cdef extern from 'avif/avif.h' nogil:
         AVIF_IMAGE_CONTENT_COLOR_AND_ALPHA
         AVIF_IMAGE_CONTENT_GAIN_MAP
         AVIF_IMAGE_CONTENT_ALL
+        AVIF_IMAGE_CONTENT_SAMPLE_TRANSFORMS
         AVIF_IMAGE_CONTENT_DECODE_DEFAULT
 
     ctypedef uint32_t avifImageContentTypeFlags
@@ -893,6 +896,18 @@ cdef extern from 'avif/avif.h' nogil:
         const avifDecoder* decoder
     )
 
+    # avifExtent
+
+    ctypedef struct avifExtent:
+        uint64_t offset
+        size_t size
+
+    avifResult avifDecoderNthImageMaxExtent(
+        const avifDecoder* decoder,
+        uint32_t frameIndex,
+        avifExtent* outExtent
+    )
+
     # avifEncoder
 
     struct avifEncoderData:
@@ -929,6 +944,8 @@ cdef extern from 'avif/avif.h' nogil:
         avifCodecSpecificOptions* csOptions
         avifHeaderFormatFlags headerFormat
         int qualityGainMap
+        uint64_t creationTime
+        uint64_t modificationTime
         avifSampleTransformRecipe sampleTransformRecipe
 
     avifEncoder* avifEncoderCreate()
