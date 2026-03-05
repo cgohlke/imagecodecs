@@ -49,8 +49,8 @@ http://www.dicomlibrary.com/dicom/transfer-syntax/
 https://en.wikipedia.org/wiki/Lossless_JPEG#Lossless_mode_of_operation
 */
 
-#ifndef _JPEGSOF3_
-#define _JPEGSOF3_
+#ifndef JPEGSOF3_H
+#define JPEGSOF3_H
 
 #ifndef HAVE_SSIZE_T
 #if defined(_MSC_VER)
@@ -62,7 +62,7 @@ typedef SSIZE_T ssize_t;
 #endif
 #endif
 
-#define JPEGSOF3_VERSION "2023.1.23"
+#define JPEGSOF3_VERSION "2026.3.6"
 
 #define JPEGSOF3_OK 0
 #define JPEGSOF3_INVALID_OUTPUT -1
@@ -89,7 +89,8 @@ decode_jpegsof3(
     int *dimX,
     int *dimY,
     int *bits,
-    int *frames);
+    int *frames
+);
 
 #ifdef __cplusplus
 }
