@@ -1,7 +1,7 @@
 # imagecodecs/openjph.pxd
 # distutils: language = c++
 
-# Cython declarations for the `openjph 0.26.0` library.
+# Cython declarations for the `openjph 0.26.3` library.
 # https://github.com/aous72/OpenJPH
 
 from libc.stdint cimport (
@@ -109,7 +109,7 @@ cdef extern from 'openjph/ojph_file.h' namespace 'ojph' nogil:
         mem_outfile() except +
         void open() except +
         void open(size_t initial_size, bool clear_mem) except +
-        size_t write(void* ptr, size_t size) except +
+        size_t write(const void* ptr, size_t size) except +
         si64 tell() except +
         int seek(si64 offset, int) except +
         void close() except +
@@ -147,10 +147,7 @@ cdef extern from 'openjph/ojph_mem.h' namespace 'ojph' nogil:
         LFT_SIZE_MASK 'ojph::line_buf::LFT_SIZE_MASK'
 
     cdef cppclass line_buf:
-        line_buf(size_t, ui32, ui32, si32*) except +
-        line_buf(size_t, ui32, ui32, si64*) except +
-        line_buf(size_t, ui32, ui32, float*) except +
-        line_buf(size_t, ui32, ui32, void*) except +
+        line_buf() except +
         size_t size
         ui32 pre_size
         ui32 flags
@@ -262,7 +259,6 @@ cdef extern from 'openjph/ojph_params.h' nogil:
 
     cdef cppclass comment_exchange:
         comment_exchange() except +
-        comment_exchange(const char* data, ui16 len, ui16 Rcom) except +
         void set_string(const char* str) except +
         void set_data(const char* data, ui16 len) except +
 
