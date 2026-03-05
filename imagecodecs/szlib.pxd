@@ -1,6 +1,6 @@
 # imagecodecs/szlib.pxd
 
-# Cython declarations for the `szlib 1.0.6` library (part of libaec).
+# Cython declarations for the `szlib 1.1.5` library (part of libaec).
 # https://gitlab.dkrz.de/k202009/libaec
 
 cdef extern from 'libaec.h' nogil:
