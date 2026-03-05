@@ -1,6 +1,6 @@
 # imagecodecs/zlib.pxd
 
-# Cython declarations for the `zlib 1.3.1.2` library.
+# Cython declarations for the `zlib 1.3.2` library.
 # https://github.com/madler/zlib
 
 cdef extern from 'zlib.h' nogil:
@@ -183,6 +183,11 @@ cdef extern from 'zlib.h' nogil:
         uLong sourceLen
     )
 
+    z_size_t deflateBound_z(
+        z_streamp strm,
+        z_size_t sourceLen
+    )
+
     int deflatePending(
         z_streamp strm,
         unsigned* pending,
@@ -284,6 +289,13 @@ cdef extern from 'zlib.h' nogil:
         uLong sourceLen
     )
 
+    int compress_z(
+        Bytef* dest,
+        z_size_t* destLen,
+        const Bytef* source,
+        z_size_t sourceLen
+    )
+
     int compress2(
         Bytef* dest,
         uLongf* destLen,
@@ -292,8 +304,20 @@ cdef extern from 'zlib.h' nogil:
         int level
     )
 
+    int compress2_z(
+        Bytef* dest,
+        z_size_t* destLen,
+        const Bytef* source,
+        z_size_t sourceLen,
+        int level
+    )
+
     uLong compressBound(
         uLong sourceLen
+    )
+
+    z_size_t compressBound_z(
+        z_size_t sourceLen
     )
 
     int uncompress(
@@ -303,11 +327,25 @@ cdef extern from 'zlib.h' nogil:
         uLong sourceLen
     )
 
+    int uncompress_z(
+        Bytef* dest,
+        z_size_t* destLen,
+        const Bytef* source,
+        z_size_t sourceLen
+    )
+
     int uncompress2(
         Bytef* dest,
         uLongf* destLen,
         const Bytef* source,
         uLong* sourceLen
+    )
+
+    int uncompress2_z(
+        Bytef* dest,
+        z_size_t* destLen,
+        const Bytef* source,
+        z_size_t* sourceLen
     )
 
     # GZIP
@@ -318,6 +356,11 @@ cdef extern from 'zlib.h' nogil:
         z_off64_t pos
 
     ctypedef gzFile_s* gzFile
+
+    gzFile gzopen(
+        const char* path,
+        const char* mode
+    )
 
     gzFile gzdopen(
         int fd,
@@ -395,6 +438,20 @@ cdef extern from 'zlib.h' nogil:
         gzFile file
     )
 
+    z_off_t gzseek(
+        gzFile file,
+        z_off_t offset,
+        int whence
+    )
+
+    z_off_t gztell(
+        gzFile file
+    )
+
+    z_off_t gzoffset(
+        gzFile file
+    )
+
     int gzeof(
         gzFile file
     )
@@ -454,6 +511,16 @@ cdef extern from 'zlib.h' nogil:
         uLong crc,
         const Bytef* buf,
         z_size_t len
+    )
+
+    uLong crc32_combine(
+        uLong crc1,
+        uLong crc2,
+        z_off_t len2
+    )
+
+    uLong crc32_combine_gen(
+        z_off_t len2
     )
 
     uLong crc32_combine_op(
