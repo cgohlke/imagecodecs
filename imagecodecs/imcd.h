@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2026.1.1"
+#define IMCD_VERSION "2026.3.6"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -55,7 +55,13 @@ typedef SSIZE_T ssize_t;
 #endif
 
 
-/* Endianness */
+/* Endianness.
+   IMCD_MSB is the byte index of the most-significant byte of a 16-bit word
+   in host memory:
+   1 on little-endian (MSB at higher address),
+   0 on big-endian (MSB at lower address).
+   It doubles as a preprocessor boolean: #if IMCD_MSB means little-endian.
+*/
 
 #ifndef IMCD_MSB
 #define IMCD_MSB 1
@@ -72,7 +78,6 @@ typedef SSIZE_T ssize_t;
 #if IMCD_LSB
 #error Big-endian platforms not supported
 #endif
-
 
 /* Error codes */
 
@@ -93,19 +98,20 @@ typedef SSIZE_T ssize_t;
 
 /* Function declarations */
 
-void imcd_swapbytes(
+void
+imcd_swapbytes(
     void* src,
     const ssize_t srcsize,
     const ssize_t itemsize
 );
 
-
-unsigned char imcd_bitmask(
+unsigned char
+imcd_bitmask(
     const int bps
 );
 
-
-ssize_t imcd_packints_decode(
+ssize_t
+imcd_packints_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -113,8 +119,8 @@ ssize_t imcd_packints_decode(
     const int bps
 );
 
-
-ssize_t imcd_packints_encode(
+ssize_t
+imcd_packints_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -122,19 +128,55 @@ ssize_t imcd_packints_encode(
     const int bps
 );
 
+ssize_t
+imcd_packints_decode_lsb(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t items,
+    const int bps
+);
 
-ssize_t imcd_packbits_decode_size(
+ssize_t
+imcd_packints_encode_lsb(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t items,
+    const int bps
+);
+
+ssize_t
+imcd_packints_decode_msb(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t items,
+    const int bps
+);
+
+ssize_t
+imcd_packints_encode_msb(
+    const uint8_t* src,
+    const ssize_t srcsize,
+    uint8_t* dst,
+    const ssize_t items,
+    const int bps
+);
+
+ssize_t
+imcd_packbits_decode_size(
     const uint8_t* src,
     const ssize_t srcsize
 );
 
-
-ssize_t imcd_packbits_encode_size(
+ssize_t
+imcd_packbits_encode_size(
     const ssize_t srcsize
 );
 
-
-ssize_t imcd_packbits_decode(
+ssize_t
+imcd_packbits_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -142,43 +184,16 @@ ssize_t imcd_packbits_decode(
     const ssize_t dststride
 );
 
-
-ssize_t imcd_packbits_encode(
+ssize_t
+imcd_packbits_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
     const ssize_t dstsize
 );
 
-
-ssize_t imcd_ccittrle_decode_size(
-    const uint8_t* src,
-    const ssize_t srcsize
-);
-
-
-ssize_t imcd_ccittrle_encode_size(
-    const ssize_t srcsize
-);
-
-
-ssize_t imcd_ccittrle_decode(
-    const uint8_t* src,
-    const ssize_t srcsize,
-    uint8_t* dst,
-    const ssize_t dstsize
-);
-
-
-ssize_t imcd_ccittrle_encode(
-    const uint8_t* src,
-    const ssize_t srcsize,
-    uint8_t* dst,
-    const ssize_t dstsize
-);
-
-
-ssize_t imcd_delta(
+ssize_t
+imcd_delta(
     void* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -189,8 +204,8 @@ ssize_t imcd_delta(
     const bool decode
 );
 
-
-ssize_t imcd_diff(
+ssize_t
+imcd_diff(
     void* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -202,8 +217,8 @@ ssize_t imcd_diff(
     const bool decode
 );
 
-
-ssize_t imcd_xor(
+ssize_t
+imcd_xor(
     void* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -214,8 +229,8 @@ ssize_t imcd_xor(
     const bool decode
 );
 
-
-ssize_t imcd_byteshuffle(
+ssize_t
+imcd_byteshuffle(
     void* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -229,8 +244,8 @@ ssize_t imcd_byteshuffle(
     const bool decode
 );
 
-
-ssize_t imcd_bitorder(
+ssize_t
+imcd_bitorder(
     uint8_t* src,
     const ssize_t srcsize,
     const ssize_t srcstride,
@@ -240,16 +255,16 @@ ssize_t imcd_bitorder(
     const ssize_t dststride
 );
 
-
-ssize_t imcd_float24_decode(
+ssize_t
+imcd_float24_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
     const int islittle
 );
 
-
-ssize_t imcd_float24_encode(
+ssize_t
+imcd_float24_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -257,16 +272,16 @@ ssize_t imcd_float24_encode(
     int rounding
 );
 
-
-ssize_t imcd_bfloat16_decode(
+ssize_t
+imcd_bfloat16_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
     const int islittle
 );
 
-
-ssize_t imcd_bfloat16_encode(
+ssize_t
+imcd_bfloat16_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -274,8 +289,8 @@ ssize_t imcd_bfloat16_encode(
     int rounding
 );
 
-
-ssize_t imcd_eer_decode(
+ssize_t
+imcd_eer_decode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
@@ -287,8 +302,8 @@ ssize_t imcd_eer_decode(
     const uint32_t superres
 );
 
-
-ssize_t imcd_eer_decode_u2(
+ssize_t
+imcd_eer_decode_u2(
     const uint8_t* src,
     const ssize_t srcsize,
     uint16_t* dst,
@@ -300,12 +315,10 @@ ssize_t imcd_eer_decode_u2(
     const uint32_t superres
 );
 
-
 typedef struct {
     ssize_t len;
     uint8_t* buf;
 } imcd_lzw_table_t;
-
 
 typedef struct imcd_lzw_handle {
     imcd_lzw_table_t* table;
@@ -314,38 +327,38 @@ typedef struct imcd_lzw_handle {
     ssize_t dummy;  /* imcd_lzw_handle_t multiple of imcd_lzw_table_t */
 } imcd_lzw_handle_t;
 
-
-imcd_lzw_handle_t* imcd_lzw_new(
+imcd_lzw_handle_t*
+imcd_lzw_new(
     ssize_t buffersize
 );
 
-
-void imcd_lzw_del(
+void
+imcd_lzw_del(
     imcd_lzw_handle_t* handle
 );
 
-
-ssize_t imcd_lzw_decode_size(
+ssize_t
+imcd_lzw_decode_size(
     imcd_lzw_handle_t* handle,
     const uint8_t* src,
     const ssize_t srcsize
 );
 
-
-ssize_t imcd_lzw_encode_size(
+ssize_t
+imcd_lzw_encode_size(
     const ssize_t srcsize
 );
 
-
-ssize_t imcd_lzw_encode(
+ssize_t
+imcd_lzw_encode(
     const uint8_t* src,
     const ssize_t srcsize,
     uint8_t* dst,
     const ssize_t dstsize
 );
 
-
-ssize_t imcd_lzw_decode(
+ssize_t
+imcd_lzw_decode(
     imcd_lzw_handle_t* handle,
     const uint8_t* src,
     const ssize_t srcsize,
@@ -353,12 +366,11 @@ ssize_t imcd_lzw_decode(
     const ssize_t dstsize
 );
 
-
-int imcd_lzw_check(
+int
+imcd_lzw_check(
     const uint8_t* src,
     const ssize_t size
 );
-
 
 typedef struct {
     uint8_t* data;
@@ -371,84 +383,84 @@ typedef struct {
     int owner;
 } imcd_stream_t;
 
-
-imcd_stream_t* imcd_stream_new(
+imcd_stream_t*
+imcd_stream_new(
     uint8_t* data,
     const ssize_t size,
     const ssize_t addsize
 );
 
-
-void imcd_stream_del(
+void
+imcd_stream_del(
     imcd_stream_t* handle
 );
 
-
-ssize_t imcd_stream_resize(
+ssize_t
+imcd_stream_resize(
     imcd_stream_t* handle,
     const ssize_t size,
     const int exact
 );
 
-
-ssize_t imcd_stream_seek(
+ssize_t
+imcd_stream_seek(
     imcd_stream_t* handle,
     const ssize_t offset,
     const int whence
 );
 
-
-int64_t imcd_stream_seek_bit(
+int64_t
+imcd_stream_seek_bit(
     imcd_stream_t* handle,
     const int64_t offset,
     const int whence
 );
 
-
-ssize_t imcd_stream_tell(
+ssize_t
+imcd_stream_tell(
     imcd_stream_t* handle
 );
 
-
-int64_t imcd_stream_tell_bit(
+int64_t
+imcd_stream_tell_bit(
     imcd_stream_t* handle
 );
 
-
-ssize_t imcd_stream_read(
+ssize_t
+imcd_stream_read(
     imcd_stream_t* handle,
     const uint8_t* out,
     const ssize_t size
 );
 
-
-ssize_t imcd_stream_write(
+ssize_t
+imcd_stream_write(
     imcd_stream_t* handle,
     const uint8_t* data,
     const ssize_t size
 );
 
-
-void imcd_stream_data(
+void
+imcd_stream_data(
     imcd_stream_t* handle,
     uint8_t** data,
     ssize_t* size
 );
 
-
-ssize_t imcd_memsearch(
+ssize_t
+imcd_memsearch(
     const char* src,
     const ssize_t srclen,
-    const char* dst,
-    const ssize_t dstlen
+    const char* needle,
+    const ssize_t needlelen
 );
 
-
-ssize_t imcd_strsearch(
+ssize_t
+imcd_strsearch(
     const char* src,
     const ssize_t srclen,
-    const char* dst,
-    const ssize_t dstlen
+    const char* needle,
+    const ssize_t needlelen
 );
 
 #endif /* IMCD_H */
