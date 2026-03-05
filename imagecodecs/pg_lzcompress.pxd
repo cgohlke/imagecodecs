@@ -1,9 +1,9 @@
 # imagecodecs/pg_lzcompress.pxd
 
-# Cython declarations for the `PostgreSQL 13.2 pg_lzcompress` library.
+# Cython declarations for the `PostgreSQL 15.6 pg_lzcompress` library.
 # https://github.com/postgres/postgres/
 
-from libc.stdint cimport int, int16_t, int32_t
+from libc.stdint cimport int16_t, int32_t
 
 
 cdef extern from 'pg_lzcompress.h' nogil:
