@@ -288,7 +288,7 @@ cdef extern from 'ultrahdr_api.h' nogil:
         uhdr_codec_private_t* dec
     )
 
-    uhdr_raw_image_t* uhdr_get_gainmap_image(
+    uhdr_raw_image_t* uhdr_get_decoded_gainmap_image(
         uhdr_codec_private_t* dec
     )
 
