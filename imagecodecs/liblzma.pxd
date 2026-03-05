@@ -329,9 +329,46 @@ cdef extern from 'lzma.h' nogil:
     int LZMA_FILTER_ARMTHUMB
     int LZMA_FILTER_SPARC
     int LZMA_FILTER_ARM64
+    int LZMA_FILTER_RISCV
 
     ctypedef struct lzma_options_bcj:
         uint32_t start_offset
+
+    size_t lzma_bcj_arm64_encode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
+
+    size_t lzma_bcj_arm64_decode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
+
+    size_t lzma_bcj_riscv_encode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
+
+    size_t lzma_bcj_riscv_decode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
+
+    size_t lzma_bcj_x86_encode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
+
+    size_t lzma_bcj_x86_decode(
+        uint32_t start_offset,
+        uint8_t* buf,
+        size_t size
+    )
 
     # delta.h
 
@@ -489,6 +526,10 @@ cdef extern from 'lzma.h' nogil:
     lzma_ret lzma_stream_encoder_mt(
         lzma_stream* strm,
         const lzma_mt* options
+    )
+
+    uint64_t lzma_mt_block_size(
+        const lzma_filter* filters
     )
 
     lzma_ret lzma_alone_encoder(
