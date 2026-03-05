@@ -26,7 +26,11 @@ SOFTWARE.
 
 #include <stdint.h>
 
-#define LJ92_VERSION "2023.1.23"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define LJ92_VERSION "2026.3.6"
 
 enum LJ92_ERRORS {
     LJ92_ERROR_NONE = 0,
@@ -53,11 +57,14 @@ lj92_open(
     int *width,
     int *height,
     int *bitdepth,
-    int *components);
+    int *components
+);
 
 /* Release a decoder object */
 void
-lj92_close(lj92 lj);
+lj92_close(
+    lj92 lj
+);
 
 /*
  * Decode previously opened lossless JPEG (1992) into a 2D tile of memory.
@@ -95,5 +102,11 @@ lj92_encode(
     const uint16_t *delinearize,
     int delinearizeLength,
     uint8_t **encoded,
-    int *encodedLength);
+    int *encodedLength
+);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
