@@ -56,3 +56,7 @@ cdef extern from 'SZ3c/sz3c.h' nogil:
         size_t r2,
         size_t r1
     )
+
+    void free_buf(
+        void* p
+    )
