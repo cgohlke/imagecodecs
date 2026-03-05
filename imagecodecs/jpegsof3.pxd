@@ -1,6 +1,6 @@
 # imagecodecs/jpegsof3.pxd
 
-# Cython declarations for the `jpegsof3 2023.1.23` library.
+# Cython declarations for the `jpegsof3 2026.3.3` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/jpegsof3/
 
 cdef extern from 'jpegsof3.h' nogil:
