@@ -42,8 +42,9 @@ PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, SZ3, Meshopt, Pcodec, SPERR,
 AEC, SZIP, LERC, EER, NPY, BCn, DDS, BMP, PNG, APNG, GIF, TIFF, WebP,
 JPEG (2 to 16-bit), Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K),
 High-throughput JPEG 2000 (HTJ2K, JPH), JPEG LS, JPEG XL, JPEG XS,
-JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF, QOI,
-RGBE (HDR), Jetraw, DICOM RLE, PackBits, Packed Integers, Delta, XOR Delta,
+JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF,
+QOI, RGBE (HDR), PixarLog, Jetraw, DICOM RLE, CCITT (RLE, T.4 and T.6),
+PackBits, Packed Integers (TIFF, MONO p and packed), Delta, XOR Delta,
 Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
 Float24 (24-bit floating point), Bfloat16 (brain floating point),
 Quantize (Scale, BitGroom, BitRound, GranularBR), and
@@ -53,7 +54,7 @@ Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.1.14
+:Version: 2026.3.6
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -82,8 +83,8 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
-- `numpy <https://pypi.org/project/numpy>`_ 2.4.1
+- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.12, 3.14.3 64-bit
+- `numpy <https://pypi.org/project/numpy>`_ 2.4.2
 - `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.16.5
   (optional, for Zarr file format 2 compatible codecs)
 
@@ -93,44 +94,44 @@ Build requirements:
 - `brotli <https://github.com/google/brotli>`_ 1.2.0
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.6
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.22.0
-- `charls <https://github.com/team-charls/charls>`_ 2.4.2
-- `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.2
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.23.0
+- `charls <https://github.com/team-charls/charls>`_ 2.4.3
+- `giflib <https://sourceforge.net/projects/giflib/>`_ 6.1.1
 - `jxrlib <https://github.com/cgohlke/jxrlib>`_ 1.2
 - `lcms2 <https://github.com/mm2/Little-CMS>`_ 2.18
 - `lerc <https://github.com/Esri/lerc>`_ 4.0.4
-- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.4
-- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.3.0
+- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.6
+- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.4.0
   (`aom <https://aomedia.googlesource.com/aom>`_ 3.13.1,
   `dav1d <https://github.com/videolan/dav1d>`_ 1.5.3,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.8.1,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 3.1.2,
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 4.0.1,
   `libyuv <https://chromium.googlesource.com/libyuv/libyuv>`_ main,
-  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.1)
+  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.2)
 - `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.25
-- `libheif <https://github.com/strukturag/libheif>`_ 1.21.1
+- `libheif <https://github.com/strukturag/libheif>`_ 1.21.2
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.16,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 4.1)
 - `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.1.3
-- `libjxl <https://github.com/libjxl/libjxl>`_ 0.11.1
+- `libjxl <https://github.com/libjxl/libjxl>`_ 0.11.2
 - `libjxs <https://jpeg.org/jpegxs/software.html>`_ 2.0.2
 - `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.2
-- `libpng <https://github.com/glennrp/libpng>`_ 1.6.53
-- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.53
-- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.1
+- `libpng <https://github.com/glennrp/libpng>`_ 1.6.55
+- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.55
+- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.1 (with issue 789 fix)
 - `libultrahdr <https://github.com/google/libultrahdr>`_ 1.4.0
 - `libwebp <https://github.com/webmproject/libwebp>`_ 1.6.0
 - `lz4 <https://github.com/lz4/lz4>`_ 1.10.0
-- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0
+- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0.1
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.4
-- `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.0
-- `pcodec <https://github.com/mwlon/pcodec>`_ 0.4.9 (unstable)
+- `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.3
+- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.1 (with PR 369)
 - `snappy <https://github.com/google/snappy>`_ 1.2.2
 - `sperr <https://github.com/NCAR/SPERR>`_ 0.8.4
 - `sz3 <https://github.com/szcompressor/SZ3>`_ 3.3.2
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.1
-- `zlib <https://github.com/madler/zlib>`_ 1.3.1.2
-- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.3.2
+- `zlib <https://github.com/madler/zlib>`_ 1.3.2
+- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.3.3
 - `zstd <https://github.com/facebook/zstd>`_ 1.5.7
 
 Unmaintained or discontinued build requirements:
@@ -164,12 +165,12 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://github.com/cgohlke/tifffile>`_ 2025.12.20
-- `czifile <https://github.com/cgohlke/czifile>`_ 2019.7.2.1
-- `liffile <https://github.com/cgohlke/liffile>`_ 2025.12.12
+- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.3.3
+- `czifile <https://github.com/cgohlke/czifile>`_ 2019.7.2.3
+- `liffile <https://github.com/cgohlke/liffile>`_ 2026.2.16
 - `zarr <https://github.com/zarr-developers/zarr-python>`_ 3.1.5
-- `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.3
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 3.11.2
+- `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.4
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.0.0
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.2.0
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.4.5
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.6
@@ -181,9 +182,22 @@ Test requirements:
 Revisions
 ---------
 
+2026.3.6
+
+- Pass 8575 tests.
+- Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
+- Implement packints_encode function.
+- Support lerc subcodec in tiff_encode function.
+- Support packed integers, ccitt and pixarlog compression in TIFF codec.
+- Support bitorder option in PACKINTS codec.
+- Support rounding in BFLOAT16 codec.
+- Support more BMP types.
+- Update PCODEC to new API.
+- Fix buffer overflows in third-party code.
+- Fix code review issues.
+
 2026.1.14
 
-- Pass 8281 tests.
 - Add tiff_encode function.
 - Add extra options for HTJ2K (#134).
 - Add linear RGB option to cms_profile.
@@ -289,11 +303,12 @@ Wheels may not be available for all platforms and all releases.
 
 Not all features are available on all platforms.
 
-The ``bcn``, ``dds``, ``dicomrle``, ``eer``, ``lzo``, ``packints``,
-and ``jpegsof3`` codecs are currently decode-only.
+The ``bcn``, ``ccittfax3``, ``ccittfax4``, ``ccittrle``, ``dds``,
+``dicomrle``, ``eer``, ``jpegsof3``, and ``lzo`` codecs are currently
+decode-only.
 
-The ``brunsli`` and ``pcodec`` codecs are distributed as source code only
-because the underlying libraries are unstable.
+The ``brunsli`` codec is distributed as source code only because the
+underlying library is unstable.
 
 The ``heif``, ``jetraw``, and ``jpegxs`` codecs are distributed as source
 code only due to license and possible patent usage issues.
@@ -314,12 +329,12 @@ When building against libjpeg or libjpeg_turbo < 3, set the environment
 variable ``IMAGECODECS_JPEG8_LEGACY=1`` to enable legacy API support.
 
 Before building imagecodecs from source code, install required tools and
-libraries. For example, on latest Ubuntu Linux distributions:
+libraries. For example, on latest Ubuntu Linux distributions::
 
-    ``sudo apt-get install build-essential python3-dev cython3 python3-pip
-    python3-setuptools python3-wheel python3-numpy libdeflate-dev libjpeg-dev
-    libjxr-dev liblcms2-dev liblz4-dev liblerc-dev liblzma-dev libopenjp2-7-dev
-    libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev``
+    sudo apt-get install build-essential python3-dev cython3 python3-pip \
+    python3-setuptools python3-wheel python3-numpy libdeflate-dev libjpeg-dev \
+    libjxr-dev liblcms2-dev liblz4-dev liblerc-dev liblzma-dev \
+    libopenjp2-7-dev libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev
 
 To build and install imagecodecs from source code, run::
 
@@ -382,6 +397,7 @@ Other projects providing imaging or compression codecs:
 `b3d <https://github.com/balintbalazs/B3D>`_,
 `fo-dicom.codecs <https://github.com/Efferent-Health/fo-dicom.Codecs>`_,
 `jpegli <https://github.com/google/jpegli>`_,
+`crackle <https://github.com/seung-lab/crackle>`_,
 `hdf5plugin <https://github.com/silx-kit/hdf5plugin>`_.
 
 Examples
@@ -434,11 +450,11 @@ True
 
 Not all codecs are fully implemented, raising exceptions at runtime:
 
->>> from imagecodecs import packints_encode
->>> packints_encode(array, 8)
+>>> from imagecodecs import dicomrle_encode
+>>> dicomrle_encode(array)
 Traceback (most recent call last):
  ...
-NotImplementedError: packints_encode
+NotImplementedError: dicomrle_encode
 
 Write the numpy array to a JP2 file:
 
@@ -500,9 +516,10 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2026.1.14'
+__version__ = '2026.3.6'
 
 import contextlib
+import functools
 import importlib
 import io
 import os
@@ -571,12 +588,6 @@ _MODULES: dict[str, list[str]] = {
         'byteshuffle_decode',
         'byteshuffle_check',
         'byteshuffle_version',
-        # 'CCITTRLE',
-        # 'CcittrleError',
-        # 'ccittrle_encode',
-        # 'ccittrle_decode',
-        # 'ccittrle_check',
-        # 'ccittrle_version',
         'DELTA',
         'DeltaError',
         'delta_encode',
@@ -613,12 +624,6 @@ _MODULES: dict[str, list[str]] = {
         'lzw_decode',
         'lzw_check',
         'lzw_version',
-        # 'MONO12P',
-        # 'Mono12pError',
-        # 'mono12p_encode',
-        # 'mono12p_decode',
-        # 'mono12p_check',
-        # 'mono12p_version',
         'PACKBITS',
         'PackbitsError',
         'packbits_encode',
@@ -717,6 +722,26 @@ _MODULES: dict[str, list[str]] = {
         'bz2_decode',
         'bz2_check',
         'bz2_version',
+    ],
+    '_ccitt': [
+        'CCITTRLE',
+        'CcittrleError',
+        'ccittrle_encode',
+        'ccittrle_decode',
+        'ccittrle_check',
+        'ccittrle_version',
+        'CCITTFAX3',
+        'Ccittfax3Error',
+        'ccittfax3_encode',
+        'ccittfax3_decode',
+        'ccittfax3_check',
+        'ccittfax3_version',
+        'CCITTFAX4',
+        'Ccittfax4Error',
+        'ccittfax4_encode',
+        'ccittfax4_decode',
+        'ccittfax4_check',
+        'ccittfax4_version',
     ],
     '_cms': [
         'CMS',
@@ -996,6 +1021,14 @@ _MODULES: dict[str, list[str]] = {
         'pglz_check',
         'pglz_version',
     ],
+    '_pixarlog': [
+        'PIXARLOG',
+        'PixarlogError',
+        'pixarlog_encode',
+        'pixarlog_decode',
+        'pixarlog_check',
+        'pixarlog_version',
+    ],
     '_png': [
         'PNG',
         'PngError',
@@ -1148,25 +1181,14 @@ _MODULES: dict[str, list[str]] = {
 }
 
 # map extra to existing attributes
-# for example, keep deprecated names for older versions of tifffile and czifile
-_COMPATIBILITY: dict[str, str] = {
+_ALIASES: dict[str, str] = {
     'JPEG': 'JPEG8',
     'JpegError': 'Jpeg8Error',
     'jpeg_check': 'jpeg8_check',
     'jpeg_version': 'jpeg8_version',
     'zopfli_check': 'zlib_check',
     'zopfli_decode': 'zlib_decode',
-    # deprecated; required for czifile 2019.7.2 and earlier
-    'j2k_encode': 'jpeg2k_encode',
-    'j2k_decode': 'jpeg2k_decode',
-    'jxr_encode': 'jpegxr_encode',
-    'jxr_decode': 'jpegxr_decode',
-    # 'JPEG12': 'JPEG8',
-    # 'Jpeg12Error': 'Jpeg8Error',
-    # 'jpeg12_encode': 'jpeg8_encode',
-    # 'jpeg12_decode': 'jpeg8_decode',
-    # 'jpeg12_check': 'jpeg8_check',
-    # 'jpeg12_version': 'jpeg8_version',
+    # 'zopfli_encode' is a different algorithm
 }
 
 # map attribute names to module names
@@ -1219,7 +1241,7 @@ def _load_all() -> None:
 
 def __dir__() -> list[str]:
     """Return list of attribute names accessible on module."""
-    return sorted(list(_ATTRIBUTES) + list(_COMPATIBILITY))
+    return sorted(list(_ATTRIBUTES) + list(_ALIASES))
 
 
 def __getattr__(name: str, /) -> Any:
@@ -1229,7 +1251,7 @@ def __getattr__(name: str, /) -> Any:
 
     """
     name_ = name
-    name = _COMPATIBILITY.get(name, name)
+    name = _ALIASES.get(name, name)
 
     if name not in _ATTRIBUTES:
         msg = f"module 'imagecodecs' has no attribute {name!r}"
@@ -1260,7 +1282,7 @@ def __getattr__(name: str, /) -> Any:
             module = None
 
         for n in _MODULES[module_name]:
-            if n in _COMPATIBILITY:
+            if n in _ALIASES:
                 continue
             attr = getattr(module, n, None)
             if attr is None:
@@ -1467,48 +1489,19 @@ def imread(
     codecs: list[str | Callable[..., NDArray[Any]]] = []
     if codec is None:
         # find codec based on file extension
+        ext_to_codec, codec_list = _imcodecs()
         if isinstance(fileobj, (str, os.PathLike)):
             ext = os.path.splitext(os.fspath(fileobj))[-1][1:].lower()
         else:
             ext = None
-        if ext in _imcodecs():
-            codec = _imcodecs()[ext]
-            if codec == 'jpeg':
+        if ext in ext_to_codec:
+            codec = ext_to_codec[ext]
+            if codec == 'jpeg8':
                 codecs.extend(('jpeg8', 'ljpeg'))  # 'jpegsof3'
             else:
                 codecs.append(codec)
-        # try other imaging codecs
-        codecs.extend(
-            c
-            for c in (
-                'tiff',
-                'apng',
-                'png',
-                'gif',
-                'webp',
-                'jpeg8',
-                'ljpeg',
-                'jpeg2k',
-                'jpegls',
-                'jpegxr',
-                'jpegxl',
-                'jpegxs',
-                'avif',
-                'heif',
-                'bmp',
-                # 'jpegli',
-                'htj2k',
-                'ultrahdr',
-                # 'brunsli',
-                # 'exr',
-                'zfp',
-                'lerc',
-                'rgbe',
-                # 'jpegsof3',
-                'numpy',
-            )
-            if c not in codecs
-        )
+        # also try other imaging codecs
+        codecs.extend(c for c in codec_list if c not in codecs)
     else:
         # use provided codecs
         if not isinstance(codec, (list, tuple)):  # collections.abc.Iterable
@@ -1516,89 +1509,95 @@ def imread(
         for c in codec:
             if isinstance(c, str):
                 cl = c.lower()
-                codecs.append(_imcodecs().get(cl, cl))
+                codecs.append(_imcodecs()[0].get(cl, cl))
             else:
                 codecs.append(c)
     del codec
 
     # read data from file object
-    data: bytes | mmap.mmap
-    offset: int = -1
-    close = False
-    if isinstance(fileobj, mmap.mmap):
-        data = fileobj
-        offset = data.tell()
-    elif hasattr(fileobj, 'read'):
-        # binary stream: open file, BytesIO
-        data = fileobj.read()
-    elif isinstance(fileobj, (str, os.PathLike)):
-        # TODO: support urllib.request.urlopen ?
-        # file name
-        with open(os.fspath(fileobj), 'rb') as fh:
-            if memmap:
-                offset = 0
-                close = True
-                data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
-            else:
-                data = fh.read()
-    else:
-        # binary data
-        data = fileobj
-
-    # try decode data using codecs
-    func: Callable[..., NDArray[Any]]
+    func: Callable[..., NDArray[Any]] | None = None
     exceptions: list[str] = []
     image: NDArray[Any] | None = None
-    for codec in codecs:
+    data: bytes | bytearray | mmap.mmap
+    offset: int = -1
+    close = False
 
-        # get decoder function or class
-        if callable(codec):
-            func = codec
+    try:
+        # TODO: support urllib.request.urlopen ?
+        if isinstance(fileobj, (str, os.PathLike)):
+            # file name
+            with open(os.fspath(fileobj), 'rb') as fh:
+                if memmap:
+                    offset = 0
+                    close = True
+                    data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+                else:
+                    data = fh.read()
+        elif isinstance(fileobj, mmap.mmap):
+            data = fileobj
+            offset = data.tell()
+        elif hasattr(fileobj, 'read'):
+            # binary stream: open file, BytesIO
+            data = fileobj.read()
+            assert isinstance(data, (bytes, bytearray))
         else:
-            try:
-                func = getattr(imagecodecs, codec + '_decode')
-                assert callable(func)
-            except Exception as exc:
-                exceptions.append(f'{repr(codec).upper()}: {exc}')
-                continue
+            # binary data
+            data = fileobj
+            assert isinstance(data, (bytes, bytearray, mmap.mmap))
 
+        # try decode data using codecs
         numthreads = kwargs.pop('numthreads', None)
-        if numthreads is not None and func.__name__.split('_')[0] not in {
-            'avif',
-            'jpeg2k',
-            'jpegxl',
-        }:
-            numthreads = None
+        for codec in codecs:
 
-        # decode data
-        try:
-            if numthreads is None:
-                image = func(data, **kwargs)
+            # get decoder function or class
+            if callable(codec):
+                func = codec
             else:
-                image = func(data, numthreads=numthreads, **kwargs)
-            assert isinstance(image, numpy.ndarray)
-            if image.dtype == 'object':
-                image = None
-                msg = 'failed'
-                raise ValueError(msg)  # noqa: TRY301
-            break
-        except DelayedImportError:
-            pass
-        except Exception as exc:
-            # raise
-            exceptions.append(f'{func.__name__.upper()}: {exc}')
-        if offset >= 0:
-            assert isinstance(data, mmap.mmap)
-            data.seek(offset)
+                try:
+                    func = getattr(imagecodecs, codec + '_decode')
+                    assert callable(func)
+                except Exception as exc:
+                    exceptions.append(f'{repr(codec).upper()}: {exc}')
+                    continue
 
-    if close:
-        assert isinstance(data, mmap.mmap)
-        data.close()
+            _numthreads = numthreads
+            if _numthreads is not None and not func.__name__.startswith(
+                ('avif', 'jpeg2k', 'jpegxl', 'zfp')
+            ):
+                _numthreads = None
+
+            # decode data
+            try:
+                if _numthreads is None:
+                    image = func(data, **kwargs)
+                else:
+                    image = func(data, numthreads=_numthreads, **kwargs)
+                assert isinstance(image, numpy.ndarray)
+                if image.dtype.kind == 'O':
+                    msg = 'failed'
+                    raise ValueError(msg)  # noqa: TRY301
+                break
+            except DelayedImportError:
+                pass
+            except Exception as exc:
+                # raise  # uncomment for debugging
+                exceptions.append(f'{func.__name__.upper()}: {exc}')
+            if offset >= 0:
+                assert isinstance(data, mmap.mmap)
+                data.seek(offset)
+
+    finally:
+        if close:
+            assert isinstance(data, mmap.mmap)
+            data.close()
 
     if image is None:
         raise ValueError('\n'.join(exceptions))
 
     if return_codec:
+        if func is None:
+            msg = 'no valid decoder found'
+            raise ValueError(msg)
         return image, func
     return image
 
@@ -1619,7 +1618,7 @@ def imwrite(
             msg = 'no codec specified'
             raise ValueError(msg)
 
-        codec = _imcodecs().get(ext, ext)
+        codec = _imcodecs()[0].get(ext, ext)
         try:
             codec = getattr(imagecodecs, codec + '_encode')
         except AttributeError as exc:
@@ -1628,7 +1627,7 @@ def imwrite(
 
     elif isinstance(codec, str):
         codec = codec.lower()
-        codec = _imcodecs().get(codec, codec)
+        codec = _imcodecs()[0].get(codec, codec)
         try:
             codec = getattr(imagecodecs, codec + '_encode')
         except AttributeError as exc:
@@ -1642,76 +1641,75 @@ def imwrite(
     image: bytes | bytearray = codec(data, **kwargs)
     if hasattr(fileobj, 'write'):
         # binary stream: open file, BytesIO
-        fileobj.write(image)  # typing: ignore
+        fileobj.write(image)
     else:
         # file name
         with open(fileobj, 'wb') as fh:
             fh.write(image)
 
 
-def _imcodecs(_codecs: dict[str, str] = {}, /) -> dict[str, str]:  # noqa: B006
-    """Return map of image file extensions to codec names."""
-    with _LOCK:
-        if not _codecs:
-            codecs = {
-                'apng': ('apng',),
-                'avif': ('avif', 'avifs'),
-                'bmp': ('bmp', 'dip'),  # 'rle'
-                'brunsli': ('brn',),
-                'dds': ('dds',),
-                # 'exr': ('exr',),
-                'gif': ('gif',),
-                'heif': (
-                    'heif',
-                    'heic',
-                    'heifs',
-                    'heics',
-                    'hif',  # 'avci', 'avcs'
-                ),
-                'htj2k': (
-                    'htj2k',
-                    'jph',  # HTJ2K with JP2 boxes
-                    'jhc',  # HTJ2K codestream
-                    # 'j2c',
-                ),
-                'jpeg2k': (
-                    'j2k',
-                    'jp2',
-                    'j2c',
-                    'jpc',
-                    'jpx',
-                    'jpf',
-                    'jpg2',
-                    # 'jph',  # HTJ2K with JP2 boxes
-                    # 'jhc',  # HTJ2K codestream
-                ),
-                'jpeg8': ('jpg', 'jpeg', 'jpe', 'jfif', 'jfi', 'jif'),
-                # 'jpegli': ('jli',),
-                'jpegls': ('jls',),
-                'jpegxl': ('jxl',),
-                'jpegxr': ('jxr', 'hdp', 'wdp'),
-                'jpegxs': ('jxs',),
-                'lerc': ('lerc1', 'lerc2'),
-                'ljpeg': ('ljp', 'ljpg', 'ljpeg'),
-                'numpy': ('npy', 'npz'),
-                'png': ('png',),
-                'qoi': ('qoi',),
-                'rgbe': ('hdr', 'rgbe', 'pic'),
-                # 'tga': ('tga'),
-                'tiff': ('tif', 'tiff', 'ptif', 'ptiff', 'tf8', 'tf2', 'btf'),
-                'ultrahdr': ('uhdr', 'jpr'),  # jpg
-                'webp': ('webp', 'webm'),
-                'zfp': ('zfp',),
-            }
-            _codecs.update(
-                (ext, codec) for codec, exts in codecs.items() for ext in exts
-            )
-    return _codecs
+@functools.cache
+def _imcodecs() -> tuple[dict[str, str], list[str]]:
+    """Return map of image file extensions to codec names and codec names."""
+    codecs = {
+        'apng': ('apng',),
+        'avif': ('avif', 'avifs'),
+        'bmp': ('bmp', 'dip'),  # 'rle'
+        'brunsli': ('brn',),
+        'dds': ('dds',),
+        # 'exr': ('exr',),
+        'gif': ('gif',),
+        'heif': (
+            'heif',
+            'heic',
+            'heifs',
+            'heics',
+            'hif',  # 'avci', 'avcs'
+        ),
+        'htj2k': (
+            'htj2k',
+            'jph',  # HTJ2K with JP2 boxes
+            'jhc',  # HTJ2K codestream
+            # 'j2c',
+        ),
+        'jpeg2k': (
+            'j2k',
+            'jp2',
+            'j2c',
+            'jpc',
+            'jpx',
+            'jpf',
+            'jpg2',
+            # 'jph',  # HTJ2K with JP2 boxes
+            # 'jhc',  # HTJ2K codestream
+        ),
+        'jpeg8': ('jpg', 'jpeg', 'jpe', 'jfif', 'jfi', 'jif'),
+        # 'jpegli': ('jli',),
+        'jpegls': ('jls',),
+        'jpegxl': ('jxl',),
+        'jpegxr': ('jxr', 'hdp', 'wdp'),
+        'jpegxs': ('jxs',),
+        'lerc': ('lerc1', 'lerc2'),
+        'ljpeg': ('ljp', 'ljpg', 'ljpeg'),
+        'numpy': ('npy', 'npz'),
+        'png': ('png',),
+        'qoi': ('qoi',),
+        'rgbe': ('hdr', 'rgbe', 'pic'),
+        # 'tga': ('tga'),
+        'tiff': ('tif', 'tiff', 'ptif', 'ptiff', 'tf8', 'tf2', 'btf'),
+        'ultrahdr': ('uhdr', 'jpr'),  # jpg
+        'webp': ('webp', 'webm'),
+        'zfp': ('zfp',),
+    }
+    return (
+        {ext: codec for codec, exts in codecs.items() for ext in exts},
+        list(codecs.keys()),
+    )
 
 
 def imagefileext() -> list[str]:
     """Return list of image file extensions handled by imread and imwrite."""
-    return list(_imcodecs().keys())
+    return list(_imcodecs()[0].keys())
 
 
 class NONE:
@@ -1842,12 +1840,10 @@ def jpeg_decode(
             or 'Bogus Huffman table definition' in msg
             or 'SOF type' in msg
         ):
-            try:
+            with contextlib.suppress(Exception):
                 return imagecodecs.ljpeg_decode(  # type: ignore[no-any-return]
                     data, out=out
                 )
-            except Exception:  # noqa: S110
-                pass
         # elif 'Empty JPEG image' in msg:
         # for example, Hamamatsu NDPI slides with dimensions > 65500
         # Unsupported marker type
@@ -1872,7 +1868,7 @@ def jpeg_encode(
     """Return JPEG encoded image."""
     if (
         lossless
-        and not imagecodecs.JPEG8.all_precisions
+        and not getattr(imagecodecs.JPEG8, 'all_precisions', False)
         and bitspersample not in {None, 8, 12, 16}
     ):
         return imagecodecs.ljpeg_encode(  # type: ignore[no-any-return]
