@@ -1,9 +1,22 @@
 Revisions
 ---------
 
+2026.3.6
+
+- Pass 8575 tests.
+- Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
+- Implement packints_encode function.
+- Support lerc subcodec in tiff_encode function.
+- Support packed integers, ccitt and pixarlog compression in TIFF codec.
+- Support bitorder option in PACKINTS codec.
+- Support rounding in BFLOAT16 codec.
+- Support more BMP types.
+- Update PCODEC to new API.
+- Fix buffer overflows in third-party code.
+- Fix code review issues.
+
 2026.1.14
 
-- Pass 8281 tests.
 - Add tiff_encode function.
 - Add extra options for HTJ2K (#134).
 - Add linear RGB option to cms_profile.
