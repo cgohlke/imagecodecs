@@ -1,6 +1,6 @@
 # imagecodecs/libaec.pxd
 
-# Cython declarations for the `libaec 1.1.4` library.
+# Cython declarations for the `libaec 1.1.6` library.
 # https://gitlab.dkrz.de/k202009/libaec
 
 cdef extern from 'libaec.h' nogil:
