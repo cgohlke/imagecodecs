@@ -15,8 +15,9 @@ PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, SZ3, Meshopt, Pcodec, SPERR,
 AEC, SZIP, LERC, EER, NPY, BCn, DDS, BMP, PNG, APNG, GIF, TIFF, WebP,
 JPEG (2 to 16-bit), Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K),
 High-throughput JPEG 2000 (HTJ2K, JPH), JPEG LS, JPEG XL, JPEG XS,
-JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF, QOI,
-RGBE (HDR), Jetraw, DICOM RLE, PackBits, Packed Integers, Delta, XOR Delta,
+JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF,
+QOI, RGBE (HDR), PixarLog, Jetraw, DICOM RLE, CCITT (RLE, T.4 and T.6),
+PackBits, Packed Integers (TIFF, MONO p and packed), Delta, XOR Delta,
 Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
 Float24 (24-bit floating point), Bfloat16 (brain floating point),
 Quantize (Scale, BitGroom, BitRound, GranularBR), and
@@ -26,7 +27,7 @@ Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.1.14
+:Version: 2026.3.6
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -55,8 +56,8 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.11, 3.14.2 64-bit
-- `numpy <https://pypi.org/project/numpy>`_ 2.4.1
+- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.12, 3.14.3 64-bit
+- `numpy <https://pypi.org/project/numpy>`_ 2.4.2
 - `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.16.5
   (optional, for Zarr file format 2 compatible codecs)
 
@@ -66,44 +67,44 @@ Build requirements:
 - `brotli <https://github.com/google/brotli>`_ 1.2.0
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.6
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.22.0
-- `charls <https://github.com/team-charls/charls>`_ 2.4.2
-- `giflib <https://sourceforge.net/projects/giflib/>`_ 5.2.2
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.23.0
+- `charls <https://github.com/team-charls/charls>`_ 2.4.3
+- `giflib <https://sourceforge.net/projects/giflib/>`_ 6.1.1
 - `jxrlib <https://github.com/cgohlke/jxrlib>`_ 1.2
 - `lcms2 <https://github.com/mm2/Little-CMS>`_ 2.18
 - `lerc <https://github.com/Esri/lerc>`_ 4.0.4
-- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.4
-- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.3.0
+- `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.6
+- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.4.0
   (`aom <https://aomedia.googlesource.com/aom>`_ 3.13.1,
   `dav1d <https://github.com/videolan/dav1d>`_ 1.5.3,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.8.1,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 3.1.2,
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 4.0.1,
   `libyuv <https://chromium.googlesource.com/libyuv/libyuv>`_ main,
-  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.1)
+  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.2)
 - `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.25
-- `libheif <https://github.com/strukturag/libheif>`_ 1.21.1
+- `libheif <https://github.com/strukturag/libheif>`_ 1.21.2
   (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.16,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 4.1)
 - `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.1.3
-- `libjxl <https://github.com/libjxl/libjxl>`_ 0.11.1
+- `libjxl <https://github.com/libjxl/libjxl>`_ 0.11.2
 - `libjxs <https://jpeg.org/jpegxs/software.html>`_ 2.0.2
 - `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.2
-- `libpng <https://github.com/glennrp/libpng>`_ 1.6.53
-- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.53
-- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.1
+- `libpng <https://github.com/glennrp/libpng>`_ 1.6.55
+- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.55
+- `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.1 (with issue 789 fix)
 - `libultrahdr <https://github.com/google/libultrahdr>`_ 1.4.0
 - `libwebp <https://github.com/webmproject/libwebp>`_ 1.6.0
 - `lz4 <https://github.com/lz4/lz4>`_ 1.10.0
-- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0
+- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0.1
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.4
-- `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.0
-- `pcodec <https://github.com/mwlon/pcodec>`_ 0.4.9 (unstable)
+- `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.3
+- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.1 (with PR 369)
 - `snappy <https://github.com/google/snappy>`_ 1.2.2
 - `sperr <https://github.com/NCAR/SPERR>`_ 0.8.4
 - `sz3 <https://github.com/szcompressor/SZ3>`_ 3.3.2
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.1
-- `zlib <https://github.com/madler/zlib>`_ 1.3.1.2
-- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.3.2
+- `zlib <https://github.com/madler/zlib>`_ 1.3.2
+- `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.3.3
 - `zstd <https://github.com/facebook/zstd>`_ 1.5.7
 
 Unmaintained or discontinued build requirements:
@@ -137,12 +138,12 @@ Vendored requirements:
 
 Test requirements:
 
-- `tifffile <https://github.com/cgohlke/tifffile>`_ 2025.12.20
-- `czifile <https://github.com/cgohlke/czifile>`_ 2019.7.2.1
-- `liffile <https://github.com/cgohlke/liffile>`_ 2025.12.12
+- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.3.3
+- `czifile <https://github.com/cgohlke/czifile>`_ 2019.7.2.3
+- `liffile <https://github.com/cgohlke/liffile>`_ 2026.2.16
 - `zarr <https://github.com/zarr-developers/zarr-python>`_ 3.1.5
-- `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.3
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 3.11.2
+- `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.4
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.0.0
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.2.0
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.4.5
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.6
@@ -154,9 +155,22 @@ Test requirements:
 Revisions
 ---------
 
+2026.3.6
+
+- Pass 8575 tests.
+- Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
+- Implement packints_encode function.
+- Support lerc subcodec in tiff_encode function.
+- Support packed integers, ccitt and pixarlog compression in TIFF codec.
+- Support bitorder option in PACKINTS codec.
+- Support rounding in BFLOAT16 codec.
+- Support more BMP types.
+- Update PCODEC to new API.
+- Fix buffer overflows in third-party code.
+- Fix code review issues.
+
 2026.1.14
 
-- Pass 8281 tests.
 - Add tiff_encode function.
 - Add extra options for HTJ2K (#134).
 - Add linear RGB option to cms_profile.
@@ -262,11 +276,12 @@ Wheels may not be available for all platforms and all releases.
 
 Not all features are available on all platforms.
 
-The ``bcn``, ``dds``, ``dicomrle``, ``eer``, ``lzo``, ``packints``,
-and ``jpegsof3`` codecs are currently decode-only.
+The ``bcn``, ``ccittfax3``, ``ccittfax4``, ``ccittrle``, ``dds``,
+``dicomrle``, ``eer``, ``jpegsof3``, and ``lzo`` codecs are currently
+decode-only.
 
-The ``brunsli`` and ``pcodec`` codecs are distributed as source code only
-because the underlying libraries are unstable.
+The ``brunsli`` codec is distributed as source code only because the
+underlying library is unstable.
 
 The ``heif``, ``jetraw``, and ``jpegxs`` codecs are distributed as source
 code only due to license and possible patent usage issues.
@@ -287,12 +302,12 @@ When building against libjpeg or libjpeg_turbo < 3, set the environment
 variable ``IMAGECODECS_JPEG8_LEGACY=1`` to enable legacy API support.
 
 Before building imagecodecs from source code, install required tools and
-libraries. For example, on latest Ubuntu Linux distributions:
+libraries. For example, on latest Ubuntu Linux distributions::
 
-    ``sudo apt-get install build-essential python3-dev cython3 python3-pip
-    python3-setuptools python3-wheel python3-numpy libdeflate-dev libjpeg-dev
-    libjxr-dev liblcms2-dev liblz4-dev liblerc-dev liblzma-dev libopenjp2-7-dev
-    libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev``
+    sudo apt-get install build-essential python3-dev cython3 python3-pip \
+    python3-setuptools python3-wheel python3-numpy libdeflate-dev libjpeg-dev \
+    libjxr-dev liblcms2-dev liblz4-dev liblerc-dev liblzma-dev \
+    libopenjp2-7-dev libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev
 
 To build and install imagecodecs from source code, run::
 
@@ -355,6 +370,7 @@ Other projects providing imaging or compression codecs:
 `b3d <https://github.com/balintbalazs/B3D>`_,
 `fo-dicom.codecs <https://github.com/Efferent-Health/fo-dicom.Codecs>`_,
 `jpegli <https://github.com/google/jpegli>`_,
+`crackle <https://github.com/seung-lab/crackle>`_,
 `hdf5plugin <https://github.com/silx-kit/hdf5plugin>`_.
 
 Examples
@@ -423,11 +439,11 @@ Not all codecs are fully implemented, raising exceptions at runtime:
 
 .. code-block:: python
 
-    >>> from imagecodecs import packints_encode
-    >>> packints_encode(array, 8)
+    >>> from imagecodecs import dicomrle_encode
+    >>> dicomrle_encode(array)
     Traceback (most recent call last):
      ...
-    NotImplementedError: packints_encode
+    NotImplementedError: dicomrle_encode
 
 Write the numpy array to a JP2 file:
 
