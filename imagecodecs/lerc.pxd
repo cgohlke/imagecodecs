@@ -1,6 +1,6 @@
 # imagecodecs/lerc.pxd
 
-# Cython declarations for the `LERC 4.0.0` library.
+# Cython declarations for the `LERC 4.1.0` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h' nogil:
