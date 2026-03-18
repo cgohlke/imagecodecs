@@ -72,6 +72,8 @@ def snappy_check(const uint8_t[::1] data, /):
     cdef:
         snappy_status ret
 
+    if data.nbytes < 1:
+        return False
     ret = snappy_validate_compressed_buffer(
         <const char*> &data[0],
         <size_t> data.nbytes
