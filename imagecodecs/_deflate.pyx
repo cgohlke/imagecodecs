@@ -57,13 +57,16 @@ class DeflateError(RuntimeError):
     """DEFLATE codec exceptions."""
 
     def __init__(self, func, err):
-        msg = {
-            LIBDEFLATE_SUCCESS: 'LIBDEFLATE_SUCCESS',
-            LIBDEFLATE_BAD_DATA: 'LIBDEFLATE_BAD_DATA',
-            LIBDEFLATE_SHORT_OUTPUT: 'LIBDEFLATE_SHORT_OUTPUT',
-            LIBDEFLATE_INSUFFICIENT_SPACE: 'LIBDEFLATE_INSUFFICIENT_SPACE',
-        }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg}'
+        if isinstance(err, str):
+            msg = err
+        else:
+            msg = {
+                LIBDEFLATE_SUCCESS: 'LIBDEFLATE_SUCCESS',
+                LIBDEFLATE_BAD_DATA: 'LIBDEFLATE_BAD_DATA',
+                LIBDEFLATE_SHORT_OUTPUT: 'LIBDEFLATE_SHORT_OUTPUT',
+                LIBDEFLATE_INSUFFICIENT_SPACE: 'LIBDEFLATE_INSUFFICIENT_SPACE',
+            }.get(err, f'unknown error {err!r}')
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -359,7 +362,7 @@ def gzip_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if src[0] != 0x1F or src[1] != 0x8B:
+    if srcsize < 4 or src[0] != 0x1F or src[1] != 0x8B:
         raise ValueError('invalid GZIP header')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
