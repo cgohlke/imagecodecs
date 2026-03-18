@@ -113,9 +113,9 @@ def lz4f_encode(
         prefs.compressionLevel = _default_value(level, 0, -1, LZ4HC_CLEVEL_MAX)
     if blocksizeid is not None:
         prefs.frameInfo.blockSizeID = <LZ4F_blockSizeID_t> blocksizeid
-    if contentchecksum is not None:
+    if contentchecksum:
         prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
-    if blockchecksum is not None:
+    if blockchecksum:
         prefs.frameInfo.blockChecksumFlag = LZ4F_blockChecksumEnabled
 
     out, dstsize, outgiven, outtype = _parse_output(out)
