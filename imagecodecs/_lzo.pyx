@@ -106,7 +106,7 @@ def lzo_decode(
         lzokay_EResult ret
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot decode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
