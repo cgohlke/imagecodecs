@@ -241,10 +241,8 @@ cdef size_t brunsli_sink_write(
         return 0
     if sink.offset + size > sink.size:
         # output stream too small; realloc
-        newsize = _align_size_t(sink.offset + size)
-        if newsize <= <size_t> (<double> sink.size * 1.25):
-            # moderate upsize: overallocate
-            newsize = _align_size_t(newsize + newsize // 4)
+        # always over-allocate to avoid repeated reallocations
+        newsize = _align_size_t(sink.offset + size + (sink.offset + size) // 4)
         tmp = <uint8_t*> realloc(<void*> sink.data, newsize)
         if tmp == NULL:
             return 0
