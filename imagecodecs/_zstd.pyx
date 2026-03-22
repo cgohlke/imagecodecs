@@ -169,8 +169,8 @@ def zstd_decode(
             <void*> &src[0],
             <size_t> srcsize
         )
-    if ZSTD_isError(ret):
-        raise ZstdError('ZSTD_decompress', err=ret)
+        if ZSTD_isError(ret):
+            raise ZstdError('ZSTD_decompress', err=ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
