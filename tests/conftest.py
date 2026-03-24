@@ -2,14 +2,31 @@
 
 """Pytest configuration."""
 
+from __future__ import annotations
+
+import glob
 import os
+import pathlib
 import sys
+from typing import Any
+
+DATA_PATH = pathlib.Path(os.path.dirname(__file__)) / 'data'
 
 if os.environ.get('VSCODE_CWD'):
     # work around pytest not using PYTHONPATH in VSCode
     sys.path.insert(
         0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     )
+
+
+def datafiles(pathname: str, base: str | None = None) -> Any:
+    """Return path to data file(s)."""
+    if base is None:
+        base = str(DATA_PATH)
+    path = os.path.join(base, *pathname.split('/'))
+    if any(i in path for i in '*?'):
+        return glob.glob(path)
+    return path
 
 
 def pytest_report_header(config: object) -> str:
