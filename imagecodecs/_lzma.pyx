@@ -108,7 +108,7 @@ def lzma_encode(
         ssize_t dstsize
         ssize_t dstlen
         uint32_t preset = _default_value(level, 6, 0, 9)
-        lzma_check_t check_ = LZMA_CHECK_CRC64 if check is None else check
+        lzma_check_t check_ = _enum_value(check, LZMA.CHECK, LZMA_CHECK_CRC64)
         lzma_stream strm
         lzma_ret ret
 
