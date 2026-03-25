@@ -71,10 +71,14 @@ def zopfli_version():
 def zopfli_encode(
     data,
     /,
-    level=None,
+    level=None,  # numiterations
     *,
+    format=None,
+    blocksplitting=None,
+    blocksplittingmax=None,
+    verbose=None,
+    verbose_more=None,
     out=None,
-    **kwargs,
 ):
     """Return ZOPFLI encoded data."""
     cdef:
@@ -84,7 +88,7 @@ def zopfli_encode(
         ssize_t dstsize
         size_t outsize = 0
         ZopfliOptions options
-        ZopfliFormat format = ZOPFLI_FORMAT_ZLIB
+        ZopfliFormat format_ = ZOPFLI_FORMAT_ZLIB
         unsigned char* buffer = NULL
 
     if data is out:
@@ -93,32 +97,25 @@ def zopfli_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     ZopfliInitOptions(&options)
-    if kwargs:
-        if 'format' in kwargs:
-            format = <ZopfliFormat> <int> (
-                _default_value(kwargs['format'], 1, 0, 2)
-            )
-        if 'verbose' in kwargs:
-            options.verbose = bool(kwargs['verbose'])
-        if 'verbose_more' in kwargs:
-            options.verbose_more = bool(kwargs['verbose_more'])
-        if 'numiterations' in kwargs:
-            options.numiterations = _default_value(
-                kwargs['numiterations'], 15, 1, 255
-            )
-        if 'blocksplitting' in kwargs:
-            options.blocksplitting = bool(kwargs['blocksplitting'])
-        if 'blocksplittinglast' in kwargs:
-            options.blocksplittinglast = bool(kwargs['blocksplittinglast'])
-        if 'blocksplittingmax' in kwargs:
-            options.blocksplittingmax = _default_value(
-                kwargs['blocksplittingmax'], 15, 0, 32768 - 1
-            )
+    if format is not None:
+        format_ = <ZopfliFormat> <int> (_default_value(format, 1, 0, 2))
+    if level is not None:
+        options.numiterations = _default_value(level, 15, 1, 255)
+    if blocksplitting is not None:
+        options.blocksplitting = bool(blocksplitting)
+    if blocksplittingmax is not None:
+        options.blocksplittingmax = _default_value(
+            blocksplittingmax, 15, 0, 32768 - 1
+        )
+    if verbose is not None:
+        options.verbose = bool(verbose)
+    if verbose_more is not None:
+        options.verbose_more = bool(verbose_more)
 
     with nogil:
         ZopfliCompress(
             &options,
-            format,
+            format_,
             <const unsigned char*> &src[0],
             <size_t> srcsize,
             &buffer,
