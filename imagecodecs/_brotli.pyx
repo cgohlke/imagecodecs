@@ -103,7 +103,9 @@ def brotli_encode(
         ssize_t dstsize
         size_t encoded_size
         BROTLI_BOOL ret = BROTLI_FALSE
-        BrotliEncoderMode mode_ = BROTLI_MODE_GENERIC if mode is None else mode
+        BrotliEncoderMode mode_ = _enum_value(
+            mode, BROTLI.MODE, BROTLI_MODE_GENERIC
+        )
         int quality_ = _default_value(
             # anything higher than 9 is very slow
             level, 4, BROTLI_MIN_QUALITY, BROTLI_MAX_QUALITY
