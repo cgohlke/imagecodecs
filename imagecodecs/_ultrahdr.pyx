@@ -79,7 +79,7 @@ class ULTRAHDR:
         AVIF = UHDR_CODEC_AVIF
 
     class USAGE(enum.IntEnum):
-        """ULTRAHDR codec."""
+        """ULTRAHDR encoder preset."""
 
         REALTIME = UHDR_USAGE_REALTIME
         QUALITY = UHDR_USAGE_BEST_QUALITY
@@ -106,58 +106,78 @@ def ultrahdr_version():
 
 def ultrahdr_check(const uint8_t[::1] data, /):
     """Return whether data is ULTRAHDR encoded or None if unknown."""
+    if data.nbytes < 12:
+        return False
     return bool(is_uhdr_image(<void*> &data[0], <int> data.nbytes))
 
 
 def ultrahdr_encode(
-    data,
+    data,  # High Dynamic Range
     /,
     level=None,
     *,
+    sdr=None,  # Standard Dynamic Range
     scale=None,
     gamut=None,
     transfer=None,
     nits=None,
+    boostmin=None,
+    boostmax=None,
     crange=None,
     usage=None,
     codec=None,
     out=None,
 ):
-    """Return ULTRAHDR encoded data.
+    """Return ULTRAHDR encoded image.
 
     Only 64bppRGBAHalfFloat and 32bppRGBA1010102 data are supported.
+
+    SDR is an optional 32bppRGBA8888 sRGB companion image.
+    If omitted, the library tone-maps the HDR input automatically.
 
     """
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray sdr_src
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         int quality = _default_value(level, -1, 0, 100)
         int scale_factor = _default_value(scale, 1, 1, 128)
-        float cnits = _default_value(nits, 0, 203, 10000)
-        uhdr_enc_preset_t preset = UHDR_USAGE_BEST_QUALITY
-        uhdr_codec_t output_format = UHDR_CODEC_JPG
+        float cnits = _default_value(nits, 0.0, None, 10000)
+        float cboostmin = 0.0
+        float cboostmax = 0.0
+        bint has_sdr
+        bint has_boost
+        uhdr_enc_preset_t preset = _enum_value(
+            usage, ULTRAHDR.USAGE, UHDR_USAGE_BEST_QUALITY
+        )
+        uhdr_codec_t output_format = _enum_value(
+            codec, ULTRAHDR.CODEC, UHDR_CODEC_JPG
+        )
         uhdr_raw_image_t raw_image
+        uhdr_raw_image_t sdr_image
         uhdr_compressed_image_t* compressed_image
-        uhdr_codec_private_t* encoder
+        uhdr_codec_private_t* encoder = NULL
         uhdr_error_info_t error
 
-    if src.dtype.char not in 'eLI':
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    if src.dtype.char != 'e' and not (
+        src.dtype.kind == 'u' and src.dtype.itemsize == 4
+    ):
         raise ValueError(f'{src.dtype} not supported')
     if (
         src.ndim not in {2, 3}
         or src.shape[0] > 65535
         or src.shape[1] > 65535
         or src.nbytes > INT32_MAX
-        or (src.ndim == 2 and src.dtype.char not in 'IL')
+        or (src.ndim == 2 and not (
+            src.dtype.kind == 'u' and src.dtype.itemsize == 4
+        ))
         or (src.ndim == 3 and (src.dtype.char != 'e' or src.shape[2] != 4))
     ):
         raise ValueError('data shape or dtype not supported')
-
-    if usage is not None:
-        preset = usage
-    if codec is not None:
-        output_format = codec
 
     memset(<void*> &raw_image, 0, sizeof(uhdr_raw_image_t))
     raw_image.h = <int> src.shape[0]
@@ -169,16 +189,44 @@ def ultrahdr_encode(
     if src.ndim == 2:
         raw_image.fmt = UHDR_IMG_FMT_32bppRGBA1010102
         raw_image.ct = UHDR_CT_HLG
+        raw_image.cg = UHDR_CG_BT_2100
     else:
         raw_image.fmt = UHDR_IMG_FMT_64bppRGBAHalfFloat
         raw_image.ct = UHDR_CT_LINEAR
+        raw_image.cg = UHDR_CG_BT_2100
 
     if gamut is not None:
-        raw_image.cg = gamut
+        raw_image.cg = _enum_value(gamut, ULTRAHDR.CG)
     if transfer is not None:
-        raw_image.ct = transfer
+        raw_image.ct = _enum_value(transfer, ULTRAHDR.CT)
     if crange is not None:
-        raw_image.range = crange
+        raw_image.range = _enum_value(crange, ULTRAHDR.CR)
+
+    has_sdr = sdr is not None
+    has_boost = boostmin is not None and boostmax is not None
+
+    if has_boost:
+        cboostmin = boostmin
+        cboostmax = boostmax
+
+    if has_sdr:
+        sdr_src = numpy.ascontiguousarray(sdr, dtype=numpy.uint8)
+        if (
+            sdr_src.ndim != 3
+            or sdr_src.shape[0] != src.shape[0]
+            or sdr_src.shape[1] != src.shape[1]
+            or sdr_src.shape[2] != 4
+        ):
+            raise ValueError('sdr data shape not supported')
+        memset(<void*> &sdr_image, 0, sizeof(uhdr_raw_image_t))
+        sdr_image.fmt = UHDR_IMG_FMT_32bppRGBA8888
+        sdr_image.ct = UHDR_CT_SRGB
+        sdr_image.cg = UHDR_CG_BT_709
+        sdr_image.range = UHDR_CR_FULL_RANGE
+        sdr_image.w = <unsigned int> sdr_src.shape[1]
+        sdr_image.h = <unsigned int> sdr_src.shape[0]
+        sdr_image.planes[UHDR_PLANE_PACKED] = <void*> sdr_src.data
+        sdr_image.stride[UHDR_PLANE_PACKED] = <unsigned int> sdr_src.shape[1]
 
     try:
         with nogil:
@@ -197,6 +245,17 @@ def ultrahdr_encode(
                 raise UltrahdrError(
                     'uhdr_enc_set_raw_image', error.error_code, error.detail
                 )
+
+            if has_sdr:
+                error = uhdr_enc_set_raw_image(
+                    encoder, &sdr_image, UHDR_SDR_IMG
+                )
+                if error.error_code != UHDR_CODEC_OK:
+                    raise UltrahdrError(
+                        'uhdr_enc_set_raw_image',
+                        error.error_code,
+                        error.detail
+                    )
 
             if quality >= 0:
                 error = uhdr_enc_set_quality(encoder, quality, UHDR_BASE_IMG)
@@ -220,6 +279,17 @@ def ultrahdr_encode(
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
                         'uhdr_enc_set_target_display_peak_brightness',
+                        error.error_code,
+                        error.detail
+                    )
+
+            if has_boost:
+                error = uhdr_enc_set_min_max_content_boost(
+                    encoder, cboostmin, cboostmax
+                )
+                if error.error_code != UHDR_CODEC_OK:
+                    raise UltrahdrError(
+                        'uhdr_enc_set_min_max_content_boost',
                         error.error_code,
                         error.detail
                     )
@@ -341,6 +411,9 @@ def ultrahdr_decode(
         uhdr_color_transfer_t otf
         uhdr_error_info_t error
 
+    if data is out:
+        raise ValueError('cannot decode in-place')
+
     if dtype is None:
         dtype = numpy.float16
     dtype = numpy.dtype(dtype)
@@ -361,9 +434,6 @@ def ultrahdr_decode(
 
     if transfer is not None:
         otf = transfer
-
-    if data is out:
-        raise ValueError('cannot decode in-place')
 
     memset(<void*> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
     compressed_image.data = <void*> &src[0]
@@ -495,6 +565,9 @@ cdef inline void _uhdr_copy_image(
     cdef:
         ssize_t i
 
+    if dststride == srcstride:
+        memcpy(<void*> dst, <const void*> src, dststride * height)
+        return
     for i in range(height):
         memcpy(
             <void*> (dst + i * dststride),
