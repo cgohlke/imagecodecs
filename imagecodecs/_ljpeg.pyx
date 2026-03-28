@@ -98,6 +98,9 @@ def ljpeg_encode(
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int ret = LJ92_ERROR_NONE
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
         and src.ndim in {2, 3}
@@ -106,9 +109,6 @@ def ljpeg_encode(
         # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
     ):
         raise ValueError('invalid data shape or dtype')
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     src_dtype = src.dtype
     if src.dtype == numpy.uint8:
