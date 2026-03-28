@@ -99,6 +99,9 @@ def quantize_encode(
         int quantize_mode = NC_NOQUANTIZE
         # uint64_t fill_value = 0
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     data = numpy.ascontiguousarray(data)
     src = data
     src_size = <size_t> src.size
