@@ -115,6 +115,9 @@ def lerc_encode(
         unsigned int blobSize
         int ndim = src.ndim
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if src.dtype == numpy.uint8:
         dataType = dt_uchar
     elif src.dtype == numpy.uint16:
@@ -264,7 +267,7 @@ def lerc_decode(
 
     if sig[:5] == b'Lerc2':
         pass
-    elif sig[:9] == b'CntZImage' and hasattr(data, 'write_byte'):
+    elif sig[:9] == b'CntZImage' and memoryview(data).readonly:
         # Lerc1 decoder segfaults if data is not writable
         src = memoryview(data).tobytes()
     elif sig[:4] == b'\x28\xB5\x2F\xFD':
