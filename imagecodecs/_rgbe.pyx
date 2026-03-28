@@ -102,6 +102,9 @@ def rgbe_encode(
         rgbe_stream_t* stream
         # rgbe_header_info info
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         srcsize <= INT32_MAX
         and src.dtype.char == 'f'
@@ -109,9 +112,6 @@ def rgbe_encode(
         and src.shape[src.ndim - 1] == 3
     ):
         raise ValueError('invalid data shape, strides, or dtype')
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if (
         out is not None
