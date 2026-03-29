@@ -978,3 +978,63 @@ cdef extern from 'webp/demux.h' nogil:
     void WebPAnimDecoderDelete(
         WebPAnimDecoder* dec
     )
+
+cdef extern from 'webp/mux.h' nogil:
+
+    ctypedef struct WebPMuxAnimParams:
+        uint32_t bgcolor
+        int loop_count
+
+    ctypedef struct WebPAnimEncoderOptions:
+        WebPMuxAnimParams anim_params
+        int minimize_size
+        int kmin
+        int kmax
+        int allow_mixed
+        int verbose
+        uint32_t[4] padding
+
+    ctypedef struct WebPAnimEncoder:
+        pass
+
+    int WebPAnimEncoderOptionsInitInternal(
+        WebPAnimEncoderOptions*,
+        int
+    )
+
+    int WebPAnimEncoderOptionsInit(
+        WebPAnimEncoderOptions* enc_options
+    )
+
+    WebPAnimEncoder* WebPAnimEncoderNewInternal(
+        int,
+        int,
+        const WebPAnimEncoderOptions*,
+        int
+    )
+
+    WebPAnimEncoder* WebPAnimEncoderNew(
+        int width,
+        int height,
+        const WebPAnimEncoderOptions* enc_options
+    )
+
+    int WebPAnimEncoderAdd(
+        WebPAnimEncoder* enc,
+        WebPPicture* frame,
+        int timestamp_ms,
+        const WebPConfig* config
+    )
+
+    int WebPAnimEncoderAssemble(
+        WebPAnimEncoder* enc,
+        WebPData* webp_data
+    )
+
+    const char* WebPAnimEncoderGetError(
+        WebPAnimEncoder* enc
+    )
+
+    void WebPAnimEncoderDelete(
+        WebPAnimEncoder* enc
+    )
