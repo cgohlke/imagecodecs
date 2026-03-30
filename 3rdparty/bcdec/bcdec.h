@@ -1408,10 +1408,10 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
             }
 
             switch (rotation) {
-                case 1: {   /* 01 – Block format is Scalar(R) Vector(AGB) - swap A and R */
+                case 1: {   /* 01 - Block format is Scalar(R) Vector(AGB) - swap A and R */
                     bcdec__swap_values(&a, &r);
                 } break;
-                case 2: {   /* 10 – Block format is Scalar(G) Vector(RAB) - swap A and G */
+                case 2: {   /* 10 - Block format is Scalar(G) Vector(RAB) - swap A and G */
                     bcdec__swap_values(&a, &g);
                 } break;
                 case 3: {   /* 11 - Block format is Scalar(B) Vector(RGA) - swap A and B */
