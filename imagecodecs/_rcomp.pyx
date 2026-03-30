@@ -97,6 +97,9 @@ def rcomp_encode(
         int nblock_ = 32 if nblock is None else nblock
         int ret = 0
 
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
     if not (
         srcsize <= INT32_MAX
         and dtype.kind in {'i', 'u'}
@@ -110,7 +113,10 @@ def rcomp_encode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = max(1024, <ssize_t> (<double> src.nbytes * 1.11))
+            # worst case: ~11% larger than input
+            dstsize = _align_ssize_t(
+                max(1024, (<ssize_t> src.nbytes * 111) // 100)
+            )
         out = _create_output(outtype, dstsize)
 
     dst = out
