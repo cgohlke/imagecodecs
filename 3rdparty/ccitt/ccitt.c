@@ -689,9 +689,9 @@ ccitt_find_eol(
             if (bs->bits < CCITT_EOL_BITS)
                 break;  /* insufficient data */
             if (ccitt_bitstream_peek(bs, 1) != 0)
-                break;  /* next bit is 1 – fill ended, check for EOL */
+                break;  /* next bit is 1 - fill ended, check for EOL */
             if (ccitt_bitstream_peek(bs, CCITT_EOL_BITS) == 0x001)
-                break;  /* EOL pattern already visible – stop skipping */
+                break;  /* EOL pattern already visible - stop skipping */
             ccitt_bitstream_skip(bs, 1);  /* consume one fill zero */
         }
     }
@@ -716,7 +716,7 @@ ccitt_find_eol(
         return 1;
     }
 
-    /* No EOL found — restore bitstream position */
+    /* No EOL found - restore bitstream position */
     *bs = saved;
     return 0;
 }
