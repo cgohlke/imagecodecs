@@ -143,6 +143,8 @@ def jpegxl_encode(
     planar=None,
     usecontainer=None,
     numthreads=None,
+    primaries=None,
+    transfer_function=None,
     out=None,
 ):
     """Return JPEGXL encoded image.
@@ -151,6 +153,15 @@ def jpegxl_encode(
 
     Currently, L, LA, RGB, and RGBA images are supported in contig mode.
     Extra channels are only supported for grayscale images in planar mode.
+
+    Parameters
+    ----------
+    primaries : int, optional
+        Color primaries enum value. Common values:
+        1 (sRGB, default), 9 (BT.2100), 11 (Display P3).
+    transfer_function : int, optional
+        Transfer function enum value. Common values:
+        1 (BT.709), 8 (linear), 13 (sRGB, default), 16 (PQ), 18 (HLG).
 
     """
     cdef:
@@ -187,6 +198,9 @@ def jpegxl_encode(
         int option_effort = _default_value(effort, 5, 1, 10)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
         size_t num_threads = _default_threads(numthreads)
+        bint has_custom_color = primaries is not None or transfer_function is not None
+        int option_primaries = int(primaries) if primaries is not None else 0
+        int option_transfer = int(transfer_function) if transfer_function is not None else 0
         size_t channel_index
         uint32_t bits_per_sample
         bint is_planar = bool(planar)
@@ -403,8 +417,27 @@ def jpegxl_encode(
             if status != JXL_ENC_SUCCESS:
                 raise JpegxlError('JxlEncoderSetBasicInfo', status)
 
-            # TODO: review this
-            if pixel_format.data_type == JXL_TYPE_UINT8:
+            if has_custom_color:
+                color_encoding.color_space = <JxlColorSpace> colorspace
+                color_encoding.white_point = JXL_WHITE_POINT_D65
+                color_encoding.primaries = (
+                    <JxlPrimaries> option_primaries
+                    if option_primaries != 0
+                    else JXL_PRIMARIES_SRGB
+                )
+                color_encoding.transfer_function = (
+                    <JxlTransferFunction> option_transfer
+                    if option_transfer != 0
+                    else (
+                        JXL_TRANSFER_FUNCTION_SRGB
+                        if pixel_format.data_type == JXL_TYPE_UINT8
+                        else JXL_TRANSFER_FUNCTION_LINEAR
+                    )
+                )
+                color_encoding.rendering_intent = (
+                    JXL_RENDERING_INTENT_RELATIVE
+                )
+            elif pixel_format.data_type == JXL_TYPE_UINT8:
                 JxlColorEncodingSetToSRGB(
                     &color_encoding, colorspace == JXL_COLOR_SPACE_GRAY
                 )
