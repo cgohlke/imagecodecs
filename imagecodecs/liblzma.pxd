@@ -1,6 +1,6 @@
 # imagecodecs/liblzma.pxd
 
-# Cython declarations for the `liblzma 5.8.2` library.
+# Cython declarations for the `liblzma 5.8.3` library.
 # https://github.com/tukaani-project/xz
 
 from libc.stdint cimport uint8_t, uint32_t, uint64_t
