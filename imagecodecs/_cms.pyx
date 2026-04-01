@@ -39,6 +39,8 @@
 
 include '_shared.pxi'
 
+import cython
+
 from cpython.bytes cimport (
     PyBytes_AsString,
     PyBytes_Check,
@@ -131,9 +133,14 @@ def cms_version():
 def cms_check(const uint8_t[::1] data, /):
     """Return whether data is ICC profile or None if unknown."""
     cdef:
-        bytes sig = bytes(data[36:40])
+        bytes sig
 
-    return sig == b'acsp'
+    if data.shape[0] < 40:
+        return False
+    sig = bytes(data[36:40])
+    if sig == b'acsp':
+        return True
+    return None
 
 
 def cms_transform(
@@ -152,10 +159,12 @@ def cms_transform(
     verbose=None,
     out=None,
 ):
-    """Return color-transformed array (experimental)."""
+    """Return color-transformed array."""
     cdef:
         numpy.ndarray src, dst
-        cmsUInt32Number Intent = INTENT_PERCEPTUAL if not intent else intent
+        cmsUInt32Number Intent = _enum_value(
+            intent, CMS.INTENT, INTENT_PERCEPTUAL
+        )
         cmsUInt32Number dwFlags = 0 if flags is None else flags
         cmsUInt32Number InputFormat = 0
         cmsUInt32Number OutputFormat = 0
@@ -163,6 +172,9 @@ def cms_transform(
         cmsHPROFILE hOutProfile = NULL
         cmsHTRANSFORM hTransform = NULL
         cmsUInt32Number numpixels
+        ssize_t i, nframes, src_frame_stride, dst_frame_stride
+        char* src_ptr
+        char* dst_ptr
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -170,51 +182,8 @@ def cms_transform(
     data = numpy.ascontiguousarray(data)
     src = data
 
-    # TODO: determine colorspace/pixeltype from profiles?
-
-    InputFormat = _cms_format(data.shape, data.dtype, colorspace, planar)
-
-    planar = T_PLANAR(InputFormat)
-    numpixels = <cmsUInt32Number> (
-        data.size // (T_CHANNELS(InputFormat) + T_EXTRA(InputFormat))
-    )
-
-    if out is not None and isinstance(out, numpy.ndarray):
-        # assert outdtype is None
-        OutputFormat = _cms_format(
-            out.shape, out.dtype, outcolorspace, outplanar
-        )
-    else:
-        if outcolorspace is None:
-            outcolorspace = colorspace
-        if outplanar is None:
-            outplanar = planar
-        if outdtype is None:
-            outdtype = data.dtype
-
-        outshape = _cms_output_shape(
-            InputFormat, data.shape, outcolorspace, outplanar
-        )
-
-        out = _create_array(out, outshape, outdtype)
-
-        OutputFormat = _cms_format(
-            out.shape, out.dtype, outcolorspace, outplanar
-        )
-
-    outplanar = T_PLANAR(OutputFormat)
-
-    if planar and data.ndim > 3:
-        raise NotImplementedError  # TODO
-    if outplanar and out.ndim > 3:
-        raise NotImplementedError  # TODO
-    if not out.data.contiguous:
-        raise ValueError('output array not contiguous')
-
     if verbose:
         cmsSetLogErrorHandler(_cms_log_error_handler)
-
-    dst = out
 
     try:
         if profile is None:
@@ -231,8 +200,75 @@ def cms_transform(
             if hOutProfile == NULL:
                 raise CmsError('cmsOpenProfileFromMem returned NULL')
 
-        # cmsColorSpaceSignature ColorSpaceSignature
-        # ColorSpaceSignature = cmsGetColorSpace(hProfile)
+        # determine colorspace/pixeltype from profiles if not specified
+        if colorspace is None:
+            colorspace = _CMS_COLORSPACE_SIGNATURES.get(
+                cmsGetColorSpace(hInProfile)
+            )
+        if outcolorspace is None:
+            outcolorspace = _CMS_COLORSPACE_SIGNATURES.get(
+                cmsGetColorSpace(hOutProfile)
+            )
+
+        InputFormat = _cms_format(data.shape, data.dtype, colorspace, planar)
+
+        planar = T_PLANAR(InputFormat)
+        numpixels = <cmsUInt32Number> (
+            data.size // (T_CHANNELS(InputFormat) + T_EXTRA(InputFormat))
+        )
+
+        if out is not None and isinstance(out, numpy.ndarray):
+            # assert outdtype is None
+            OutputFormat = _cms_format(
+                out.shape, out.dtype, outcolorspace, outplanar
+            )
+        else:
+            if outcolorspace is None:
+                outcolorspace = colorspace
+            if outplanar is None:
+                outplanar = planar
+            if outdtype is None:
+                outdtype = data.dtype
+
+            outshape = _cms_output_shape(
+                InputFormat, data.shape, outcolorspace, outplanar
+            )
+
+            out = _create_array(out, outshape, outdtype)
+
+            OutputFormat = _cms_format(
+                out.shape, out.dtype, outcolorspace, outplanar
+            )
+
+        outplanar = T_PLANAR(OutputFormat)
+
+        if not out.data.contiguous:
+            raise ValueError('output array not contiguous')
+
+        dst = out
+
+        # compute per-frame loop parameters before releasing the GIL
+        if (planar or outplanar) and (src.ndim > 3 or dst.ndim > 3):
+            # pixels per (H, W) frame: for planar (..., samples, H, W) the
+            # spatial axes are last two; for contig (..., H, W, samples) they
+            # are the 3rd- and 2nd-to-last
+            if planar:
+                nframes = numpixels // (
+                    <ssize_t> src.shape[src.ndim - 2]
+                    * src.shape[src.ndim - 1]
+                )
+            else:
+                nframes = numpixels // (
+                    <ssize_t> src.shape[src.ndim - 3]
+                    * src.shape[src.ndim - 2]
+                )
+            numpixels = numpixels // <cmsUInt32Number> nframes
+            src_frame_stride = src.nbytes // nframes
+            dst_frame_stride = dst.nbytes // nframes
+        else:
+            nframes = 0
+            src_frame_stride = 0
+            dst_frame_stride = 0
 
         with nogil:
             hTransform = cmsCreateTransform(
@@ -251,13 +287,26 @@ def cms_transform(
             cmsCloseProfile(hOutProfile)
             hOutProfile = NULL
 
-            # TODO: iterate over all but last three dimensions if planar
-            cmsDoTransform(
-                hTransform,
-                <const void*> src.data,
-                <void*> dst.data,
-                numpixels
-            )
+            if nframes > 0:
+                # iterate over leading dimensions one frame (H x W) at a time
+                src_ptr = src.data
+                dst_ptr = dst.data
+                for i in range(nframes):
+                    cmsDoTransform(
+                        hTransform,
+                        <const void*> src_ptr,
+                        <void*> dst_ptr,
+                        numpixels
+                    )
+                    src_ptr += src_frame_stride
+                    dst_ptr += dst_frame_stride
+            else:
+                cmsDoTransform(
+                    hTransform,
+                    <const void*> src.data,
+                    <void*> dst.data,
+                    numpixels
+                )
 
             cmsDeleteTransform(hTransform)
             hTransform = NULL
@@ -273,10 +322,6 @@ def cms_transform(
             cmsSetLogErrorHandler(NULL)
 
     return out
-
-
-cms_encode = cms_transform
-cms_decode = cms_transform
 
 
 @cython.boundscheck(True)
@@ -322,7 +367,7 @@ def cms_profile(
             WhitePoint.y = whitepoint[2] / whitepoint[3]
             WhitePoint.Y = 1.0
         else:
-            raise ValueError('invalid length of primaries')
+            raise ValueError(f'invalid length of whitepoint {len(whitepoint)}')
         pWhitePoint = &WhitePoint
 
     if primaries is not None:
@@ -373,6 +418,15 @@ def cms_profile(
             tfcount = 1
         elif profile == 'rgb':
             tfcount = 3
+
+    if gamma is not None and transferfunction is not None:
+        raise ValueError('gamma and transferfunction are mutually exclusive')
+
+    if (gamma is not None or transferfunction is not None) and tfcount == 0:
+        raise ValueError(
+            f'gamma and transferfunction are only supported '
+            f'for gray and rgb profiles, not {profile!r}'
+        )
 
     try:
         if profile is None:
@@ -733,6 +787,9 @@ def _cms_format(
         except (KeyError, AttributeError) as exc:
             raise ValueError(f'invalid {colorspace=!r}') from exc
 
+        if colorspace.lower() == 'miniswhite':
+            flavor = 1
+
         if planar is None and ndim > 2:
             # determine isplanar
             if shape[-1] == channels + extrachannel:
@@ -827,6 +884,30 @@ def _cms_format(
     )
 
 
+_CMS_COLORSPACE_SIGNATURES = {
+    # cmsColorSpaceSignature -> colorspace string
+    cmsSigRgbData: 'rgb',
+    cmsSigGrayData: 'gray',
+    cmsSigCmykData: 'cmyk',
+    cmsSigLabData: 'lab',
+    cmsSigXYZData: 'xyz',
+    cmsSigYCbCrData: 'ycbcr',
+    cmsSigHsvData: 'hsv',
+    cmsSigHlsData: 'hls',
+    cmsSigCmyData: 'cmy',
+    cmsSigLuvData: 'luv',
+    cmsSigYxyData: 'yxy',
+    cmsSigMCH1Data: 'mch1',
+    cmsSigMCH2Data: 'mch2',
+    cmsSigMCH3Data: 'mch3',
+    cmsSigMCH4Data: 'mch4',
+    cmsSigMCH5Data: 'mch5',
+    cmsSigMCH6Data: 'mch6',
+    cmsSigMCH7Data: 'mch7',
+    cmsSigMCH8Data: 'mch8',
+    cmsSigMCH9Data: 'mch9',
+}
+
 _CMS_FORMATS = {
     # colorspace -> pixeltype, channels, extrachannel, swap, swapfirst
     'minisblack': (PT_GRAY, 1, 0, 0, 0),
@@ -913,7 +994,7 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     if mlu == NULL:
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Public Domain')
+    cmsMLUsetASCII(mlu, b'en', b'US', 'Public Domain')
     ret = cmsWriteTag(hProfile, cmsSigCopyrightTag, mlu)
     cmsMLUfree(mlu)
 
@@ -921,7 +1002,7 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     if mlu == NULL:
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US\0', 'Adobe RGB (compatible)')
+    cmsMLUsetASCII(mlu, b'en', b'US', 'Adobe RGB (compatible)')
     ret = cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
     cmsMLUfree(mlu)
 
@@ -929,7 +1010,7 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     if mlu == NULL:
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Imagecodecs')
+    cmsMLUsetASCII(mlu, b'en', b'US', 'Imagecodecs')
     ret = cmsWriteTag(hProfile, cmsSigDeviceMfgDescTag, mlu)
     cmsMLUfree(mlu)
 
@@ -937,7 +1018,7 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     if mlu == NULL:
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en\0', b'US\0', 'Adobe RGB (compatible)')
+    cmsMLUsetASCII(mlu, b'en', b'US', 'Adobe RGB (compatible)')
     ret = cmsWriteTag(hProfile, cmsSigDeviceModelDescTag, mlu)
     cmsMLUfree(mlu)
 
@@ -1006,7 +1087,7 @@ cdef cmsHPROFILE _cms_linear_rgb() noexcept nogil:
     if mlu == NULL:
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US\0', 'Linear RGB')
+    cmsMLUsetASCII(mlu, b'en', b'US', 'Linear RGB')
     cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
     cmsMLUfree(mlu)
 
