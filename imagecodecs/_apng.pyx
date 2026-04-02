@@ -132,57 +132,47 @@ def apng_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
-        ssize_t rowstride
+        ssize_t row, rowstride
         png_bytep rowptr = NULL
         int color_type = PNG_COLOR_TYPE_GRAY
-        int bit_depth = src.itemsize * 8
         int level_ = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
         int strategy_ = _default_value(
-            strategy, Z_DEFAULT_STRATEGY, 0, Z_FIXED
+            _enum_value(strategy, APNG.STRATEGY),
+            Z_DEFAULT_STRATEGY,
+            0,
+            Z_FIXED
         )
-        int filter_ = -1 if filter is None else <int> filter
+        int filter_ = _enum_value(filter, APNG.FILTER, -1)
         png_uint_16 delay_num = _default_value(delay, 1000, 1, 3600000)
-        mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp rowpointers = NULL
-        ssize_t frames, height, width, samples
-        ssize_t row, frame
-        bint isapng
+        mempng_t mempng
+        imagelayout_t layout
 
-    color_type = _png_colortype(photometric)
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
-    if src.ndim == 2:
-        frames = 1
-        height = src.shape[0]
-        width = src.shape[1]
-        samples = 1
-    elif src.ndim == 3:
-        if src.shape[2] > 4 or color_type == PNG_COLOR_TYPE_GRAY:
-            frames = src.shape[0]
-            height = src.shape[1]
-            width = src.shape[2]
-            samples = 1
-        else:
-            frames = 1
-            height = src.shape[0]
-            width = src.shape[1]
-            samples = src.shape[2]
-    elif src.ndim == 4:
-        frames = src.shape[0]
-        height = src.shape[1]
-        width = src.shape[2]
-        samples = src.shape[3]
-    else:
-        raise ValueError(f'{src.ndim} dimensions not supported')
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_FRAMES,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        photometric,
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        and height <= INT32_MAX
-        and width <= INT32_MAX
-        and samples <= 4
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
 
@@ -191,7 +181,7 @@ def apng_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use dynamic mempng
-            dstsize = _apng_size_max(srcsize, frames)
+            dstsize = _apng_size_max(srcsize, layout.frames)
         out = _create_output(outtype, dstsize)
         mempng.owner = 0
     else:
@@ -201,24 +191,22 @@ def apng_encode(
     dstsize = dst.nbytes
 
     rowptr = <png_bytep> &src.data[0]
-    rowstride = width * samples * src.itemsize
+    rowstride = layout.width * layout.samples * src.itemsize
 
     try:
         with nogil:
-            isapng = frames > 1
-
             mempng.data = <png_bytep> &dst[0]
             mempng.size = <png_size_t> dstsize
             mempng.offset = 0
             mempng.error = NULL
 
-            if samples == 1:
+            if layout.samples == 1:
                 color_type = PNG_COLOR_TYPE_GRAY
-            elif samples == 2:
+            elif layout.samples == 2:
                 color_type = PNG_COLOR_TYPE_GRAY_ALPHA
-            elif samples == 3:
+            elif layout.samples == 3:
                 color_type = PNG_COLOR_TYPE_RGB
-            elif samples == 4:
+            elif layout.samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
 
             png_ptr = png_create_write_struct(
@@ -249,41 +237,41 @@ def apng_encode(
             png_set_IHDR(
                 png_ptr,
                 info_ptr,
-                <png_uint_32> width,
-                <png_uint_32> height,
-                bit_depth,
+                <png_uint_32> layout.width,
+                <png_uint_32> layout.height,
+                layout.bitspersample,
                 color_type,
                 PNG_INTERLACE_NONE,
                 PNG_COMPRESSION_TYPE_DEFAULT,
                 PNG_FILTER_TYPE_DEFAULT
             )
 
-            if isapng:
-                png_set_acTL(png_ptr, info_ptr, <png_uint_32> frames, 0)
+            if layout.frames > 1:
+                png_set_acTL(png_ptr, info_ptr, <png_uint_32> layout.frames, 0)
                 # png_set_first_frame_is_hidden(png_ptr, info_ptr, 1)
             png_write_info(png_ptr, info_ptr)
             png_set_compression_level(png_ptr, level_)
             png_set_compression_strategy(png_ptr, strategy_)
             if filter_ >= 0:
                 png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
-            if bit_depth > 8:
+            if layout.bitspersample > 8:
                 png_set_swap(png_ptr)
 
-            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
+            rowpointers = <png_bytepp> calloc(layout.height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
 
-            for frame in range(frames):
-                for row in range(height):
+            for frame in range(layout.frames):
+                for row in range(layout.height):
                     rowpointers[row] = rowptr
                     rowptr += rowstride
-                if isapng:
+                if layout.frames > 1:
                     png_write_frame_head(
                         png_ptr,
                         info_ptr,
                         rowpointers,
-                        <png_uint_32> width,
-                        <png_uint_32> height,
+                        <png_uint_32> layout.width,
+                        <png_uint_32> layout.height,
                         0,
                         0,
                         delay_num,
@@ -292,7 +280,7 @@ def apng_encode(
                         PNG_BLEND_OP_SOURCE
                     )
                 png_write_image(png_ptr, rowpointers)
-                if isapng:
+                if layout.frames > 1:
                     png_write_frame_tail(png_ptr, info_ptr)
 
             png_write_end(png_ptr, info_ptr)
@@ -361,7 +349,7 @@ def apng_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if png_sig_cmp(&src[0], 0, 8) != 0:
+    if srcsize < 8 or png_sig_cmp(&src[0], 0, 8) != 0:
         raise ValueError('not a PNG image')
 
     try:
@@ -829,10 +817,10 @@ cdef void png_write_data_fn(
         if not mempng.owner:
             png_error(png_ptr, b'png_write_data_fn output stream too small')
             return
-        newsize = _align_ssize_t(mempng.offset + size)
-        if newsize <= <ssize_t> (<double> mempng.size * 1.25):
-            # moderate upsize: overallocate
-            newsize = _align_ssize_t(newsize + newsize // 4)
+        # always over-allocate to avoid repeated reallocations
+        newsize = _align_ssize_t(
+            mempng.offset + size + (mempng.offset + size) // 4
+        )
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
             png_error(png_ptr, b'png_write_data_fn realloc failed')
