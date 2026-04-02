@@ -85,21 +85,38 @@ def qoi_encode(
         void* buffer = NULL
         qoi.qoi_desc desc
         int out_len
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
+        imagelayout_t layout
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if not (
-        src.dtype == numpy.uint8
-        and src.ndim == 3
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
-        and (samples == 3 or samples == 4)
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
-    desc.width = <unsigned int> src.shape[1]
-    desc.height = <unsigned int> src.shape[0]
-    desc.channels = <unsigned int> samples
-    desc.colorspace = qoi.QOI_SRGB if samples == 3 else qoi.QOI_LINEAR
+    desc.width = <unsigned int> layout.width
+    desc.height = <unsigned int> layout.height
+    desc.channels = <unsigned int> layout.samples
+    desc.colorspace = (
+        qoi.QOI_SRGB if layout.samples == 3 else qoi.QOI_LINEAR
+    )
 
     with nogil:
         buffer = qoi.qoi_encode(
