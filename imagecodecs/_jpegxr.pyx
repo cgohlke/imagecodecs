@@ -107,6 +107,10 @@ def jpegxr_version():
 
 def jpegxr_check(const uint8_t[::1] data, /):
     """Return whether data is JPEGXR encoded image or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:3])
+
+    return sig == b'\x49\x49\xBC'
 
 
 def jpegxr_encode(
@@ -128,7 +132,6 @@ def jpegxr_encode(
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
         size_t byteswritten = 0
-        ssize_t samples
         int pi = _jxr_encode_photometric(photometric)
         int alpha = 1 if hasalpha else 0
         float quality = 1.0 if level is None else level
@@ -138,34 +141,40 @@ def jpegxr_encode(
         PKPixelInfo pixelinfo
         float rx = 96.0
         float ry = 96.0
-        I32 width
-        I32 height
         U32 stride
         ERR err
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if (
-        dtype not in {
-            numpy.bool_,
-            numpy.uint8,
-            numpy.uint16,
-            numpy.float16,
-            numpy.float32,
-        }
-        and src.ndim in {2, 3}
-        # and numpy.PyArray_ISCONTIGUOUS(src)
-    ):
-        raise ValueError('invalid data shape, strides, or dtype')
+    _image_layout(
+        IC_BOOL
+        | IC_UINT
+        | IC_FLOAT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_SZ4
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_EXTRA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if resolution:
         rx, ry = resolution
 
-    width = <I32> src.shape[1]
-    height = <I32> src.shape[0]
     stride = <U32> src.strides[0]
-    samples = 1 if src.ndim == 2 else src.shape[2]
 
     # if width < MB_WIDTH_PIXEL or height < MB_HEIGHT_PIXEL:
     #     raise ValueError('invalid data shape')
@@ -192,7 +201,7 @@ def jpegxr_encode(
 
     try:
         with nogil:
-            pixelformat = jxr_encode_guid(dtype, samples, pi, &alpha)
+            pixelformat = jxr_encode_guid(dtype, layout.samples, pi, &alpha)
             if IsEqualGUID(&pixelformat, &GUID_PKPixelFormatDontCare):
                 raise ValueError('PKPixelFormatGUID not found')
             pixelinfo.pGUIDPixFmt = &pixelformat
@@ -238,7 +247,9 @@ def jpegxr_encode(
             if err:
                 raise JpegxrError('PKImageEncode_SetPixelFormat', err)
 
-            err = encoder.SetSize(encoder, width, height)
+            err = encoder.SetSize(
+                encoder, <I32> layout.width, <I32> layout.height
+            )
             if err:
                 raise JpegxrError('PKImageEncode_SetSize', err)
 
@@ -246,7 +257,9 @@ def jpegxr_encode(
             if err:
                 raise JpegxrError('PKImageEncode_SetResolution', err)
 
-            err = encoder.WritePixels(encoder, height, <U8*> src.data, stride)
+            err = encoder.WritePixels(
+                encoder, <I32> layout.height, <U8*> src.data, stride
+            )
             if err:
                 raise JpegxrError('PKImageEncode_WritePixels', err)
 
@@ -305,7 +318,6 @@ def jpegxr_decode(
         ERR err
         U8 alpha
         ssize_t srcsize = src.nbytes
-        ssize_t dstsize
         ssize_t samples
         int typenum
         bint fp2int_ = fp2int
@@ -358,7 +370,7 @@ def jpegxr_decode(
                 dtype = numpy.PyArray_DescrNewFromType(typenum)
                 out = _create_array(out, shape, dtype)
                 dst = out
-                dstsize = dst.nbytes
+                # dstsize = dst.nbytes
 
             rect.X = 0
             rect.Y = 0
@@ -366,7 +378,7 @@ def jpegxr_decode(
             rect.Height = <I32> dst.shape[0]
             stride = <U32> dst.strides[0]
 
-            memset(<void*> dst.data, 0, dstsize)  # TODO: still necessary?
+            # memset(<void*> dst.data, 0, dstsize)  # TODO: still necessary?
             # TODO: check alignment issues
             err = PKFormatConverter_Copy(
                 converter,
@@ -397,7 +409,7 @@ cdef ERR WriteWS_Memory(
     if pWS.state.buf.cbBuf < pWS.state.buf.cbCur + cb:
         return WMP_errBufferOverflow
 
-    memmove(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
+    memcpy(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
     pWS.state.buf.cbCur += cb
 
     # keep track of bytes written
@@ -423,12 +435,8 @@ cdef ERR WriteWS_Realloc(
     if newsize < pWS.state.buf.cbCur:
         return WMP_errBufferOverflow
     if pWS.state.buf.cbBuf < newsize:
-        if newsize <= pWS.state.buf.cbBuf * 1.125:
-            # moderate upsize: overallocate
-            newsize = _align_size_t(newsize + newsize // 8)
-        else:
-            # major upsize: resize to exact size
-            newsize = _align_size_t(newsize + 1)
+        # always over-allocate to avoid repeated reallocations
+        newsize = _align_size_t(newsize + newsize // 8)
         pWS.state.buf.pbBuf = <U8*> realloc(
             <void*> pWS.state.buf.pbBuf,
             newsize
@@ -437,7 +445,7 @@ cdef ERR WriteWS_Realloc(
             return WMP_errOutOfMemory
         pWS.state.buf.cbBuf = newsize
 
-    memmove(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
+    memcpy(pWS.state.buf.pbBuf + pWS.state.buf.cbCur, pv, cb)
     pWS.state.buf.cbCur += cb
 
     # keep track of bytes written
@@ -803,7 +811,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
                 return GUID_PKPixelFormat32bppRGBA
             if photometric == PK_PI_CMYK:
                 return GUID_PKPixelFormat32bppCMYK
-            if alpha:
+            if alpha[0]:
                 return GUID_PKPixelFormat32bpp3ChannelsAlpha
             return GUID_PKPixelFormat32bpp4Channels
         if typenum == numpy.NPY_UINT16:
@@ -812,7 +820,7 @@ cdef PKPixelFormatGUID jxr_encode_guid(
                 return GUID_PKPixelFormat64bppRGBA
             if photometric == PK_PI_CMYK:
                 return GUID_PKPixelFormat64bppCMYK
-            if alpha:
+            if alpha[0]:
                 return GUID_PKPixelFormat64bpp3ChannelsAlpha
             return GUID_PKPixelFormat64bpp4Channels
         alpha[0] = 1
