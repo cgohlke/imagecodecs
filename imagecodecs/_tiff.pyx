@@ -39,6 +39,8 @@
 
 include '_shared.pxi'
 
+import cython
+
 from cpython.pycapsule cimport PyCapsule_GetPointer, PyCapsule_New
 from imcd cimport imcd_packints_decode, imcd_packints_encode
 from libc.stdio cimport SEEK_CUR, SEEK_END, SEEK_SET
@@ -255,10 +257,8 @@ def tiff_encode(
         ssize_t packedrowsize = 0
         ssize_t tile_packedrowsize = 0
         int bps_encode = 0
-        ssize_t frames = 1
         ssize_t planes = 1  # planar samples
         ssize_t length = 1
-        ssize_t width = 1
         ssize_t samples = 1  # contig samples
         ssize_t extrasamples = 0
         ssize_t photometric_samples = 1
@@ -277,6 +277,10 @@ def tiff_encode(
         char* datetime_ = NULL
         char* iccprofile_ = NULL
         int ret
+        imagelayout_t layout
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
     if src.dtype.kind == 'u':
         sampleformat_ = SAMPLEFORMAT_UINT
@@ -290,9 +294,6 @@ def tiff_encode(
         sampleformat_ = SAMPLEFORMAT_UINT
     else:
         raise ValueError(f'{src.dtype.kind=!r} not supported')
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if appendto is None or len(appendto) == 0:
         if bigtiff is None:
@@ -316,7 +317,7 @@ def tiff_encode(
     mode_ = mode
 
     if subfiletype is not None:
-        subfiletype_ = subfiletype
+        subfiletype_ = _enum_value(subfiletype, _TIFF.FILETYPE)
 
     if compression is None:
         if level is None:
@@ -488,18 +489,17 @@ def tiff_encode(
     #     # remove trailing length-1 dimensions
     #     ndim -= 1
 
-    if ndim == 0:
-        pass
-    elif ndim == 1:
-        width = src.shape[0]
-    elif ndim == 2:
-        length = src.shape[0]
-        width = src.shape[1]
+    # pre-compute photometric hint for _image_layout
+    # _image_layout handles string/int mapping for explicit photometric,
+    # but TIFF's RGB auto-detect is stricter (uint + bps<=16 only)
+    if photometric is not None:
+        photo_for_layout = photometric
+    elif colormap is not None:
+        photo_for_layout = IC_PHOTO_PALETTE
     elif (
-        # autodetect RGB(A)
-        photometric is None
-        and sampleformat_ == SAMPLEFORMAT_UINT
+        sampleformat_ == SAMPLEFORMAT_UINT
         and bitspersample_ <= 16
+        and ndim >= 3
         and (
             (
                 src.shape[ndim - 1] in {3, 4}
@@ -514,40 +514,63 @@ def tiff_encode(
             )
         )
     ):
-        photometric_ = PHOTOMETRIC_RGB
-        photometric_samples = 3
-        if planarconfig_ == PLANARCONFIG_CONTIG:
-            length = src.shape[ndim - 3]
-            width = src.shape[ndim - 2]
-            samples = src.shape[ndim - 1]
-        else:
-            planes = src.shape[ndim - 3]
-            length = src.shape[ndim - 2]
-            width = src.shape[ndim - 1]
-        for i in range(ndim - 3):
-            frames *= src.shape[i]
-    elif photometric_samples == 1 and extrasample is None:
-        length = src.shape[ndim - 2]
-        width = src.shape[ndim - 1]
-        for i in range(ndim - 2):
-            frames *= src.shape[i]
+        photo_for_layout = IC_PHOTO_RGB
     else:
-        if planarconfig_ == PLANARCONFIG_CONTIG:
-            length = src.shape[ndim - 3]
-            width = src.shape[ndim - 2]
-            samples = src.shape[ndim - 1]
-        else:
-            planes = src.shape[ndim - 3]
-            length = src.shape[ndim - 2]
-            width = src.shape[ndim - 1]
-        for i in range(ndim - 3):
-            frames *= src.shape[i]
+        photo_for_layout = IC_PHOTO_GRAY
 
-    if samples * planes > UINT16_MAX:
-        raise ValueError(f'too many samples={samples * planes}')
+    _image_layout(
+        IC_UINT
+        | IC_SINT
+        | IC_FLOAT
+        | IC_COMPLEX
+        | IC_BOOL
+        | IC_SZ1
+        | IC_SZ2
+        | IC_SZ4
+        | IC_SZ8
+        | IC_SZ16
+        | IC_GRAY
+        | IC_RGB
+        | IC_PALETTE
+        | IC_CMYK
+        | IC_YCBCR
+        | IC_FRAMES
+        | IC_PLANAR
+        | IC_ALPHA
+        | IC_EXTRA
+        | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        photo_for_layout,
+        bitspersample,
+        True if planarconfig_ == PLANARCONFIG_SEPARATE else None,
+        None,  # layout.frames
+        None,  # volumetric
+        <int> extrasample_ if extrasample is not None else None,
+        &layout,
+    )
 
-    samplesperpixel_ = <uint16_t> (samples * planes)
+    length = max(1, layout.height)
+    if layout.planar:
+        planes = layout.samples
+        samples = 1
+        planarconfig_ = PLANARCONFIG_SEPARATE
+    else:
+        samples = layout.samples
+        planes = 1
 
+    if photometric is None and colormap is None:
+        if layout.photometric == IC_PHOTO_RGB:
+            photometric_ = PHOTOMETRIC_RGB
+    # else: keep photometric_ from user parameter parsing
+
+    if layout.samples > UINT16_MAX:
+        raise ValueError(f'too many samples={layout.samples}')
+
+    samplesperpixel_ = <uint16_t> layout.samples
+
+    photometric_samples = _photo_samples(layout.photometric)
     extrasamples = samplesperpixel_ - photometric_samples
     if extrasamples < 0:
         raise ValueError(f'{samplesperpixel_=} < {photometric_samples=}')
@@ -561,8 +584,8 @@ def tiff_encode(
             extrasample_ = EXTRASAMPLE_UNASSALPHA
         extrasamples_[0] = extrasample_
 
-    framesize = planes * length * width * samples * itemsize
-    rowsize = width * samples * itemsize
+    framesize = planes * length * layout.width * samples * itemsize
+    rowsize = layout.width * samples * itemsize
     if tile is None:
         if rowsperstrip is None:
             rowsperstrip = 262144 // rowsize
@@ -593,7 +616,7 @@ def tiff_encode(
             # standard bit depth matches dtype. skip packints path
             bps_encode = 0
         else:
-            packedrowsize = (width * samples * bps_encode + 7) // 8
+            packedrowsize = (layout.width * samples * bps_encode + 7) // 8
             rowbuf = <uint8_t*> malloc(packedrowsize)
             if rowbuf == NULL:
                 raise MemoryError('failed to allocate rowbuf')
@@ -621,10 +644,10 @@ def tiff_encode(
     else:
         out = None
         if compression_ == COMPRESSION_NONE:
-            dstsize = src.nbytes + frames * 512
-            incsize = frames * 512
+            dstsize = src.nbytes + layout.frames * 512
+            incsize = layout.frames * 512
         else:
-            dstsize = src.nbytes // 3 + frames * 512
+            dstsize = src.nbytes // 3 + layout.frames * 512
             incsize = src.nbytes // 3
         if description:
             dstsize += len(description)
@@ -683,7 +706,7 @@ def tiff_encode(
             TIFFOpenOptionsFree(openoptions)
             openoptions = NULL
 
-            for i in range(frames):
+            for i in range(layout.frames):
 
                 if subfiletype_ != 0:
                     ret = TIFFSetField(tif, TIFFTAG_SUBFILETYPE, subfiletype_)
@@ -698,7 +721,9 @@ def tiff_encode(
                 ret = TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, bitspersample_)
                 if ret == 0:
                     raise TiffError(memtifobj)
-                ret = TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, <uint32_t> width)
+                ret = TIFFSetField(
+                    tif, TIFFTAG_IMAGEWIDTH, <uint32_t> layout.width
+                )
                 if ret == 0:
                     raise TiffError(memtifobj)
                 ret = TIFFSetField(tif, TIFFTAG_IMAGELENGTH, <uint32_t> length)
@@ -894,7 +919,7 @@ def tiff_encode(
                             rowbuf,
                             planes,
                             length,
-                            width * samples,
+                            layout.width * samples,
                             itemsize,
                             packedrowsize,
                             bps_encode
@@ -925,7 +950,7 @@ def tiff_encode(
                             tile_packed_,
                             planes,
                             length,
-                            width,
+                            layout.width,
                             tile_length,
                             tile_width,
                             tilesize,
@@ -949,7 +974,7 @@ def tiff_encode(
                             tile_,
                             planes,
                             length,
-                            width,
+                            layout.width,
                             tile_length,
                             tile_width,
                             tilesize,
@@ -1813,7 +1838,7 @@ cdef int _tiff_decode_tiled(
                 if sizeleft < 0:
                     return -2
                 i = tp * sp + (td + d) * sd + (tl + h) * sl + tw * sw
-                j = h * tilewidth * samplesize
+                j = (d * tilelength + h) * tilewidth * samplesize
                 # TODO: check out of bounds writes?
                 memcpy(<void*> &dst[i], <const void*> &tile[j], size)
     return 1
