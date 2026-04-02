@@ -103,28 +103,36 @@ def gif_encode(
         ssize_t i, j, imagesize
         int imagecount = 1
         int ret, err = 0
-
-    if not (
-        src.dtype == numpy.uint8
-        and src.ndim in {2, 3}
-        and src.shape[0] < 65536
-        and src.shape[1] < 65536
-    ):
-        raise ValueError('invalid data shape or dtype')
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if src.ndim > 2:
-        imagecount = <int> src.shape[0]
-        height = <GifWord> src.shape[1]
-        width = <GifWord> src.shape[2]
-        imagesize = src.shape[1] * src.shape[2]
-    else:
-        imagecount = 1
-        height = <GifWord> src.shape[0]
-        width = <GifWord> src.shape[1]
-        imagesize = src.shape[0] * src.shape[1]
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_GRAY | IC_FRAMES,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        IC_PHOTO_GRAY,  # photometric (paletted, single channel)
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
+    if not (
+        layout.height > 0
+        and layout.height < 65536
+        and layout.width < 65536
+    ):
+        raise ValueError('invalid data shape or dtype')
+
+    imagecount = <int> layout.frames
+    height = <GifWord> layout.height
+    width = <GifWord> layout.width
+    imagesize = layout.height * layout.width
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -218,6 +226,7 @@ def gif_decode(
         GifImageDesc* descr
         ColorMapObject* colormap
         ExtensionBlock* extblock
+        GifColorType* bgcolor
         memgif_t memgif
         int ret, err = 0
         int colorcount, transparent, disposal
@@ -318,10 +327,20 @@ def gif_decode(
                 previous = 0
                 disposal = DISPOSAL_UNSPECIFIED
 
-                background[0] = (gif.SBackGroundColor) & <GifWord> 0xff
-                background[1] = (gif.SBackGroundColor >> 8) & <GifWord> 0xff
-                background[2] = (gif.SBackGroundColor >> 16) & <GifWord> 0xff
-                background[3] = (gif.SBackGroundColor >> 24) & <GifWord> 0xff
+                if (
+                    gif.SColorMap != NULL
+                    and gif.SBackGroundColor < gif.SColorMap.ColorCount
+                ):
+                    bgcolor = &gif.SColorMap.Colors[gif.SBackGroundColor]
+                    background[0] = bgcolor.Red
+                    background[1] = bgcolor.Green
+                    background[2] = bgcolor.Blue
+                    background[3] = 255
+                else:
+                    background[0] = 0
+                    background[1] = 0
+                    background[2] = 0
+                    background[3] = 255
 
                 for i in range(imagecount):
 
@@ -540,10 +559,10 @@ cdef int gif_output_func(
         if not memgif.owner:
             # raise GifError('OutputFunc', E_GIF_ERR_WRITE_FAILED)
             return 0
-        newsize = _align_ssize_t(memgif.offset + size)
-        if newsize <= <ssize_t> (<double> memgif.size * 1.25):
-            # moderate upsize: overallocate
-            newsize = _align_ssize_t(newsize + newsize // 4)
+        # always over-allocate to avoid repeated reallocations
+        newsize = _align_ssize_t(
+            memgif.offset + size + (memgif.offset + size) // 4
+        )
         tmp = <uint8_t*> realloc(<void*> memgif.data, newsize)
         if tmp == NULL:
             # raise MemoryError('OutputFunc realloc failed')
