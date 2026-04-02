@@ -89,7 +89,7 @@ def htj2k_check(const uint8_t[::1] data, /):
     return (
         sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2
         or sig[:4] == b'\xff\x4f\xff\x51'  # J2K
-        or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2
+        # or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2 ?
     )
 
 
@@ -118,7 +118,7 @@ def htj2k_encode(
         size_t out_len
         ssize_t itemsize = src.itemsize
         ui32 bitdepth = src.itemsize * 8
-        ui32 height, width, samples, tile_w, tile_h, c
+        ui32 tile_w, tile_h, c
         ui32 decompositions = 0 if resolutions is None else resolutions
         float quantization_step = _default_value(level, 0.0, 0.0, 1.0)
         bint is_signed = src.dtype.kind == 'i'
@@ -127,20 +127,43 @@ def htj2k_encode(
         bint at_resolutions = False
         bint at_components = False
         bint color_transform = False
-        bint is_planar = False
         char* profile = NULL  # *IMF* and BROADCAST
         char* prog_order = NULL  # LRCP, RLCP, *RPCL*, PCRL, CPRL
         int ret
-
-    if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
-        raise ValueError(f'invalid data ndim={src.ndim} or dtype={src.dtype}')
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    height = <ui32> src.shape[0]
-    width = <ui32> src.shape[1]
-    samples = 1 if src.ndim == 2 else <ui32> src.shape[2]
+    # htj2k-specific planar auto-detection:
+    # if planar is not explicitly set and the array looks like (S, H, W)
+    # (i.e. shape[2] > 4 and shape[0] <= 4), treat as planar
+    if planar is None and src.ndim == 3:
+        if src.shape[2] > 4 and src.shape[0] <= 4:
+            planar = True
+
+    _image_layout(
+        IC_UINT
+        | IC_SINT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_SZ4
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_EXTRA
+        | IC_PLANAR,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        planar,
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if tile is None:
         tile_w = 0
@@ -151,6 +174,7 @@ def htj2k_encode(
         tile_w, tile_h = tile
 
     if tilepart is not None:
+        tilepart = _enum_value(tilepart, HTJ2K.TILEPART)
         at_resolutions = tilepart & 1  # HTJ2K.TILEPART.RESOLUTIONS
         at_components = tilepart & 2  # HTJ2K.TILEPART.COMPONENTS
 
@@ -159,14 +183,11 @@ def htj2k_encode(
     if reversible is None:
         is_reversible = quantization_step <= 0.0
 
-    if samples > 1:
-        if planar or (planar is None and samples > 4 and height <= 4):
-            # separate bands
-            is_planar = True
-            samples = <ui32> src.shape[0]
-            height = <ui32> src.shape[1]
-            width = <ui32> src.shape[2]
-        elif rgb or (rgb is None and (samples == 3 or samples == 4)):
+    if layout.samples > 1 and not layout.planar:
+        if (
+            rgb or
+            (rgb is None and (layout.samples == 3 or layout.samples == 4))
+        ):
             color_transform = True
 
     try:
@@ -175,16 +196,18 @@ def htj2k_encode(
             file.open()
 
             cs = new codestream()
-            cs.set_planar(is_planar)
+            cs.set_planar(layout.planar)
             cs.set_tilepart_divisions(at_resolutions, at_components)
             cs.request_tlm_marker(tlm_needed)
             if profile != NULL:
                 cs.set_profile(profile)
-            cs.access_siz().set_image_extent(point(width, height))
+            cs.access_siz().set_image_extent(
+                point(<ui32> layout.width, <ui32> layout.height)
+            )
             if tile_w != 0 and tile_h != 0:
                 cs.access_siz().set_tile_size(size(tile_w, tile_h))
-            cs.access_siz().set_num_components(<ui32> samples)
-            for c in range(samples):
+            cs.access_siz().set_num_components(<ui32> layout.samples)
+            for c in range(layout.samples):
                 cs.access_siz().set_component(
                     c, point(1, 1), bitdepth, is_signed
                 )
@@ -205,57 +228,57 @@ def htj2k_encode(
                     ret = _copy_to_codestream(
                         <int8_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
                 else:
                     ret = _copy_to_codestream(
                         <uint8_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
             elif itemsize == 2:
                 if is_signed:
                     ret = _copy_to_codestream(
                         <int16_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
                 else:
                     ret = _copy_to_codestream(
                         <uint16_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
             else:
                 if is_signed:
                     ret = _copy_to_codestream(
                         <int32_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
                 else:
                     ret = _copy_to_codestream(
                         <uint32_t*> src.data,
                         cs,
-                        height,
-                        width,
-                        samples,
-                        is_planar,
+                        layout.height,
+                        layout.width,
+                        layout.samples,
+                        layout.planar,
                     )
             if ret != 0:
                 raise Htj2kError(f'_copy_to_codestream() returned {ret}')
@@ -313,6 +336,9 @@ def htj2k_decode(
         bint is_rgb, is_signed, is_planar, to_planar
         bint is_resilient = resilient
         int ret
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
 
     if skipres is not None:
         try:
@@ -525,7 +551,7 @@ cdef int _copy_from_codestream(
     """Copy ojph codestream to buffer."""
     cdef:
         line_buf* line = NULL
-        ssize_t i, j, stride
+        ssize_t i, j, stride, row_base
         ui32 c = 0
 
     if samples == 1:
@@ -550,8 +576,9 @@ cdef int _copy_from_codestream(
         for c in range(samples):
             for i in range(height):
                 line = cs.pull(c)
+                row_base = i * stride + c
                 for j in range(_min(width, line.size)):
-                    dst[i * stride + j * samples + c] = <data_t> line.i32[j]
+                    dst[row_base + j * samples] = <data_t> line.i32[j]
 
     elif not is_planar and not to_planar:
         stride = width * samples
@@ -567,8 +594,9 @@ cdef int _copy_from_codestream(
         for i in range(height):
             for c in range(samples):
                 line = cs.pull(c)
+                row_base = c * stride + i * width
                 for j in range(_min(width, line.size)):
-                    dst[c * stride + i * width + j] = <data_t> line.i32[j]
+                    dst[row_base + j] = <data_t> line.i32[j]
 
     return 0
 
