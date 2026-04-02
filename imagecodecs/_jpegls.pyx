@@ -75,6 +75,19 @@ def jpegls_version():
 
 def jpegls_check(const uint8_t[::1] data, /):
     """Return whether data is JPEGLS encoded image or None if unknown."""
+    cdef:
+        bytes sig
+
+    if data.nbytes < 4:
+        return False
+    sig = bytes(data[:4])
+    if sig[:2] != b'\xFF\xD8':
+        return False
+    if sig[2:4] == b'\xFF\xF7':  # SOI + SOF55
+        return True
+    if sig[2:4] == b'\xFF\xE8' and data.nbytes >= 12:  # SOI + APP8 (SPIFF)
+        return bytes(data[6:12]) == b'SPIFF\x00'
+    return None
 
 
 def jpegls_encode(
@@ -95,17 +108,32 @@ def jpegls_encode(
         charls_frame_info frameinfo
         # charls_jpegls_pc_parameters preset_coding_parameters
         charls_interleave_mode interleave_mode
+        charls_spiff_color_space spiff_color_space
         int32_t near_lossless = _default_value(level, 0, 0, None)
         uint32_t rowstride = <uint32_t> src.strides[0]
         size_t byteswritten
         size_t size_in_bytes
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
     if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        and src.ndim in {2, 3}
+        layout.height > 0
         and srcsize <= UINT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
@@ -132,19 +160,22 @@ def jpegls_encode(
     # preset_coding_parameters.reset_value = 0
 
     # memset(<void*> &frameinfo, 0, sizeof(charls_frame_info))
-    frameinfo.width = <uint32_t> src.shape[1]
-    frameinfo.height = <uint32_t> src.shape[0]
-    frameinfo.bits_per_sample = <int32_t> (src.itemsize * 8)
+    frameinfo.width = <uint32_t> layout.width
+    frameinfo.height = <uint32_t> layout.height
+    frameinfo.bits_per_sample = <int32_t> layout.bitspersample
 
-    if src.ndim == 2 or src.shape[2] == 1:
+    if layout.samples == 1:
         frameinfo.component_count = 1
         interleave_mode = CHARLS_INTERLEAVE_MODE_NONE
-    elif src.shape[2] == 3:
+        spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_GRAYSCALE
+    elif layout.samples == 3:
         frameinfo.component_count = 3
         interleave_mode = CHARLS_INTERLEAVE_MODE_SAMPLE
-    elif src.shape[2] == 4:
+        spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_RGB
+    elif layout.samples == 4:
         frameinfo.component_count = 4
         interleave_mode = CHARLS_INTERLEAVE_MODE_LINE
+        spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_RGB
     else:
         raise ValueError('invalid shape')
 
@@ -222,7 +253,7 @@ def jpegls_encode(
 
             ret = charls_jpegls_encoder_write_standard_spiff_header(
                 encoder,
-                CHARLS_SPIFF_COLOR_SPACE_RGB,
+                spiff_color_space,
                 CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_INCH,
                 300,
                 300
