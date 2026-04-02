@@ -131,7 +131,7 @@ def jpegxs_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         numpy.ndarray src = numpy.ascontiguousarray(data)
         ssize_t dstsize = 0
-        ssize_t s, i, j, itemsize
+        ssize_t s, i, j
         ssize_t config_str_max_len = 0
         size_t bitstream_buf_size = 0
         char* config_str = NULL
@@ -142,34 +142,37 @@ def jpegxs_encode(
         xs_image_t xs_image
         xs_config_t xs_config
         bint ret = False
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
+
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        bitspersample,
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     memset(<void*> &xs_image, 0, sizeof(xs_image))
     memset(<void*> &xs_config, 0, sizeof(xs_config))
 
     xs_config.verbose = int(verbose) if verbose else 0
 
-    # TODO: handle planar config
-    if src.ndim == 2:
-        xs_image.height = <int> src.shape[0]
-        xs_image.width = <int> src.shape[1]
-        xs_image.ncomps = 1
-    elif src.ndim == 3 and src.shape[2] <= 4:
-        xs_image.height = <int> src.shape[0]
-        xs_image.width = <int> src.shape[1]
-        xs_image.ncomps = <int> src.shape[2]
-    else:
-        raise ValueError(f'data.ndim={src.ndim} not supported')
+    xs_image.height = <int> layout.height
+    xs_image.width = <int> layout.width
+    xs_image.ncomps = <int> layout.samples
 
-    if src.dtype.kind != 'u' or src.dtype.itemsize > 2:
-        raise ValueError('{data.dtype=} not supported')
-
-    itemsize = src.dtype.itemsize
     if bitspersample is None:
-        xs_image.depth = <int> (itemsize * 8)
-    elif 8 <= bitspersample < 16:
+        xs_image.depth = layout.bitspersample
+    elif 8 <= bitspersample <= 16:
         xs_image.depth = bitspersample
     else:
         raise ValueError(f'{bitspersample=} not supported')
@@ -210,13 +213,13 @@ def jpegxs_encode(
             for s in range(xs_image.ncomps):
                 comptr = xs_image.comps_array[s]
                 j = 0
-                if itemsize == 1:
-                    src8 = <uint8_t*> &src.data[s * itemsize]
+                if layout.itemsize == 1:
+                    src8 = <uint8_t*> &src.data[s * layout.itemsize]
                     for i in range(xs_image.height * xs_image.width):
                         comptr[i] = <xs_data_in_t> src8[j]
                         j += xs_image.ncomps
                 else:
-                    src16 = <uint16_t*> &src.data[s * itemsize]
+                    src16 = <uint16_t*> &src.data[s * layout.itemsize]
                     for i in range(xs_image.height * xs_image.width):
                         comptr[i] = <xs_data_in_t> src16[j]
                         j += xs_image.ncomps
