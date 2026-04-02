@@ -138,12 +138,41 @@ def jpeg2k_encode(
         int num_threads = _default_threads(numthreads)
         int irreversible = 0 if reversible else 1
         bint tcp_mct = bool(mct)
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    if not (src.dtype.char in 'bBhHiIlL' and src.ndim in {2, 3}):
-        raise ValueError('invalid data shape or dtype')
+    # jpeg2k-specific planar auto-detection:
+    # if planar is not explicitly set and the array looks like (S, H, W)
+    # (i.e. shape[2] > 4 and shape[0] <= 4), treat as planar
+    if planar is None and src.ndim == 3:
+        if src.shape[2] > 4 and src.shape[0] <= 4:
+            planar = True
+
+    _image_layout(
+        IC_UINT
+        | IC_SINT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_SZ4
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_EXTRA
+        | IC_PLANAR
+        | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        bitspersample,
+        planar,
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if srcsize > UINT32_MAX:
         raise ValueError('tile size must not exceed 4 GB')
@@ -164,32 +193,32 @@ def jpeg2k_encode(
         raise ValueError('invalid codecformat')
 
     sgnd = 1 if src.dtype.kind == 'i' else 0
-    prec = <OPJ_UINT32> src.itemsize * 8
-    width = <OPJ_UINT32> src.shape[1]
-    height = <OPJ_UINT32> src.shape[0]
-    samples = 1 if src.ndim == 2 else <OPJ_UINT32> src.shape[2]
+    prec = <OPJ_UINT32> layout.bitspersample
+    width = <OPJ_UINT32> layout.width
+    height = <OPJ_UINT32> layout.height
+    samples = <OPJ_UINT32> layout.samples
 
-    if samples > 1:
-        if planar or (planar is None and samples > 4 and height <= 4):
-            # separate bands
-            samples = <OPJ_UINT32> src.shape[0]
-            height = <OPJ_UINT32> src.shape[1]
-            width = <OPJ_UINT32> src.shape[2]
-        else:
-            # contig
-            # TODO: avoid full copy
-            src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
+    if samples > 1 and not layout.planar:
+        # contig: convert to planar for OpenJPEG
+        # TODO: avoid full copy
+        src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
 
     if bitspersample is not None:
-        if prec == 8:
-            if bitspersample > 0 and bitspersample < 8:
-                prec = bitspersample
-        elif prec == 16:
-            if bitspersample > 8 and bitspersample < 16:
-                prec = bitspersample
-        elif prec == 32:
-            if bitspersample > 16 and bitspersample < 32:
-                prec = bitspersample
+        if layout.itemsize == 1:
+            if prec > 0 and prec < 8:
+                pass  # use provided bitspersample
+            else:
+                prec = 8
+        elif layout.itemsize == 2:
+            if prec > 8 and prec < 16:
+                pass
+            else:
+                prec = 16
+        elif layout.itemsize == 4:
+            if prec > 16 and prec < 32:
+                pass
+            else:
+                prec = 32
     if prec > 26:
         # TODO: OpenJPEG currently only supports up to 31, effectively 26-bit?
         prec = 26
@@ -384,7 +413,7 @@ def jpeg2k_encode(
 
             if num_threads != 1 and opj_has_thread_support():
                 if num_threads == 0:
-                    num_threads = opj_get_num_cpus() / 2
+                    num_threads = opj_get_num_cpus() // 2
                     num_threads = 1 if num_threads < 1 else num_threads
                 ret = opj_codec_set_threads(codec, num_threads)
                 if ret == OPJ_FALSE:
@@ -526,6 +555,7 @@ def jpeg2k_decode(
             if num_threads != 1 and opj_has_thread_support():
                 if num_threads == 0:
                     num_threads = opj_get_num_cpus() / 2
+                    num_threads = 1 if num_threads < 1 else num_threads
                 ret = opj_codec_set_threads(codec, num_threads)
                 if ret == OPJ_FALSE:
                     raise Jpeg2kError('opj_codec_set_threads failed')
@@ -674,25 +704,25 @@ cdef int _opj_copy_image_comps(
 ) noexcept nogil:
     """Copy opj_image component data to buffer."""
     cdef:
-        ssize_t i, j, k
+        ssize_t i, j
         OPJ_INT32* band
+        data_t* dstband
 
     if samples == 1:
         band = comps[0].data
         for j in range(bandsize):
-            dst[j * samples] = <data_t> band[j]
+            dst[j] = <data_t> band[j]
     elif contig:
         for i in range(samples):
             band = comps[i].data
             for j in range(bandsize):
                 dst[j * samples + i] = <data_t> band[j]
     else:
-        k = 0
         for i in range(samples):
             band = comps[i].data
+            dstband = dst + i * bandsize
             for j in range(bandsize):
-                dst[k] = <data_t> band[j]
-                k += 1
+                dstband[j] = <data_t> band[j]
 
 
 ctypedef struct memopj_t:
@@ -733,15 +763,12 @@ cdef OPJ_BOOL opj_mem_resize(
     cdef:
         OPJ_UINT8* tmp
 
-    if newsize < 0:
-        return OPJ_FALSE
     if newsize <= memopj.size:
         return OPJ_TRUE
     if not memopj.owner:
         return OPJ_FALSE
-    if newsize <= <OPJ_SIZE_T> (<double> memopj.size * 1.25):
-        # moderate upsize: overallocate
-        newsize = _align_size_t(newsize + newsize // 4)
+    # always over-allocate to avoid repeated reallocations
+    newsize = _align_size_t(newsize + newsize // 4)
     tmp = <OPJ_UINT8*> realloc(<void*> memopj.data, newsize)
     if tmp == NULL:
         return OPJ_FALSE
