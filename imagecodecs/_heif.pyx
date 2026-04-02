@@ -124,7 +124,7 @@ def heif_encode(
         ssize_t itemsize = data.dtype.itemsize
         ssize_t dstsize
         ssize_t srcindex
-        ssize_t height, width, samples, depth, row, rowsize, imagecount
+        ssize_t depth, rowsize
         output_t* compressed = NULL
         heif_context* context = NULL
         heif_encoder* encoder = NULL
@@ -146,56 +146,49 @@ def heif_encode(
         uint16_t* src2ptr = NULL
         uint16_t* y2ptr = NULL
         uint16_t* a2ptr = NULL
-
-    if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        # and numpy.PyArray_ISCONTIGUOUS(src)
-        and src.ndim in {2, 3, 4}
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
-        and src.shape[src.ndim - 1] <= INT32_MAX
-        and src.shape[src.ndim - 2] <= INT32_MAX
-    ):
-        raise ValueError('invalid data shape, strides, or dtype')
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_FRAMES
+        | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        photometric,
+        bitspersample,
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
+    if not (
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
+    ):
+        raise ValueError('invalid data shape, strides, or dtype')
+
     compression_format = _heif_compression(compression)
     colorspace = _heif_photometric(photometric)
 
-    # TODO: encode extrasamples as aux images
-    if src.ndim == 2:
-        imagecount = 1
-        height = src.shape[0]
-        width = src.shape[1]
-        samples = 1
-    elif src.ndim == 3:
-        if src.shape[2] > 4 or colorspace == heif_colorspace_monochrome:
-            imagecount = src.shape[0]
-            height = src.shape[1]
-            width = src.shape[2]
-            samples = 1
-        else:
-            imagecount = 1
-            height = src.shape[0]
-            width = src.shape[1]
-            samples = src.shape[2]
-    elif src.ndim == 4:
-        imagecount = src.shape[0]
-        height = src.shape[1]
-        width = src.shape[2]
-        samples = src.shape[3]
-    else:
-        raise ValueError(f'{src.ndim} dimensions not supported')
-
-    monochrome = samples < 3
-    hasalpha = samples in {2, 4}
+    monochrome = layout.samples < 3
+    hasalpha = layout.extracount > 0
 
     if bitspersample is None:
         depth = 8 if itemsize == 1 else 10
     else:
-        depth = bitspersample
+        depth = layout.bitspersample
         if (
             depth not in {8, 10, 12}
             or (depth == 8 and itemsize == 2)
@@ -231,7 +224,7 @@ def heif_encode(
 
     try:
         with nogil:
-            rowsize = width * samples * itemsize
+            rowsize = layout.width * layout.samples * itemsize
 
             context = heif_context_alloc()
             if context == NULL:
@@ -283,7 +276,7 @@ def heif_encode(
             if monochrome:
                 colorspace = heif_colorspace_monochrome
                 chroma = heif_chroma_monochrome
-            elif samples == 3:
+            elif layout.samples == 3:
                 colorspace = heif_colorspace_RGB
                 if depth == 8:
                     chroma = heif_chroma_interleaved_RGB
@@ -297,11 +290,11 @@ def heif_encode(
                 chroma = heif_chroma_interleaved_RRGGBBAA_LE
 
             srcindex = 0
-            for imageindex in range(imagecount):
+            for imageindex in range(layout.frames):
 
                 err = heif_image_create(
-                    <int> width,
-                    <int> height,
+                    <int> layout.width,
+                    <int> layout.height,
                     colorspace,
                     chroma,
                     &image
@@ -313,8 +306,8 @@ def heif_encode(
                     err = heif_image_add_plane(
                         image,
                         heif_channel_Y,
-                        <int> width,
-                        <int> height,
+                        <int> layout.width,
+                        <int> layout.height,
                         <int> depth
                     )
                     if err.code != 0:
@@ -330,8 +323,8 @@ def heif_encode(
                         err = heif_image_add_plane(
                             image,
                             heif_channel_Alpha,
-                            <int> width,
-                            <int> height,
+                            <int> layout.width,
+                            <int> layout.height,
                             <int> depth
                         )
                         if err.code != 0:
@@ -349,8 +342,8 @@ def heif_encode(
                         #    TODO: handle planar input
 
                         if itemsize == 1:
-                            for row in range(height):
-                                for col in range(width):
+                            for row in range(layout.height):
+                                for col in range(layout.width):
                                     yptr[col] = srcptr[srcindex]
                                     srcindex += 1
                                     aptr[col] = srcptr[srcindex]
@@ -359,10 +352,10 @@ def heif_encode(
                                 aptr += astride
                         else:
                             src2ptr = <uint16_t*> srcptr
-                            for row in range(height):
+                            for row in range(layout.height):
                                 y2ptr = <uint16_t*> yptr
                                 a2ptr = <uint16_t*> aptr
-                                for col in range(width):
+                                for col in range(layout.width):
                                     y2ptr[col] = src2ptr[srcindex]
                                     srcindex += 1
                                     a2ptr[col] = src2ptr[srcindex]
@@ -371,7 +364,7 @@ def heif_encode(
                                 aptr += astride
 
                     else:
-                        for row in range(height):
+                        for row in range(layout.height):
                             memcpy(
                                 <void*> yptr,
                                 <const void*> srcptr,
@@ -388,8 +381,8 @@ def heif_encode(
                     err = heif_image_add_plane(
                         image,
                         heif_channel_interleaved,
-                        <int> width,
-                        <int> height,
+                        <int> layout.width,
+                        <int> layout.height,
                         <int> depth
                     )
                     if err.code != 0:
@@ -404,7 +397,7 @@ def heif_encode(
                         raise HeifError('heif_image_get_plane', b'NULL')
 
                     # assert stride >= <int> rowsize:
-                    for row in range(height):
+                    for row in range(layout.height):
                         memcpy(
                             <void*> dstptr, <const void*> srcptr, rowsize
                         )
@@ -860,10 +853,16 @@ cdef int output_write(
     size_t size
 ) noexcept nogil:
     """Write data to output."""
+    cdef:
+        size_t newsize
+
     if output == NULL:
         return 0
     if output.pos + size > output.size:
-        if output_resize(output, _align_size_t(output.pos + size)) == 0:
+        newsize = output.pos + size
+        if output_resize(
+            output, _align_size_t(newsize + newsize // 4)
+        ) == 0:
             return 0
     memcpy(<void*> (output.data + output.pos), data, size)
     output.pos += size
