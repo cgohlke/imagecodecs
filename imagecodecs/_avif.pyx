@@ -228,7 +228,7 @@ def avif_encode(
         int timescale = 1
         int keyframeinterval = 0
         int maxthreads = _default_threads(numthreads)
-        uint32_t imagecount, width, height, samples, depth
+        uint32_t depth
         size_t rawsize
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
@@ -240,67 +240,74 @@ def avif_encode(
         avifPixelFormat yuvformat = AVIF_PIXEL_FORMAT_YUV444
         avifAddImageFlags flags = AVIF_ADD_IMAGE_FLAG_NONE
         avifCodecChoice codecchoice = AVIF_CODEC_CHOICE_AUTO
-        avifColorPrimaries primaries_ = AVIF_COLOR_PRIMARIES_UNSPECIFIED
+        avifColorPrimaries primaries_ = <avifColorPrimaries> <int> _enum_value(
+            primaries, AVIF.COLOR_PRIMARIES, AVIF_COLOR_PRIMARIES_UNSPECIFIED
+        )
         avifTransferCharacteristics transfer_ = \
-            AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED
-        avifMatrixCoefficients matrix_ = AVIF_MATRIX_COEFFICIENTS_UNSPECIFIED
+            <avifTransferCharacteristics> <int> _enum_value(
+                transfer,
+                AVIF.TRANSFER_CHARACTERISTICS,
+                AVIF_TRANSFER_CHARACTERISTICS_UNSPECIFIED
+            )
+        avifMatrixCoefficients matrix_ = \
+            <avifMatrixCoefficients> <int> _enum_value(
+                matrix,
+                AVIF.MATRIX_COEFFICIENTS,
+                AVIF_MATRIX_COEFFICIENTS_UNSPECIFIED
+            )
         avifResult res
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_FRAMES
+        | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        bitspersample,
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
     if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        and src.ndim in {2, 3, 4}
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
-        and src.shape[src.ndim - 1] <= INT32_MAX
-        and src.shape[src.ndim - 2] <= INT32_MAX
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
-    if src.ndim == 2:
-        samples = 1
-        imagecount = 1
-        height = <uint32_t> src.shape[0]
-        width = <uint32_t> src.shape[1]
-    elif src.ndim == 4:
-        imagecount = <uint32_t> src.shape[0]
-        height = <uint32_t> src.shape[1]
-        width = <uint32_t> src.shape[2]
-        samples = <uint32_t> src.shape[3]
-        if samples > 4:
-            raise ValueError('invalid number of samples')
-    elif src.shape[src.ndim - 1] < 5:
-        imagecount = 1
-        height = <uint32_t> src.shape[0]
-        width = <uint32_t> src.shape[1]
-        samples = <uint32_t> src.shape[2]
-    else:
-        samples = 1
-        imagecount = <uint32_t> src.shape[0]
-        height = <uint32_t> src.shape[1]
-        width = <uint32_t> src.shape[2]
-
-    monochrome = samples < 3
-    hasalpha = samples == 2 or samples == 4
+    monochrome = layout.samples < 3
+    hasalpha = layout.extracount > 0
 
     # TODO: float16 is not yet implemented in libavif
     # if src.dtype == numpy.float16:
     #     isfloat = 1
     #     depth = 16
     if bitspersample is None:
-        depth = <uint32_t> itemsize * 8
+        depth = <uint32_t> layout.bitspersample
     else:
-        depth = bitspersample
+        depth = layout.bitspersample
         if depth not in {8, 10, 12, 16} or (depth == 8 and itemsize == 2):
             raise ValueError('invalid bitspersample')
 
     if tilelog2 is not None:
         tilecolslog2, tilerowslog2 = tilelog2
-        if 0 <= tilerowslog2 <= 6:
+        if not (0 <= tilerowslog2 <= 6):
             raise ValueError('invalid tileRowsLog2')
-        if 0 <= tilecolslog2 <= 6:
+        if not (0 <= tilecolslog2 <= 6):
             raise ValueError('invalid tileColsLog2')
 
     quality = _default_value(
@@ -325,13 +332,6 @@ def avif_encode(
     elif pixelformat is not None:
         yuvformat = _avif_pixelformat(pixelformat)
 
-    if primaries is not None:
-        primaries_ = <avifColorPrimaries> primaries
-    if transfer is not None:
-        transfer_ = <avifTransferCharacteristics> transfer
-    if matrix is not None:
-        matrix_ = <avifMatrixCoefficients> matrix
-
     try:
         with nogil:
             raw.data = NULL
@@ -350,7 +350,12 @@ def avif_encode(
             encoder.keyframeInterval = keyframeinterval
             encoder.timescale = timescale
 
-            image = avifImageCreate(width, height, depth, yuvformat)
+            image = avifImageCreate(
+                <uint32_t> layout.width,
+                <uint32_t> layout.height,
+                depth,
+                yuvformat
+            )
             if image == NULL:
                 raise AvifError('avifImageCreate', 'NULL', encoder.diag.error)
 
@@ -389,15 +394,17 @@ def avif_encode(
                 rgb.format = AVIF_RGB_FORMAT_RGB
             rgb.depth = depth
             rgb.pixels = <uint8_t*> src.data
-            rgb.rowBytes = <uint32_t> (width * samples * itemsize)
+            rgb.rowBytes = <uint32_t> (
+                layout.width * layout.samples * itemsize
+            )
             # rgb.isFloat = isfloat
             # rgb.maxThreads = maxthreads
-            size = height * width * samples * itemsize
+            size = layout.height * layout.width * layout.samples * itemsize
 
-            if imagecount == 1:
+            if layout.frames == 1:
                 flags = AVIF_ADD_IMAGE_FLAG_SINGLE
 
-            for i in range(imagecount):
+            for i in range(layout.frames):
 
                 res = avifImageRGBToYUV(image, &rgb)
                 if res != AVIF_RESULT_OK:
@@ -563,7 +570,7 @@ def avif_decode(
         size = image.height * image.width * samples * itemsize
 
         with nogil:
-            for i in range(imagecount):
+            for i in range(1 if frameindex >= 0 else imagecount):
                 # TODO: verify that images have same shape and dtype
                 if i > 0:
                     res = avifDecoderNextImage(decoder)
