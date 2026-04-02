@@ -1,6 +1,6 @@
 # imagecodecs/meshoptimizer.pxd
 
-# Cython declarations for the `meshoptimizer 1.0` library.
+# Cython declarations for the `meshoptimizer 1.1` library.
 # https://github.com/zeux/meshoptimizer
 
 cdef extern from 'meshoptimizer.h' nogil:
@@ -209,6 +209,40 @@ cdef extern from 'meshoptimizer.h' nogil:
         size_t buffer_size
     )
 
+    size_t meshopt_encodeMeshlet(
+        unsigned char* buffer,
+        size_t buffer_size,
+        const unsigned int* vertices,
+        size_t vertex_count,
+        const unsigned char* triangles,
+        size_t triangle_count
+    )
+
+    size_t meshopt_encodeMeshletBound(
+        size_t max_vertices,
+        size_t max_triangles
+    )
+
+    int meshopt_decodeMeshlet(
+        void* vertices,
+        size_t vertex_count,
+        size_t vertex_size,
+        void* triangles,
+        size_t triangle_count,
+        size_t triangle_size,
+        const unsigned char* buffer,
+        size_t buffer_size
+    )
+
+    int meshopt_decodeMeshletRaw(
+        unsigned int* vertices,
+        size_t vertex_count,
+        unsigned int* triangles,
+        size_t triangle_count,
+        const unsigned char* buffer,
+        size_t buffer_size
+    )
+
     size_t meshopt_encodeVertexBuffer(
         unsigned char* buffer,
         size_t buffer_size,
@@ -316,10 +350,12 @@ cdef extern from 'meshoptimizer.h' nogil:
         meshopt_SimplifyPrune
         meshopt_SimplifyRegularize
         meshopt_SimplifyPermissive
+        meshopt_SimplifyRegularizeLight
 
     cdef enum:
         meshopt_SimplifyVertex_Lock
         meshopt_SimplifyVertex_Protect
+        meshopt_SimplifyVertex_Priority
 
     size_t meshopt_simplify(
         unsigned int* destination,
@@ -558,6 +594,14 @@ cdef extern from 'meshoptimizer.h' nogil:
         size_t vertex_count
     )
 
+    void meshopt_optimizeMeshletLevel(
+        unsigned int* meshlet_vertices,
+        size_t vertex_count,
+        unsigned char* meshlet_triangles,
+        size_t triangle_count,
+        int level
+    )
+
     cdef struct meshopt_Bounds:
         float[3] center
         float radius
@@ -590,6 +634,13 @@ cdef extern from 'meshoptimizer.h' nogil:
         size_t positions_stride,
         const float* radii,
         size_t radii_stride
+    )
+
+    size_t meshopt_extractMeshletIndices(
+        unsigned int* vertices,
+        unsigned char* triangles,
+        const unsigned int* indices,
+        size_t index_count
     )
 
     size_t meshopt_partitionClusters(
@@ -626,6 +677,51 @@ cdef extern from 'meshoptimizer.h' nogil:
         size_t vertex_count,
         size_t vertex_positions_stride,
         size_t cluster_size
+    )
+
+    size_t meshopt_opacityMapMeasure(
+        unsigned char* levels,
+        unsigned int* sources,
+        int* omm_indices,
+        const unsigned int* indices,
+        size_t index_count,
+        const float* vertex_uvs,
+        size_t vertex_count,
+        size_t vertex_uvs_stride,
+        unsigned int texture_width,
+        unsigned int texture_height,
+        int max_level,
+        float target_edge
+    )
+
+    void meshopt_opacityMapRasterize(
+        unsigned char* result,
+        int level,
+        int states,
+        const float* uv0,
+        const float* uv1,
+        const float* uv2,
+        const unsigned char* texture_data,
+        size_t texture_stride,
+        size_t texture_pitch,
+        unsigned int texture_width,
+        unsigned int texture_height
+    )
+
+    size_t meshopt_opacityMapEntrySize(
+        int level,
+        int states
+    )
+
+    size_t meshopt_opacityMapCompact(
+        unsigned char* data,
+        size_t data_size,
+        unsigned char* levels,
+        unsigned int* offsets,
+        size_t omm_count,
+        int* omm_indices,
+        size_t triangle_count,
+        int states
     )
 
     unsigned short meshopt_quantizeHalf(
