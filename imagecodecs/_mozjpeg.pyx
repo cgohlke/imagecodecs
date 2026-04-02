@@ -77,9 +77,10 @@ class MozjpegError(RuntimeError):
 
 def mozjpeg_version():
     """Return mozjpeg library version string."""
-    ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
+    ver = LIBJPEG_TURBO_VERSION_NUMBER
     return 'mozjpeg {}.{}.{}/{:.1f}'.format(
-        int(ver[:1]), int(ver[3:4]), int(ver[6:]), JPEG_LIB_VERSION / 10.0
+        ver // 1000000, ver % 1000000 // 1000, ver % 1000,
+        JPEG_LIB_VERSION / 10.0
     )
 
 
@@ -92,6 +93,7 @@ def mozjpeg_check(const uint8_t[::1] data, /):
         sig[:4] == b'\xFF\xD8\xFF\xDB'
         or sig[:4] == b'\xFF\xD8\xFF\xEE'
         or sig[:4] == b'\xFF\xD8\xFF\xC3'
+        or sig[:4] == b'\xFF\xD8\xFF\xC4'
         or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
         or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
     )
@@ -118,11 +120,10 @@ def mozjpeg_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t rowstride = src.strides[0]
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
-        JSAMPROW rowpointer
+        JSAMPROW rowpointer8
         J_COLOR_SPACE in_color_space = JCS_UNKNOWN
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
@@ -135,29 +136,44 @@ def mozjpeg_encode(
         int quant_table = _default_value(quanttable, -1, 0, 5)
         bint no_trellis = bool(notrellis)
         bint optimize_scans = progressive is None or progressive
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
     if not (
-        src.dtype == numpy.uint8
-        and src.ndim in {2, 3}
-        # src.nbytes <= INT32_MAX and  # limit to 2 GB
-        and samples in {1, 3, 4}
-        and src.strides[src.ndim-1] == src.itemsize
-        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
+        layout.height > 0
+        and src.strides[src.ndim - 1] == src.itemsize
+        and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
     if colorspace is not None:
         in_color_space = _jcs_colorspace(colorspace)
-        if samples not in _jcs_colorspace_samples(in_color_space):
+        if not (
+            _JCS_COLORSPACE_SAMPLES[in_color_space]
+            & (1 << <int> layout.samples)
+        ):
             raise ValueError('invalid data shape')
-    elif samples == 1:
+    elif layout.samples == 1:
         in_color_space = JCS_GRAYSCALE
-    elif samples == 3:
+    elif layout.samples == 3:
         in_color_space = JCS_RGB
-    # elif samples == 4:
+    # elif layout.samples == 4:
     #     in_color_space = JCS_EXT_RGBA
     #     in_color_space = JCS_CMYK
     else:
@@ -218,9 +234,9 @@ def mozjpeg_encode(
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = <JDIMENSION> src.shape[0]
-        cinfo.image_width = <JDIMENSION> src.shape[1]
-        cinfo.input_components = samples
+        cinfo.image_height = <JDIMENSION> layout.height
+        cinfo.image_width = <JDIMENSION> layout.width
+        cinfo.input_components = <int> layout.samples
 
         if in_color_space != JCS_UNKNOWN:
             cinfo.in_color_space = in_color_space
@@ -258,20 +274,22 @@ def mozjpeg_encode(
         jpeg_start_compress(&cinfo, 1)
 
         while cinfo.next_scanline < cinfo.image_height:
-            rowpointer = <JSAMPROW> (
+            rowpointer8 = <JSAMPROW> (
                 <char*> src.data + cinfo.next_scanline * rowstride
             )
-            jpeg_write_scanlines(&cinfo, &rowpointer, 1)
+            jpeg_write_scanlines(&cinfo, &rowpointer8, 1)
 
         jpeg_finish_compress(&cinfo)
         jpeg_destroy_compress(&cinfo)
 
     if out is None or outbuffer != <unsigned char*> &dst[0]:
         # outbuffer was allocated in jpeg_mem_dest
-        out = _create_output(
-            outtype, <ssize_t> outsize, <const char*> outbuffer
-        )
-        free(outbuffer)
+        try:
+            out = _create_output(
+                outtype, <ssize_t> outsize, <const char*> outbuffer
+            )
+        finally:
+            free(outbuffer)
         return out
 
     del dst
@@ -299,7 +317,7 @@ def mozjpeg_decode(
         ssize_t rowstride
         my_error_mgr err
         jpeg_decompress_struct cinfo
-        JSAMPROW rowpointer
+        JSAMPROW rowpointer8
         J_COLOR_SPACE jpeg_color_space
         J_COLOR_SPACE out_color_space
         JDIMENSION width = 0
@@ -351,7 +369,7 @@ def mozjpeg_decode(
 
         if tablesize > 0:
             jpeg_mem_src(&cinfo, &tables_[0], tablesize)
-            jpeg_read_header(&cinfo, 0)
+            jpeg_read_header(&cinfo, 0)  # == JPEG_HEADER_TABLES_ONLY
 
         jpeg_mem_src(&cinfo, &src[0], <unsigned long> srcsize)
         jpeg_read_header(&cinfo, 1)
@@ -365,23 +383,24 @@ def mozjpeg_decode(
 
         with gil:
             # if (cinfo.output_components not in
-            #         _jcs_colorspace_samples(out_color_space)):
+            #     _jcs_colorspace_samples(out_color_space)):
             #     raise ValueError('invalid output shape')
 
             shape = cinfo.output_height, cinfo.output_width
             if cinfo.output_components > 1:
                 shape += cinfo.output_components,
 
-            out = _create_array(out, shape, numpy.uint8)  # TODO: allow strides
+            # TODO: allow strides
+            out = _create_array(out, shape, numpy.uint8)
             dst = out
             dstsize = dst.nbytes
             rowstride = dst.strides[0]
 
         memset(<void*> dst.data, 0, dstsize)
-        rowpointer = <JSAMPROW> dst.data
+        rowpointer8 = <JSAMPROW> dst.data
         while cinfo.output_scanline < cinfo.output_height:
-            jpeg_read_scanlines(&cinfo, &rowpointer, 1)
-            rowpointer += rowstride
+            jpeg_read_scanlines(&cinfo, &rowpointer8, 1)
+            rowpointer8 += rowstride
 
         jpeg_finish_decompress(&cinfo)
         jpeg_destroy_decompress(&cinfo)
@@ -405,63 +424,61 @@ cdef void my_output_message(jpeg_common_struct* cinfo) noexcept nogil:
     pass
 
 
+cdef dict _JCS_COLORSPACE_SAMPLES = {
+    # bitmask: bit N is set when N samples is valid
+    JCS_UNKNOWN: 0b11110,  # 1, 2, 3, 4
+    JCS_GRAYSCALE: 0b00010,  # 1
+    JCS_RGB: 0b01000,  # 3
+    JCS_YCbCr: 0b01000,  # 3
+    JCS_CMYK: 0b10000,  # 4
+    JCS_YCCK: 0b10000,  # 4
+    JCS_EXT_RGB: 0b01000,  # 3
+    JCS_EXT_RGBX: 0b10000,  # 4
+    JCS_EXT_BGR: 0b01000,  # 3
+    JCS_EXT_BGRX: 0b10000,  # 4
+    JCS_EXT_XBGR: 0b10000,  # 4
+    JCS_EXT_XRGB: 0b10000,  # 4
+    JCS_EXT_RGBA: 0b10000,  # 4
+    JCS_EXT_BGRA: 0b10000,  # 4
+    JCS_EXT_ABGR: 0b10000,  # 4
+    JCS_EXT_ARGB: 0b10000,  # 4
+    JCS_RGB565: 0b01000,  # 3
+}
+
+cdef dict _JCS_COLORSPACE_MAP = {
+    None: JCS_UNKNOWN,
+    'UNKNOWN': JCS_UNKNOWN,
+    'GRAY': JCS_GRAYSCALE,
+    'GRAYSCALE': JCS_GRAYSCALE,
+    'MINISWHITE': JCS_GRAYSCALE,
+    'MINISBLACK': JCS_GRAYSCALE,
+    'RGB': JCS_RGB,
+    'CMYK': JCS_CMYK,
+    'SEPARATED': JCS_CMYK,
+    'YCCK': JCS_YCCK,
+    'YCBCR': JCS_YCbCr,
+    'RGBA': JCS_EXT_RGBA,
+    JCS_UNKNOWN: JCS_UNKNOWN,
+    JCS_GRAYSCALE: JCS_GRAYSCALE,
+    JCS_RGB: JCS_RGB,
+    JCS_YCbCr: JCS_YCbCr,
+    JCS_CMYK: JCS_CMYK,
+    JCS_YCCK: JCS_YCCK,
+    JCS_EXT_RGB: JCS_EXT_RGB,
+    JCS_EXT_RGBX: JCS_EXT_RGBX,
+    JCS_EXT_BGR: JCS_EXT_BGR,
+    JCS_EXT_BGRX: JCS_EXT_BGRX,
+    JCS_EXT_XBGR: JCS_EXT_XBGR,
+    JCS_EXT_XRGB: JCS_EXT_XRGB,
+    JCS_EXT_RGBA: JCS_EXT_RGBA,
+    JCS_EXT_BGRA: JCS_EXT_BGRA,
+    JCS_EXT_ABGR: JCS_EXT_ABGR,
+    JCS_EXT_ARGB: JCS_EXT_ARGB,
+    JCS_RGB565: JCS_RGB565,
+}
+
 cdef J_COLOR_SPACE _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
-    return {
-        None: JCS_UNKNOWN,
-        'UNKNOWN': JCS_UNKNOWN,
-        'GRAY': JCS_GRAYSCALE,
-        'GRAYSCALE': JCS_GRAYSCALE,
-        'MINISWHITE': JCS_GRAYSCALE,
-        'MINISBLACK': JCS_GRAYSCALE,
-        'RGB': JCS_RGB,
-        'CMYK': JCS_CMYK,
-        'SEPARATED': JCS_CMYK,
-        'YCCK': JCS_YCCK,
-        'YCBCR': JCS_YCbCr,
-        'RGBA': JCS_EXT_RGBA,
-        JCS_UNKNOWN: JCS_UNKNOWN,
-        JCS_GRAYSCALE: JCS_GRAYSCALE,
-        JCS_RGB: JCS_RGB,
-        JCS_YCbCr: JCS_YCbCr,
-        JCS_CMYK: JCS_CMYK,
-        JCS_YCCK: JCS_YCCK,
-        JCS_EXT_RGB: JCS_EXT_RGB,
-        JCS_EXT_RGBX: JCS_EXT_RGBX,
-        JCS_EXT_BGR: JCS_EXT_BGR,
-        JCS_EXT_BGRX: JCS_EXT_BGRX,
-        JCS_EXT_XBGR: JCS_EXT_XBGR,
-        JCS_EXT_XRGB: JCS_EXT_XRGB,
-        JCS_EXT_RGBA: JCS_EXT_RGBA,
-        JCS_EXT_BGRA: JCS_EXT_BGRA,
-        JCS_EXT_ABGR: JCS_EXT_ABGR,
-        JCS_EXT_ARGB: JCS_EXT_ARGB,
-        JCS_RGB565: JCS_RGB565,
-    }.get(colorspace, JCS_UNKNOWN)
-
-
-cdef _jcs_colorspace_samples(colorspace):
-    """Return expected number of samples in colorspace."""
-    three = (3,)
-    four = (4,)
-    return {
-        JCS_UNKNOWN: (1, 2, 3, 4),
-        JCS_GRAYSCALE: (1,),
-        JCS_RGB: three,
-        JCS_YCbCr: three,
-        JCS_CMYK: four,
-        JCS_YCCK: four,
-        JCS_EXT_RGB: three,
-        JCS_EXT_RGBX: four,
-        JCS_EXT_BGR: three,
-        JCS_EXT_BGRX: four,
-        JCS_EXT_XBGR: four,
-        JCS_EXT_XRGB: four,
-        JCS_EXT_RGBA: four,
-        JCS_EXT_BGRA: four,
-        JCS_EXT_ABGR: four,
-        JCS_EXT_ARGB: four,
-        JCS_RGB565: three,
-    }[colorspace]
+    return _JCS_COLORSPACE_MAP.get(colorspace, JCS_UNKNOWN)
