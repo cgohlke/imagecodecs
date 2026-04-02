@@ -84,12 +84,13 @@ class Jpeg8Error(RuntimeError):
 
 def jpeg8_version():
     """Return libjpeg library version string."""
-    return f'libjpeg {JPEG_LIB_VERSION / 10.0:.1f}'
+    return f'libjpeg {JPEG_LIB_VERSION // 10}.{JPEG_LIB_VERSION % 10}'
 
 
 def jpeg8_check(const uint8_t[::1] data, /):
     """Return whether data is JPEG encoded image or None if unknown."""
-    sig = bytes(data[:10])
+    cdef:
+        bytes sig = bytes(data[:10])
     return (
         sig[:4] == b'\xFF\xD8\xFF\xDB'
         or sig[:4] == b'\xFF\xD8\xFF\xEE'
@@ -122,7 +123,6 @@ def jpeg8_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t rowstride = src.strides[0]
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
@@ -136,6 +136,7 @@ def jpeg8_encode(
         int v_samp_factor = 0
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -147,25 +148,39 @@ def jpeg8_encode(
     if bitspersample not in {None, 8}:
         raise ValueError('bitspersample not supported by legacy JPEG codec')
 
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
     if not (
-        src.dtype == numpy.uint8
-        and src.ndim in {2, 3}
-        # src.nbytes <= INT32_MAX and  # limit to 2 GB
-        and samples in {1, 3, 4}
-        and src.strides[src.ndim-1] == src.itemsize
-        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
+        layout.height > 0
+        and src.strides[src.ndim - 1] == src.itemsize
+        and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
     if colorspace is not None:
         in_color_space = _jcs_colorspace(colorspace)
-        if samples not in _jcs_colorspace_samples(in_color_space):
+        if not (
+            _JCS_COLORSPACE_SAMPLES[in_color_space]
+            & (1 << <int> layout.samples)
+        ):
             raise ValueError('invalid data shape')
-    elif samples == 1:
+    elif layout.samples == 1:
         in_color_space = JCS_GRAYSCALE
-    elif samples == 3:
+    elif layout.samples == 3:
         in_color_space = JCS_RGB
-    # elif samples == 4:
+    # elif layout.samples == 4:
     #     in_color_space = JCS_EXT_RGBA
     #     in_color_space = JCS_CMYK
     else:
@@ -226,9 +241,9 @@ def jpeg8_encode(
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = <JDIMENSION> src.shape[0]
-        cinfo.image_width = <JDIMENSION> src.shape[1]
-        cinfo.input_components = samples
+        cinfo.image_height = <JDIMENSION> layout.height
+        cinfo.image_width = <JDIMENSION> layout.width
+        cinfo.input_components = <int> layout.samples
 
         if in_color_space != JCS_UNKNOWN:
             cinfo.in_color_space = in_color_space
@@ -373,7 +388,6 @@ def jpeg8_decode(
                 shape += cinfo.output_components,
 
             # TODO: allow strides
-
             out = _create_array(out, shape, numpy.uint8)
             dst = out
             dstsize = dst.nbytes
@@ -407,63 +421,61 @@ cdef void my_output_message(jpeg_common_struct* cinfo) noexcept nogil:
     pass
 
 
+cdef dict _JCS_COLORSPACE_SAMPLES = {
+    # bitmask: bit N is set when N samples is valid
+    JCS_UNKNOWN: 0b11110,  # 1, 2, 3, 4
+    JCS_GRAYSCALE: 0b00010,  # 1
+    JCS_RGB: 0b01000,  # 3
+    JCS_YCbCr: 0b01000,  # 3
+    JCS_CMYK: 0b10000,  # 4
+    JCS_YCCK: 0b10000,  # 4
+    6: 0b01000,  # 3
+    7: 0b10000,  # 4
+    8: 0b01000,  # 3
+    9: 0b10000,  # 4
+    10: 0b10000,  # 4
+    11: 0b10000,  # 4
+    12: 0b10000,  # 4
+    13: 0b10000,  # 4
+    14: 0b10000,  # 4
+    15: 0b10000,  # 4
+    16: 0b01000,  # 3
+}
+
+cdef dict _JCS_COLORSPACE_MAP = {
+    None: JCS_UNKNOWN,
+    'UNKNOWN': JCS_UNKNOWN,
+    'GRAY': JCS_GRAYSCALE,
+    'GRAYSCALE': JCS_GRAYSCALE,
+    'MINISWHITE': JCS_GRAYSCALE,
+    'MINISBLACK': JCS_GRAYSCALE,
+    'RGB': JCS_RGB,
+    'CMYK': JCS_CMYK,
+    'SEPARATED': JCS_CMYK,
+    'YCCK': JCS_YCCK,
+    'YCBCR': JCS_YCbCr,
+    'RGBA': 12,
+    JCS_UNKNOWN: JCS_UNKNOWN,
+    JCS_GRAYSCALE: JCS_GRAYSCALE,
+    JCS_RGB: JCS_RGB,
+    JCS_YCbCr: JCS_YCbCr,
+    JCS_CMYK: JCS_CMYK,
+    JCS_YCCK: JCS_YCCK,
+    6: 6,
+    7: 7,
+    8: 8,
+    9: 9,
+    10: 10,
+    11: 11,
+    12: 12,
+    13: 13,
+    14: 14,
+    15: 15,
+    16: 16,
+}
+
 cdef J_COLOR_SPACE _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
-    return {
-        None: JCS_UNKNOWN,
-        'UNKNOWN': JCS_UNKNOWN,
-        'GRAY': JCS_GRAYSCALE,
-        'GRAYSCALE': JCS_GRAYSCALE,
-        'MINISWHITE': JCS_GRAYSCALE,
-        'MINISBLACK': JCS_GRAYSCALE,
-        'RGB': JCS_RGB,
-        'CMYK': JCS_CMYK,
-        'SEPARATED': JCS_CMYK,
-        'YCCK': JCS_YCCK,
-        'YCBCR': JCS_YCbCr,
-        'RGBA': 12,
-        JCS_UNKNOWN: JCS_UNKNOWN,
-        JCS_GRAYSCALE: JCS_GRAYSCALE,
-        JCS_RGB: JCS_RGB,
-        JCS_YCbCr: JCS_YCbCr,
-        JCS_CMYK: JCS_CMYK,
-        JCS_YCCK: JCS_YCCK,
-        6: 6,
-        7: 7,
-        8: 8,
-        9: 9,
-        10: 10,
-        11: 11,
-        12: 12,
-        13: 13,
-        14: 14,
-        15: 15,
-        16: 16,
-    }.get(colorspace, JCS_UNKNOWN)
-
-
-cdef _jcs_colorspace_samples(colorspace):
-    """Return expected number of samples in colorspace."""
-    three = (3,)
-    four = (4,)
-    return {
-        JCS_UNKNOWN: (1, 2, 3, 4),
-        JCS_GRAYSCALE: (1,),
-        JCS_RGB: three,
-        JCS_YCbCr: three,
-        JCS_CMYK: four,
-        JCS_YCCK: four,
-        6: three,
-        7: four,
-        8: three,
-        9: four,
-        10: four,
-        11: four,
-        12: four,
-        13: four,
-        14: four,
-        15: four,
-        16: three,
-    }[colorspace]
+    return _JCS_COLORSPACE_MAP.get(colorspace, JCS_UNKNOWN)
