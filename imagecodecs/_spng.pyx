@@ -104,7 +104,6 @@ def spng_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         size_t srcsize = <size_t> src.nbytes
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int clevel = _default_value(level, -1, -1, 9)
         int err = 0
         int flags = 0
@@ -112,32 +111,45 @@ def spng_encode(
         void* output = NULL
         spng_ctx* ctx = NULL
         spng_ihdr ihdr
-
-    if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        and src.ndim in {2, 3}
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
-        and samples <= 4
-    ):
-        raise ValueError('invalid data shape or dtype')
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
-    ihdr.width = <uint32_t> src.shape[1]
-    ihdr.height = <uint32_t> src.shape[0]
-    ihdr.bit_depth = <uint8_t> (src.dtype.itemsize * 8)
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
+    if not (
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
+    ):
+        raise ValueError('invalid data shape or dtype')
+
+    ihdr.width = <uint32_t> layout.width
+    ihdr.height = <uint32_t> layout.height
+    ihdr.bit_depth = <uint8_t> layout.bitspersample
 
     # libpng can read these files but spng_decode fails with "invalid format"
     # if ihdr.bit_depth > 8:
-    #     if samples == 1:
+    #     if layout.samples == 1:
     #         raise ValueError('SPNG_FMT_G16 not supported')
-    #     if samples == 2:
+    #     if layout.samples == 2:
     #         raise ValueError('SPNG_FMT_GA16 not supported')
-    #     if samples == 3:
+    #     if layout.samples == 3:
     #         raise ValueError('SPNG_FMT_RGB16 not supported')
-    # elif samples == 2:
+    # elif layout.samples == 2:
     #     raise ValueError('SPNG_FMT_GA8 not supported')
 
     try:
@@ -146,19 +158,19 @@ def spng_encode(
             if ctx == NULL:
                 raise SpngError('spng_ctx_new', None)
 
-            if samples == 1:
+            if layout.samples == 1:
                 ihdr.color_type = SPNG_COLOR_TYPE_GRAYSCALE
                 # ihdr.color_type = SPNG_COLOR_TYPE_INDEXED
-            elif samples == 2:
+            elif layout.samples == 2:
                 flags = SPNG_DECODE_TRNS
                 ihdr.color_type = SPNG_COLOR_TYPE_GRAYSCALE_ALPHA
-            elif samples == 3:
+            elif layout.samples == 3:
                 ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR
-            elif samples == 4:
+            elif layout.samples == 4:
                 flags = SPNG_DECODE_TRNS
                 ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR_ALPHA
             else:
-                raise ValueError(f'{samples=} not supported')
+                raise ValueError('samples={layout.samples} not supported')
 
             ihdr.compression_method = 0
             ihdr.filter_method = SPNG_FILTER_NONE
