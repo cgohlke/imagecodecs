@@ -68,6 +68,26 @@ class JPEGXL:
         THERMAL = JXL_CHANNEL_THERMAL
         OPTIONAL = JXL_CHANNEL_OPTIONAL
 
+    class PRIMARIES(enum.IntEnum):
+        """JPEGXL codec color primaries."""
+
+        SRGB = JXL_PRIMARIES_SRGB
+        CUSTOM = JXL_PRIMARIES_CUSTOM
+        BT2100 = JXL_PRIMARIES_2100
+        P3 = JXL_PRIMARIES_P3
+
+    class TRANSFER_FUNCTION(enum.IntEnum):
+        """JPEGXL codec transfer functions."""
+
+        BT709 = JXL_TRANSFER_FUNCTION_709
+        UNKNOWN = JXL_TRANSFER_FUNCTION_UNKNOWN
+        LINEAR = JXL_TRANSFER_FUNCTION_LINEAR
+        SRGB = JXL_TRANSFER_FUNCTION_SRGB
+        PQ = JXL_TRANSFER_FUNCTION_PQ
+        DCI = JXL_TRANSFER_FUNCTION_DCI
+        HLG = JXL_TRANSFER_FUNCTION_HLG
+        GAMMA = JXL_TRANSFER_FUNCTION_GAMMA
+
 
 class JpegxlError(RuntimeError):
     """JPEGXL codec exceptions."""
@@ -117,7 +137,7 @@ def jpegxl_version():
     cdef:
         uint32_t ver = JxlDecoderVersion()
 
-    return f'libjxl {ver / 1000000}.{(ver / 1000) % 1000}.{ver % 1000}'
+    return f'libjxl {ver // 1000000}.{ver % 1000000 // 1000}.{ver % 1000}'
 
 
 def jpegxl_check(const uint8_t[::1] data, /):
@@ -141,6 +161,8 @@ def jpegxl_encode(
     bitspersample=None,
     # extrasamples=None,
     planar=None,
+    primaries=None,
+    transfer=None,
     usecontainer=None,
     numthreads=None,
     out=None,
@@ -160,9 +182,6 @@ def jpegxl_encode(
         ssize_t dstsize
         size_t srcsize
         ssize_t frame
-        ssize_t ysize, xsize
-        ssize_t frames = 1
-        ssize_t samples = 1
         int colorspace = -1
         size_t avail_out = 0
         uint8_t* next_out = NULL
@@ -187,9 +206,16 @@ def jpegxl_encode(
         int option_effort = _default_value(effort, 5, 1, 10)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
         size_t num_threads = _default_threads(numthreads)
+        JxlPrimaries primaries_ = <JxlPrimaries> <int> _enum_value(
+            primaries, JPEGXL.PRIMARIES, -1
+        )
+        JxlTransferFunction transfer_ = <JxlTransferFunction> <int> (
+            _enum_value(transfer, JPEGXL.TRANSFER_FUNCTION, -1)
+        )
         size_t channel_index
         uint32_t bits_per_sample
-        bint is_planar = bool(planar)
+        bint is_planar
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -210,8 +236,36 @@ def jpegxl_encode(
     srcsize = <size_t> src.nbytes
     buffer = src.data
 
-    if not (src.dtype.kind in 'uf' and src.ndim in {2, 3, 4}):
-        raise ValueError('invalid data shape or dtype')
+    _image_layout(
+        IC_UINT
+        | IC_FLOAT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_SZ4
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_EXTRA
+        | IC_FRAMES
+        | IC_PLANAR
+        | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        photometric,
+        bitspersample,
+        planar,
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
+    if layout.width >= UINT32_MAX or layout.height >= UINT32_MAX:
+        raise ValueError(
+            f'image width={layout.width} or '
+            f'height={layout.height} >= {UINT32_MAX}'
+        )
 
     memset(<void*> &bit_depth, 0, sizeof(JxlBitDepth))
     if bitspersample is None or src.dtype.kind == 'f':
@@ -249,81 +303,40 @@ def jpegxl_encode(
 
     colorspace = _jpegxl_encode_photometric(photometric)
 
-    # TODO: support multi-channel in non-planar mode
-    if src.ndim == 2:
-        frames = 1
-        ysize = src.shape[0]
-        xsize = src.shape[1]
-        samples = 1
-        is_planar = False
-    elif is_planar:
+    is_planar = layout.planar
+    if is_planar:
         if colorspace != -1 and colorspace != JXL_COLOR_SPACE_GRAY:
             raise NotImplementedError(
                 'only grayscale images are supported in planar mode'
             )
         if colorspace == -1:
             colorspace = JXL_COLOR_SPACE_GRAY
-        if src.ndim == 3:
-            frames = 1
-            samples = src.shape[0]
-            ysize = src.shape[1]
-            xsize = src.shape[2]
-        elif src.ndim == 4:
-            frames = src.shape[0]
-            samples = src.shape[1]
-            ysize = src.shape[2]
-            xsize = src.shape[3]
-        else:
-            raise ValueError(f'{src.ndim} dimensions not supported')
-        if samples == 1:
+        if layout.samples == 1:
             is_planar = False
-    elif src.ndim == 3:
-        if src.shape[2] > 4 or colorspace == JXL_COLOR_SPACE_GRAY:
-            frames = src.shape[0]
-            ysize = src.shape[1]
-            xsize = src.shape[2]
-            samples = 1
-        else:
-            frames = 1
-            ysize = src.shape[0]
-            xsize = src.shape[1]
-            samples = src.shape[2]
-    elif src.ndim == 4:
-        frames = src.shape[0]
-        ysize = src.shape[1]
-        xsize = src.shape[2]
-        samples = src.shape[3]
-    else:
-        raise ValueError(f'{src.ndim} dimensions not supported')
-
-    if xsize >= UINT32_MAX or ysize >= UINT32_MAX:
-        raise ValueError(
-            f'image width={xsize} or height={ysize} >= {UINT32_MAX}'
-        )
 
     if colorspace == -1:
-        if samples > 2:
+        if layout.samples > 2:
             colorspace = JXL_COLOR_SPACE_RGB
         else:
             colorspace = JXL_COLOR_SPACE_GRAY
-    elif samples < 3:
+    elif layout.samples < 3:
         colorspace = JXL_COLOR_SPACE_GRAY
 
-    basic_info.xsize = <uint32_t> xsize
-    basic_info.ysize = <uint32_t> ysize
+    basic_info.xsize = <uint32_t> layout.width
+    basic_info.ysize = <uint32_t> layout.height
     if colorspace == JXL_COLOR_SPACE_GRAY:
         basic_info.num_color_channels = 1
     else:
         basic_info.num_color_channels = 3
-    assert samples - basic_info.num_color_channels >= 0
+    assert layout.samples - basic_info.num_color_channels >= 0
     basic_info.num_extra_channels = (
-        <uint32_t> samples - basic_info.num_color_channels
+        <uint32_t> layout.samples - basic_info.num_color_channels
     )
 
     if is_planar:
         pixel_format.num_channels = basic_info.num_color_channels
     else:
-        pixel_format.num_channels = <uint32_t> samples
+        pixel_format.num_channels = <uint32_t> layout.samples
     pixel_format.endianness = JXL_NATIVE_ENDIAN
     pixel_format.align = 0  # TODO: allow strides
 
@@ -371,16 +384,16 @@ def jpegxl_encode(
                     f'{basic_info.num_extra_channels} extra channels '
                     'not supported in contig mode'
                 )
-            if frames > 1:
+            if layout.frames > 1:
                 basic_info.have_animation = JXL_TRUE
                 basic_info.animation.tps_numerator = 10
                 basic_info.animation.tps_denominator = 1
                 basic_info.animation.num_loops = 0
                 basic_info.animation.have_timecodes = JXL_FALSE
 
-            framesize = ysize * xsize * dtype.itemsize
+            framesize = layout.height * layout.width * dtype.itemsize
             if not is_planar:
-                framesize *= samples
+                framesize *= layout.samples
 
             encoder = JxlEncoderCreate(NULL)
             if encoder == NULL:
@@ -403,8 +416,27 @@ def jpegxl_encode(
             if status != JXL_ENC_SUCCESS:
                 raise JpegxlError('JxlEncoderSetBasicInfo', status)
 
-            # TODO: review this
-            if pixel_format.data_type == JXL_TYPE_UINT8:
+            if <int> primaries_ != -1 or <int> transfer_ != -1:
+                color_encoding.color_space = <JxlColorSpace> colorspace
+                color_encoding.white_point = JXL_WHITE_POINT_D65
+                color_encoding.primaries = (
+                    primaries_
+                    if <int> primaries_ != -1
+                    else JXL_PRIMARIES_SRGB
+                )
+                color_encoding.transfer_function = (
+                    transfer_
+                    if <int> transfer_ != -1
+                    else (
+                        JXL_TRANSFER_FUNCTION_SRGB
+                        if pixel_format.data_type == JXL_TYPE_UINT8
+                        else JXL_TRANSFER_FUNCTION_LINEAR
+                    )
+                )
+                color_encoding.rendering_intent = (
+                    JXL_RENDERING_INTENT_RELATIVE
+                )
+            elif pixel_format.data_type == JXL_TYPE_UINT8:
                 JxlColorEncodingSetToSRGB(
                     &color_encoding, colorspace == JXL_COLOR_SPACE_GRAY
                 )
@@ -492,7 +524,7 @@ def jpegxl_encode(
             JxlEncoderInitFrameHeader(&frame_header)
             frame_header.duration = 1
 
-            for frame in range(frames):
+            for frame in range(layout.frames):
 
                 status = JxlEncoderSetFrameHeader(
                     frame_settings, &frame_header
@@ -525,7 +557,7 @@ def jpegxl_encode(
                                 'JxlEncoderAddImageFrame', status
                             )
 
-                if frame == frames - 1:
+                if frame == layout.frames - 1:
                     JxlEncoderCloseInput(encoder)
 
                 while True:
@@ -1191,7 +1223,7 @@ cdef size_t _jpegxl_framecount(JxlDecoder* decoder) noexcept nogil:
 
     status = JxlDecoderSubscribeEvents(decoder, JXL_DEC_FRAME)
     if status != JXL_DEC_SUCCESS:
-        return -1
+        return 0
 
     while True:
         status = JxlDecoderProcessInput(decoder)
@@ -1202,7 +1234,7 @@ cdef size_t _jpegxl_framecount(JxlDecoder* decoder) noexcept nogil:
         if status == JXL_DEC_FRAME:
             framecount += 1
         else:
-            return -1
+            return 0
 
     JxlDecoderRewind(decoder)
     return framecount
