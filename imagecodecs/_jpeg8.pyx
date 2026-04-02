@@ -83,15 +83,17 @@ class Jpeg8Error(RuntimeError):
 
 def jpeg8_version():
     """Return libjpeg-turbo library version string."""
-    ver = str(LIBJPEG_TURBO_VERSION_NUMBER)
+    ver = LIBJPEG_TURBO_VERSION_NUMBER
     return 'libjpeg_turbo {}.{}.{}/{:.1f}'.format(
-        int(ver[:1]), int(ver[3:4]), int(ver[5:]), JPEG_LIB_VERSION / 10.0
+        ver // 1000000, ver % 1000000 // 1000, ver % 1000,
+        JPEG_LIB_VERSION / 10.0
     )
 
 
 def jpeg8_check(const uint8_t[::1] data, /):
     """Return whether data is JPEG encoded image or None if unknown."""
-    sig = bytes(data[:10])
+    cdef:
+        bytes sig = bytes(data[:10])
     return (
         sig[:4] == b'\xFF\xD8\xFF\xDB'
         or sig[:4] == b'\xFF\xD8\xFF\xEE'
@@ -124,7 +126,6 @@ def jpeg8_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t rowstride = src.strides[0]
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
@@ -140,47 +141,60 @@ def jpeg8_encode(
         int v_samp_factor = 0
         int smoothing_factor = _default_value(smoothing, -1, 0, 100)
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
-        int data_precision = 8 if src.dtype == numpy.uint8 else 12
+        int data_precision
         int predictor_selection_value = 0
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_BPS,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        bitspersample,
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
+    if bitspersample is not None:
+        data_precision = layout.bitspersample
+    else:
+        data_precision = 8 if layout.itemsize == 1 else 12
+
     if not (
-        (src.dtype == numpy.uint8 or src.dtype == numpy.uint16)
-        and src.ndim in {2, 3}
-        # src.nbytes <= INT32_MAX and  # limit to 2 GB
-        # and rowstride > 0
-        and samples <= 4
-        and src.strides[src.ndim-1] == src.itemsize
-        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
+        layout.height > 0
+        and src.strides[src.ndim - 1] == src.itemsize
+        and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
     if lossless:
         predictor_selection_value = 1 if predictor is None else predictor
 
-    if bitspersample is not None:
-        if (
-            not 2 <= bitspersample <= 16
-            or src.itemsize != (bitspersample + 7) // 8
-        ):
-            raise ValueError(f'invalid {bitspersample=}')
-        data_precision = bitspersample
-
-    # if validate and bitspersample == 12 and not _check_range(src):
-    #     # values larger than 12-bit cause segfault
-    #     raise ValueError('all data values must be < 4096')
+    if (
+        bitspersample is not None
+        and not 2 <= data_precision <= 16
+    ):
+        raise ValueError(f'invalid {bitspersample=}')
 
     if colorspace is not None:
         in_color_space = _jcs_colorspace(colorspace)
-        if samples not in _jcs_colorspace_samples(in_color_space):
+        if not (
+            _JCS_COLORSPACE_SAMPLES[in_color_space]
+            & (1 << <int> layout.samples)
+        ):
             raise ValueError('invalid data shape')
-    elif samples == 1:
+    elif layout.samples == 1:
         in_color_space = JCS_GRAYSCALE
-    elif samples == 3:
+    elif layout.samples == 3:
         in_color_space = JCS_RGB
-    # elif samples == 4:
+    # elif layout.samples == 4:
     #     in_color_space = JCS_EXT_RGBA
     #     in_color_space = JCS_CMYK
     else:
@@ -241,9 +255,9 @@ def jpeg8_encode(
 
         jpeg_create_compress(&cinfo)
 
-        cinfo.image_height = <JDIMENSION> src.shape[0]
-        cinfo.image_width = <JDIMENSION> src.shape[1]
-        cinfo.input_components = samples
+        cinfo.image_height = <JDIMENSION> layout.height
+        cinfo.image_width = <JDIMENSION> layout.width
+        cinfo.input_components = <int> layout.samples
         cinfo.data_precision = data_precision
 
         if in_color_space != JCS_UNKNOWN:
@@ -455,66 +469,65 @@ cdef void my_output_message(jpeg_common_struct* cinfo) noexcept nogil:
     pass
 
 
+cdef dict _JCS_COLORSPACE_SAMPLES = {
+    # bitmask: bit N is set when N samples is valid
+    JCS_UNKNOWN: 0b11110,  # 1, 2, 3, 4
+    JCS_GRAYSCALE: 0b00010,  # 1
+    JCS_RGB: 0b01000,  # 3
+    JCS_YCbCr: 0b01000,  # 3
+    JCS_CMYK: 0b10000,  # 4
+    JCS_YCCK: 0b10000,  # 4
+    JCS_EXT_RGB: 0b01000,  # 3
+    JCS_EXT_RGBX: 0b10000,  # 4
+    JCS_EXT_BGR: 0b01000,  # 3
+    JCS_EXT_BGRX: 0b10000,  # 4
+    JCS_EXT_XBGR: 0b10000,  # 4
+    JCS_EXT_XRGB: 0b10000,  # 4
+    JCS_EXT_RGBA: 0b10000,  # 4
+    JCS_EXT_BGRA: 0b10000,  # 4
+    JCS_EXT_ABGR: 0b10000,  # 4
+    JCS_EXT_ARGB: 0b10000,  # 4
+    JCS_RGB565: 0b01000,  # 3
+}
+
+cdef dict _JCS_COLORSPACE_MAP = {
+    None: JCS_UNKNOWN,
+    'UNKNOWN': JCS_UNKNOWN,
+    'GRAY': JCS_GRAYSCALE,
+    'GRAYSCALE': JCS_GRAYSCALE,
+    'MINISWHITE': JCS_GRAYSCALE,
+    'MINISBLACK': JCS_GRAYSCALE,
+    'RGB': JCS_RGB,
+    'CMYK': JCS_CMYK,
+    'SEPARATED': JCS_CMYK,
+    'YCCK': JCS_YCCK,
+    'YCBCR': JCS_YCbCr,
+    'RGBA': JCS_EXT_RGBA,
+    JCS_UNKNOWN: JCS_UNKNOWN,
+    JCS_GRAYSCALE: JCS_GRAYSCALE,
+    JCS_RGB: JCS_RGB,
+    JCS_YCbCr: JCS_YCbCr,
+    JCS_CMYK: JCS_CMYK,
+    JCS_YCCK: JCS_YCCK,
+    JCS_EXT_RGB: JCS_EXT_RGB,
+    JCS_EXT_RGBX: JCS_EXT_RGBX,
+    JCS_EXT_BGR: JCS_EXT_BGR,
+    JCS_EXT_BGRX: JCS_EXT_BGRX,
+    JCS_EXT_XBGR: JCS_EXT_XBGR,
+    JCS_EXT_XRGB: JCS_EXT_XRGB,
+    JCS_EXT_RGBA: JCS_EXT_RGBA,
+    JCS_EXT_BGRA: JCS_EXT_BGRA,
+    JCS_EXT_ABGR: JCS_EXT_ABGR,
+    JCS_EXT_ARGB: JCS_EXT_ARGB,
+    JCS_RGB565: JCS_RGB565,
+}
+
+
 cdef J_COLOR_SPACE _jcs_colorspace(colorspace):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
-    return {
-        None: JCS_UNKNOWN,
-        'UNKNOWN': JCS_UNKNOWN,
-        'GRAY': JCS_GRAYSCALE,
-        'GRAYSCALE': JCS_GRAYSCALE,
-        'MINISWHITE': JCS_GRAYSCALE,
-        'MINISBLACK': JCS_GRAYSCALE,
-        'RGB': JCS_RGB,
-        'CMYK': JCS_CMYK,
-        'SEPARATED': JCS_CMYK,
-        'YCCK': JCS_YCCK,
-        'YCBCR': JCS_YCbCr,
-        'RGBA': JCS_EXT_RGBA,
-        JCS_UNKNOWN: JCS_UNKNOWN,
-        JCS_GRAYSCALE: JCS_GRAYSCALE,
-        JCS_RGB: JCS_RGB,
-        JCS_YCbCr: JCS_YCbCr,
-        JCS_CMYK: JCS_CMYK,
-        JCS_YCCK: JCS_YCCK,
-        JCS_EXT_RGB: JCS_EXT_RGB,
-        JCS_EXT_RGBX: JCS_EXT_RGBX,
-        JCS_EXT_BGR: JCS_EXT_BGR,
-        JCS_EXT_BGRX: JCS_EXT_BGRX,
-        JCS_EXT_XBGR: JCS_EXT_XBGR,
-        JCS_EXT_XRGB: JCS_EXT_XRGB,
-        JCS_EXT_RGBA: JCS_EXT_RGBA,
-        JCS_EXT_BGRA: JCS_EXT_BGRA,
-        JCS_EXT_ABGR: JCS_EXT_ABGR,
-        JCS_EXT_ARGB: JCS_EXT_ARGB,
-        JCS_RGB565: JCS_RGB565,
-    }.get(colorspace, JCS_UNKNOWN)
-
-
-cdef _jcs_colorspace_samples(colorspace):
-    """Return expected number of samples in colorspace."""
-    three = (3,)
-    four = (4,)
-    return {
-        JCS_UNKNOWN: (1, 2, 3, 4),
-        JCS_GRAYSCALE: (1,),
-        JCS_RGB: three,
-        JCS_YCbCr: three,
-        JCS_CMYK: four,
-        JCS_YCCK: four,
-        JCS_EXT_RGB: three,
-        JCS_EXT_RGBX: four,
-        JCS_EXT_BGR: three,
-        JCS_EXT_BGRX: four,
-        JCS_EXT_XBGR: four,
-        JCS_EXT_XRGB: four,
-        JCS_EXT_RGBA: four,
-        JCS_EXT_BGRA: four,
-        JCS_EXT_ABGR: four,
-        JCS_EXT_ARGB: four,
-        JCS_RGB565: three,
-    }[colorspace]
+    return _JCS_COLORSPACE_MAP.get(colorspace, JCS_UNKNOWN)
 
 
 cdef bint _check_range(numpy.ndarray data, uint16_t upper=4095):
