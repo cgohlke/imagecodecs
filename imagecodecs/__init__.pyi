@@ -30,17 +30,16 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Public interface for the imagecodecs package.
-# This interface document is updated manually and considered experimental.
 
 import enum
 import mmap
 import os
 from collections.abc import Callable, Sequence
-from typing import IO, Any, Literal, NoReturn, TypeAlias, overload
+from typing import IO, Any, Literal, NoReturn, overload
 
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-BytesLike: TypeAlias = bytes | bytearray | mmap.mmap
+type BytesLike = bytes | bytearray | mmap.mmap | NDArray[Any]
 
 __all__ = [
     'AEC',
@@ -66,11 +65,13 @@ __all__ = [
     'DELTA',
     'DICOMRLE',
     'EER',
+    'EXR',
     'FLOAT24',
     'FLOATPRED',
     'GIF',
     'GZIP',
     'H5CHECKSUM',
+    'HCOMP',
     'HEIF',
     'HTJ2K',
     'JETRAW',
@@ -100,8 +101,10 @@ __all__ = [
     'PACKBITS',
     'PACKINTS',
     'PCODEC',
+    'PCX',
     'PGLZ',
     'PIXARLOG',
+    'PLIO',
     'PNG',
     'QOI',
     'QUANTIZE',
@@ -112,9 +115,12 @@ __all__ = [
     'SPNG',
     'SZ3',
     'SZIP',
+    'TGA',
     'TIFF',
     'ULTRAHDR',
+    'WAVPACK',
     'WEBP',
+    'WIC',
     'XOR',
     'ZFP',
     'ZLIB',
@@ -145,10 +151,12 @@ __all__ = [
     'DeltaError',
     'DicomrleError',
     'EerError',
+    'ExrError',
     'Float24Error',
     'FloatpredError',
     'GifError',
     'GzipError',
+    'HcompError',
     'HeifError',
     'Htj2kError',
     'JetrawError',
@@ -178,8 +186,10 @@ __all__ = [
     'PackbitsError',
     'PackintsError',
     'PcodecError',
+    'PcxError',
     'PglzError',
     'PixarlogError',
+    'PlioError',
     'PngError',
     'QoiError',
     'QuantizeError',
@@ -190,9 +200,12 @@ __all__ = [
     'SpngError',
     'Sz3Error',
     'SzipError',
+    'TgaError',
     'TiffError',
     'UltrahdrError',
+    'WavpackError',
     'WebpError',
+    'WicError',
     'XorError',
     'ZfpError',
     'ZlibError',
@@ -269,8 +282,6 @@ __all__ = [
     'ccittrle_encode',
     'ccittrle_version',
     'cms_check',
-    'cms_decode',
-    'cms_encode',
     'cms_profile',
     'cms_profile_validate',
     'cms_transform',
@@ -298,6 +309,10 @@ __all__ = [
     'eer_decode',
     'eer_encode',
     'eer_version',
+    'exr_check',
+    'exr_decode',
+    'exr_encode',
+    'exr_version',
     'float24_check',
     'float24_decode',
     'float24_encode',
@@ -320,6 +335,10 @@ __all__ = [
     'h5checksum_lookup3',
     'h5checksum_metadata',
     'h5checksum_version',
+    'hcomp_check',
+    'hcomp_decode',
+    'hcomp_encode',
+    'hcomp_version',
     'heif_check',
     'heif_decode',
     'heif_encode',
@@ -445,6 +464,10 @@ __all__ = [
     'pcodec_decode',
     'pcodec_encode',
     'pcodec_version',
+    'pcx_check',
+    'pcx_decode',
+    'pcx_encode',
+    'pcx_version',
     'pglz_check',
     'pglz_decode',
     'pglz_encode',
@@ -453,6 +476,10 @@ __all__ = [
     'pixarlog_decode',
     'pixarlog_encode',
     'pixarlog_version',
+    'plio_check',
+    'plio_decode',
+    'plio_encode',
+    'plio_version',
     'png_check',
     'png_decode',
     'png_encode',
@@ -494,6 +521,10 @@ __all__ = [
     'szip_encode',
     'szip_params',
     'szip_version',
+    'tga_check',
+    'tga_decode',
+    'tga_encode',
+    'tga_version',
     'tiff_check',
     'tiff_decode',
     'tiff_encode',
@@ -503,10 +534,19 @@ __all__ = [
     'ultrahdr_encode',
     'ultrahdr_version',
     'version',
+    'wavpack_check',
+    'wavpack_decode',
+    'wavpack_encode',
+    'wavpack_info',
+    'wavpack_version',
     'webp_check',
     'webp_decode',
     'webp_encode',
     'webp_version',
+    'wic_check',
+    'wic_decode',
+    'wic_encode',
+    'wic_version',
     'xor_check',
     'xor_decode',
     'xor_encode',
@@ -710,11 +750,11 @@ def apng_check(data: BytesLike, /) -> bool | None: ...
 def apng_encode(
     data: ArrayLike,
     /,
-    level: int | None = None,
+    level: APNG.COMPRESSION | int | None = None,
     *,
-    strategy: APNG.STRATEGY | int | None = None,
-    filter: APNG.FILTER | int | None = None,
-    photometric: APNG.COLOR_TYPE | int | None = None,
+    strategy: APNG.STRATEGY | int | str | None = None,
+    filter: APNG.FILTER | int | str | None = None,
+    photometric: APNG.COLOR_TYPE | int | str | None = None,
     delay: int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
@@ -845,9 +885,9 @@ def avif_encode(
     bitspersample: int | None = None,
     pixelformat: AVIF.PIXEL_FORMAT | int | str | None = None,
     codec: AVIF.CODEC_CHOICE | int | str | None = None,
-    primaries: AVIF.COLOR_PRIMARIES | int | None = None,
-    transfer: AVIF.TRANSFER_CHARACTERISTICS | int | None = None,
-    matrix: AVIF.MATRIX_COEFFICIENTS | int | None = None,
+    primaries: AVIF.COLOR_PRIMARIES | int | str | None = None,
+    transfer: AVIF.TRANSFER_CHARACTERISTICS | int | str | None = None,
+    matrix: AVIF.MATRIX_COEFFICIENTS | int | str | None = None,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray: ...
@@ -914,7 +954,7 @@ def bfloat16_encode(
     /,
     *,
     byteorder: Literal['>', '<', '='] | None = None,
-    rounding: BFLOAT16.ROUND | int | None = None,
+    rounding: BFLOAT16.ROUND | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def bfloat16_decode(
@@ -1133,7 +1173,7 @@ def brotli_encode(
     /,
     level: int | None = None,
     *,
-    mode: BROTLI.MODE | int | None = None,
+    mode: BROTLI.MODE | int | str | None = None,
     lgwin: int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
@@ -1379,15 +1419,11 @@ def cms_transform(
     outcolorspace: str | None = None,
     outplanar: bool | None = None,
     outdtype: DTypeLike | None = None,
-    intent: CMS.INTENT | int | None = None,
+    intent: CMS.INTENT | int | str | None = None,
     flags: CMS.FLAGS | int | None = None,
     verbose: int | None = None,
     out: int | bytearray | None = None,
 ) -> NDArray[Any]: ...
-
-cms_encode = cms_transform
-cms_decode = cms_transform
-
 def cms_profile(
     profile: str,
     /,
@@ -1423,8 +1459,8 @@ def dds_decode(
     /,
     *,
     mipmap: int = 0,
-    out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray: ...
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
 class DEFLATE:
 
@@ -1497,6 +1533,28 @@ def delta_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
+class DICOMRLE:
+
+    available: bool
+
+DicomrleError = ImcdError
+dicomrle_version = imcd_version
+
+def dicomrle_check(data: BytesLike, /) -> bool | None: ...
+def dicomrle_encode(
+    data: BytesLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> NoReturn: ...
+def dicomrle_decode(
+    data: BytesLike,
+    /,
+    dtype: DTypeLike,
+    *,
+    out: int | bytearray | memoryview | None = None,
+) -> bytes | bytearray: ...
+
 class EER:
 
     available: bool
@@ -1523,27 +1581,47 @@ def eer_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
-class DICOMRLE:
+class EXR:
 
     available: bool
 
-DicomrleError = ImcdError
-dicomrle_version = imcd_version
+    class COMPRESSION(enum.IntEnum):
 
-def dicomrle_check(data: BytesLike, /) -> bool | None: ...
-def dicomrle_encode(
-    data: BytesLike,
+        NONE = ...
+        RLE = ...
+        ZIPS = ...
+        ZIP = ...
+        PIZ = ...
+        PXR24 = ...
+        B44 = ...
+        B44A = ...
+        DWAA = ...
+        DWAB = ...
+        HTJ2K256 = ...
+        HTJ2K32 = ...
+
+class ExrError(RuntimeError): ...
+
+def exr_version() -> str: ...
+def exr_check(data: BytesLike, /) -> bool | None: ...
+def exr_encode(
+    data: ArrayLike,
     /,
+    level: float | None = None,
     *,
+    compression: EXR.COMPRESSION | int | str | None = None,
+    planar: bool | None = None,
+    frames: bool | None = None,
     out: int | bytearray | None = None,
-) -> NoReturn: ...
-def dicomrle_decode(
+) -> bytes | bytearray: ...
+def exr_decode(
     data: BytesLike,
     /,
-    dtype: DTypeLike,
     *,
-    out: int | bytearray | memoryview | None = None,
-) -> bytes | bytearray: ...
+    index: int | None = 0,
+    planar: bool | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
 class FLOAT24:
 
@@ -1565,7 +1643,7 @@ def float24_encode(
     /,
     *,
     byteorder: Literal['>', '<', '='] | None = None,
-    rounding: FLOAT24.ROUND | int | None = None,
+    rounding: FLOAT24.ROUND | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def float24_decode(
@@ -1666,6 +1744,30 @@ def h5checksum_hash_string(
     data: BytesLike, /, value: int | None = None
 ) -> int: ...
 
+class HCOMP:
+
+    available: bool
+
+class HcompError(RuntimeError): ...
+
+def hcomp_version() -> str: ...
+def hcomp_check(data: BytesLike, /) -> bool | None: ...
+def hcomp_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def hcomp_decode(
+    data: BytesLike,
+    /,
+    *,
+    smooth: int | None = None,
+    safe32: bool | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
 class HEIF:
 
     available: bool
@@ -1741,7 +1843,7 @@ def htj2k_encode(
     resolutions: int | None = None,
     reversible: bool | None = None,
     tlm: bool | None = None,
-    tilepart: HTJ2K.TILEPART | int | None = None,
+    tilepart: HTJ2K.TILEPART | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def htj2k_decode(
@@ -1995,6 +2097,24 @@ class JPEGXL:
         THERMAL = ...
         OPTIONAL = ...
 
+    class PRIMARIES(enum.IntEnum):
+
+        SRGB = ...
+        CUSTOM = ...
+        BT2100 = ...
+        P3 = ...
+
+    class TRANSFER_FUNCTION(enum.IntEnum):
+
+        BT709 = ...
+        UNKNOWN = ...
+        LINEAR = ...
+        SRGB = ...
+        PQ = ...
+        DCI = ...
+        HLG = ...
+        GAMMA = ...
+
 class JpegxlError(RuntimeError): ...
 
 def jpegxl_version() -> str: ...
@@ -2012,6 +2132,8 @@ def jpegxl_encode(
     bitspersample: int | None = None,
     # extrasamples: Sequence[JPEGXL.CHANNEL] | None = None,
     planar: bool | None = None,
+    primaries: JPEGXL.PRIMARIES | int | str | None = None,
+    transfer: JPEGXL.TRANSFER_FUNCTION | int | str | None = None,
     usecontainer: bool | None = None,
     numthreads: int | None = None,
     out: int | bytearray | None = None,
@@ -2319,7 +2441,7 @@ def lzham_check(data: BytesLike, /) -> bool | None: ...
 def lzham_encode(
     data: BytesLike,
     /,
-    level: LZHAM.COMPRESSION | int | None = None,
+    level: LZHAM.COMPRESSION | int | str | None = None,
     *,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
@@ -2350,7 +2472,7 @@ def lzma_encode(
     /,
     level: int | None = None,
     *,
-    check: LZMA.CHECK | int | None = None,
+    check: LZMA.CHECK | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def lzma_decode(
@@ -2574,6 +2696,28 @@ def packints_decode(
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
+class PCX:
+
+    available: bool
+
+class PcxError(RuntimeError): ...
+
+def pcx_version() -> str: ...
+def pcx_check(data: BytesLike, /) -> bool | None: ...
+def pcx_encode(
+    data: ArrayLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def pcx_decode(
+    data: BytesLike,
+    /,
+    index: int | None = None,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
 class PCODEC:
 
     available: bool
@@ -2623,6 +2767,28 @@ def pglz_decode(
     checkcomplete: bool | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray: ...
+
+class PLIO:
+
+    available: bool
+
+class PlioError(RuntimeError): ...
+
+def plio_version() -> str: ...
+def plio_check(data: BytesLike, /) -> bool | None: ...
+def plio_encode(
+    data: ArrayLike,
+    /,
+    *,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def plio_decode(
+    data: BytesLike,
+    /,
+    npix: int | None = None,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
 
 class PIXARLOG:
 
@@ -2694,10 +2860,10 @@ def png_check(data: BytesLike, /) -> bool | None: ...
 def png_encode(
     data: ArrayLike,
     /,
-    level: int | None = None,
+    level: PNG.COMPRESSION | int | None = None,
     *,
-    strategy: PNG.STRATEGY | int | None = None,
-    filter: PNG.FILTER | int | None = None,
+    strategy: PNG.STRATEGY | int | str | None = None,
+    filter: PNG.FILTER | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def png_decode(
@@ -2995,6 +3161,28 @@ def szip_params(
     data: NDArray[Any], /, options_mask: int = 4, pixels_per_block: int = 32
 ) -> dict[str, int]: ...
 
+class TGA:
+
+    available: bool
+
+class TgaError(RuntimeError): ...
+
+def tga_version() -> str: ...
+def tga_check(data: BytesLike, /) -> bool | None: ...
+def tga_encode(
+    data: ArrayLike,
+    /,
+    *,
+    rle: bool = False,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def tga_decode(
+    data: BytesLike,
+    /,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
 class TIFF:
 
     available: bool
@@ -3077,7 +3265,7 @@ def tiff_encode(
     *,
     bigtiff: bool | None = None,
     byteorder: TIFF.ENDIAN | int | str | None = None,
-    subfiletype: TIFF.FILETYPE | int | None = None,
+    subfiletype: TIFF.FILETYPE | int | str | None = None,
     photometric: TIFF.PHOTOMETRIC | int | str | None = None,
     planarconfig: TIFF.PLANARCONFIG | int | str | None = None,
     extrasample: TIFF.EXTRASAMPLE | int | str | None = None,
@@ -3087,7 +3275,7 @@ def tiff_encode(
     bitspersample: int | None = None,
     compression: TIFF.COMPRESSION | int | str | None = None,
     subcodec: int | str | None = None,
-    predictor: bool | TIFF.PREDICTOR | int | None = None,
+    predictor: bool | TIFF.PREDICTOR | int | str | None = None,
     colormap: ArrayLike | None = None,
     iccprofile: bytes | None = None,
     resolution: tuple[float, float] | None = None,
@@ -3154,13 +3342,16 @@ def ultrahdr_encode(
     /,
     level: int | None = None,
     *,
+    sdr: ArrayLike | None = None,
     scale: int | None = None,
-    gamut: ULTRAHDR.CG | int | None = None,
-    transfer: ULTRAHDR.CT | int | None = None,
+    gamut: ULTRAHDR.CG | int | str | None = None,
+    transfer: ULTRAHDR.CT | int | str | None = None,
     nits: float | None = None,
-    crange: ULTRAHDR.CR | int | None = None,
-    usage: ULTRAHDR.USAGE | int | None = None,
-    codec: ULTRAHDR.CODEC | int | None = None,
+    boostmin: float | None = None,
+    boostmax: float | None = None,
+    crange: ULTRAHDR.CR | int | str | None = None,
+    usage: ULTRAHDR.USAGE | int | str | None = None,
+    codec: ULTRAHDR.CODEC | int | str | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def ultrahdr_decode(
@@ -3168,9 +3359,43 @@ def ultrahdr_decode(
     /,
     *,
     dtype: DTypeLike | None = None,
-    transfer: ULTRAHDR.CT | int | None = None,
+    transfer: ULTRAHDR.CT | int | str | None = None,
     boost: float | None = None,
     gpu: bool = False,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
+class WAVPACK:
+
+    available: bool
+
+    class LEVEL(enum.IntEnum):
+
+        FAST = ...
+        DEFAULT = ...
+        HIGH = ...
+        VERY_HIGH = ...
+
+class WavpackError(RuntimeError): ...
+
+def wavpack_version() -> str: ...
+def wavpack_check(data: BytesLike, /) -> bool | None: ...
+def wavpack_info(data: BytesLike, /) -> dict[str, Any]: ...
+def wavpack_encode(
+    data: ArrayLike,
+    /,
+    level: WAVPACK.LEVEL | int | None = None,
+    *,
+    bitrate: float | None = None,
+    numthreads: int | None = None,
+    out: int | bytearray | None = None,
+) -> bytes | bytearray: ...
+def wavpack_decode(
+    data: BytesLike,
+    /,
+    *,
+    correction: BytesLike | None = None,
+    numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
@@ -3190,14 +3415,50 @@ def webp_encode(
     lossless: bool | None = None,
     method: int | None = None,
     numthreads: int | None = None,
+    delay: int | None = None,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
 def webp_decode(
     data: BytesLike,
     /,
-    index: int | None = 0,
+    index: int | None = None,
     *,
     hasalpha: bool | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]: ...
+
+class WIC:
+
+    available: bool
+
+    class FORMAT(enum.IntEnum):
+
+        BMP = ...
+        PNG = ...
+        JPEG = ...
+        TIFF = ...
+        GIF = ...
+        WMP = ...
+        HEIF = ...
+        WEBP = ...
+
+class WicError(RuntimeError): ...
+
+def wic_version() -> str: ...
+def wic_check(data: BytesLike, /) -> bool | None: ...
+def wic_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    format: WIC.FORMAT | str | None = None,
+    out: BytesLike | None = None,
+) -> bytes | bytearray: ...
+def wic_decode(
+    data: BytesLike,
+    /,
+    index: int = 0,
+    *,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
@@ -3322,7 +3583,7 @@ def zlib_check(data: BytesLike, /) -> bool | None: ...
 def zlib_encode(
     data: BytesLike,
     /,
-    level: int | None = None,
+    level: ZLIB.COMPRESSION | int | None = None,
     *,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
@@ -3361,7 +3622,7 @@ def zlibng_check(data: BytesLike, /) -> bool | None: ...
 def zlibng_encode(
     data: BytesLike,
     /,
-    level: int | None = None,
+    level: ZLIBNG.COMPRESSION | int | None = None,
     *,
     out: int | bytearray | None = None,
 ) -> bytes | bytearray: ...
@@ -3395,8 +3656,12 @@ def zopfli_encode(
     /,
     level: int | None = None,
     *,
+    format: int | None = None,
+    blocksplitting: bool | None = None,
+    blocksplittingmax: int | None = None,
+    verbose: bool | None = None,
+    verbose_more: bool | None = None,
     out: int | bytearray | None = None,
-    **kwargs: Any,
 ) -> bytes | bytearray: ...
 
 zopfli_decode = zlib_decode
