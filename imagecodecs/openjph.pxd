@@ -1,7 +1,7 @@
 # imagecodecs/openjph.pxd
 # distutils: language = c++
 
-# Cython declarations for the `openjph 0.26.3` library.
+# Cython declarations for the `openjph 0.27.0` library.
 # https://github.com/aous72/OpenJPH
 
 from libc.stdint cimport (
@@ -302,4 +302,4 @@ cdef extern from 'openjph/ojph_codestream.h' namespace 'ojph' nogil:
         param_cod access_cod()
         param_qcd access_qcd()
         param_nlt access_nlt()
-        bool is_planar()
+        bool is_planar() const
