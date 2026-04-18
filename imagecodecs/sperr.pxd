@@ -1,6 +1,6 @@
 # imagecodecs/sperr.pxd
 
-# Cython declarations for the `SPERR 0.8.4` library.
+# Cython declarations for the `SPERR 0.8.5` library.
 # https://github.com/NCAR/SPERR
 
 cdef extern from 'SPERR_C_API.h' nogil:
