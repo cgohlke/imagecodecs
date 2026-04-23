@@ -1,6 +1,6 @@
 # imagecodecs/libpng.pxd
 
-# Cython declarations for the `libpng 1.6.55` library with APNG patch.
+# Cython declarations for the `libpng 1.6` library with APNG patch.
 # https://github.com/glennrp/libpng
 # https://sourceforge.net/projects/libpng-apng/
 
