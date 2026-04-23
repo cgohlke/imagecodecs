@@ -128,38 +128,47 @@ def png_encode(
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
         ssize_t rowstride = src.strides[0]
+        ssize_t row
         png_bytep rowptr = <png_bytep> &src.data[0]
         int color_type = PNG_COLOR_TYPE_GRAY
-        int bit_depth = src.itemsize * 8
-        int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int level_ = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
         int strategy_ = _default_value(
-            strategy, Z_DEFAULT_STRATEGY, 0, Z_FIXED
+            _enum_value(strategy, PNG.STRATEGY), Z_DEFAULT_STRATEGY, 0, Z_FIXED
         )
-        int filter_ = -1 if filter is None else <int> filter
-        mempng_t mempng
+        int filter_ = _enum_value(filter, PNG.FILTER, -1)
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp rowpointers = NULL
-        png_uint_32 width = 0
-        png_uint_32 height = 0
-        png_uint_32 row
+        mempng_t mempng
+        imagelayout_t layout
+
+    if data is out:
+        raise ValueError('cannot encode in-place')
+
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
 
     if not (
-        src.dtype in {numpy.uint8, numpy.uint16}
-        and src.ndim in {2, 3}
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
-        and samples <= 4
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
         and src.strides[src.ndim - 1] == src.itemsize
-        and (src.ndim == 2 or src.strides[1] == samples * src.itemsize)
+        and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
-
-    width = <png_uint_32> src.shape[1]
-    height = <png_uint_32> src.shape[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -182,13 +191,13 @@ def png_encode(
             mempng.offset = 0
             mempng.error = NULL
 
-            if samples == 1:
+            if layout.samples == 1:
                 color_type = PNG_COLOR_TYPE_GRAY
-            elif samples == 2:
+            elif layout.samples == 2:
                 color_type = PNG_COLOR_TYPE_GRAY_ALPHA
-            elif samples == 3:
+            elif layout.samples == 3:
                 color_type = PNG_COLOR_TYPE_RGB
-            elif samples == 4:
+            elif layout.samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
 
             png_ptr = png_create_write_struct(
@@ -219,9 +228,9 @@ def png_encode(
             png_set_IHDR(
                 png_ptr,
                 info_ptr,
-                <png_uint_32> width,
-                <png_uint_32> height,
-                bit_depth,
+                <png_uint_32> layout.width,
+                <png_uint_32> layout.height,
+                layout.bitspersample,
                 color_type,
                 PNG_INTERLACE_NONE,
                 PNG_COMPRESSION_TYPE_DEFAULT,
@@ -233,13 +242,15 @@ def png_encode(
             png_set_compression_strategy(png_ptr, strategy_)
             if filter_ >= 0:
                 png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
-            if bit_depth > 8:
+            if layout.bitspersample > 8:
                 png_set_swap(png_ptr)
 
-            rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
+            rowpointers = <png_bytepp> calloc(
+                layout.height, sizeof(png_bytep)
+            )
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
-            for row in range(height):
+            for row in range(layout.height):
                 rowpointers[row] = rowptr
                 rowptr += rowstride
 
@@ -287,7 +298,7 @@ def png_decode(
     if data is out:
         raise ValueError('cannot decode in-place')
 
-    if png_sig_cmp(&src[0], 0, 8) != 0:
+    if srcsize < 8 or png_sig_cmp(&src[0], 0, 8) != 0:
         raise ValueError('not a PNG image')
 
     try:
@@ -474,10 +485,10 @@ cdef void png_write_data_fn(
         if not mempng.owner:
             png_error(png_ptr, b'png_write_data_fn output stream too small')
             return
-        newsize = _align_ssize_t(mempng.offset + size)
-        if newsize <= <ssize_t> (<double> mempng.size * 1.25):
-            # moderate upsize: overallocate
-            newsize = _align_ssize_t(newsize + newsize // 4)
+        # always over-allocate to avoid repeated reallocations
+        newsize = _align_ssize_t(
+            mempng.offset + size + (mempng.offset + size) // 4
+        )
         tmp = <png_bytep> realloc(<void*> mempng.data, newsize)
         if tmp == NULL:
             png_error(png_ptr, b'png_write_data_fn realloc failed')
