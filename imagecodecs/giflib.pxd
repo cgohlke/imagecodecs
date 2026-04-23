@@ -1,6 +1,6 @@
 # imagecodecs/giflib.pxd
 
-# Cython declarations for the `giflib 6.1.1` library.
+# Cython declarations for the `giflib 6.1` library.
 # http://giflib.sourceforge.net
 
 cdef extern from 'gif_lib.h' nogil:
