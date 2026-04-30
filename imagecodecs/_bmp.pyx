@@ -74,13 +74,15 @@ def bmp_encode(
     """Return BMP encoded image.
 
     Supported:
+
     - 8-bit grayscale (uint8, 2D): written as 8-bit paletted with identity
       palette
     - 24-bit RGB (uint8, 3D, 3 samples): written as 24-bit uncompressed BI_RGB
     - 32-bit RGBA (uint8, 3D, 4 samples): written as 32-bit BI_BITFIELDS BGRA
       using BITMAPV4HEADER with explicit BGRA channel masks
 
-    Not supported (encode):
+    Not supported:
+
     - 1 and 4-bit paletted
     - 16-bit direct-color
     - Any compression (BI_RLE8, BI_RLE4)
@@ -92,37 +94,53 @@ def bmp_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* dstptr = NULL
-        ssize_t dstsize, rowpad, srcindex, dstindex, i, j
-        ssize_t samples = src.shape[2] if src.ndim == 3 else 1
+        ssize_t dstsize, rowpad, srcindex, dstindex, i
         int32_t ppm_ = 3780 if ppm is None else max(1, ppm)  # 96 DPI
         bmp_fileheader_t fileheader
         bmp_infoheader_t infoheader
+        imagelayout_t layout
 
     if data is out:
         raise ValueError('cannot encode in-place')
 
+    _image_layout(
+        IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB | IC_ALPHA,
+        src.ndim,
+        src.shape,
+        src.dtype,
+        None,  # photometric
+        None,  # bitspersample
+        None,  # planar
+        None,  # frames
+        None,  # volumetric
+        None,  # extrasample
+        &layout,
+    )
+
     if not (
-        src.dtype == numpy.uint8
-        and (src.ndim == 2 or src.ndim == 3)
-        and (samples == 1 or samples == 3 or samples == 4)
-        and src.shape[0] <= INT32_MAX
-        and src.shape[1] <= INT32_MAX
+        layout.height > 0
+        and layout.height <= INT32_MAX
+        and layout.width <= INT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
 
     # infoheader
     memset(<void*> &infoheader, 0, sizeof(bmp_infoheader_t))
-    infoheader.size = 108 if samples == 4 else 40  # BITMAPV4HEADER for RGBA
-    infoheader.width = <int32_t> src.shape[1]
-    infoheader.height = <int32_t> src.shape[0]
+    infoheader.size = 108 if layout.samples == 4 else 40
+    infoheader.width = <int32_t> layout.width
+    infoheader.height = <int32_t> layout.height
     infoheader.planes = 1
-    infoheader.bitcount = 8 if samples == 1 else (24 if samples == 3 else 32)
-    infoheader.compression_type = BI_BITFIELDS if samples == 4 else BI_RGB
+    infoheader.bitcount = (
+        8 if layout.samples == 1 else (24 if layout.samples == 3 else 32)
+    )
+    infoheader.compression_type = (
+        BI_BITFIELDS if layout.samples == 4 else BI_RGB
+    )
     infoheader.x_ppm = ppm_
     infoheader.y_ppm = ppm_
     infoheader.clr_used = 0
     infoheader.clr_important = 0
-    if samples == 4:
+    if layout.samples == 4:
         infoheader.red_mask = 0x00FF0000
         infoheader.green_mask = 0x0000FF00
         infoheader.blue_mask = 0x000000FF
@@ -134,14 +152,14 @@ def bmp_encode(
     rowpad = 0 if rowpad == 0 else 4 - rowpad
 
     infoheader.size_image = <uint32_t> (
-        infoheader.height * (infoheader.width * samples + rowpad)
+        infoheader.height * (infoheader.width * layout.samples + rowpad)
     )
 
     # fileheader
     memset(<void*> &fileheader, 0, sizeof(bmp_fileheader_t))
     fileheader.type = 0x4d42  # b'BM'
     fileheader.offbits = (
-        1078 if samples == 1 else (122 if samples == 4 else 54)
+        1078 if layout.samples == 1 else (122 if layout.samples == 4 else 54)
     )  # 14 + infoheader.size, no palette
     fileheader.size = fileheader.offbits + infoheader.size_image
 
@@ -162,7 +180,7 @@ def bmp_encode(
             <void*> (dstptr + 14), <const void*> &infoheader, infoheader.size
         )
 
-        if samples == 1:
+        if layout.samples == 1:
             # write palette
             dstindex = 54
             for i in range(256):
@@ -189,7 +207,7 @@ def bmp_encode(
                     dstptr[dstindex] = 0
                     dstindex += 1
 
-        elif samples == 3:
+        elif layout.samples == 3:
             # write BGR
             srcindex = 0
             for i in range(<ssize_t> infoheader.height):
@@ -210,7 +228,7 @@ def bmp_encode(
                     dstptr[dstindex] = 0
                     dstindex += 1
 
-        elif samples == 4:
+        elif layout.samples == 4:
             # write BGRA (32-bit rows are always DWORD-aligned, no rowpad)
             srcindex = 0
             for i in range(<ssize_t> infoheader.height):
@@ -243,8 +261,11 @@ def bmp_decode(
     """Return decoded BMP image.
 
     Supported:
+
     - 1 and 4-bit paletted (BI_RGB): expanded via palette to grayscale or RGB
     - 8-bit paletted (BI_RGB): grayscale or RGB depending on palette content
+    - 4-bit paletted (BI_RLE4): grayscale or RGB depending on palette content
+    - 8-bit paletted (BI_RLE8): grayscale or RGB depending on palette content
     - 16-bit direct-color (BI_RGB RGB555, BI_BITFIELDS RGB555/RGB565/RGBA)
     - 24-bit direct-color (BI_RGB BGR)
     - 32-bit direct-color (BI_RGB BGRX treated as RGB, BI_BITFIELDS with
@@ -252,8 +273,8 @@ def bmp_decode(
     - Embedded JPEG (BI_JPEG) and PNG (BI_PNG): delegated to jpeg8/png decoders
     - Bottom-up (positive height) and top-down (negative height) layouts
 
-    Not supported (decode):
-    - BI_RLE8 and BI_RLE4 run-length encoding
+    Not supported:
+
     - OS/2 file types (BA, CI, CP, IC, PT)
 
     """
@@ -272,10 +293,13 @@ def bmp_decode(
         int rbits, gbits, bbits, abits
         uint32_t pixel32, m, rv, gv, bv, av
         uint16_t pixel16
+        uint8_t count, code, palval
+        ssize_t x, y, row, k, srclimit, nbytes
         bint has_alpha
 
     if data is out:
         raise ValueError('cannot decode in-place')
+
     if srcsize > UINT32_MAX:
         raise ValueError('input too large')
     if srcsize < 54:
@@ -318,8 +342,16 @@ def bmp_decode(
                 f'BI_BITFIELDS requires 16 or 32-bit, '
                 f'got {infoheader.bitcount=}'
             )
-    elif infoheader.compression_type != BI_RGB:
+    elif infoheader.compression_type not in (BI_RGB, BI_RLE8, BI_RLE4):
         raise BmpError(f'{infoheader.compression_type=} not implemented')
+    if infoheader.compression_type == BI_RLE8 and infoheader.bitcount != 8:
+        raise BmpError(
+            f'BI_RLE8 requires bitcount 8, got {infoheader.bitcount=}'
+        )
+    if infoheader.compression_type == BI_RLE4 and infoheader.bitcount != 4:
+        raise BmpError(
+            f'BI_RLE4 requires bitcount 4, got {infoheader.bitcount=}'
+        )
     if infoheader.bitcount not in (1, 4, 8, 16, 24, 32):
         raise BmpError(f'{infoheader.bitcount=} not implemented')
     if infoheader.clr_used == 0 and infoheader.bitcount < 16:
@@ -682,6 +714,176 @@ def bmp_decode(
                         av = (pixel32 & amask) >> ashift
                         dstptr[dstindex + 3] = <uint8_t> av
                     dstindex += samples
+
+        elif (
+            infoheader.bitcount == 8 and infoheader.compression_type == BI_RLE8
+        ):
+            # BI_RLE8: run-length encoded 8-bit paletted image.
+            # Data is a sequence of 2-byte packets:
+            #   count > 0:             Run mode - repeat index 'code' N times
+            #   count == 0, code == 0: End of Line
+            #   count == 0, code == 1: End of Bitmap
+            #   count == 0, code == 2: Delta: right src[+0], down src[+1]
+            #   count == 0, code >= 3: Absolute: N indices, word-padded
+
+            # unset pixels default to index 0
+            memset(dstptr, 0, height * width * samples)
+            srcindex = <ssize_t> fileheader.offbits
+            srclimit = srcindex + <ssize_t> infoheader.size_image
+            if srclimit > srcsize:
+                srclimit = srcsize
+            x = 0
+            y = 0
+            while srcindex + 1 < srclimit:
+                count = src[srcindex]
+                code = src[srcindex + 1]
+                srcindex += 2
+                if count > 0:
+                    # encoded run: repeat palette index 'code' count times
+                    for k in range(count):
+                        if x >= width or y >= height:
+                            break
+                        if infoheader.height > 0:
+                            row = height - 1 - y
+                        else:
+                            row = y
+                        if samples == 3:
+                            palindex = offset + <ssize_t> code * 4
+                            dstindex = (row * width + x) * 3
+                            dstptr[dstindex] = src[palindex + 2]  # R
+                            dstptr[dstindex + 1] = src[palindex + 1]  # G
+                            dstptr[dstindex + 2] = src[palindex]  # B
+                        else:
+                            dstptr[row * width + x] = code
+                        x += 1
+                elif code == 0:
+                    # end of line
+                    x = 0
+                    y += 1
+                elif code == 1:
+                    # end of bitmap
+                    break
+                elif code == 2:
+                    # delta: advance position by (dx, dy)
+                    if srcindex + 1 >= srclimit:
+                        break
+                    x += <ssize_t> src[srcindex]
+                    y += <ssize_t> src[srcindex + 1]
+                    srcindex += 2
+                else:
+                    # absolute mode: next 'code' literal palette indices
+                    for k in range(code):
+                        if srcindex >= srclimit:
+                            break
+                        if x < width and y < height:
+                            if infoheader.height > 0:
+                                row = height - 1 - y
+                            else:
+                                row = y
+                            palval = src[srcindex]
+                            if samples == 3:
+                                palindex = offset + <ssize_t> palval * 4
+                                dstindex = (row * width + x) * 3
+                                dstptr[dstindex] = src[palindex + 2]  # R
+                                dstptr[dstindex + 1] = src[palindex + 1]  # G
+                                dstptr[dstindex + 2] = src[palindex]  # B
+                            else:
+                                dstptr[row * width + x] = palval
+                            x += 1
+                        srcindex += 1
+                    # absolute runs are padded to word (2-byte) boundary
+                    if code % 2 != 0:
+                        srcindex += 1
+
+        elif (
+            infoheader.bitcount == 4 and infoheader.compression_type == BI_RLE4
+        ):
+            # BI_RLE4: run-length encoded 4-bit paletted image.
+            # Same packet structure as BI_RLE8 but nibble-oriented:
+            #   count > 0:             Run mode - alternate high/low nibbles
+            #                          of 'code' across count pixels
+            #   count == 0, code == 0: End of Line
+            #   count == 0, code == 1: End of Bitmap
+            #   count == 0, code == 2: Delta: right src[+0], down src[+1]
+            #   count == 0, code >= 3: Absolute: N nibbles, word-padded
+
+            # unset pixels default to index 0
+            memset(dstptr, 0, height * width * samples)
+            srcindex = <ssize_t> fileheader.offbits
+            srclimit = srcindex + <ssize_t> infoheader.size_image
+            if srclimit > srcsize:
+                srclimit = srcsize
+            x = 0
+            y = 0
+            while srcindex + 1 < srclimit:
+                count = src[srcindex]
+                code = src[srcindex + 1]
+                srcindex += 2
+                if count > 0:
+                    # run: alternate high nibble then low nibble of code
+                    for k in range(count):
+                        if x >= width or y >= height:
+                            break
+                        if infoheader.height > 0:
+                            row = height - 1 - y
+                        else:
+                            row = y
+                        if k % 2 == 0:
+                            palval = (code >> 4) & 0xF
+                        else:
+                            palval = code & 0xF
+                        if samples == 3:
+                            palindex = offset + <ssize_t> palval * 4
+                            dstindex = (row * width + x) * 3
+                            dstptr[dstindex] = src[palindex + 2]  # R
+                            dstptr[dstindex + 1] = src[palindex + 1]  # G
+                            dstptr[dstindex + 2] = src[palindex]  # B
+                        else:
+                            dstptr[row * width + x] = palval
+                        x += 1
+                elif code == 0:
+                    # end of line
+                    x = 0
+                    y += 1
+                elif code == 1:
+                    # end of bitmap
+                    break
+                elif code == 2:
+                    # delta: advance position by (dx, dy)
+                    if srcindex + 1 >= srclimit:
+                        break
+                    x += <ssize_t> src[srcindex]
+                    y += <ssize_t> src[srcindex + 1]
+                    srcindex += 2
+                else:
+                    # absolute mode: 'code' nibbles packed 2 per byte,
+                    # word-padded. Index by offset to avoid in-loop mutation.
+                    nbytes = (<ssize_t> code + 1) // 2
+                    for k in range(code):
+                        if srcindex + k // 2 >= srclimit:
+                            break
+                        if k % 2 == 0:
+                            palval = (src[srcindex + k // 2] >> 4) & 0xF
+                        else:
+                            palval = src[srcindex + k // 2] & 0xF
+                        if x < width and y < height:
+                            if infoheader.height > 0:
+                                row = height - 1 - y
+                            else:
+                                row = y
+                            if samples == 3:
+                                palindex = offset + <ssize_t> palval * 4
+                                dstindex = (row * width + x) * 3
+                                dstptr[dstindex] = src[palindex + 2]  # R
+                                dstptr[dstindex + 1] = src[palindex + 1]  # G
+                                dstptr[dstindex + 2] = src[palindex]  # B
+                            else:
+                                dstptr[row * width + x] = palval
+                            x += 1
+                    srcindex += nbytes
+                    # absolute runs are padded to word (2-byte) boundary
+                    if nbytes % 2 != 0:
+                        srcindex += 1
 
         else:
             raise NotImplementedError(
