@@ -1,6 +1,6 @@
 # imagecodecs/blosc2.pxd
 
-# Cython declarations for the `c-blosc2 2.23.1` library.
+# Cython declarations for the `c-blosc2 3.0.1` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
@@ -24,10 +24,12 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC2_VERSION_FORMAT_ALPHA
     int BLOSC2_VERSION_FORMAT_BETA1
     int BLOSC2_VERSION_FORMAT_STABLE
+    int BLOSC2_VERSION_FORMAT_VL_BLOCKS
     int BLOSC2_VERSION_FORMAT
 
     int BLOSC2_VERSION_FRAME_FORMAT_BETA2
     int BLOSC2_VERSION_FRAME_FORMAT_RC1
+    int BLOSC2_VERSION_FRAME_FORMAT_VL_BLOCKS
     int BLOSC2_VERSION_FRAME_FORMAT
 
     ctypedef struct blosc2_instr:
@@ -85,7 +87,10 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC2_BIGENDIAN
     int BLOSC2_INSTR_CODEC
 
+    int BLOSC2_VL_BLOCKS
+
     int BLOSC2_MAXDICTSIZE
+    int BLOSC2_MINUSEFULDICT
     int BLOSC2_MAXBLOCKSIZE
     int BLOSC2_MAXTYPESIZE
 
@@ -151,6 +156,7 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC2_CHUNK_CBYTES
     int BLOSC2_CHUNK_FILTER_CODES
     int BLOSC2_CHUNK_FILTER_META
+    int BLOSC2_CHUNK_BLOSC2_FLAGS2
     int BLOSC2_CHUNK_BLOSC2_FLAGS
 
     int BLOSC2_NO_SPECIAL
@@ -591,6 +597,39 @@ cdef extern from 'blosc2.h' nogil:
         int32_t destsize
     )
 
+    int blosc2_vlcompress_ctx(
+        blosc2_context* context,
+        const void** srcs,
+        const int32_t* srcsizes,
+        int32_t nblocks,
+        void* dest,
+        int32_t destsize
+    )
+
+    int blosc2_vldecompress_ctx(
+        blosc2_context* context,
+        const void* src,
+        int32_t srcsize,
+        void** dests,
+        int32_t* destsizes,
+        int32_t maxblocks
+    )
+
+    int blosc2_vlchunk_get_nblocks(
+        const void* src,
+        int32_t srcsize,
+        int32_t* nblocks
+    )
+
+    int blosc2_vldecompress_block_ctx(
+        blosc2_context* context,
+        const void* src,
+        int32_t srcsize,
+        int32_t nblock,
+        uint8_t** dest,
+        int32_t* destsize
+    )
+
     int blosc2_getitem_ctx(
         blosc2_context* context,
         const void* src,
@@ -616,12 +655,12 @@ cdef extern from 'blosc2.h' nogil:
 
     ctypedef struct blosc2_stdio_mmap:
         const char* mode
-        int64_t initial_mapping_size
+        size_t initial_mapping_size
         bool needs_free
         char* addr
         char* urlpath
-        int64_t file_size
-        int64_t mapping_size
+        size_t file_size
+        size_t mapping_size
         bool is_memory_only
         FILE* file
         int fd
@@ -658,6 +697,8 @@ cdef extern from 'blosc2.h' nogil:
         int32_t typesize
         int32_t blocksize
         int32_t chunksize
+        uint8_t flags2
+        uint8_t use_dict
         uint8_t[6] filters  # BLOSC2_MAX_FILTERS
         uint8_t[6] filters_meta  # BLOSC2_MAX_FILTERS
         int64_t nchunks
