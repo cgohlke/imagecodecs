@@ -1,6 +1,6 @@
 # imagecodecs/lcms2.pxd
 
-# Cython declarations for the `Little 2.18` library.
+# Cython declarations for the `Little 2.19` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stddef cimport wchar_t
@@ -244,6 +244,10 @@ cdef extern from 'lcms2.h' nogil:
         cmsSigAbstractClass
         cmsSigColorSpaceClass
         cmsSigNamedColorClass
+        cmsSigColorEncodingSpaceClass
+        cmsSigMultiplexIdentificationClass
+        cmsSigMultiplexLinkClass
+        cmsSigMultiplexVisualizationClass
 
     ctypedef enum cmsPlatformSignature:
         cmsSigMacintosh
@@ -1562,6 +1566,10 @@ cdef extern from 'lcms2.h' nogil:
         cmsHPROFILE hProfile
     )
 
+    cmsUInt32Number cmsGetHeaderCMM(
+        cmsHPROFILE hProfile
+    )
+
     void cmsSetHeaderFlags(
         cmsHPROFILE hProfile,
         cmsUInt32Number Flags
@@ -2148,6 +2156,22 @@ cdef extern from 'lcms2.h' nogil:
     )
 
     cmsUInt32Number cmsGetTransformOutputFormat(
+        cmsHTRANSFORM hTransform
+    )
+
+    cmsPipeline* cmsGetTransformPipeline(
+        cmsHTRANSFORM hTransform
+    )
+
+    cmsPipeline* cmsGetTransformGamutCheckPipeline(
+        cmsHTRANSFORM hTransform
+    )
+
+    cmsNAMEDCOLORLIST* cmsGetTransformInputColorants(
+        cmsHTRANSFORM hTransform
+    )
+
+    cmsNAMEDCOLORLIST* cmsGetTransformOutputColorants(
         cmsHTRANSFORM hTransform
     )
 
