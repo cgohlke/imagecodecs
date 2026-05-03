@@ -53,6 +53,8 @@
 
 include '_shared.pxi'
 
+import cython
+
 from imcd cimport *
 from libc.math cimport ceil
 
@@ -195,7 +197,7 @@ cdef _delta(
 
         if axis < 0:
             axis = data.ndim + axis
-        if axis > data.ndim:
+        if axis < 0 or axis >= data.ndim:
             raise ValueError('invalid axis')
 
         srciter = numpy.PyArray_IterAllButAxis(data, &axis)
@@ -330,7 +332,7 @@ cdef _xor(
 
         if axis < 0:
             axis = data.ndim + axis
-        if axis > data.ndim:
+        if axis < 0 or axis >= data.ndim:
             raise ValueError('invalid axis')
 
         srciter = numpy.PyArray_IterAllButAxis(data, &axis)
@@ -785,7 +787,7 @@ def packbits_encode(
             axis = data.ndim - 1
         elif axis < 0:
             axis = data.ndim + axis
-        if axis >= data.ndim:
+        if axis < 0 or axis >= data.ndim:
             raise ValueError('invalid axis')
         if axis < data.ndim - 1:
             # merge trailing dimensions
@@ -903,8 +905,7 @@ def packbits_decode(
 
 # DICOM RLE ###################################################################
 
-# https://dicom.nema.org
-# /medical/Dicom/current/output/chtml/part05/sect_8.2.2.html
+# https://dicom.nema.org/medical/Dicom/current/output/chtml/part05/sect_8.2.2.html
 
 DICOMRLE = IMCD
 DicomrleError = ImcdError
@@ -963,6 +964,7 @@ def dicomrle_decode(
 
     if data is out:
         raise ValueError('cannot decode in-place')
+
     if srcsize < 64:
         raise ValueError(f'invalid DICOM RLE size {srcsize} < 64')
 
@@ -1334,7 +1336,7 @@ def packints_decode(
     if out is None:
         out = numpy.empty(dstsize, dtype)
     elif (
-        not isinstance(data, numpy.ndarray)
+        not isinstance(out, numpy.ndarray)
         or out.dtype != dtype
         or out.size < dstsize
     ):
@@ -1412,7 +1414,7 @@ def float24_encode(
         ssize_t dstsize
         ssize_t ret = 0
         char boc
-        int feround = FE_TONEAREST if rounding is None else rounding
+        int feround = _enum_value(rounding, FLOAT24.ROUND, FE_TONEAREST)
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -1561,7 +1563,7 @@ def bfloat16_encode(
         ssize_t dstsize
         ssize_t ret = 0
         char boc
-        int feround = FE_TONEAREST if rounding is None else rounding
+        int feround = _enum_value(rounding, BFLOAT16.ROUND, FE_TONEAREST)
 
     if data is out:
         raise ValueError('cannot encode in-place')
@@ -1794,6 +1796,8 @@ lzw_version = imcd_version
 
 def lzw_check(const uint8_t[::1] data, /):
     """Return whether data is LZW encoded or None if unknown."""
+    if data.nbytes < 1:
+        return False
     return bool(imcd_lzw_check(&data[0], data.nbytes))
 
 
