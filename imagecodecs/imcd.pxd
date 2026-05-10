@@ -1,6 +1,6 @@
 # imagecodecs/imcd.pxd
 
-# Cython declarations for the `imcd 2026.1.1` library.
+# Cython declarations for the `imcd 2026.3.6` library.
 # https://github.com/cgohlke/imagecodecs
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t
