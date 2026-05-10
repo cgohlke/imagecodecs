@@ -8,26 +8,27 @@ Imagecodecs is a Python library that provides block-oriented, in-memory buffer
 transformation, compression, and decompression functions for use in tifffile,
 liffile, czifile, zarr, and other scientific image input/output packages.
 
-Decode and/or encode functions are implemented for
-Zlib (DEFLATE), GZIP, LZMA, ZStandard (ZSTD), Blosc, Brotli, Snappy,
-BZ2, LZ4, LZ4F, LZ4HC, LZ4H5, LZW, LZO, LZF, LZFSE, LZHAM,
-PGLZ (PostgreSQL LZ), RCOMP (Rice), ZFP, SZ3, Meshopt, Pcodec, SPERR,
-AEC, SZIP, LERC, EER, NPY, BCn, DDS, BMP, PNG, APNG, GIF, TIFF, WebP,
+Decode and/or encode functions are implemented for the following codecs,
+image formats, and data transforms:
+Zlib (DEFLATE), GZIP, LZMA, ZStandard (ZSTD), Blosc, Brotli, Snappy, BZ2,
+LZ4, LZ4F, LZ4HC, LZ4H5, LZW, LZO, LZF, LZFSE, LZHAM, PGLZ (PostgreSQL LZ),
+RCOMP (Rice), HCOMP, PLIO, ZFP, SZ3, Meshopt, Pcodec, SPERR, AEC, SZIP, LERC,
+EER, NPY, BCn, DDS, BMP, PNG, APNG, GIF, PCX/DCX, TGA (TARGA), TIFF, WebP,
 JPEG (2 to 16-bit), Lossless JPEG (LJPEG, LJ92, JPEGLL), JPEG 2000 (JP2, J2K),
 High-throughput JPEG 2000 (HTJ2K, JPH), JPEG LS, JPEG XL, JPEG XS,
-JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF,
-QOI, RGBE (HDR), PixarLog, Jetraw, DICOM RLE, CCITT (RLE, T.4 and T.6),
-PackBits, Packed Integers (TIFF, MONO p and packed), Delta, XOR Delta,
-Floating Point Predictor, Bitorder reversal, Byteshuffle, Bitshuffle,
-Float24 (24-bit floating point), Bfloat16 (brain floating point),
-Quantize (Scale, BitGroom, BitRound, GranularBR), and
-CMS (color space transformations).
+JPEG XR (WDP, HD Photo), Ultra HDR (JPEG_R), MOZJPEG, AVIF, HEIF, EXR,
+WIC (Windows Imaging Component), WavPack, QOI, RGBE (HDR), PixarLog, Jetraw,
+DICOM RLE, CCITT (RLE, T.4 and T.6), PackBits, Packed Integers
+(TIFF, MONO p and packed), Delta, XOR Delta, Floating Point Predictor,
+Bitorder reversal, Byteshuffle, Bitshuffle, Float24 (24-bit floating point),
+Bfloat16 (brain floating point), Quantize (Scale, BitGroom, BitRound,
+GranularBR), and CMS (color space transformations).
 Checksum functions are implemented for CRC-32, Adler-32, Fletcher-32, and
 Jenkins lookup3.
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.3.6
+:Version: 2026.5.10
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -56,8 +57,10 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.11.9, 3.12.10, 3.13.12, 3.14.3 64-bit
-- `numpy <https://pypi.org/project/numpy>`_ 2.4.2
+- `CPython <https://www.python.org>`_ 3.12.10, 3.13.13, 3.14.4 64-bit
+- `numpy <https://pypi.org/project/numpy>`_ 2.4.4
+- `zarr <https://pypi.org/project/zarr/>`_ 3.2.1
+  (optional, for Zarr 3 compatible codecs)
 - `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.16.5
   (optional, for Zarr file format 2 compatible codecs)
 
@@ -67,41 +70,43 @@ Build requirements:
 - `brotli <https://github.com/google/brotli>`_ 1.2.0
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.6
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 2.23.0
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 3.0.2
 - `charls <https://github.com/team-charls/charls>`_ 2.4.3
-- `giflib <https://sourceforge.net/projects/giflib/>`_ 6.1.1
+- `giflib <https://sourceforge.net/projects/giflib/>`_ 6.1.3
 - `jxrlib <https://github.com/cgohlke/jxrlib>`_ 1.2
-- `lcms2 <https://github.com/mm2/Little-CMS>`_ 2.18
-- `lerc <https://github.com/Esri/lerc>`_ 4.0.4
+- `lcms2 <https://github.com/mm2/Little-CMS>`_ 2.19.1
+- `lerc <https://github.com/Esri/lerc>`_ 4.1.0
 - `libaec <https://gitlab.dkrz.de/k202009/libaec>`_ 1.1.6
-- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.4.0
-  (`aom <https://aomedia.googlesource.com/aom>`_ 3.13.1,
+- `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.4.1
+  (`aom <https://aomedia.googlesource.com/aom>`_ 3.13.3,
   `dav1d <https://github.com/videolan/dav1d>`_ 1.5.3,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.8.1,
-  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 4.0.1,
+  `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 4.1.0,
   `libyuv <https://chromium.googlesource.com/libyuv/libyuv>`_ main,
-  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.2)
+  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.3)
 - `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.25
 - `libheif <https://github.com/strukturag/libheif>`_ 1.21.2
-  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.16,
+  (`libde265 <https://github.com/strukturag/libde265>`_ 1.0.18,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 4.1)
-- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.1.3
+- `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.1.4.1
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.11.2
 - `libjxs <https://jpeg.org/jpegxs/software.html>`_ 2.0.2
-- `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.2
-- `libpng <https://github.com/glennrp/libpng>`_ 1.6.55
-- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.55
+- `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.3
+- `libpng <https://github.com/glennrp/libpng>`_ 1.6.58
+- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.58
 - `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.1 (with issue 789 fix)
 - `libultrahdr <https://github.com/google/libultrahdr>`_ 1.4.0
 - `libwebp <https://github.com/webmproject/libwebp>`_ 1.6.0
 - `lz4 <https://github.com/lz4/lz4>`_ 1.10.0
-- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.0.1
+- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.1
+- `openexr <https://github.com/AcademySoftwareFoundation/openexr>`_ 3.4.11
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.4
-- `openjph <https://github.com/aous72/OpenJPH>`_ 0.26.3
-- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.1 (with PR 369)
+- `openjph <https://github.com/aous72/OpenJPH>`_ 0.27.2
+- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.2
 - `snappy <https://github.com/google/snappy>`_ 1.2.2
-- `sperr <https://github.com/NCAR/SPERR>`_ 0.8.4
+- `sperr <https://github.com/NCAR/SPERR>`_ 0.8.5
 - `sz3 <https://github.com/szcompressor/SZ3>`_ 3.3.2
+- `wavpack <https://github.com/dbry/wavpack>`_ 5.9.0
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.1
 - `zlib <https://github.com/madler/zlib>`_ 1.3.2
 - `zlib-ng <https://github.com/zlib-ng/zlib-ng>`_ 2.3.3
@@ -117,11 +122,13 @@ Unmaintained or discontinued build requirements:
 - `mozjpeg <https://github.com/mozilla/mozjpeg>`_ 4.1.5
 - `zopfli <https://github.com/google/zopfli>`_ 1.0.3
 
-Vendored requirements:
+Bundled source files:
 
 - `bcdec.h <https://github.com/iOrange/bcdec>`_ 93628fe
 - `bitshuffle <https://github.com/kiyo-masui/bitshuffle>`_ 0.5.2
-- `cfitsio ricecomp.c <https://heasarc.gsfc.nasa.gov/fitsio/>`_ modified
+- ccitt.c original 0BSD implementation
+- `cfitsio ricecomp.c, pliocomp.c, hcompress.c
+  <https://heasarc.gsfc.nasa.gov/fitsio/>`_ modified
 - `h5checksum.c <https://github.com/HDFGroup/hdf5/>`_ modified
 - `jpg_0XC3.cpp
   <https://github.com/rordenlab/dcm2niix/blob/master/console/jpg_0XC3.cpp>`_
@@ -133,21 +140,25 @@ Vendored requirements:
 - `nc4var.c <https://github.com/Unidata/netcdf-c/blob/main/libsrc4/nc4var.c>`_
   modified
 - `pg_lzcompress.c <https://github.com/postgres/postgres>`_ modified
+- `libtiff pixarlog.c
+  <https://gitlab.com/libtiff/libtiff/-/blob/master/libtiff/tif_pixarlog.c>`_
+  v4.7.1 modified
 - `qoi.h <https://github.com/phoboslab/qoi/>`_ 4461cc3
 - `rgbe.c <https://www.graphics.cornell.edu/~bjw/rgbe/rgbe.c>`_ modified
+- wic.cpp original 0BSD implementation
 
 Test requirements:
 
-- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.3.3
-- `czifile <https://github.com/cgohlke/czifile>`_ 2019.7.2.3
-- `liffile <https://github.com/cgohlke/liffile>`_ 2026.2.16
-- `zarr <https://github.com/zarr-developers/zarr-python>`_ 3.1.5
+- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.5.2
+- `czifile <https://github.com/cgohlke/czifile>`_ 2026.4.30
+- `liffile <https://github.com/cgohlke/liffile>`_ 2026.4.11
+- `kerchunk <https://github.com/fsspec/kerchunk>`_ 0.2.10
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.4
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.0.0
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.2.0
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.2.0
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.4.5
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.6
-- `python-snappy <https://github.com/andrix/python-snappy>`_ 0.7.3
+- `python-snappy <https://github.com/andrix/python-snappy>`_ 0.6.1
 - `pyliblzfse <https://github.com/ydkhatri/pyliblzfse>`_ 0.4.1
 - `backports.zstd <https://github.com/rogdham/backports.zstd>`_ 1.3.0
 - `zopflipy <https://github.com/hattya/zopflipy>`_ 1.12
@@ -155,9 +166,28 @@ Test requirements:
 Revisions
 ---------
 
+2026.5.10
+
+- Add Zarr 3 compatible codecs.
+- Add WIC codec based on Windows Imaging Component.
+- Add EXR codec based on OpenEXRCore library.
+- Add WAVPACK codec based on WavPack library.
+- Add HCOMP and PLIO codecs based on modified cfitsio library.
+- Add TGA and PCX/DCX legacy codecs.
+- Add option to pass SDR image to ultrahdr_encode.
+- Add option to specify primaries and transferfunction in jpegxl_encode (#137).
+- Add animated WebP encoding and decoding of all frames (breaking).
+- Remove cms_encode and cms_decode aliases for cms_transform (breaking).
+- Determine colorspace/pixeltype from profiles in cms_transform.
+- Allow to pass IntEnum parameters as strings except for levels.
+- Support decoding RLE8 and RLE4 compressed BMP.
+- Link zopfli_encode level to numiterations parameter.
+- Unify image layout handling in encode functions.
+- Fix code review issues.
+- Drop support for numpy 2.0 (SPEC0), Python 3.11, and macosx_x86_64.
+
 2026.3.6
 
-- Pass 8575 tests.
 - Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
 - Implement packints_encode function.
 - Support lerc subcodec in tiff_encode function.
@@ -217,14 +247,6 @@ Revisions
 
 2025.3.30
 
-- Fix some codecs for use with Zarr 3, zarr_format=2 (#123).
-- Fix LZ4H5 codec when block size is less than compressed size (#126).
-- Fix pglz_compress is not thread-safe.
-- Set __module__ attribute on public objects.
-- Drop support for Python 3.9, deprecate Python 3.10.
-
-2024.12.30
-
 - …
 
 Refer to the CHANGES file for older revisions.
@@ -264,13 +286,10 @@ This library is largely a work in progress.
 
 The API is not stable yet and might change between revisions.
 
-Python <= 3.10 is no longer supported. 32-bit versions are deprecated.
-
 Works on little-endian platforms only.
 
 Supported platforms are ``win_amd64``, ``win_arm64``, ``win32``,
-``macosx_x86_64``, ``macosx_arm64``, ``manylinux_x86_64``, and
-``manylinux_aarch64``.
+``macosx_arm64``, ``manylinux_x86_64``, and ``manylinux_aarch64``.
 
 Wheels may not be available for all platforms and all releases.
 
@@ -293,10 +312,6 @@ is required on Windows.
 Refer to the imagecodecs/licenses folder for 3rd-party library licenses.
 
 This software is based in part on the work of the Independent JPEG Group.
-
-Update pip and setuptools to the latest version before installing imagecodecs::
-
-    python -m pip install -U pip setuptools wheel Cython.
 
 When building against libjpeg or libjpeg_turbo < 3, set the environment
 variable ``IMAGECODECS_JPEG8_LEGACY=1`` to enable legacy API support.
@@ -326,7 +341,7 @@ Other projects providing imaging or compression codecs:
 `stdlib-bz2 <https://docs.python.org/3/library/bz2.html>`_,
 `stdlib-lzma <https://docs.python.org/3/library/lzma.html>`_,
 `backports.lzma <https://github.com/peterjc/backports.lzma>`_,
-`python-lzo <https://bitbucket.org/james_taylor/python-lzo-static>`_,
+`python-lzo <https://github.com/jd-boyd/python-lzo>`_,
 `python-lzw <https://github.com/joeatwork/python-lzw>`_,
 `python-lerc <https://pypi.org/project/lerc/>`_,
 `wavpack-numcodecs
@@ -335,10 +350,9 @@ Other projects providing imaging or compression codecs:
 `isa-l.igzip <https://github.com/intel/isa-l>`_,
 `fpzip <https://github.com/seung-lab/fpzip>`_,
 `libmng <https://sourceforge.net/projects/libmng/>`_,
-`openexr <https://github.com/AcademySoftwareFoundation/openexr>`_,
 `openzl <https://github.com/facebook/openzl>`_,
 `openhtj2k <https://github.com/osamu620/OpenHTJ2K>`_,
-`pyjetraw <https://github.com/Jetraw/pyJetraw>`_,
+`pyjetraw <https://github.com/Jetraw>`_,
 `tinyexr <https://github.com/syoyo/tinyexr>`_,
 `pytinyexr <https://github.com/syoyo/pytinyexr>`_,
 `pyroexr <https://github.com/dragly/pyroexr>`_,
@@ -460,22 +474,35 @@ Read the image from the JP2 file as numpy array:
     >>> numpy.array_equal(image, array)
     True
 
-Create a JPEG 2000 compressed Zarr array:
+Create a JPEG 2000 compressed Zarr array using numcodecs:
 
 .. code-block:: python
 
     >>> import zarr
-    >>> import numcodecs
-    >>> from imagecodecs.numcodecs import Jpeg2k
-    >>> numcodecs.register_codec(Jpeg2k)
+    >>> from imagecodecs.numcodecs import register_codecs, Jpeg2k
+    >>> register_codecs()
+    >>> zarr.zeros(
+    ...     (4, 5, 512, 512, 3),
+    ...     chunks=(1, 1, 256, 256, 3),
+    ...     dtype='u2',
+    ...     compressor=Jpeg2k(bitspersample=10),
+    ...     zarr_format=2,
+    ... )
+    <Array ... shape=(4, 5, 512, 512, 3) dtype=uint16>
+
+Create a Delta-LZW compressed Zarr array using zarr codecs:
+
+.. code-block:: python
+
+    >>> from imagecodecs.zarr import register_codecs, Delta, Lzw
+    >>> register_codecs()
     >>> zarr.zeros(
     ...     (4, 5, 512, 512, 3),
     ...     chunks=(1, 1, 256, 256, 3),
     ...     dtype='u1',
-    ...     compressor=Jpeg2k(),
-    ...     zarr_format=2,
+    ...     codecs=[Delta(), zarr.codecs.BytesCodec(), Lzw()],
     ... )
-    <...Array ...(4, 5, 512, 512, 3) ...uint8>
+    <Array ... shape=(4, 5, 512, 512, 3) dtype=uint8>
 
 Access image data in a sequence of JP2 files via tifffile.FileSequence and
 dask.array:
@@ -496,7 +523,7 @@ dask.array:
     dask.array<from-zarr, shape=(1, 256, 256, 3)...chunksize=(1, 256, 256, 3)...
 
 Write the Zarr store to a fsspec ReferenceFileSystem in JSON format
-and open it as a Zarr array:
+and open it as a Zarr array using kerchunk:
 
 .. code-block:: python
 
@@ -505,7 +532,7 @@ and open it as a Zarr array:
     ... )
     >>> from kerchunk.utils import refs_as_store
     >>> zarr.open(refs_as_store('temp.json'), mode='r')
-    <Array <FsspecStore(ReferenceFileSystem, /)> shape=(1, 256, 256, 3) dtype=uint8>
+    <Array <FsspecStore(ReferenceFileSystem, /)> shape=(1, 256, 256, 3)...
 
 View the image in the JP2 file from the command line::
 
