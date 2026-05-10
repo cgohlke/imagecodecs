@@ -3,6 +3,8 @@ include README.rst
 include CHANGES.rst
 include pyproject.toml
 
+exclude testimages.py
+
 include imagecodecs/py.typed
 
 include imagecodecs/*.c
@@ -60,14 +62,17 @@ exclude tests/data/jetraw.bin
 exclude tests/data/huge.bin
 
 exclude .env
+exclude .gitignore
 exclude *.cmd
 exclude *.yaml
+exclude *.code-workspace
 exclude mypy.ini
 exclude ruff.toml
-exclude *.code-workspace
-exclude .gitignore
+exclude typos.toml
+exclude uncrustify.cfg
 exclude build_utils/*
 
+recursive-exclude .github *
 recursive-exclude doc *
 recursive-exclude docs *
 recursive-exclude * __pycache__
