@@ -1,6 +1,6 @@
 # imagecodecs/lj92.pxd
 
-# Cython declarations for the `liblj92 2026.3.3` library.
+# Cython declarations for the `liblj92 2026.3.6` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/liblj92/
 
 from libc.stdint cimport uint8_t, uint16_t
