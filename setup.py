@@ -23,10 +23,10 @@ LIMITED_API = os.environ.get('CG_LIMITED_API', '1').lower() in ('1', 'true')
 if LIMITED_API and not sysconfig.get_config_var('Py_GIL_DISABLED'):
     py_limited_api = True
     define_macros = [
-        ('Py_LIMITED_API', 0x030B0000),
+        ('Py_LIMITED_API', 0x030C0000),
         ('CYTHON_LIMITED_API', '1'),
     ]
-    setup_options = {'bdist_wheel': {'py_limited_api': 'cp311'}}
+    setup_options = {'bdist_wheel': {'py_limited_api': 'cp312'}}
 else:
     py_limited_api = False
     define_macros = []
@@ -60,10 +60,8 @@ def fix_docstring_examples(docstring: str) -> str:
     return '\n'.join(lines)
 
 
-with open(
-    os.path.join(HERE, 'imagecodecs/imagecodecs.py'), encoding='utf-8'
-) as fh:
-    code = fh.read().replace('\r\n', '\n').replace('\r', '\n')
+with open('imagecodecs/imagecodecs.py', encoding='utf-8') as fh:
+    code = fh.read()
 
 version = search(r"__version__ = '(.*?)'", code).replace('.x.x', '.dev0')
 version += ('.' + buildnumber) if buildnumber else ''
@@ -76,13 +74,13 @@ readme = search(
     re.MULTILINE | re.DOTALL,
 )
 readme = '\n'.join(
-    (description, '=' * len(description), *readme.splitlines()[1:])
+    [description, '=' * len(description), *readme.splitlines()[1:]]
 )
 
 if 'sdist' in sys.argv:
     # update README, LICENSE, and CHANGES files
 
-    with open('README.rst', 'w', encoding='utf-8') as fh:
+    with open('README.rst', 'w', encoding='utf-8', newline='\n') as fh:
         fh.write(fix_docstring_examples(readme))
 
     license = search(
@@ -92,7 +90,7 @@ if 'sdist' in sys.argv:
     )
     license = license.replace('# ', '').replace('#', '')
 
-    with open('LICENSE', 'w', encoding='utf-8') as fh:
+    with open('LICENSE', 'w', encoding='utf-8', newline='\n') as fh:
         fh.write('BSD-3-Clause license\n\n')
         fh.write(license)
 
@@ -106,8 +104,8 @@ if 'sdist' in sys.argv:
         old = fh.read()
 
     old = old.split(revisions.splitlines()[-1])[-1]
-    with open('CHANGES.rst', 'w', encoding='utf-8') as fh:
-        fh.write(revisions.strip())
+    with open('CHANGES.rst', 'w', encoding='utf-8', newline='\n') as fh:
+        fh.write(revisions.replace('---------', '=========').strip())
         fh.write(old)
 
 
@@ -183,14 +181,15 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     ),
     'cms': ext(libraries=['lcms2']),
     'deflate': ext(libraries=['deflate']),
-    # 'exr': ext(
-    #     sources=['3rdparty/tinyexr/tinyexr.cc'],
-    #     include_dirs=['3rdparty/tinyexr'],
-    # ),
+    'exr': ext(libraries=['OpenEXRCore-3_4']),
     'gif': ext(libraries=['gif']),
     'h5checksum': ext(
         sources=['3rdparty/hdf5/h5checksum.c'],
         include_dirs=['3rdparty/hdf5'],
+    ),
+    'hcomp': ext(
+        sources=['3rdparty/cfitsio/hcompress.c'],
+        include_dirs=['3rdparty/cfitsio'],
     ),
     'heif': ext(libraries=['heif']),
     'htj2k': ext(libraries=['openjph']),
@@ -245,6 +244,10 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
         include_dirs=['3rdparty/pixarlog'],
         libraries=['z'],
     ),
+    'plio': ext(
+        sources=['3rdparty/cfitsio/pliocomp.c'],
+        include_dirs=['3rdparty/cfitsio'],
+    ),
     'png': ext(libraries=['png']),
     'qoi': ext(
         include_dirs=['3rdparty/qoi'],
@@ -272,9 +275,17 @@ EXTENSIONS: dict[str, dict[str, Any]] = {
     ),
     'sz3': ext(libraries=['SZ3c']),
     'szip': ext(libraries=['sz']),
+    'pcx': ext(),
+    'tga': ext(),
     'tiff': ext(sources=['imagecodecs/imcd.c'], libraries=['tiff']),
     'ultrahdr': ext(libraries=['uhdr', 'jpeg']),
-    'webp': ext(libraries=['webp', 'webpdemux']),
+    'wic': ext(
+        sources=['3rdparty/wic/wic.cpp'],
+        include_dirs=['3rdparty/wic'],
+        libraries=['ole32', 'oleaut32'],
+    ),
+    'wavpack': ext(libraries=['wavpack']),
+    'webp': ext(libraries=['webp', 'webpdemux', 'webpmux']),
     'zfp': ext(libraries=['zfp']),
     'zlib': ext(libraries=['z']),
     'zlibng': ext(libraries=['z-ng']),
@@ -367,8 +378,16 @@ def customize_build_cgohlke(
     if 'ARM64' in sys.version:
         extensions.pop('jetraw', None)
 
-    # extensions['exr']['define_macros'].append(('TINYEXR_USE_OPENMP', 1))
-    # extensions['exr']['extra_compile_args'] = ['/openmp']
+    if 'exr' in extensions:
+        extensions['exr']['include_dirs'] = [
+            os.path.join(inclib, 'include', 'OpenEXR'),
+            os.path.join(inclib, 'include', 'Imath'),
+        ]
+        extensions['exr']['libraries'] = [
+            'OpenEXRCore-3_4',
+            'openjph',
+            'deflatestatic',
+        ]
 
     if not os.environ.get('IMAGECODECS_JPEG8_LEGACY', ''):
         # use libjpeg-turbo 3
@@ -421,9 +440,11 @@ def customize_build_cgohlke(
     extensions['bz2']['libraries'] = ['libbz2']
     extensions['lzf']['libraries'] = ['lzf']
     extensions['gif']['libraries'] = ['libgif']
+    extensions['wavpack']['libraries'] = ['libwavpack']
     extensions['webp']['libraries'] = [
         'libwebp',
         'libwebpdemux',
+        'libwebpmux',
         'libsharpyuv',
     ]
 
@@ -522,6 +543,7 @@ def customize_build_cibuildwheel(
         # 'pcodec',
         # 'sperr',
         # 'sz3',
+        'wic',
     ):
         extensions.pop(ext, None)
 
@@ -584,6 +606,7 @@ def customize_build_condaforge(
     for ext in (
         'apng',
         'brunsli',
+        'exr',
         'heif',
         'jetraw',
         'jpegxs',
@@ -597,6 +620,7 @@ def customize_build_condaforge(
         'sperr',
         'sz3',
         'ultrahdr',
+        'wavpack',
     ):
         extensions.pop(ext, None)
 
@@ -624,6 +648,7 @@ def customize_build_condaforge(
         extensions['szip']['libraries'] = ['szip']
         extensions['zlibng']['libraries'] = ['zlib-ng']
     else:
+        extensions.pop('wic', None)
         extensions['zopfli']['include_dirs'] = [
             os.path.join(os.environ['PREFIX'], 'include', 'zopfli')
         ]
@@ -653,6 +678,7 @@ def customize_build_macports(
         'blosc2',
         'brunsli',
         'deflate',
+        'exr',
         'heif',
         'htj2k',
         'jetraw',
@@ -672,6 +698,8 @@ def customize_build_macports(
         'sperr',
         'sz3',
         'ultrahdr',
+        'wavpack',
+        'wic',
         'zfp',
         'zlibng',
     ):
@@ -702,6 +730,7 @@ def customize_build_mingw(
 
     for ext in (
         'brunsli',
+        'exr',
         'heif',
         'jetraw',
         'jpegxs',
@@ -713,6 +742,8 @@ def customize_build_mingw(
         'pcodec',
         'sperr',
         'sz3',
+        'wavpack',
+        'wic',
         'zfp',
         'zlibng',
     ):
@@ -846,8 +877,8 @@ setup(
         'Source Code': 'https://github.com/cgohlke/imagecodecs',
         # 'Documentation': 'https://',
     },
-    python_requires='>=3.11',
-    install_requires=['numpy>=2.0'],
+    python_requires='>=3.12',
+    install_requires=['numpy>=2.1'],
     extras_require={
         'all': ['matplotlib', 'tifffile', 'numcodecs'],
         'test': [
@@ -883,7 +914,6 @@ setup(
     },
     ext_modules=EXT_MODULES,
     options=setup_options,
-    zip_safe=False,
     platforms=['any'],
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -893,7 +923,6 @@ setup(
         'Programming Language :: C',
         'Programming Language :: Cython',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
         'Programming Language :: Python :: 3.14',
