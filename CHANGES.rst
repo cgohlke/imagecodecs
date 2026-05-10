@@ -1,9 +1,28 @@
 Revisions
----------
+=========
+
+2026.5.10
+
+- Add Zarr 3 compatible codecs.
+- Add WIC codec based on Windows Imaging Component.
+- Add EXR codec based on OpenEXRCore library.
+- Add WAVPACK codec based on WavPack library.
+- Add HCOMP and PLIO codecs based on modified cfitsio library.
+- Add TGA and PCX/DCX legacy codecs.
+- Add option to pass SDR image to ultrahdr_encode.
+- Add option to specify primaries and transferfunction in jpegxl_encode (#137).
+- Add animated WebP encoding and decoding of all frames (breaking).
+- Remove cms_encode and cms_decode aliases for cms_transform (breaking).
+- Determine colorspace/pixeltype from profiles in cms_transform.
+- Allow to pass IntEnum parameters as strings except for levels.
+- Support decoding RLE8 and RLE4 compressed BMP.
+- Link zopfli_encode level to numiterations parameter.
+- Unify image layout handling in encode functions.
+- Fix code review issues.
+- Drop support for numpy 2.0 (SPEC0), Python 3.11, and macosx_x86_64.
 
 2026.3.6
 
-- Pass 8575 tests.
 - Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
 - Implement packints_encode function.
 - Support lerc subcodec in tiff_encode function.
