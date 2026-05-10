@@ -94,26 +94,26 @@ nc4_convert_type(
     /* These vars are used with quantize feature. */
     const double bit_per_dgt = M_LN10 / M_LN2; /* 3.32 [frc] Bits per decimal digit of precision  = log2(10) */
     const double dgt_per_bit = M_LN2 / M_LN10; /* 0.301 [frc] Decimal digits per bit of precision = log10(2) */
-    double mnt; /* [frc] Mantissa, 0.5 <= mnt < 1.0 */
-    double mnt_fabs; /* [frc] fabs(mantissa) */
-    double mnt_log10_fabs; /* [frc] log10(fabs(mantissa))) */
-    double val; /* [frc] Copy of input value to avoid indirection */
-    double mss_val_cmp_dbl; /* Missing value for comparison to double precision values */
-    float mss_val_cmp_flt; /* Missing value for comparison to single precision values */
-    int bit_xpl_nbr_zro; /* [nbr] Number of explicit bits to zero */
-    int dgt_nbr; /* [nbr] Number of digits before decimal point */
-    int qnt_pwr; /* [nbr] Power of two in quantization mask: qnt_msk = 2^qnt_pwr */
-    int xpn_bs2; /* [nbr] Binary exponent xpn_bs2 in val = sign(val) * 2^xpn_bs2 * mnt, 0.5 < mnt <= 1.0 */
-    size_t idx;
-    unsigned int *u32_ptr;
-    unsigned int msk_f32_u32_zro;
-    unsigned int msk_f32_u32_one;
-    unsigned int msk_f32_u32_hshv;
-    unsigned long long int *u64_ptr;
-    unsigned long long int msk_f64_u64_zro;
-    unsigned long long int msk_f64_u64_one;
-    unsigned long long int msk_f64_u64_hshv;
-    unsigned short prc_bnr_xpl_rqr; /* [nbr] Explicitly represented binary digits required to retain */
+    double mnt = 0.0; /* [frc] Mantissa, 0.5 <= mnt < 1.0 */
+    double mnt_fabs = 0.0; /* [frc] fabs(mantissa) */
+    double mnt_log10_fabs = 0.0; /* [frc] log10(fabs(mantissa))) */
+    double val = 0.0; /* [frc] Copy of input value to avoid indirection */
+    double mss_val_cmp_dbl = 0.0; /* Missing value for comparison to double precision values */
+    float mss_val_cmp_flt = 0.0f; /* Missing value for comparison to single precision values */
+    int bit_xpl_nbr_zro = 0; /* [nbr] Number of explicit bits to zero */
+    int dgt_nbr = 0; /* [nbr] Number of digits before decimal point */
+    int qnt_pwr = 0; /* [nbr] Power of two in quantization mask: qnt_msk = 2^qnt_pwr */
+    int xpn_bs2 = 0; /* [nbr] Binary exponent xpn_bs2 in val = sign(val) * 2^xpn_bs2 * mnt, 0.5 < mnt <= 1.0 */
+    size_t idx = 0;
+    unsigned int *u32_ptr = NULL;
+    unsigned int msk_f32_u32_zro = 0u;
+    unsigned int msk_f32_u32_one = 0u;
+    unsigned int msk_f32_u32_hshv = 0u;
+    unsigned long long int *u64_ptr = NULL;
+    unsigned long long int msk_f64_u64_zro = 0ul;
+    unsigned long long int msk_f64_u64_one = 0ul;
+    unsigned long long int msk_f64_u64_hshv = 0ul;
+    unsigned short prc_bnr_xpl_rqr = 0; /* [nbr] Explicitly represented binary digits required to retain */
     ptr_unn op1; /* I/O [frc] Values to quantize */
 
     char *cp, *cp1;
