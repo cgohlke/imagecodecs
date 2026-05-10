@@ -69,7 +69,7 @@ class PcodecError(RuntimeError):
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 1.0.1'
+    return 'pcodec 1.0.2'
 
 
 def pcodec_check(const uint8_t[::1] data, /):
@@ -87,15 +87,15 @@ def pcodec_encode(
     """Return PCODEC encoded data."""
     cdef:
         numpy.ndarray src = numpy.ascontiguousarray(data)
-        const uint8_t[::1] dst
+        const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         PcoChunkConfig config
         unsigned char pcotype
         size_t bound, n_written
         PcoError ret
 
-    config.compression_level = _default_value(level, 8, 0, 12)
-    config.max_page_n = 0 if pagesize is None else <size_t> pagesize
+    if data is out:
+        raise ValueError('cannot encode in-place')
 
     if src.size > INT32_MAX:
         raise ValueError(f'invalid {src.size=}')
@@ -118,6 +118,9 @@ def pcodec_encode(
 
     dst = out
     dstsize = dst.nbytes
+
+    config.compression_level = _default_value(level, 8, 0, 12)
+    config.max_page_n = 0 if pagesize is None else <size_t> pagesize
 
     with nogil:
         ret = pco_standalone_simple_compress_into(
@@ -153,6 +156,9 @@ def pcodec_decode(
         unsigned char pcotype
         size_t n_written
         PcoError ret
+
+    if data is out:
+        raise ValueError('cannot decode in-place')
 
     if isinstance(out, numpy.ndarray):
         dtype = out.dtype
