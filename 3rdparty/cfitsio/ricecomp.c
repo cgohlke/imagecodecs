@@ -84,7 +84,8 @@ static const int nonzero_count[256] = {
     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8
+};
 
 typedef unsigned char Buffer_t;
 
@@ -96,14 +97,22 @@ typedef struct {
     Buffer_t *end;     /* end of buffer */
 } Buffer;
 
-#define putcbuf(c, mf) ((*(mf->current)++ = c), 0)
+#define putcbuf(c, mf) ((void)(*((mf)->current)++ = (c)))
 
 static void
-start_outputing_bits(Buffer *buffer);
+start_outputing_bits(
+    Buffer *buffer
+);
 static int
-done_outputing_bits(Buffer *buffer);
+done_outputing_bits(
+    Buffer *buffer
+);
 static int
-output_nbits(Buffer *buffer, int bits, int n);
+output_nbits(
+    Buffer *buffer,
+    int bits,
+    int n
+);
 
 /*  only used for diagnoistics
 static int case1, case2, case3;
@@ -260,7 +269,8 @@ rcomp_int(
                     return RCOMP_ERROR_EOB;
                 }
             }
-        } else if (fs == 0 && pixelsum == 0) {
+        }
+        else if (fs == 0 && pixelsum == 0) {
             /*
              * special low entropy case when FS = 0 and pixelsum=0 (all
              * pixels in block are zero.)
@@ -270,7 +280,8 @@ rcomp_int(
                 free(diff);
                 return RCOMP_ERROR_EOB;
             }
-        } else {
+        }
+        else {
             /* normal case: not either very high or very low entropy */
             if (output_nbits(buffer, fs + 1, fsbits) == EOF) {
                 free(diff);
@@ -292,7 +303,8 @@ rcomp_int(
                     lbitbuffer <<= top + 1;
                     lbitbuffer |= 1;
                     lbits_to_go -= top + 1;
-                } else {
+                }
+                else {
                     lbitbuffer <<= lbits_to_go;
                     putcbuf(lbitbuffer & 0xff, buffer);
 
@@ -487,7 +499,8 @@ rcomp_short(
                     return RCOMP_ERROR_EOB;
                 }
             }
-        } else if (fs == 0 && pixelsum == 0) {
+        }
+        else if (fs == 0 && pixelsum == 0) {
             /* case1++; */
             /*
              * special low entropy case when FS = 0 and pixelsum=0 (all
@@ -498,7 +511,8 @@ rcomp_short(
                 free(diff);
                 return RCOMP_ERROR_EOB;
             }
-        } else {
+        }
+        else {
             /* case2++; */
             /* normal case: not either very high or very low entropy */
             if (output_nbits(buffer, fs + 1, fsbits) == EOF) {
@@ -521,7 +535,8 @@ rcomp_short(
                     lbitbuffer <<= top + 1;
                     lbitbuffer |= 1;
                     lbits_to_go -= top + 1;
-                } else {
+                }
+                else {
                     lbitbuffer <<= lbits_to_go;
                     putcbuf(lbitbuffer & 0xff, buffer);
                     for (top -= lbits_to_go; top >= 8; top -= 8) {
@@ -712,7 +727,8 @@ rcomp_byte(
                     return RCOMP_ERROR_EOB;
                 }
             }
-        } else if (fs == 0 && pixelsum == 0) {
+        }
+        else if (fs == 0 && pixelsum == 0) {
             /*
              * special low entropy case when FS = 0 and pixelsum=0 (all
              * pixels in block are zero.)
@@ -722,7 +738,8 @@ rcomp_byte(
                 free(diff);
                 return RCOMP_ERROR_EOB;
             }
-        } else {
+        }
+        else {
             /* normal case: not either very high or very low entropy */
             if (output_nbits(buffer, fs + 1, fsbits) == EOF) {
                 free(diff);
@@ -744,7 +761,8 @@ rcomp_byte(
                     lbitbuffer <<= top + 1;
                     lbitbuffer |= 1;
                     lbits_to_go -= top + 1;
-                } else {
+                }
+                else {
                     lbitbuffer <<= lbits_to_go;
                     putcbuf(lbitbuffer & 0xff, buffer);
                     for (top -= lbits_to_go; top >= 8; top -= 8) {
@@ -797,7 +815,8 @@ rcomp_byte(
 /* Initialize for bit output */
 
 static void
-start_outputing_bits(Buffer *buffer)
+start_outputing_bits(
+    Buffer *buffer)
 {
     /*
      * Buffer is empty to start with
@@ -810,7 +829,10 @@ start_outputing_bits(Buffer *buffer)
 /* Output N bits (N must be <= 32) */
 
 static int
-output_nbits(Buffer *buffer, int bits, int n)
+output_nbits(
+    Buffer *buffer,
+    int bits,
+    int n)
 {
     /* local copies */
     int lbitbuffer;
@@ -822,7 +844,8 @@ output_nbits(Buffer *buffer, int bits, int n)
         0xfff,      0x1fff,     0x3fff,    0x7fff,    0xffff,    0x1ffff,
         0x3ffff,    0x7ffff,    0xfffff,   0x1fffff,  0x3fffff,  0x7fffff,
         0xffffff,   0x1ffffff,  0x3ffffff, 0x7ffffff, 0xfffffff, 0x1fffffff,
-        0x3fffffff, 0x7fffffff, 0xffffffff};
+        0x3fffffff, 0x7fffffff, 0xffffffff
+    };
 
     /*
      * insert bits at end of bitbuffer
@@ -860,7 +883,8 @@ output_nbits(Buffer *buffer, int bits, int n)
 /* Flush out the last bits */
 
 static int
-done_outputing_bits(Buffer *buffer)
+done_outputing_bits(
+    Buffer *buffer)
 {
     if (buffer->bits_to_go < 8) {
         putcbuf((Buffer_t)(buffer->bitbuffer << buffer->bits_to_go), buffer);
@@ -991,7 +1015,8 @@ rdecomp_int(
         if (fs < 0) {
             /* low-entropy case, all zero differences */
             for (; i < imax; i++) array[i] = lastpix;
-        } else if (fs == fsmax) {
+        }
+        else if (fs == fsmax) {
             /* high-entropy case, directly coded pixel values */
             for (; i < imax; i++) {
                 k = bbits - nbits;
@@ -1004,7 +1029,8 @@ rdecomp_int(
                     b = *c++;
                     diff |= b >> (-k);
                     b &= (1 << nbits) - 1;
-                } else {
+                }
+                else {
                     b = 0;
                 }
                 /*
@@ -1015,13 +1041,15 @@ rdecomp_int(
                  */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = diff + lastpix;
                 lastpix = array[i];
             }
-        } else {
+        }
+        else {
             /* normal case, Rice coding */
             for (; i < imax; i++) {
                 /* count number of leading zeros */
@@ -1045,7 +1073,8 @@ rdecomp_int(
                 /* undo mapping and differencing */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = diff + lastpix;
@@ -1159,7 +1188,8 @@ rdecomp_short(
         if (fs < 0) {
             /* low-entropy case, all zero differences */
             for (; i < imax; i++) array[i] = (short)lastpix;
-        } else if (fs == fsmax) {
+        }
+        else if (fs == fsmax) {
             /* high-entropy case, directly coded pixel values */
             for (; i < imax; i++) {
                 k = bbits - nbits;
@@ -1172,7 +1202,8 @@ rdecomp_short(
                     b = *c++;
                     diff |= b >> (-k);
                     b &= (1 << nbits) - 1;
-                } else {
+                }
+                else {
                     b = 0;
                 }
 
@@ -1184,13 +1215,15 @@ rdecomp_short(
                  */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = (short)(diff + lastpix);
                 lastpix = array[i];
             }
-        } else {
+        }
+        else {
             /* normal case, Rice coding */
             for (; i < imax; i++) {
                 /* count number of leading zeros */
@@ -1214,7 +1247,8 @@ rdecomp_short(
                 /* undo mapping and differencing */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = (short)(diff + lastpix);
@@ -1323,7 +1357,8 @@ rdecomp_byte(
         if (fs < 0) {
             /* low-entropy case, all zero differences */
             for (; i < imax; i++) array[i] = (unsigned char)lastpix;
-        } else if (fs == fsmax) {
+        }
+        else if (fs == fsmax) {
             /* high-entropy case, directly coded pixel values */
             for (; i < imax; i++) {
                 k = bbits - nbits;
@@ -1336,7 +1371,8 @@ rdecomp_byte(
                     b = *c++;
                     diff |= b >> (-k);
                     b &= (1 << nbits) - 1;
-                } else {
+                }
+                else {
                     b = 0;
                 }
 
@@ -1348,13 +1384,15 @@ rdecomp_byte(
                  */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = (unsigned char)(diff + lastpix);
                 lastpix = array[i];
             }
-        } else {
+        }
+        else {
             /* normal case, Rice coding */
             for (; i < imax; i++) {
                 /* count number of leading zeros */
@@ -1378,7 +1416,8 @@ rdecomp_byte(
                 /* undo mapping and differencing */
                 if ((diff & 1) == 0) {
                     diff = diff >> 1;
-                } else {
+                }
+                else {
                     diff = ~(diff >> 1);
                 }
                 array[i] = (unsigned char)(diff + lastpix);
