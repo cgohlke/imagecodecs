@@ -730,7 +730,6 @@ def customize_build_mingw(
 
     for ext in (
         'brunsli',
-        'exr',
         'heif',
         'jetraw',
         'jpegxs',
@@ -742,13 +741,19 @@ def customize_build_mingw(
         'pcodec',
         'sperr',
         'sz3',
-        'wavpack',
         'wic',
         'zfp',
         'zlibng',
     ):
         extensions.pop(ext, None)
 
+    extensions['exr']['include_dirs'].extend(
+        (
+            sys.prefix + '/include/OpenEXR',
+            sys.prefix + '/include/Imath',
+        )
+    )
+    extensions['exr']['libraries'] = ['OpenEXRCore']
     extensions['jpeg8']['sources'] = []  # use libjpeg-turbo 3
     extensions['jpeg2k']['include_dirs'].extend(
         (
