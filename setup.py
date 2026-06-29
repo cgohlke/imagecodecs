@@ -763,7 +763,6 @@ def customize_build_mingw(
     for ext in (
         'brunsli',
         'heif',
-        'isal',
         'jetraw',
         'jpegxs',
         'lzfse',
