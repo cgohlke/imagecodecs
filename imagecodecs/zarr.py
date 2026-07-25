@@ -3311,7 +3311,11 @@ class Jpegxl(ArrayBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        return cls(**_parse_config(data, 'jpegxl'))
+        # Accept the standardized 'jpegxl' name and the legacy
+        # 'imagecodecs_jpegxl' name (for stores written by older versions).
+        return cls(
+            **_parse_config_names(data, ('jpegxl', 'imagecodecs_jpegxl'))
+        )
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
@@ -3334,17 +3338,24 @@ class Jpegxl(ArrayBytesCodec):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
+        # Write the standardized zarr-extensions name going forward.
         if cfg:
-            return {'name': 'imagecodecs_jpegxl', 'configuration': cfg}
-        return {'name': 'imagecodecs_jpegxl'}
+            return {'name': 'jpegxl', 'configuration': cfg}
+        return {'name': 'jpegxl'}
 
     def _decode_sync(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> NDBuffer:
+        # The zarr `jpegxl` codec spec requires decoders to return samples in
+        # stored order and NOT apply the codestream's EXIF-style orientation, so
+        # default keeporientation to True unless the config overrides it.
+        keeporientation = (
+            True if self.keeporientation is None else self.keeporientation
+        )
         decoded = imagecodecs.jpegxl_decode(
             chunk_bytes.as_numpy_array(),
             index=self.index,
-            keeporientation=self.keeporientation,
+            keeporientation=keeporientation,
             numthreads=self.numthreads,
         )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(
@@ -6936,6 +6947,16 @@ _CODEC_CLASSES: dict[str, type] = {
     if name != 'register_codecs'
 }
 
+# Additional registry names for codecs whose canonical name is not the default
+# 'imagecodecs_<name>'. Maps internal name -> extra names to register for
+# reading. Used for codecs that are standardized under a plain name in
+# zarr-extensions (e.g. 'jpegxl'), so stores written with either the canonical
+# name or the legacy 'imagecodecs_<name>' name can be read back. The name a
+# codec *writes* is decided by its `to_dict`.
+_CODEC_NAME_ALIASES: dict[str, tuple[str, ...]] = {
+    'jpegxl': ('jpegxl',),
+}
+
 
 def register_codecs(
     codecs: Container[str] | None = None,
@@ -6948,14 +6969,15 @@ def register_codecs(
     for name, cls in _CODEC_CLASSES.items():
         if codecs is not None and name not in codecs:
             continue
-        key = f'imagecodecs_{name}'
-        try:
-            register_codec(key, cls)
-        except Exception:
-            if verbose:
-                logging.getLogger(__name__).warning(
-                    'zarr codec %s registration failed', key
-                )
+        keys = (f'imagecodecs_{name}', *_CODEC_NAME_ALIASES.get(name, ()))
+        for key in keys:
+            try:
+                register_codec(key, cls)
+            except Exception:
+                if verbose:
+                    logging.getLogger(__name__).warning(
+                        'zarr codec %s registration failed', key
+                    )
 
 
 def _parse_config(data: dict[str, JSON], name: str) -> Any:
@@ -6963,6 +6985,24 @@ def _parse_config(data: dict[str, JSON], name: str) -> Any:
     _, configuration = parse_named_configuration(
         data, f'imagecodecs_{name}', require_configuration=False
     )
+    return configuration if configuration is not None else {}
+
+
+def _parse_config_names(
+    data: dict[str, JSON], names: tuple[str, ...]
+) -> Any:
+    """Parse config accepting any of `names` as the codec name.
+
+    Used by codecs that accept more than one name for backward compatibility
+    (e.g. the standardized 'jpegxl' name plus the legacy 'imagecodecs_jpegxl').
+    """
+    name, configuration = parse_named_configuration(
+        data, None, require_configuration=False
+    )
+    if name not in names:
+        raise ValueError(
+            f'expected codec name in {names!r}, got {name!r}'
+        )
     return configuration if configuration is not None else {}
 
 
