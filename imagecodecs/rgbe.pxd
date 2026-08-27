@@ -18,11 +18,17 @@ cdef extern from 'rgbe.h' nogil:
     int RGBE_FORMAT_ERROR
     int RGBE_MEMORY_ERROR
 
+    int RGBE_ORIENT_IDENTITY
+    int RGBE_ORIENT_FLIP_X
+    int RGBE_ORIENT_FLIP_Y
+    int RGBE_ORIENT_TRANSPOSE
+
     ctypedef struct rgbe_header_info:
         int valid
         float gamma
         float exposure
         char[16] programtype
+        int orientation
 
     ctypedef struct rgbe_stream_t:
         char* data
