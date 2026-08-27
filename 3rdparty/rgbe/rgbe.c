@@ -3,7 +3,6 @@
  * IT IS STRICTLY USE AT YOUR OWN RISK.  */
 
 #include "rgbe.h"
-#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -37,6 +36,8 @@ Modifications by Christoph Gohlke:
 - Fix buffer overflow and partial line handling in rgbe_stream_gets.
 - Add const qualifiers to write functions.
 - Use standard __cplusplus macro.
+- Add orientation field to rgbe_header_info.
+- Replace frexp and ldexp calls with bit manipulation.
 
 http://www.graphics.cornell.edu/online/formats/rgbe/
 
@@ -67,23 +68,33 @@ float2rgbe(
     float green,
     float blue)
 {
-    float v;
-    int e;
+    float v, scale;
+    unsigned int bits, biased;
 
     v = red;
     if (green > v)
         v = green;
     if (blue > v)
         v = blue;
-    if (v < 1e-32) {
+    if (!(v > 1e-32)) { /* small, NaN, and -Inf */
         rgbe[0] = rgbe[1] = rgbe[2] = rgbe[3] = 0;
     }
     else {
+        /*
         v = (float)frexp(v, &e) * 256.0f / v;
         rgbe[0] = (unsigned char)(red * v);
         rgbe[1] = (unsigned char)(green * v);
         rgbe[2] = (unsigned char)(blue * v);
         rgbe[3] = (unsigned char)(e + 128);
+        */
+        memcpy(&bits, &v, sizeof(bits));
+        biased = (bits >> 23) & 0xFFu;
+        bits = (261u - biased) << 23;  /* 2^(134-biased) */
+        memcpy(&scale, &bits, sizeof(scale));
+        rgbe[0] = (unsigned char)(red * scale);
+        rgbe[1] = (unsigned char)(green * scale);
+        rgbe[2] = (unsigned char)(blue * scale);
+        rgbe[3] = (unsigned char)(biased + 2u);
     }
 }
 
@@ -98,15 +109,28 @@ rgbe2float(
     unsigned char rgbe[4])
 {
     float f;
+    unsigned int bits;
+    unsigned int e = rgbe[3];
 
-    if (rgbe[3]) { /*nonzero pixel*/
+    /*
+    if (rgbe[3]) {
         f = (float)ldexp(1.0, rgbe[3] - (int)(128 + 8));
         *red = rgbe[0] * f;
         *green = rgbe[1] * f;
         *blue = rgbe[2] * f;
     }
+    */
+
+    if (e) { /*nonzero pixel*/
+        /* normal: biased exp = e-9; denormal (e<10): mantissa bit at e+13 */
+        bits = e >= 10u ? (e - 9u) << 23 : 1u << (e + 13u);
+        memcpy(&f, &bits, sizeof(f));
+        *red = rgbe[0] * f;
+        *green = rgbe[1] * f;
+        *blue = rgbe[2] * f;
+    }
     else
-        *red = *green = *blue = 0.0;
+        *red = *green = *blue = 0.0f;
 }
 
 /* default minimal header. modify if you want more information in header */
@@ -134,8 +158,33 @@ RGBE_WriteHeader(
     }
     if (rgbe_stream_printf(fp, "FORMAT=32-bit_rle_rgbe\n\n") < 0)
         return RGBE_WRITE_ERROR;
-    if (rgbe_stream_printf(fp, "-Y %d +X %d\n", height, width) < 0)
-        return RGBE_WRITE_ERROR;
+    {
+        int orient = info ? info->orientation : RGBE_ORIENT_IDENTITY;
+        int fx = (orient & RGBE_ORIENT_FLIP_X) != 0;
+        int fy = (orient & RGBE_ORIENT_FLIP_Y) != 0;
+        int ret;
+        if (orient & RGBE_ORIENT_TRANSPOSE)
+            /* swap labels for X-Y order */
+            ret = rgbe_stream_printf(
+                fp,
+                "%cX %d %cY %d\n",
+                fx ? '-' : '+',
+                height,
+                fy ? '+' : '-',
+                width
+            );
+        else
+            ret = rgbe_stream_printf(
+                fp,
+                "%cY %d %cX %d\n",
+                fy ? '+' : '-',
+                height,
+                fx ? '-' : '+',
+                width
+            );
+        if (ret < 0)
+            return RGBE_WRITE_ERROR;
+    }
     return RGBE_RETURN_SUCCESS;
 }
 
@@ -157,6 +206,7 @@ RGBE_ReadHeader(
         info->valid = 0;
         info->programtype[0] = 0;
         info->gamma = info->exposure = 1.0;
+        info->orientation = RGBE_ORIENT_IDENTITY;
     }
     if (rgbe_stream_gets(buf, sizeof(buf) / sizeof(buf[0]), fp) == NULL)
         return RGBE_READ_ERROR;
@@ -206,8 +256,42 @@ RGBE_ReadHeader(
         return RGBE_FORMAT_ERROR;
     if (rgbe_stream_gets(buf, sizeof(buf) / sizeof(buf[0]), fp) == 0)
         return RGBE_READ_ERROR;
-    if (sscanf(buf, "-Y %d +X %d", height, width) < 2)
-        return RGBE_FORMAT_ERROR; /* missing image size specifier */
+    {
+        int orient;
+        char s0, a0, s1, a1;
+        if (
+            sscanf(
+                buf,
+                " %c%c %d %c%c %d",
+                &s0,
+                &a0,
+                height,
+                &s1,
+                &a1,
+                width
+            ) != 6
+            || (s0 != '+' && s0 != '-')
+            || (s1 != '+' && s1 != '-')
+            || *height <= 0 || *width <= 0
+        ) {
+            /* missing or invalid image size specifier */
+            return RGBE_FORMAT_ERROR;
+        }
+        if (a0 == 'Y' && a1 == 'X') {
+            orient = ((s0 == '+') ? RGBE_ORIENT_FLIP_Y : 0)
+                | ((s1 == '-') ? RGBE_ORIENT_FLIP_X : 0);
+        }
+        else if (a0 == 'X' && a1 == 'Y') {
+            orient = RGBE_ORIENT_TRANSPOSE
+                | ((s0 == '-') ? RGBE_ORIENT_FLIP_X : 0)
+                | ((s1 == '+') ? RGBE_ORIENT_FLIP_Y : 0);
+        }
+        else {
+            return RGBE_FORMAT_ERROR;
+        }
+        if (info)
+            info->orientation = orient;
+    }
     return RGBE_RETURN_SUCCESS;
 }
 
