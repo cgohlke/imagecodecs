@@ -14,7 +14,7 @@
 #define BITSHUFFLE_INTERNALS_H
 
 // We assume GNU g++ defining `__cplusplus` has stdint.h
-#if (defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199900L) || defined(__cplusplus)
+#if (defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199900L) || defined(__cplusplus) || defined(_MSC_VER)
 #include <stdint.h>
 #else
   typedef unsigned char       uint8_t;
