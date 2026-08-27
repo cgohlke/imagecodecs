@@ -35,6 +35,12 @@ typedef SSIZE_T ssize_t;
 #define RGBE_FORMAT_ERROR -4
 #define RGBE_MEMORY_ERROR -5
 
+/* orientation flags */
+#define RGBE_ORIENT_IDENTITY 0x00
+#define RGBE_ORIENT_FLIP_X 0x01  /* Bit 0: Horizontal flip */
+#define RGBE_ORIENT_FLIP_Y 0x02  /* Bit 1: Vertical flip */
+#define RGBE_ORIENT_TRANSPOSE 0x04  /* Bit 2: Swap width and height */
+
 typedef struct {
     int valid;            /* indicate which fields are valid */
     char programtype[16]; /* listed at beginning of file to identify it
@@ -44,6 +50,7 @@ typedef struct {
     float exposure;       /* a value of 1.0 in an image corresponds to
                            * <exposure> watts/steradian/m^2.
                            * defaults to 1.0 */
+    int orientation;      /* image orientation flags (RGBE_ORIENT_*) */
 } rgbe_header_info;
 
 typedef struct {
