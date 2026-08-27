@@ -24,7 +24,7 @@
 #define USEAVX2
 #endif
 
-#if defined(__SSE2__) || defined(NO_WARN_X86_INTRINSICS)
+#if defined(__SSE2__) || defined(NO_WARN_X86_INTRINSICS) || defined(_M_IX86) || defined(_M_X64)
 #define USESSE2
 #endif
 
