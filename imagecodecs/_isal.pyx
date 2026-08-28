@@ -120,7 +120,7 @@ def isal_encode(
 ):
     """Return DEFLATE, ZLIB, or GZIP encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -137,9 +137,6 @@ def isal_encode(
         gzip_flag = IGZIP_DEFLATE
     elif gzip:
         gzip_flag = IGZIP_GZIP
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -215,7 +212,7 @@ def isal_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if raw:
         # raw deflate: no wrapper, caller must know the format
