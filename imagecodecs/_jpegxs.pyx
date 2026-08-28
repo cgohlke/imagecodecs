@@ -134,8 +134,8 @@ def jpegxs_encode(
 ):
     """Return JPEGXS encoded data."""
     cdef:
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
-        numpy.ndarray src = numpy.ascontiguousarray(data)
         ssize_t dstsize = 0
         ssize_t s, i, j
         ssize_t config_str_max_len = 0
@@ -149,9 +149,6 @@ def jpegxs_encode(
         xs_config_t xs_config
         bint ret = False
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_BPS,
@@ -306,7 +303,7 @@ def jpegxs_decode(
         bint ret = False
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     memset(<void*> &xs_image, 0, sizeof(xs_image))
     memset(<void*> &xs_config, 0, sizeof(xs_config))
