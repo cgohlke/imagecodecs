@@ -101,7 +101,7 @@ def tga_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* dstptr = NULL
@@ -112,9 +112,6 @@ def tga_encode(
         bint rle_ = bool(rle)
         tga_header_t header
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB | IC_ALPHA,
@@ -549,7 +546,7 @@ def tga_decode(
         uint16_t pixel16
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 18:
         raise TgaError(f'invalid TGA size {srcsize} < 18')
