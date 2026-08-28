@@ -108,7 +108,7 @@ def zfp_encode(
 ):
     """Return ZFP encoded data."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
         size_t byteswritten
         ssize_t dstsize
@@ -133,9 +133,6 @@ def zfp_encode(
         double tolerance = 0.0
         double rate = 0.0
         bint bheader = header
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.size == 0:
         raise ValueError('src is empty')
@@ -321,7 +318,7 @@ def zfp_decode(
         ptrdiff_t sw = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize == 0:
         raise ValueError('src is empty')
