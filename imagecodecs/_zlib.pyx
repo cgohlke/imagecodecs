@@ -114,7 +114,7 @@ def zlib_encode(
 ):
     """Return DEFLATE encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         unsigned long srclen, dstlen
@@ -122,9 +122,6 @@ def zlib_encode(
         int compresslevel = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -169,7 +166,7 @@ def zlib_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
