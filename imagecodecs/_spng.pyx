@@ -117,7 +117,7 @@ def spng_encode(
 ):
     """Return PNG encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         size_t srcsize = <size_t> src.nbytes
@@ -138,9 +138,6 @@ def spng_encode(
         spng_ctx* ctx = NULL
         spng_ihdr ihdr
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
@@ -285,7 +282,7 @@ def spng_decode(
         spng_ihdr ihdr
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
