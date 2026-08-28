@@ -101,16 +101,13 @@ def deflate_encode(
 ):
     """Return DEFLATE encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t srclen, dstlen
         libdeflate_compressor* compressor = NULL
         int compression_level = _default_value(level, 6, 0, 12)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -197,7 +194,7 @@ def deflate_decode(
         libdeflate_decompressor* decompressor = NULL
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -286,16 +283,13 @@ def gzip_encode(
 ):
     """Return GZIP encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t srclen, dstlen
         libdeflate_compressor* compressor = NULL
         int compression_level = _default_value(level, 6, 0, 12)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -360,7 +354,7 @@ def gzip_decode(
         libdeflate_decompressor* decompressor = NULL
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 4 or src[0] != 0x1F or src[1] != 0x8B:
         raise ValueError('invalid GZIP header')
