@@ -140,7 +140,7 @@ def pcx_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* dstptr = NULL
@@ -148,9 +148,6 @@ def pcx_encode(
         ssize_t frame_size, dcx_header_size
         ssize_t i, bytes_per_line, page_bounds
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB | IC_ALPHA | IC_FRAMES,
@@ -292,7 +289,7 @@ def pcx_decode(
         pcx_page_t page
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 128:
         raise PcxError(f'invalid data size {srcsize} < 128')
