@@ -70,6 +70,7 @@ def quantize_version():
 
 def quantize_check(const uint8_t[::1] data, /):
     """Return whether data is QUANTIZE encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def quantize_encode(
@@ -100,10 +101,7 @@ def quantize_encode(
         int quantize_mode = NC_NOQUANTIZE
         # uint64_t fill_value = 0
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
-    data = numpy.ascontiguousarray(data)
+    data = _array_input(data, out)
     src = data
     src_size = <size_t> src.size
 
