@@ -89,9 +89,7 @@ def lzham_version():
 
 def lzham_check(const uint8_t[::1] data, /):
     """Return whether data is LZHAM encoded or None if unknown."""
-    if data.shape[0] < 7:
-        return False
-    return None
+    return None if data.shape[0] > 6 else False
 
 
 def lzham_encode(
@@ -103,7 +101,7 @@ def lzham_encode(
 ):
     """Return LZHAM encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         lzham_z_ulong srclen, dstlen
@@ -111,9 +109,6 @@ def lzham_encode(
         int compresslevel = _default_value(
             level, LZHAM_Z_DEFAULT_COMPRESSION, -1, LZHAM_Z_UBER_COMPRESSION
         )
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -158,7 +153,7 @@ def lzham_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if src.shape[0] < 7:
         raise ValueError('not a LZHAM encoded stream')
