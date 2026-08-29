@@ -98,6 +98,7 @@ def blosc2_version():
 
 def blosc2_check(const uint8_t[::1] data, /):
     """Return whether data is BLOSC2 encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def blosc2_encode(
@@ -131,7 +132,7 @@ def blosc2_encode(
         int ret
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         src = data  # common case: contiguous bytes
@@ -225,7 +226,7 @@ def blosc2_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
@@ -317,6 +318,10 @@ def b2nd_version():
 
 def b2nd_check(const uint8_t[::1] data, /):
     """Return whether data is B2ND encoded or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:10])
+
+    return sig == b'\x9E\xA8\x62\x32\x66\x72\x61\x6D\x65\x00'
 
 
 def b2nd_encode(
@@ -333,7 +338,7 @@ def b2nd_encode(
 ):
     """Return B2ND encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         int64_t srcsize = src.nbytes
@@ -358,9 +363,6 @@ def b2nd_encode(
         int64_t bytes_per_row, rows_per_block
         bint default_blockshape = 1
         int ret
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     dtype = src.dtype.str.encode()
     dtype_bytes = dtype
