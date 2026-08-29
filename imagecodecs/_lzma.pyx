@@ -90,6 +90,7 @@ def lzma_version():
 
 def lzma_check(const uint8_t[::1] data, /):
     """Return whether data is LZMA encoded or None if unknown."""
+    return None if data.shape[0] > 5 else False
 
 
 def lzma_encode(
@@ -102,7 +103,7 @@ def lzma_encode(
 ):
     """Return LZMA encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -111,9 +112,6 @@ def lzma_encode(
         lzma_check_t check_ = _enum_value(check, LZMA.CHECK, LZMA_CHECK_CRC64)
         lzma_stream strm
         lzma_ret ret
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -167,7 +165,7 @@ def lzma_decode(
         lzma_stream strm
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
