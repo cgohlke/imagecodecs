@@ -76,6 +76,7 @@ def blosc_version():
 
 def blosc_check(const uint8_t[::1] data, /):
     """Return whether data is BLOSC encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def blosc_encode(
@@ -105,7 +106,7 @@ def blosc_encode(
         int ret
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         src = data  # common case: contiguous bytes
@@ -209,7 +210,7 @@ def blosc_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if src.shape[0] > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
