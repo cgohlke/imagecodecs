@@ -65,6 +65,7 @@ def lzf_version():
 
 def lzf_check(const uint8_t[::1] data, /):
     """Return whether data is LZF encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def lzf_encode(
@@ -76,16 +77,13 @@ def lzf_encode(
 ):
     """Return LZF encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         unsigned int ret
         uint8_t* pdst
         ssize_t offset = 4 if header else 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('data too large')
@@ -148,7 +146,7 @@ def lzf_decode(
     global errno  # keep this
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('data too large')
