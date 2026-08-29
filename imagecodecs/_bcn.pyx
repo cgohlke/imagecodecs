@@ -76,6 +76,7 @@ def bcn_version():
 
 def bcn_check(const uint8_t[::1] data, /):
     """Return whether data is BCN encoded or None if unknown."""
+    return None if data.shape[0] > 1 else False
 
 
 def bcn_encode(
@@ -85,6 +86,9 @@ def bcn_encode(
     out=None,
 ):
     """Return BCN encoded data (not implemented)."""
+    cdef:
+        numpy.ndarray _src = _array_input(data, out)
+
     raise NotImplementedError('bcn_encode')
 
 
@@ -107,7 +111,7 @@ def bcn_decode(
         int ndim, bcn
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if not 8 <= srcsize <= INT32_MAX:
         raise ValueError(f'input size {srcsize} out of bounds')
@@ -349,6 +353,9 @@ def dds_encode(
     out=None,
 ):
     """Return DDS encoded data (not implemented)."""
+    cdef:
+        numpy.ndarray _src = _array_input(data, out)
+
     raise NotImplementedError('dds_encode')
 
 
@@ -377,7 +384,7 @@ def dds_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if not 128 < srcsize <= INT32_MAX:
         raise ValueError(f'input size {srcsize} out of bounds')
