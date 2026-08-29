@@ -91,6 +91,7 @@ def jpegsof3_version():
 
 def jpegsof3_check(const uint8_t[::1] data, /):
     """Return whether data is JPEGSOF3 encoded image or None if unknown."""
+    return None if data.shape[0] > 10 else False
 
 
 def jpegsof3_encode(*args, **kwargs):
@@ -122,7 +123,7 @@ def jpegsof3_decode(
         int ret = JPEGSOF3_OK
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     src = numpy.frombuffer(data, dtype=numpy.uint8).copy()
     srcsize = src.nbytes
