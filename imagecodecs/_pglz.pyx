@@ -63,6 +63,7 @@ def pglz_version():
 
 def pglz_check(const uint8_t[::1] data, /):
     """Return whether data is PGLZ encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def pglz_encode(
@@ -82,7 +83,7 @@ def pglz_encode(
 
     """
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -91,9 +92,6 @@ def pglz_encode(
         ssize_t offset = 4 if header else 0
         PGLZ_Strategy* pglz_strategy = <PGLZ_Strategy*> PGLZ_strategy_default
         PGLZ_Strategy custom_strategy
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if strategy is None:
         pass
@@ -177,7 +175,7 @@ def pglz_decode(
         ssize_t offset = 4 if header else 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('data too large')
