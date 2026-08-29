@@ -79,8 +79,9 @@ def ccitt_version():
     return f'ccitt {CCITT_VERSION.decode()}'
 
 
-def ccitt_check(data, /):
+def ccitt_check(const uint8_t[::1] data, /):
     """Return whether data is encoded or None if unknown."""
+    return None if data.shape[0] >= 0 else False
 
 
 # CCITTRLE ####################################################################
@@ -120,7 +121,7 @@ def ccittrle_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is None:
         if width <= 0:
@@ -196,7 +197,7 @@ def ccittfax3_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is None:
         if width <= 0:
@@ -272,7 +273,7 @@ def ccittfax4_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is None:
         if width <= 0:
