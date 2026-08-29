@@ -83,6 +83,7 @@ def aec_version():
 
 def aec_check(const uint8_t[::1] data, /):
     """Return whether data is AEC encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def aec_encode(
@@ -114,7 +115,7 @@ def aec_encode(
         aec_stream strm
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     if flags is None:
         flags_ = AEC_DATA_PREPROCESS
@@ -214,7 +215,7 @@ def aec_decode(
         aec_stream strm
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if flags is None:
         flags_ = AEC_DATA_PREPROCESS
