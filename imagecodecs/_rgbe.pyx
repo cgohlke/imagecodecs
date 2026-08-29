@@ -48,6 +48,14 @@ class RGBE:
 
     available = True
 
+    class ORIENT(enum.IntFlag):
+        """Image orientation flags."""
+
+        IDENTITY = RGBE_ORIENT_IDENTITY
+        FLIP_X = RGBE_ORIENT_FLIP_X
+        FLIP_Y = RGBE_ORIENT_FLIP_Y
+        TRANSPOSE = RGBE_ORIENT_TRANSPOSE
+
 
 class RgbeError(RuntimeError):
     """RGBE codec exceptions."""
@@ -78,6 +86,47 @@ def rgbe_check(const uint8_t[::1] data, /):
     return sig == b'#?'
 
 
+def rgbe_info(data, /):
+    """Return information about RGBE encoded data."""
+    cdef:
+        const uint8_t[::1] src = data
+        ssize_t srcsize = src.shape[0]
+        rgbe_stream_t* stream
+        rgbe_header_info info
+        int width = 0
+        int height = 0
+        int ret
+
+    if srcsize > INT32_MAX:
+        raise ValueError('input too large')
+
+    with nogil:
+        stream = rgbe_stream_new(srcsize, <char*> src._data)
+        if stream == NULL:
+            raise MemoryError('rgbe_stream_new failed')
+        ret = RGBE_ReadHeader(stream, &width, &height, &info)
+        rgbe_stream_del(stream)
+        if ret != RGBE_RETURN_SUCCESS:
+            raise RgbeError('RGBE_ReadHeader', ret)
+
+    result = {
+        'shape': (int(height), int(width), 3),
+        'dtype': numpy.dtype(numpy.float32),
+        'width': width,
+        'height': height,
+        'orientation': RGBE.ORIENT(info.orientation),
+    }
+    if info.valid & RGBE_VALID_PROGRAMTYPE:
+        result['programtype'] = (
+            bytes(info.programtype).split(b'\x00', 1)[0].decode()
+        )
+    if info.valid & RGBE_VALID_GAMMA:
+        result['gamma'] = float(info.gamma)
+    if info.valid & RGBE_VALID_EXPOSURE:
+        result['exposure'] = float(info.exposure)
+    return result
+
+
 def rgbe_encode(
     data,
     /,
@@ -88,7 +137,7 @@ def rgbe_encode(
 ):
     """Return RGBE encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         numpy.ndarray arr
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
@@ -101,9 +150,6 @@ def rgbe_encode(
         int ret = RGBE_RETURN_SUCCESS
         rgbe_stream_t* stream
         # rgbe_header_info info
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if not (
         srcsize <= INT32_MAX
@@ -201,7 +247,8 @@ def rgbe_decode(
 ):
     """Return decoded RGBE image."""
     cdef:
-        numpy.ndarray dst, arr
+        numpy.ndarray dst
+        numpy.ndarray arr
         const uint8_t[::1] src
         ssize_t srcsize
         ssize_t size = 0
@@ -212,7 +259,7 @@ def rgbe_decode(
         # rgbe_header_info info
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         # bytes
@@ -222,7 +269,7 @@ def rgbe_decode(
         # decode uint8 array of shape (..., 4)
         # no header, no rle
         try:
-            arr = numpy.ascontiguousarray(data)
+            arr = numpy.asarray(data, order='C')
         except Exception:
             raise exc
         if not (
