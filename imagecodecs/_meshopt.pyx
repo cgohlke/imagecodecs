@@ -63,6 +63,7 @@ def meshopt_version():
 
 def meshopt_check(const uint8_t[::1] data, /):
     """Return whether data is MESHOPT encoded or None if unknown."""
+    return None if data.shape[0] > 1 else False
 
 
 def meshopt_encode(
@@ -75,14 +76,11 @@ def meshopt_encode(
 ):
     """Return MESHOPT encoded vertex array."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         size_t vertex_count, vertex_size, ret
         int clevel = _default_value(level, 3, 0, 3)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     vertex_count, vertex_size = _meshopt_vertex_array(
         src, 0 if items is None else items
@@ -139,7 +137,7 @@ def meshopt_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is None:
         if shape is None or dtype is None:
