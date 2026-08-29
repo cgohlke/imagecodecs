@@ -79,6 +79,10 @@ def bz2_version():
 
 def bz2_check(const uint8_t[::1] data, /):
     """Return whether data is BZ2 encoded or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:3])
+
+    return sig == b'BZh'
 
 
 def bz2_encode(
@@ -90,7 +94,7 @@ def bz2_encode(
 ):
     """Return BZ2 encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -98,9 +102,6 @@ def bz2_encode(
         int ret
         bz_stream strm
         int compresslevel = _default_value(level, 9, 1, 9)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -159,7 +160,7 @@ def bz2_decode(
         bz_stream strm
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
