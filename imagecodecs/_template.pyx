@@ -59,6 +59,7 @@ def template_version():
 
 def template_check(const uint8_t[::1] data, /):
     """Return whether data is TEMPLATE encoded or None if unknown."""
+    return None if data.shape[0] >= 0 else False
 
 
 def template_encode(
