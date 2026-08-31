@@ -82,7 +82,7 @@ def zopfli_encode(
 ):
     """Return ZOPFLI encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -90,9 +90,6 @@ def zopfli_encode(
         ZopfliOptions options
         ZopfliFormat format_ = ZOPFLI_FORMAT_ZLIB
         unsigned char* buffer = NULL
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
