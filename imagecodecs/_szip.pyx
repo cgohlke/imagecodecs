@@ -91,6 +91,7 @@ def szip_version():
 
 def szip_check(const uint8_t[::1] data, /):
     """Return whether data is SZIP encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def szip_encode(
@@ -106,7 +107,7 @@ def szip_encode(
 ):
     """Return SZIP encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -115,9 +116,6 @@ def szip_encode(
         uint8_t* pdst
         int offset = 4 if header else 0
         int ret
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if srcsize >= INT32_MAX:
         raise ValueError('src size exceeds 2 GB')
@@ -200,7 +198,7 @@ def szip_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     param.options_mask = options_mask
     param.bits_per_pixel = bits_per_pixel
