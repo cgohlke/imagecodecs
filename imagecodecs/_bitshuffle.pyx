@@ -74,6 +74,7 @@ def bitshuffle_version():
 
 def bitshuffle_check(const uint8_t[::1] data, /):
     """Return whether data is BITSHUFFLE encoded or None if unknown."""
+    return None if data.shape[0] > 0 else True
 
 
 def bitshuffle_encode(
@@ -86,7 +87,7 @@ def bitshuffle_encode(
 ):
     """Return BITSHUFFLE encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         numpy.ndarray ndarr
         ssize_t srcsize
@@ -94,9 +95,6 @@ def bitshuffle_encode(
         size_t elem_size
         size_t block_size = blocksize
         int64_t ret
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if isinstance(data, numpy.ndarray):
         out = _create_array(out, data.shape, data.dtype)
@@ -162,7 +160,7 @@ def bitshuffle_decode(
 ):
     """Return decoded BITSHUFFLE data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         numpy.ndarray ndarr
         ssize_t srcsize
@@ -170,9 +168,6 @@ def bitshuffle_decode(
         size_t elem_size
         size_t block_size = blocksize
         int64_t ret
-
-    if data is out:
-        raise ValueError('cannot decode in-place')
 
     if isinstance(data, numpy.ndarray):
         out = _create_array(out, data.shape, data.dtype)
