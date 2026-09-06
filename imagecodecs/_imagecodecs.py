@@ -441,7 +441,7 @@ def floatpred_decode(data, /, *, axis=-2, dist=1, out=None):
     data = numpy.swapaxes(data, -2, -1)
     data = data[..., ::-1]
     # back to float
-    data = numpy.ascontiguousarray(data)
+    data = numpy.asarray(data, order='C')
     return data.view(dtype).reshape(shape)
 
 
