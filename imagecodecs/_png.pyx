@@ -159,9 +159,10 @@ def png_version():
 
 def png_check(const uint8_t[::1] data, /):
     """Return whether data is PNG encoded image or None if unknown."""
-    if data.shape[0] < 8:
-        return False
-    return png_sig_cmp(<png_const_bytep> data._data, 0, 8) == 0
+    return (
+        data.shape[0] >= 8
+        and png_sig_cmp(<png_const_bytep> data._data, 0, 8) == 0
+    )
 
 
 def png_encode(
@@ -186,12 +187,11 @@ def png_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
-        ssize_t rowstride = src.strides[0]
-        ssize_t row
+        ssize_t rowstride, row
         png_bytep rowptr = <png_bytep> src.data
         int color_type = PNG_COLOR_TYPE_GRAY
         int level_ = _default_value(
@@ -209,9 +209,6 @@ def png_encode(
         png_bytepp rowpointers = NULL
         mempng_t mempng
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
@@ -235,6 +232,8 @@ def png_encode(
         and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
+
+    rowstride = src.strides[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -376,7 +375,7 @@ def png_decode(
         ssize_t itemsize
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 8 or png_sig_cmp(<png_const_bytep> src._data, 0, 8) != 0:
         raise ValueError('not a PNG image')
