@@ -983,6 +983,9 @@ rdecomp_int(
     /* first 4 bytes of input buffer contain the value of the first */
     /* 4 byte integer value, without any encoding */
 
+    if (clen < 4)
+        return RCOMP_ERROR_EOS;
+
     lastpix = 0;
     bytevalue = c[0];
     lastpix = lastpix | (bytevalue << 24);
@@ -1160,6 +1163,9 @@ rdecomp_short(
     /* first 2 bytes of input buffer contain the value of the first */
     /* 2 byte integer value, without any encoding */
 
+    if (clen < 2)
+        return RCOMP_ERROR_EOS;
+
     lastpix = 0;
     bytevalue = c[0];
     lastpix = lastpix | (bytevalue << 8);
@@ -1333,6 +1339,9 @@ rdecomp_byte(
 
     /* first byte of input buffer contain the value of the first */
     /* byte integer value, without any encoding */
+
+    if (clen < 1)
+        return RCOMP_ERROR_EOS;
 
     lastpix = c[0];
     c += 1;
