@@ -350,7 +350,8 @@ def cms_transform(
 ):
     """Return color-transformed array."""
     cdef:
-        numpy.ndarray src, dst
+        numpy.ndarray src
+        numpy.ndarray dst
         cmsUInt32Number Intent = _enum_value(
             intent, CMS.INTENT, INTENT_PERCEPTUAL
         )
@@ -365,10 +366,7 @@ def cms_transform(
         char* src_ptr
         char* dst_ptr
 
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    data = numpy.ascontiguousarray(data)
+    data = _array_input(data, out)
     src = data
 
     if verbose:
@@ -628,7 +626,7 @@ def cms_profile(
                 if ppTransferFunction[i] == NULL:
                     raise CmsError('cmsBuildGamma returned NULL')
         elif transferfunction is not None:
-            tf = numpy.ascontiguousarray(transferfunction)
+            tf = numpy.asarray(transferfunction, order='C')
             if (
                 tf.dtype.char not in 'Hf'
                 or tf.ndim not in {1, 2}
