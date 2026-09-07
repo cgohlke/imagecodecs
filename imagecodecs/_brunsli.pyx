@@ -120,7 +120,7 @@ def brunsli_encode(
         int ret
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     if isinstance(data, numpy.ndarray):
         src = jpeg8_encode(
@@ -135,7 +135,13 @@ def brunsli_encode(
         )
     else:
         # existing JPEG stream
-        src = data
+        try:
+            src = _readable_input(data)
+        except Exception as exc:
+            raise ValueError('invalid input data') from exc
+        if src.shape[0] < 4:
+            raise ValueError('invalid input data too short')
+
     srcsize = src.shape[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -191,7 +197,7 @@ def brunsli_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     sink = brunsli_sink_new(_align_size_t(srcsize * 2))
     if sink == NULL:
