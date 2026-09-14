@@ -47,6 +47,13 @@ class SNAPPY:
 
     available = True
 
+    class COMPRESSION_LEVEL(enum.IntEnum):
+        """SNAPPY codec compression levels."""
+
+        DEFAULT = SNAPPY_MIN_COMPRESSION_LEVEL
+        MIN = SNAPPY_MIN_COMPRESSION_LEVEL
+        MAX = SNAPPY_MAX_COMPRESSION_LEVEL
+
 
 class SnappyError(RuntimeError):
     """SNAPPY codec exceptions."""
@@ -64,7 +71,7 @@ class SnappyError(RuntimeError):
 def snappy_version():
     """Return Snappy library version string."""
     # SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header only
-    return 'snappy 1.2.2'
+    return 'snappy 1.3.0'
 
 
 def snappy_check(const uint8_t[::1] data, /):
@@ -82,21 +89,25 @@ def snappy_check(const uint8_t[::1] data, /):
 def snappy_encode(
     data,
     /,
+    level,
     *,
     out=None,
 ):
     """Return SNAPPY encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t output_length = snappy_max_compressed_length(<size_t> srcsize)
+        int compression_level = _default_value(
+            level,
+            SNAPPY_MIN_COMPRESSION_LEVEL,
+            SNAPPY_MIN_COMPRESSION_LEVEL,
+            SNAPPY_MAX_COMPRESSION_LEVEL
+        )
         snappy_status ret
         char* buffer = NULL
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -132,9 +143,10 @@ def snappy_encode(
     else:
         with nogil:
             output_length = <size_t> dstsize
-            ret = snappy_compress(
+            ret = snappy_compress_with_level(
                 <const char*> src._data,
                 <size_t> srcsize,
+                compression_level,
                 <char*> dst._data,
                 &output_length
             )
@@ -161,7 +173,7 @@ def snappy_decode(
         snappy_status ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
