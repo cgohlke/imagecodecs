@@ -98,10 +98,11 @@ def htj2k_check(const uint8_t[::1] data, /):
 def htj2k_encode(
     data,
     /,
-    level=None,  # maps to qstep [0.0-1.0) or qfactor [1-100]
+    level=None,  # maps to qstep [0.0-1.0] or qfactor (1.0-100.0]
     *,
     rgb=None,  # set color transform for non-planar
     planar=None,
+    bitspersample=None,
     tile=None,
     resolutions=None,
     reversible=None,
@@ -121,7 +122,7 @@ def htj2k_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -129,10 +130,9 @@ def htj2k_encode(
         mem_outfile* file = NULL
         size_t out_len
         ssize_t itemsize = src.itemsize
-        ui32 bitdepth = src.itemsize * 8
         ui32 tile_w, tile_h, c
         ui32 decompositions = 0 if resolutions is None else resolutions
-        ui8 qfactor = 0
+        float qfactor = 0.0
         float qstep = 0.0
         bint is_signed = src.dtype.kind == 'i'
         bint is_float = src.dtype.kind == 'f'
@@ -149,9 +149,6 @@ def htj2k_encode(
         ui32 max_decomp = 0
         int ret
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     # htj2k-specific planar auto-detection:
     # if planar is not explicitly set and the array looks like (S, H, W)
@@ -171,12 +168,13 @@ def htj2k_encode(
         | IC_RGB
         | IC_ALPHA
         | IC_EXTRA
-        | IC_PLANAR,
+        | IC_PLANAR
+        | IC_BPS,
         src.ndim,
         src.shape,
         src.dtype,
         None,  # photometric
-        None,  # bitspersample
+        bitspersample,
         planar,
         None,  # frames
         None,  # volumetric
@@ -203,15 +201,15 @@ def htj2k_encode(
         at_components = tilepart & 2  # HTJ2K.TILEPART.COMPONENTS
 
     if level is not None:
-        if level < 1.0:
+        if level <= 1.0:
             qstep = _default_value(level, 0.0, 0.0, 1.0)
         else:
-            qfactor = _default_value(level, 0, 1, 100)
+            qfactor = _default_value(level, 0.0, 1.0, 100.0)
 
     if qstep < 0.00001:
         qstep = 0.0
     if reversible is None:
-        is_reversible = qstep == 0.0 and qfactor == 0
+        is_reversible = qstep == 0.0 and qfactor == 0.0
     if is_float and not is_reversible and qstep <= 0.0:
         # minimum step for irreversible float32
         qstep = 1.0 / 16384.0
@@ -253,7 +251,7 @@ def htj2k_encode(
             cs.access_siz().set_num_components(<ui32> layout.samples)
             for c in range(<ui32> layout.samples):
                 cs.access_siz().set_component(
-                    c, point(1, 1), bitdepth, is_signed
+                    c, point(1, 1), <ui32> layout.bitspersample, is_signed
                 )
             cs.access_cod().set_reversible(is_reversible)
             if decompositions > 0:
@@ -281,7 +279,7 @@ def htj2k_encode(
             if prog_order_str != NULL:
                 cs.access_cod().set_progression_order(prog_order_str)
             if not is_reversible:
-                if qfactor > 0:
+                if qfactor > 0.0:
                     cs.access_qcd().set_qfactor(qfactor)
                 elif qstep > 0.0:
                     cs.access_qcd().set_irrev_quant(qstep)
@@ -358,9 +356,6 @@ def htj2k_encode(
                     layout.samples,
                     layout.planar,
                 )
-            if ret != 0:
-                raise Htj2kError(f'_copy_to_codestream() returned {ret}')
-
             cs.flush()
             cs.close()
 
@@ -377,9 +372,10 @@ def htj2k_encode(
 
         file.close()
 
+    except Htj2kError:
+        raise
     except RuntimeError as exc:
-        # TODO: improve error handling
-        raise Htj2kError('OpenJPH error') from exc
+        raise Htj2kError(str(exc)) from exc
 
     finally:
         if cs != NULL:
@@ -426,7 +422,7 @@ def htj2k_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if skipres is not None:
         try:
@@ -583,13 +579,12 @@ def htj2k_decode(
                     is_planar,
                     to_planar,
                 )
-            if ret != 0:
-                raise Htj2kError(f'_copy_from_codestream returned {ret}')
             cs.close()
 
+    except Htj2kError:
+        raise
     except RuntimeError as exc:
-        # TODO: improve error handling
-        raise Htj2kError('OpenJPH error') from exc
+        raise Htj2kError(str(exc)) from exc
 
     finally:
         if cs != NULL:
@@ -617,7 +612,7 @@ cdef int _copy_to_codestream(
     const ssize_t width,
     const ssize_t samples,
     const bint is_planar,
-) noexcept nogil:
+) except -1 nogil:
     """Copy buffer to ojph codestream."""
     cdef:
         line_buf* line = NULL
@@ -626,7 +621,7 @@ cdef int _copy_to_codestream(
 
     line = cs.exchange(NULL, c)
     if line.i32 == NULL or line.flags != LFT_INTEGER | LFT_32BIT:
-        return -1
+        raise Htj2kError('unexpected line buffer')
 
     if is_planar or samples == 1:
         for c in range(<ui32> samples):
@@ -660,7 +655,7 @@ cdef int _copy_from_codestream(
     const ssize_t samples,
     const bint is_planar,
     const bint to_planar,
-) noexcept nogil:
+) except -1 nogil:
     """Copy ojph codestream to buffer."""
     cdef:
         line_buf* line = NULL
