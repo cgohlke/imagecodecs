@@ -39,7 +39,8 @@ import io
 import numpy
 import pytest
 from conftest import datafiles
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy import array_equal  # faster than assert_array_equal
+from numpy.testing import assert_allclose
 
 try:
     import imagecodecs
@@ -131,7 +132,7 @@ def test_checksum_zarr(kind, dtype):
     del z
 
     z = zarr.open_array(store, mode='r')
-    assert_array_equal(z[:], data)
+    assert array_equal(z[:], data)
     with contextlib.suppress(Exception):
         store.close()
 
@@ -165,7 +166,7 @@ def test_dicomrle_zarr():
     decoded = zarr3codecs.Dicomrle(dtype='<u4')._decode_sync(
         Buffer.from_bytes(encoded), spec
     )
-    assert_array_equal(decoded.as_numpy_array(), expected)
+    assert array_equal(decoded.as_numpy_array(), expected)
 
 
 @pytest.mark.skipif(not imagecodecs.DDS.available, reason='DDS missing')
@@ -180,7 +181,7 @@ def test_dds_zarr():
     decoded = zarr3codecs.Dds()._decode_sync(
         Buffer.from_bytes(encoded), _array_spec(expected.shape, expected.dtype)
     )
-    assert_array_equal(decoded.as_numpy_array(), expected)
+    assert array_equal(decoded.as_numpy_array(), expected)
 
 
 @pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
@@ -193,7 +194,7 @@ def test_eer_zarr():
     )._decode_sync(
         Buffer.from_bytes(encoded), _array_spec(expected.shape, expected.dtype)
     )
-    assert_array_equal(decoded.as_numpy_array(), expected)
+    assert array_equal(decoded.as_numpy_array(), expected)
     assert decoded.as_numpy_array()[0, 3]
     assert decoded.as_numpy_array()[0, 17]
 
@@ -288,8 +289,8 @@ def test_ccitt_zarr(compression):
             encoded, height=shape[0], width=shape[1]
         )
     decoded = codec._decode_sync(Buffer.from_bytes(encoded), spec)
-    assert_array_equal(decoded.as_numpy_array(), expected)
-    assert_array_equal(decoded.as_numpy_array(), data.view('uint8'))
+    assert array_equal(decoded.as_numpy_array(), expected)
+    assert array_equal(decoded.as_numpy_array(), data.view('uint8'))
 
 
 @pytest.mark.parametrize(
@@ -393,7 +394,7 @@ def test_zarr_pipeline(pipeline):
     del z
 
     z = zarr.open_array(store, mode='r')
-    assert_array_equal(z[:], data)
+    assert array_equal(z[:], data)
     with contextlib.suppress(Exception):
         store.close()
 
@@ -431,7 +432,7 @@ def test_planar(codec, planar):
     del z
 
     z = zarr.open_array(store, mode='r')
-    assert_array_equal(z[:], data)
+    assert array_equal(z[:], data)
     with contextlib.suppress(Exception):
         store.close()
 
@@ -827,7 +828,7 @@ def test_zarr(codec, photometric):
 
     z = zarr.open_array(store, mode='r')
     if lossless:
-        assert_array_equal(z[:], data)
+        assert array_equal(z[:], data)
     else:
         assert_allclose(z[:], data, atol=atol)
     with contextlib.suppress(Exception):
