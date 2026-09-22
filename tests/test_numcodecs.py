@@ -39,7 +39,8 @@ import io
 import numpy
 import pytest
 from conftest import datafiles
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy import array_equal  # faster than assert_array_equal
+from numpy.testing import assert_allclose
 
 imagecodecs = pytest.importorskip('imagecodecs')
 zarr = pytest.importorskip('zarr')
@@ -92,7 +93,7 @@ def test_checksum_roundtrip(kind, dtype):
     codec = imagecodecs.numcodecs.Checksum(kind=kind)
     encoded = codec.encode(data)
     decoded = numpy.frombuffer(codec.decode(encoded), dtype=dtype)
-    assert_array_equal(data, decoded.reshape((13, 13)))
+    assert array_equal(data, decoded.reshape((13, 13)))
 
     encoded = bytearray(encoded)
     encoded[10] += 1
@@ -117,7 +118,7 @@ def test_quantize_bitround(dtype, nsd):
     ).encode(data)
     nc = BitRound(keepbits=nsd)
     encoded2 = nc.decode(nc.encode(data))
-    assert_array_equal(encoded, encoded2)
+    assert array_equal(encoded, encoded2)
 
 
 @pytest.mark.skipif(
@@ -135,7 +136,7 @@ def test_quantize_scale(dtype, nsd):
         nsd=nsd,
     ).encode(data)
     encoded2 = Quantize(digits=nsd, dtype=dtype).encode(data)
-    assert_array_equal(encoded, encoded2)
+    assert array_equal(encoded, encoded2)
 
 
 @pytest.mark.skipif(
@@ -147,7 +148,7 @@ def test_checksum_fletcher32():
     codec = imagecodecs.numcodecs.Checksum(kind='fletcher32')
     encoded = codec.encode(data)
     decoded = numpy.frombuffer(codec.decode(encoded), dtype='<i8')
-    assert_array_equal(decoded, data)
+    assert array_equal(decoded, data)
 
 
 @pytest.mark.skipif(
@@ -194,7 +195,7 @@ def test_dicomrle_numcodecs():
         dtype='u4',
     )
     decoded = imagecodecs.numcodecs.Dicomrle(dtype='<u4').decode(encoded)
-    assert_array_equal(
+    assert array_equal(
         numpy.frombuffer(decoded, '<u4').reshape(result.shape), result
     )
 
@@ -209,7 +210,7 @@ def test_dds_numcodecs():
         pytest.skip('bcn/bc1.dds not found')
     expected = imagecodecs.dds_decode(encoded)
     result = imagecodecs.numcodecs.Dds().decode(encoded)
-    assert_array_equal(result, expected)
+    assert array_equal(result, expected)
 
 
 @pytest.mark.skipif(not imagecodecs.ZSTD1.available, reason='zstd1 missing')
@@ -247,7 +248,7 @@ def test_eer_numcodecs():
     )
     result = codec.decode(encoded)
     expected = imagecodecs.eer_decode(encoded, (1, 312), 7, 1, 1)
-    assert_array_equal(result, expected)
+    assert array_equal(result, expected)
     assert result[0, 3]
     assert result[0, 17]
 
@@ -299,8 +300,8 @@ def test_ccitt_numcodecs(compression):
             encoded, height=shape[0], width=shape[1]
         )
     result = codec.decode(encoded)
-    assert_array_equal(result, expected)
-    assert_array_equal(result, data.view('uint8'))
+    assert array_equal(result, expected)
+    assert array_equal(result, data.view('uint8'))
 
 
 @pytest.mark.parametrize('photometric', ['gray', 'rgb', 'stack'])
@@ -765,7 +766,7 @@ def test_numcodecs(codec, photometric):
     if codec == 'jetraw':
         pass  # it does not make sense to test Jetraw on tiled, synthetic data
     elif lossless:
-        assert_array_equal(z[:, :150, :150], data[:, :150, :150])
+        assert array_equal(z[:, :150, :150], data[:, :150, :150])
     else:
         assert_allclose(
             z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0.001
