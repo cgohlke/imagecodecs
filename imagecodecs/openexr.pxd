@@ -1,6 +1,6 @@
 # imagecodecs/openexr.pxd
 
-# Cython declarations for the `OpenEXR 3.4` C library.
+# Cython declarations for the `OpenEXR 3.5` C library.
 # https://github.com/AcademySoftwareFoundation/openexr
 
 from libc.stdint cimport (
@@ -51,6 +51,8 @@ cdef extern from 'openexr_errors.h' nogil:
         EXR_ERR_USE_TILE_NONDEEP_WRITE
         EXR_ERR_INVALID_SAMPLE_DATA
         EXR_ERR_FEATURE_NOT_IMPLEMENTED
+        EXR_ERR_COMPRESSION_FAILED
+        EXR_ERR_DECOMPRESSION_FAILED
         EXR_ERR_UNKNOWN
 
     ctypedef int32_t exr_result_t
@@ -89,6 +91,8 @@ cdef extern from 'openexr_attr.h' nogil:
         EXR_COMPRESSION_DWAB
         EXR_COMPRESSION_HTJ2K256
         EXR_COMPRESSION_HTJ2K32
+        EXR_COMPRESSION_LJ2K
+        EXR_COMPRESSION_ZSTD
         EXR_COMPRESSION_LAST_TYPE
 
     ctypedef enum exr_lineorder_t:
@@ -224,7 +228,8 @@ cdef extern from 'openexr_context.h' nogil:
         int zip_level
         float dwa_quality
         int flags
-        uint8_t[4] pad
+        float lossy_htj2k_quality
+        int zstd_level
 
     ctypedef enum exr_default_write_mode_t:
         EXR_WRITE_FILE_DIRECTLY
@@ -260,6 +265,12 @@ cdef extern from 'openexr_part.h' nogil:
         int* count
     )
 
+    exr_result_t exr_get_name(
+        exr_const_context_t ctxt,
+        int part_index,
+        const char** out
+    )
+
     exr_result_t exr_get_storage(
         exr_const_context_t ctxt,
         int part_index,
@@ -271,12 +282,6 @@ cdef extern from 'openexr_part.h' nogil:
         const char* partname,
         exr_storage_t type,
         int* new_index
-    )
-
-    exr_result_t exr_get_chunk_count(
-        exr_const_context_t ctxt,
-        int part_index,
-        int32_t* out
     )
 
     exr_result_t exr_get_tile_descriptor(
@@ -295,6 +300,15 @@ cdef extern from 'openexr_part.h' nogil:
         int32_t* levelsy
     )
 
+    exr_result_t exr_get_tile_counts(
+        exr_const_context_t ctxt,
+        int part_index,
+        int levelx,
+        int levely,
+        int32_t* countx,
+        int32_t* county
+    )
+
     exr_result_t exr_get_tile_sizes(
         exr_const_context_t ctxt,
         int part_index,
@@ -304,10 +318,49 @@ cdef extern from 'openexr_part.h' nogil:
         int32_t* tileh
     )
 
+    exr_result_t exr_get_level_sizes(
+        exr_const_context_t ctxt,
+        int part_index,
+        int levelx,
+        int levely,
+        int32_t* levw,
+        int32_t* levh
+    )
+
     exr_result_t exr_get_scanlines_per_chunk(
         exr_const_context_t ctxt,
         int part_index,
         int32_t* out
+    )
+
+    exr_result_t exr_get_chunk_count(
+        exr_const_context_t ctxt,
+        int part_index,
+        int32_t* out
+    )
+
+    exr_result_t exr_get_chunk_table(
+        exr_const_context_t ctxt,
+        int part_index,
+        uint64_t** table,
+        int32_t* count
+    )
+
+    exr_result_t exr_validate_chunk_table(
+        exr_context_t ctxt,
+        int part_index
+    )
+
+    exr_result_t exr_get_chunk_unpacked_size(
+        exr_const_context_t ctxt,
+        int part_index,
+        uint64_t* out
+    )
+
+    exr_result_t exr_get_zip_compression_level(
+        exr_const_context_t ctxt,
+        int part_index,
+        int* out
     )
 
     exr_result_t exr_initialize_required_attr_simple(
@@ -388,10 +441,41 @@ cdef extern from 'openexr_part.h' nogil:
         float level
     )
 
+    exr_result_t exr_get_lossy_htj2k_quality(
+        exr_const_context_t ctxt,
+        int part_index,
+        float* level
+    )
+
+    exr_result_t exr_set_lossy_htj2k_quality(
+        exr_context_t ctxt,
+        int part_index,
+        float level
+    )
+
+    exr_result_t exr_get_zstd_compression_level(
+        exr_const_context_t ctxt,
+        int part_index,
+        int32_t* level
+    )
+
+    exr_result_t exr_set_zstd_compression_level(
+        exr_context_t ctxt,
+        int part_index,
+        int level
+    )
+
     exr_result_t exr_set_name(
         exr_context_t ctxt,
         int part_index,
         const char* val
+    )
+
+    exr_result_t exr_attr_set_string(
+        exr_context_t ctxt,
+        int part_index,
+        const char* name,
+        const char* s
     )
 
 
