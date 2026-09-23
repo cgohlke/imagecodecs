@@ -121,7 +121,7 @@ def webp_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* output = NULL
         size_t output_size = 0
@@ -135,9 +135,6 @@ def webp_encode(
         WebPPicture picture
         WebPMemoryWriter writer
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_RGB | IC_ALPHA | IC_FRAMES,
@@ -161,20 +158,29 @@ def webp_encode(
     ):
         raise ValueError('invalid data shape or dtype')
 
+    if not (
+        # validate trailing [..., height, width, samples] layout while
+        # allowing any number of leading frame dimensions
+        src.ndim >= 3
+        and src.strides[src.ndim - 1] == 1
+        and src.strides[src.ndim - 2] == layout.samples
+        and src.strides[src.ndim - 3] >= layout.samples * layout.width
+    ):
+        raise ValueError('invalid data strides')
+
     lossless_ = int(lossless is None or lossless or quality_factor < 0.0)
 
     if layout.frames > 1:
         return _webp_encode_frames(
-            src, layout, quality_factor, effort_level,
-            thread_level, lossless_, delay, out
+            src,
+            layout,
+            quality_factor,
+            effort_level,
+            thread_level,
+            lossless_,
+            delay,
+            out
         )
-
-    if not (
-        src.strides[2] == 1
-        and src.strides[1] == layout.samples
-        and src.strides[0] >= layout.samples * layout.width
-    ):
-        raise ValueError('invalid data strides')
 
     stride = <int> src.strides[0]
 
@@ -285,7 +291,7 @@ def webp_decode(
         bint all_opaque
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     webp_data.bytes = <const uint8_t*> src._data
     webp_data.size = <size_t> src.shape[0]
@@ -399,20 +405,14 @@ def webp_decode(
 
             if target_frame >= 0:
                 if has_alpha:
-                    result = numpy.ascontiguousarray(
-                        rgba_temp[0]
-                    )
+                    result = numpy.asarray(rgba_temp[0], order='C')
                 else:
-                    result = numpy.ascontiguousarray(
-                        rgba_temp[0, :, :, :3]
-                    )
+                    result = numpy.asarray(rgba_temp[0, :, :, :3], order='C')
             else:
                 if has_alpha:
-                    result = rgba_temp
+                    result = numpy.asarray(rgba_temp, order='C')
                 else:
-                    result = numpy.ascontiguousarray(
-                        rgba_temp[:, :, :, :3]
-                    )
+                    result = numpy.asarray(rgba_temp[:, :, :, :3], order='C')
 
             if out is not None:
                 out = _create_array(
@@ -509,13 +509,6 @@ cdef _webp_encode_frames(
         WebPAnimEncoder* enc = NULL
         WebPAnimEncoderOptions enc_options
         WebPData webp_data
-
-    if not (
-        src.strides[3] == 1
-        and src.strides[2] == layout.samples
-        and src.strides[1] >= layout.samples * layout.width
-    ):
-        raise ValueError('invalid data strides')
 
     if quality_factor < 0.0:
         quality_factor = 75.0
