@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef IMCD_H
 #define IMCD_H
 
-#define IMCD_VERSION "2026.8.16"
+#define IMCD_VERSION "2026.10.10"
 
 #include <stdint.h>
 #include <stdbool.h>
