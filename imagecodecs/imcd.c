@@ -143,7 +143,7 @@ uint16_t imcd_bitmask2(
 
 /********************************** Delta ************************************/
 
-#define DELTA(dtype) \
+#define DELTA_FLOAT(dtype) \
 { \
     if (decode) { \
         dtype sum = *(dtype*)srcptr; \
@@ -157,6 +157,71 @@ uint16_t imcd_bitmask2(
             } \
         } \
         else { \
+            *(dtype*)dstptr = sum; \
+            for (i = 1; i < size; i++) { \
+                dstptr += stride; \
+                srcptr += srcstride; \
+                sum += *(dtype*)srcptr; \
+                *(dtype*)dstptr = sum; \
+            } \
+        } \
+    } \
+    else { \
+        if (!inplace && (stride == sizeof(dtype)) \
+                     && (srcstride == sizeof(dtype))) { \
+        /* encode contiguous not-in-place: typed indexing enables  \
+           auto-vectorization of dst[i] = src[i] - src[i-1] */ \
+            const dtype* qsrc = (const dtype*)srcptr; \
+            dtype* qdst = (dtype*)dstptr; \
+            qdst[0] = qsrc[0]; \
+            for (i = 1; i < size; i++) { \
+                qdst[i] = qsrc[i] - qsrc[i - 1]; \
+            } \
+        } \
+        else if (inplace && (stride == sizeof(dtype)) \
+                         && (srcstride == sizeof(dtype))) { \
+        /* encode contiguous in-place */ \
+            dtype* qsrc = (dtype*)srcptr; \
+            for (i = size - 1; i > 0; i--) { \
+                qsrc[i] = qsrc[i] - qsrc[i - 1]; \
+            } \
+        } \
+        else { \
+            dtype src0, src1; \
+            src0 = *(dtype*)srcptr; \
+            *(dtype*)dstptr = src0; \
+            for (i = 1; i < size; i++) { \
+                dstptr += stride; \
+                srcptr += srcstride; \
+                src1 = *(dtype*)srcptr; \
+                *(dtype*)dstptr = src1 - src0; \
+                src0 = src1; \
+            } \
+        } \
+    } \
+}
+
+#define DELTA_INT(dtype) \
+{ \
+    if (decode) { \
+        if (inplace && (stride == sizeof(dtype)) \
+                    && (srcstride == sizeof(dtype))) { \
+        /* decode contiguous in-place */ \
+            dtype* qsrc = (dtype*)srcptr; \
+            uint64_t acc = (uint64_t)qsrc[0]; \
+            for (i = 1; i < size - 1; i += 2) { \
+                acc += (uint64_t)qsrc[i]; \
+                qsrc[i] = (dtype)acc; \
+                acc += (uint64_t)qsrc[i + 1]; \
+                qsrc[i + 1] = (dtype)acc; \
+            } \
+            if (i < size) { \
+                acc += (uint64_t)qsrc[i]; \
+                qsrc[i] = (dtype)acc; \
+            } \
+        } \
+        else { \
+            dtype sum = *(dtype*)srcptr; \
             *(dtype*)dstptr = sum; \
             for (i = 1; i < size; i++) { \
                 dstptr += stride; \
@@ -231,16 +296,16 @@ ssize_t imcd_delta(
     switch (itemsize)
     {
         case 1:
-            DELTA(uint8_t);
+            DELTA_INT(uint8_t);
             break;
         case 2:
-            DELTA(uint16_t);
+            DELTA_INT(uint16_t);
             break;
         case 4:
-            DELTA(uint32_t);
+            DELTA_INT(uint32_t);
             break;
         case 8:
-            DELTA(uint64_t);
+            DELTA_INT(uint64_t);
             break;
         default:
             return IMCD_VALUE_ERROR;
@@ -284,16 +349,16 @@ ssize_t imcd_diff(
             switch (itemsize)
             {
                 case 1:
-                    DELTA(uint8_t);
+                    DELTA_INT(uint8_t);
                     break;
                 case 2:
-                    DELTA(uint16_t);
+                    DELTA_INT(uint16_t);
                     break;
                 case 4:
-                    DELTA(uint32_t);
+                    DELTA_INT(uint32_t);
                     break;
                 case 8:
-                    DELTA(uint64_t);
+                    DELTA_INT(uint64_t);
                     break;
                 default:
                     return IMCD_VALUE_ERROR;
@@ -306,16 +371,16 @@ ssize_t imcd_diff(
             switch (itemsize)
             {
                 case 1:
-                    DELTA(int8_t);
+                    DELTA_INT(int8_t);
                     break;
                 case 2:
-                    DELTA(int16_t);
+                    DELTA_INT(int16_t);
                     break;
                 case 4:
-                    DELTA(int32_t);
+                    DELTA_INT(int32_t);
                     break;
                 case 8:
-                    DELTA(int64_t);
+                    DELTA_INT(int64_t);
                     break;
                 default:
                     return IMCD_VALUE_ERROR;
@@ -327,10 +392,10 @@ ssize_t imcd_diff(
             switch (itemsize)
             {
                 case 4:
-                    DELTA(float);
+                    DELTA_FLOAT(float);
                     break;
                 case 8:
-                    DELTA(double);
+                    DELTA_FLOAT(double);
                     break;
                 default:
                     return IMCD_VALUE_ERROR;
@@ -353,9 +418,15 @@ ssize_t imcd_diff(
                     && (srcstride == sizeof(dtype))) { \
         /* decode contiguous in-place */ \
             dtype* psrc = (dtype*)srcptr; \
-            prev = psrc[0]; \
-            for (i = 1; i < size; i++) { \
-                prev = psrc[i] ^= prev; \
+            uint64_t acc = (uint64_t)psrc[0]; \
+            for (i = 1; i < size - 1; i += 2) { \
+                acc ^= (uint64_t)psrc[i]; \
+                psrc[i] = (dtype)acc; \
+                acc ^= (uint64_t)psrc[i + 1]; \
+                psrc[i + 1] = (dtype)acc; \
+            } \
+            if (i < size) { \
+                acc ^= (uint64_t)psrc[i]; psrc[i] = (dtype)acc; \
             } \
         } \
         else { \
@@ -957,22 +1028,6 @@ tightly as possible leaving no unused bits except at the end of a row.
 
 */
 
-typedef union {
-    uint8_t b[2];
-    uint16_t i;
-} u_uint16_t;
-
-typedef union {
-    uint8_t b[4];
-    uint32_t i;
-} u_uint32_t;
-
-typedef union {
-    uint8_t b[8];
-    uint64_t i;
-} u_uint64_t;
-
-
 /* Unpack sequence of packed 1-64 bit integers.
 
 Input src array should be padded to the next 16, 32 or 64-bit boundary
@@ -998,6 +1053,9 @@ ssize_t imcd_packints_decode(
     /* input validation is done in wrapper function */
     itemsize = (ssize_t)(ceil(bps / 8.0));
     itemsize = itemsize < 3 ? itemsize : itemsize > 4 ? 8 : 4;
+    if (items < 0 || items > (ssize_t)((SIZE_MAX >> 1) / (size_t)itemsize)) {
+        return IMCD_VALUE_ERROR;
+    }
     switch (bps)
     {
         case 8:
@@ -1073,103 +1131,56 @@ ssize_t imcd_packints_decode(
     }
     /* 3, 5, 6, 7 */
     if (bps < 8) {
-        int shr = 16;
-        u_uint16_t val, mask, tmp;
+        const uint32_t mask8 = ((uint32_t)1 << bps) - 1;
+        uint32_t acc = 0;
+        int nacc = 0;
         j = k = 0;
-        val.b[IMCD_MSB] = j < srcsize ? src[j++] : 0;
-        val.b[IMCD_LSB] = j < srcsize ? src[j++] : 0;
-        mask.b[IMCD_MSB] = imcd_bitmask(bps);
-        mask.b[IMCD_LSB] = 0;
         for (i = 0; i < items; i++) {
-            shr -= bps;
-            tmp.i = (val.i & mask.i) >> shr;
-            dst[k++] = tmp.b[IMCD_LSB];
-            if (shr < bps) {
-                val.b[IMCD_MSB] = val.b[IMCD_LSB];
-                val.b[IMCD_LSB] = src[j++];
-                mask.i <<= 8 - bps;
-                shr += 8;
+            while (nacc < bps) {
+                acc = (acc << 8) | (j < srcsize ? src[j++] : 0);
+                nacc += 8;
             }
-            else {
-                mask.i >>= bps;
-            }
+            nacc -= bps;
+            dst[k++] = (uint8_t)((acc >> nacc) & mask8);
         }
         return items;
     }
     /* 9, 10, 11, 12, 13, 14, 15 */
     if (bps < 16) {
-        int shr = 32;
-        u_uint32_t val, mask, tmp;
-        mask.i = 0;
+        const uint64_t mask16 = ((uint64_t)1 << bps) - 1;
+        uint64_t acc = 0;
+        uint16_t v16;
+        int nacc = 0;
         j = k = 0;
-#if IMCD_MSB
-        for (i = 3; i >= 0; i--) {
-            val.b[i] = j < srcsize ? src[j++] : 0;
-        }
-        mask.b[3] = 0xFF;
-        mask.b[2] = imcd_bitmask(bps - 8);
         for (i = 0; i < items; i++) {
-            shr -= bps;
-            tmp.i = (val.i & mask.i) >> shr;
-            dst[k++] = tmp.b[0]; /* swap bytes */
-            dst[k++] = tmp.b[1];
-            if (shr < bps) {
-                val.b[3] = val.b[1];
-                val.b[2] = val.b[0];
-                val.b[1] = j < srcsize ? src[j++] : 0;
-                val.b[0] = j < srcsize ? src[j++] : 0;
-                mask.i <<= 16 - bps;
-                shr += 16;
+            while (nacc < bps) {
+                acc = (acc << 8) | (j < srcsize ? src[j++] : 0);
+                nacc += 8;
             }
-            else {
-                mask.i >>= bps;
-            }
+            nacc -= bps;
+            v16 = (uint16_t)((acc >> nacc) & mask16);
+            memcpy(dst + k, &v16, 2);
+            k += 2;
         }
-#else
-        /* not implemented */
-#endif
         return items;
     }
     /* 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 */
     if (bps < 32) {
-        int shr = 64;
-        u_uint64_t val, mask, tmp;
-        mask.i = 0;
+        const uint64_t mask32 = ((uint64_t)1 << bps) - 1;
+        uint64_t acc = 0;
+        uint32_t v32;
+        int nacc = 0;
         j = k = 0;
-#if IMCD_MSB
-        for (i = 7; i >= 0; i--) {
-            val.b[i] = j < srcsize ? src[j++] : 0;
-        }
-        mask.b[7] = 0xFF;
-        mask.b[6] = 0xFF;
-        mask.b[5] = bps > 23 ? 0xFF : imcd_bitmask(bps - 16);
-        mask.b[4] = bps < 24 ? 0x00 : imcd_bitmask(bps - 24);
         for (i = 0; i < items; i++) {
-            shr -= bps;
-            tmp.i = (val.i & mask.i) >> shr;
-            dst[k++] = tmp.b[0]; /* swap bytes */
-            dst[k++] = tmp.b[1];
-            dst[k++] = tmp.b[2];
-            dst[k++] = tmp.b[3];
-            if (shr < bps) {
-                val.b[7] = val.b[3];
-                val.b[6] = val.b[2];
-                val.b[5] = val.b[1];
-                val.b[4] = val.b[0];
-                val.b[3] = j < srcsize ? src[j++] : 0;
-                val.b[2] = j < srcsize ? src[j++] : 0;
-                val.b[1] = j < srcsize ? src[j++] : 0;
-                val.b[0] = j < srcsize ? src[j++] : 0;
-                mask.i <<= 32 - bps;
-                shr += 32;
+            while (nacc < bps) {
+                acc = (acc << 8) | (j < srcsize ? src[j++] : 0);
+                nacc += 8;
             }
-            else {
-                mask.i >>= bps;
-            }
+            nacc -= bps;
+            v32 = (uint32_t)((acc >> nacc) & mask32);
+            memcpy(dst + k, &v32, 4);
+            k += 4;
         }
-#else
-        /* not implemented */
-#endif
         return items;
     }
     return IMCD_ERROR;
@@ -1198,6 +1209,9 @@ ssize_t imcd_packints_encode(
 
     itemsize = (ssize_t)(ceil(bps / 8.0));
     itemsize = itemsize < 3 ? itemsize : itemsize > 4 ? 8 : 4;
+    if (items > (ssize_t)((SIZE_MAX >> 1) / (size_t)itemsize)) {
+        return IMCD_VALUE_ERROR;
+    }
 
     switch (bps)
     {
@@ -1338,6 +1352,9 @@ ssize_t imcd_packints_decode_lsb(
     if ((bps < 9) || (bps > 14)) {
         return IMCD_VALUE_ERROR;
     }
+    if (items > (ssize_t)(SIZE_MAX >> 1) / (ssize_t)bps) {
+        return IMCD_VALUE_ERROR;
+    }
 
     mask = ((uint32_t)1 << bps) - 1;
 
@@ -1394,6 +1411,9 @@ ssize_t imcd_packints_encode_lsb(
         return IMCD_VALUE_ERROR;
     }
     if ((bps < 9) || (bps > 14)) {
+        return IMCD_VALUE_ERROR;
+    }
+    if (items > (ssize_t)(SIZE_MAX >> 1) / (ssize_t)bps) {
         return IMCD_VALUE_ERROR;
     }
 
@@ -1998,6 +2018,9 @@ imcd_eer_decode(
     {
         return IMCD_VALUE_ERROR;
     }
+    if (height > (ssize_t)(SIZE_MAX >> 1) / width) {
+        return IMCD_VALUE_ERROR;
+    }
 
     if ((superres > 0) && ((width % horzsize) || (height % vertsize))) {
         return IMCD_VALUE_ERROR;
@@ -2013,9 +2036,6 @@ imcd_eer_decode(
         pixelindex += (ssize_t)skip;
         if (pixelindex == pixelsize) {
             break;
-        }
-        if (pixelindex < 0) {
-            return IMCD_INPUT_CORRUPT;
         }
         if (pixelindex > pixelsize) {
             return IMCD_OUTPUT_TOO_SMALL;
@@ -2089,7 +2109,9 @@ imcd_eer_decode_u2(
     {
         return IMCD_VALUE_ERROR;
     }
-
+    if (height > (ssize_t)(SIZE_MAX >> 1) / width) {
+        return IMCD_VALUE_ERROR;
+    }
     if ((superres > 0) && ((width % horzsize) || (height % vertsize))) {
         return IMCD_VALUE_ERROR;
     }
@@ -2104,9 +2126,6 @@ imcd_eer_decode_u2(
         pixelindex += (ssize_t)skip;
         if (pixelindex == pixelsize) {
             break;
-        }
-        if (pixelindex < 0) {
-            return IMCD_INPUT_CORRUPT;
         }
         if (pixelindex > pixelsize) {
             return IMCD_OUTPUT_TOO_SMALL;
@@ -2153,24 +2172,50 @@ TIFF compression scheme 5, an adaptive compression scheme for raster images.
 #define LZW_CLEAR 256
 #define LZW_EOI 257
 #define LZW_FIRST 258
-#define LZW_HASH_SIZE 7349
-#define LZW_HASH_STEP 257
+#define LZW_HASH_SIZE 8192  /* power of two */
+#define LZW_HASH_MASK (LZW_HASH_SIZE - 1)
 #define LZW_CHECK_GAP 10000  /* input bytes between compression ratio checks */
 
-/* LZW decode table entry.
-   Chain links run from last byte to first byte (most-recently-added to root).
-   firstchar and value are adjacent to allow a 2-byte load for len==2. */
-typedef struct {
-    uint16_t next;      /* index of parent chain entry; 0xFFFF for literals */
-    uint8_t firstchar;  /* first byte of this entry's string */
-    uint8_t value;      /* last byte of this entry's string */
-    uint16_t length;    /* total string length */
-    uint8_t repeated;   /* 1 if all bytes in the string are identical */
-    uint8_t _pad;
-} imcd_lzw_code_t;
+static const uint8_t LZW_LITERALS[256 + 8] = {
+    0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9, 10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21, 22, 23,
+    24, 25, 26, 27, 28, 29, 30, 31,
+    32, 33, 34, 35, 36, 37, 38, 39,
+    40, 41, 42, 43, 44, 45, 46, 47,
+    48, 49, 50, 51, 52, 53, 54, 55,
+    56, 57, 58, 59, 60, 61, 62, 63,
+    64, 65, 66, 67, 68, 69, 70, 71,
+    72, 73, 74, 75, 76, 77, 78, 79,
+    80, 81, 82, 83, 84, 85, 86, 87,
+    88, 89, 90, 91, 92, 93, 94, 95,
+    96, 97, 98, 99, 100, 101, 102, 103,
+    104, 105, 106, 107, 108, 109, 110, 111,
+    112, 113, 114, 115, 116, 117, 118, 119,
+    120, 121, 122, 123, 124, 125, 126, 127,
+    128, 129, 130, 131, 132, 133, 134, 135,
+    136, 137, 138, 139, 140, 141, 142, 143,
+    144, 145, 146, 147, 148, 149, 150, 151,
+    152, 153, 154, 155, 156, 157, 158, 159,
+    160, 161, 162, 163, 164, 165, 166, 167,
+    168, 169, 170, 171, 172, 173, 174, 175,
+    176, 177, 178, 179, 180, 181, 182, 183,
+    184, 185, 186, 187, 188, 189, 190, 191,
+    192, 193, 194, 195, 196, 197, 198, 199,
+    200, 201, 202, 203, 204, 205, 206, 207,
+    208, 209, 210, 211, 212, 213, 214, 215,
+    216, 217, 218, 219, 220, 221, 222, 223,
+    224, 225, 226, 227, 228, 229, 230, 231,
+    232, 233, 234, 235, 236, 237, 238, 239,
+    240, 241, 242, 243, 244, 245, 246, 247,
+    248, 249, 250, 251, 252, 253, 254, 255,
+    0, 0, 0, 0, 0, 0, 0, 0  /* padding bytes for safe 8-byte reads */
+};
 
 struct imcd_lzw_handle {
-    imcd_lzw_code_t tab[LZW_TABLESIZE];
+    /* pointer into output buffer or literals */
+    const uint8_t* string[LZW_TABLESIZE];
+    uint16_t length[LZW_TABLESIZE];
 };
 
 /* Allocate LZW handle. */
@@ -2250,68 +2295,39 @@ void imcd_lzw_del(
     else { code = LZW_EOI; } \
 }
 
-/* Add a new table entry: string(oldcode) + fb (the first byte of the
-   string just emitted, which becomes the last byte of the new entry). */
-#define LZW_ADD_ENTRY(fb) \
+/* Record previous output string as the new table entry. */
+#define LZW_ADD_ENTRY \
     if (oldcode >= 0) { \
-        uint32_t oc = (uint32_t)oldcode; \
-        tab[tablesize].next = (uint16_t)oc; \
-        tab[tablesize].firstchar = tab[oc].firstchar; \
-        tab[tablesize].value = (fb); \
-        tab[tablesize].length = (uint16_t)(tab[oc].length + 1); \
-        tab[tablesize].repeated = tab[oc].repeated \
-            & (tab[oc].value == (fb)); \
+        str[tablesize] = prev_out; \
+        len[tablesize] = (uint16_t)(prev_len + 1); \
         tablesize++; \
     }
 
-/* Emit the string for the current code directly into the output buffer.
-   Walk the chain from last byte to first byte, writing backwards.
-   Fast paths for len==2 (memcpy of adjacent firstchar+value) and len==3.
-   Repeated strings (all bytes identical) are emitted with memset.
-   Clips to available output space (writes the tail of the string). */
+/* Emit string corresponding to current code to output buffer. */
 #define LZW_EMIT_CODE \
     { \
-        imcd_lzw_code_t* cp = &tab[code]; \
-        uint32_t len = cp->length; \
-        uint32_t emit = (uint32_t)(dstend - dst); \
-        if (emit > len) emit = len; \
-        if (cp->repeated) { \
-            memset(dst, cp->value, emit); \
-            dst += emit; \
+        const uint8_t* s = str[code]; \
+        uint32_t n = len[code]; \
+        uint32_t avail = (uint32_t)(dstend - dst); \
+        if (n > avail) n = avail; \
+        if ((n <= 8) && (avail >= 8)) { \
+            uint64_t t; \
+            memcpy(&t, s, 8); \
+            memcpy(dst, &t, 8); \
         } \
-        else if (len == 2) { \
-            /* firstchar and value are adjacent bytes in the struct */ \
-            if (emit >= 2) { \
-                memcpy(dst, &cp->firstchar, 2); \
-                dst += 2; \
-            } else { \
-                *dst++ = cp->firstchar; \
-            } \
-        } \
-        else if (len == 3 && emit == 3) { \
-            dst[0] = cp->firstchar; \
-            dst[1] = tab[cp->next].value; \
-            dst[2] = cp->value; \
-            dst += 3; \
+        else if ((n <= 16) && (avail >= 16)) { \
+            uint64_t t0, t1; \
+            memcpy(&t0, s, 8); \
+            memcpy(&t1, s + 8, 8); \
+            memcpy(dst, &t0, 8); \
+            memcpy(dst + 8, &t1, 8); \
         } \
         else { \
-            imcd_lzw_code_t* p = cp; \
-            uint8_t* tp = dst + emit; \
-            uint32_t n = emit; \
-            if (emit < len) { \
-                /* truncated: skip tail bytes to emit head of string */ \
-                uint32_t skip = len - emit; \
-                while (skip--) { \
-                    p = &tab[p->next]; \
-                } \
-            } \
-            while (--n) { \
-                *--tp = p->value; \
-                p = &tab[p->next]; \
-            } \
-            *--tp = p->value; \
-            dst += emit; \
+            memcpy(dst, s, n); \
         } \
+        prev_out = dst; \
+        prev_len = n; \
+        dst += n; \
     }
 
 
@@ -2348,7 +2364,7 @@ ssize_t imcd_lzw_decode_size(
     uint16_t len[LZW_TABLESIZE];
     uint32_t tablesize = 258;
     uint32_t code = 0;
-    uint32_t oldcode = 0;
+    int32_t oldcode = -1;
     ssize_t dstsize = 0;
     ssize_t bitpos = 0;
     uint64_t bitbuf = 0;
@@ -2382,41 +2398,35 @@ ssize_t imcd_lzw_decode_size(
         uint32_t maxcode = 510;  /* early change at 511, 1023, 2047 */
         while (1) {
             LZW_GET_NEXT_CODE_MSB
-            if (code >= LZW_FIRST) {
-                /* compound string: most common path, check first */
+            if ((code != LZW_EOI) & (code != LZW_CLEAR)) {
+                /* most common: literals (0-255) and compound (>=258) */
                 if (tablesize >= LZW_TABLESIZE) {
                     return IMCD_LZW_TABLE_TOO_SMALL;
                 }
-                if (code < tablesize) {
-                    dstsize += len[code];
-                }
-                else if (code > tablesize) {
+                if (code > tablesize) {
                     return IMCD_LZW_CORRUPT;
                 }
+                if (code == tablesize) {
+                    /* K-w-K */
+                    if (oldcode < 0) {
+                        return IMCD_LZW_CORRUPT;
+                    }
+                    dstsize += (ssize_t)len[(uint32_t)oldcode] + 1;
+                }
                 else {
-                    /* K-w-K: code equals the entry about to be added */
-                    dstsize += (ssize_t)len[oldcode] + 1;
+                    /* literals: len=1; compound: actual */
+                    dstsize += len[code];
                 }
-                len[tablesize++] = len[oldcode] + 1;
-            }
-            else if (code < 256) {
-                if (tablesize >= LZW_TABLESIZE) {
-                    return IMCD_LZW_TABLE_TOO_SMALL;
+                if (oldcode >= 0) {
+                    len[tablesize++] = len[(uint32_t)oldcode] + 1;
                 }
-                dstsize++;
-                len[tablesize++] = len[oldcode] + 1;
+                oldcode = (int32_t)code;
             }
             else if (code == LZW_CLEAR) {
                 tablesize = 258;
                 bitw = 9;
                 maxcode = 510;
-                do {
-                    LZW_GET_NEXT_CODE_MSB
-                } while (code == LZW_CLEAR);
-                if (code == LZW_EOI) break;
-                dstsize++;
-                oldcode = code;
-                continue;
+                oldcode = -1;
             }
             else {
                 break;  /* EOI */
@@ -2426,48 +2436,41 @@ ssize_t imcd_lzw_decode_size(
                 bitw++;
                 maxcode = (bitw < 12) ? ((maxcode << 1) | 2) : LZW_TABLESIZE;
             }
-            oldcode = code;
         }
     }
     else {
         uint32_t maxcode = 511;  /* late change at 512, 1024, 2048 */
         while (1) {
             LZW_GET_NEXT_CODE_LSB
-            if (code >= LZW_FIRST) {
-                /* compound string: most common path, check first */
+            if ((code != LZW_EOI) & (code != LZW_CLEAR)) {
+                /* most common: literals (0-255) and compound (>=258) */
                 if (tablesize >= LZW_TABLESIZE) {
                     return IMCD_LZW_TABLE_TOO_SMALL;
                 }
-                if (code < tablesize) {
-                    dstsize += len[code];
-                }
-                else if (code > tablesize) {
+                if (code > tablesize) {
                     return IMCD_LZW_CORRUPT;
                 }
+                if (code == tablesize) {
+                    /* K-w-K */
+                    if (oldcode < 0) {
+                        return IMCD_LZW_CORRUPT;
+                    }
+                    dstsize += (ssize_t)len[(uint32_t)oldcode] + 1;
+                }
                 else {
-                    /* K-w-K: code equals the entry about to be added */
-                    dstsize += (ssize_t)len[oldcode] + 1;
+                    /* literals: len=1; compound: actual */
+                    dstsize += len[code];
                 }
-                len[tablesize++] = len[oldcode] + 1;
-            }
-            else if (code < 256) {
-                if (tablesize >= LZW_TABLESIZE) {
-                    return IMCD_LZW_TABLE_TOO_SMALL;
+                if (oldcode >= 0) {
+                    len[tablesize++] = len[(uint32_t)oldcode] + 1;
                 }
-                dstsize++;
-                len[tablesize++] = len[oldcode] + 1;
+                oldcode = (int32_t)code;
             }
             else if (code == LZW_CLEAR) {
                 tablesize = 258;
                 bitw = 9;
                 maxcode = 511;
-                do {
-                    LZW_GET_NEXT_CODE_LSB
-                } while (code == LZW_CLEAR);
-                if (code == LZW_EOI) break;
-                dstsize++;
-                oldcode = code;
-                continue;
+                oldcode = -1;
             }
             else {
                 break;  /* EOI */
@@ -2477,7 +2480,6 @@ ssize_t imcd_lzw_decode_size(
                 bitw++;
                 maxcode = (bitw < 12) ? ((maxcode << 1) | 1) : LZW_TABLESIZE;
             }
-            oldcode = code;
         }
     }
 
@@ -2493,7 +2495,8 @@ ssize_t imcd_lzw_decode(
     uint8_t* dst,
     const ssize_t dstsize)
 {
-    imcd_lzw_code_t* const tab = handle->tab;
+    const uint8_t** const str = handle->string;
+    uint16_t* const len = handle->length;
     const uint8_t* dstin = dst;
     uint8_t* const dstend = dst + dstsize;
     uint32_t tablesize = 258;
@@ -2505,6 +2508,8 @@ ssize_t imcd_lzw_decode(
     int32_t bitcnt = 0;
     bool msb = true;
     uint32_t i;
+    uint8_t* prev_out = dst;
+    uint32_t prev_len = 0;
 
     if (
         (handle == NULL) ||
@@ -2530,11 +2535,8 @@ ssize_t imcd_lzw_decode(
 
     /* initialize literal entries 0..255 */
     for (i = 0; i < 256; i++) {
-        tab[i].next = 0xFFFF;
-        tab[i].firstchar = (uint8_t)i;
-        tab[i].value = (uint8_t)i;
-        tab[i].length = 1;
-        tab[i].repeated = 1;
+        str[i] = LZW_LITERALS + i;
+        len[i] = 1;
     }
 
     if (msb) {
@@ -2542,58 +2544,47 @@ ssize_t imcd_lzw_decode(
         uint32_t maxcode = 510;  /* early change at at 511, 1022, 2046 */
         while (dst < dstend) {
             LZW_GET_NEXT_CODE_MSB
-            if (code >= LZW_FIRST) {
-                /* compound string: most common path, check first */
+            if ((code != LZW_EOI) & (code != LZW_CLEAR)) {
+                /* most common: literals (0-255) and compound (>=258) */
                 if (tablesize >= LZW_TABLESIZE) {
                     return IMCD_LZW_TABLE_TOO_SMALL;
                 }
                 if (code > tablesize) {
                     return IMCD_LZW_CORRUPT;
                 }
-                {
-                    uint8_t fb;
-                    if (code == tablesize) {
-                        /* K-w-K: code refers to the entry being added */
-                        if (oldcode < 0) {
-                            return IMCD_LZW_CORRUPT;
-                        }
-                        fb = tab[(uint32_t)oldcode].firstchar;
+                if (code == tablesize) {
+                    /* K-w-K */
+                    if (oldcode < 0) {
+                        return IMCD_LZW_CORRUPT;
                     }
-                    else {
-                        fb = tab[code].firstchar;
+                    LZW_ADD_ENTRY
+                        oldcode = (int32_t)code;
+                    {
+                        uint32_t n = prev_len + 1;
+                        uint32_t j;
+                        if (n >
+                            (uint32_t)(dstend - dst))
+                            n = (uint32_t)(dstend - dst);
+                        for (j = 0; j < n; j++) dst[j] = prev_out[j];
+                        prev_out = dst;
+                        prev_len = n;
+                        dst += n;
                     }
-                    LZW_ADD_ENTRY(fb)
-                    oldcode = (int32_t)code;
+                }
+                else {
+                    LZW_ADD_ENTRY
+                        oldcode = (int32_t)code;
                     LZW_EMIT_CODE
                 }
             }
-            else if (code < 256) {
-                /* literal byte */
-                if (tablesize >= LZW_TABLESIZE) {
-                    return IMCD_LZW_TABLE_TOO_SMALL;
-                }
-                LZW_ADD_ENTRY((uint8_t)code)
-                oldcode = (int32_t)code;
-                *dst++ = (uint8_t)code;
-            }
-            else if (code == LZW_EOI) {
-                break;
-            }
-            else {
-                /* CLEAR */
+            else if (code == LZW_CLEAR) {
                 tablesize = 258;
                 bitw = 9;
                 maxcode = 510;
                 oldcode = -1;
-                do {
-                    LZW_GET_NEXT_CODE_MSB
-                } while (code == LZW_CLEAR);
-                if (code == LZW_EOI) break;
-                if (dst >= dstend) break;
-                *dst++ = (uint8_t)code;
-                oldcode = (int32_t)code;
-                if (dst < dstend) continue;
-                break;
+            }
+            else {
+                break;  /* EOI */
             }
             /* early-change bit-width update */
             if (tablesize > maxcode) {
@@ -2608,55 +2599,46 @@ ssize_t imcd_lzw_decode(
         uint32_t maxcode = 511;  /* late-change at 512, 1024, 2048 */
         while (dst < dstend) {
             LZW_GET_NEXT_CODE_LSB
-            if (code >= LZW_FIRST) {
+            if ((code != LZW_EOI) & (code != LZW_CLEAR)) {
+                /* most common: literals (0-255) and compound (>=258) */
                 if (tablesize >= LZW_TABLESIZE) {
                     return IMCD_LZW_TABLE_TOO_SMALL;
                 }
                 if (code > tablesize) {
                     return IMCD_LZW_CORRUPT;
                 }
-                {
-                    uint8_t fb;
-                    if (code == tablesize) {
-                        if (oldcode < 0) {
-                            return IMCD_LZW_CORRUPT;
-                        }
-                        fb = tab[(uint32_t)oldcode].firstchar;
+                if (code == tablesize) {
+                    if (oldcode < 0) {
+                        return IMCD_LZW_CORRUPT;
                     }
-                    else {
-                        fb = tab[code].firstchar;
+                    LZW_ADD_ENTRY
+                        oldcode = (int32_t)code;
+                    {
+                        uint32_t n = prev_len + 1;
+                        uint32_t j;
+                        if (n >
+                            (uint32_t)(dstend - dst)) n = (uint32_t)(dstend -
+                            dst);
+                        for (j = 0; j < n; j++) dst[j] = prev_out[j];
+                        prev_out = dst;
+                        prev_len = n;
+                        dst += n;
                     }
-                    LZW_ADD_ENTRY(fb)
-                    oldcode = (int32_t)code;
+                }
+                else {
+                    LZW_ADD_ENTRY
+                        oldcode = (int32_t)code;
                     LZW_EMIT_CODE
                 }
             }
-            else if (code < 256) {
-                if (tablesize >= LZW_TABLESIZE) {
-                    return IMCD_LZW_TABLE_TOO_SMALL;
-                }
-                LZW_ADD_ENTRY((uint8_t)code)
-                oldcode = (int32_t)code;
-                *dst++ = (uint8_t)code;
-            }
-            else if (code == LZW_EOI) {
-                break;
-            }
-            else {
-                /* CLEAR */
+            else if (code == LZW_CLEAR) {
                 tablesize = 258;
                 bitw = 9;
                 maxcode = 511;
                 oldcode = -1;
-                do {
-                    LZW_GET_NEXT_CODE_LSB
-                } while (code == LZW_CLEAR);
-                if (code == LZW_EOI) break;
-                if (dst >= dstend) break;
-                *dst++ = (uint8_t)code;
-                oldcode = (int32_t)code;
-                if (dst < dstend) continue;
-                break;
+            }
+            else {
+                break;  /* EOI */
             }
             /* late-change bit-width update */
             if (tablesize > maxcode) {
@@ -2698,7 +2680,9 @@ ssize_t imcd_lzw_encode(
 {
     ssize_t dstindex = 0;
     ssize_t srcindex = 0;
-    int* hash_keys = NULL;
+    uint32_t tag = 0;
+    uint32_t gen = 1;  /* 0 means stale, starts at 1 */
+    uint32_t* hash_keys = NULL;
     int* hash_values = NULL;
     int hashkey = 0;
     int hashcode = 0;
@@ -2739,36 +2723,36 @@ ssize_t imcd_lzw_encode(
         return dstindex;
     }
 
-    /* allocate and init hash table */
-    hash_keys = malloc(sizeof(int) * LZW_HASH_SIZE * 2);
+    /* allocate hash table */
+    hash_keys = calloc(LZW_HASH_SIZE * 2, sizeof(uint32_t));
     if (hash_keys == NULL) {
         return IMCD_MEMORY_ERROR;
     }
-    hash_values = hash_keys + LZW_HASH_SIZE;
-    memset(hash_keys, 0xFF, sizeof(int) * LZW_HASH_SIZE);
+    hash_values = (int*)(hash_keys + LZW_HASH_SIZE);
 
     omega = src[0] & 0xff;
 
     for (srcindex = 1; srcindex < srcsize; srcindex++) {
         k = src[srcindex] & 0xff;
         hashkey = (omega << 8) | k;
-        hashcode = (hashkey * LZW_HASH_STEP) % LZW_HASH_SIZE;
+        hashcode = (int)((hashkey * 2654435761u) >> 19);
+        tag = (gen << 20) | (uint32_t)hashkey;
 
-        while (hash_keys[hashcode] >= 0) {
-            if (hash_keys[hashcode] == hashkey) {
-                /* Omega+K in table */
-                omega = hash_values[hashcode];
-                goto OUTER;
-            }
-            hashcode++;
-            if (hashcode == LZW_HASH_SIZE) {
-                hashcode = 0;
-            }
+        while (
+            hash_keys[hashcode] != tag
+            && (hash_keys[hashcode] >> 20) == gen)
+        {
+            hashcode = (hashcode + 1) & LZW_HASH_MASK;
+        }
+        if (hash_keys[hashcode] == tag) {
+            /* Omega+K in table */
+            omega = hash_values[hashcode];
+            goto OUTER;
         }
 
         /* Omega+K not in table */
         /* add entry to table */
-        hash_keys[hashcode] = hashkey;
+        hash_keys[hashcode] = tag;
         hash_values[hashcode] = nextcode++;
 
         /* write last code */
@@ -2799,7 +2783,10 @@ ssize_t imcd_lzw_encode(
                 bitc -= 8;
                 LZW_WRITE_DST;
             }
-            memset(hash_keys, 0xFF, sizeof(int) * LZW_HASH_SIZE);
+            if (++gen == (1u << 12)) {
+                memset(hash_keys, 0, sizeof(uint32_t) * LZW_HASH_SIZE);
+                gen = 1;
+            }
             nextcode = LZW_FIRST;
             bitw = 9;
             incount_base = srcindex;
@@ -2838,7 +2825,14 @@ ssize_t imcd_lzw_encode(
                             bitc -= 8;
                             LZW_WRITE_DST;
                         }
-                        memset(hash_keys, 0xFF, sizeof(int) * LZW_HASH_SIZE);
+                        if (++gen == (1u << 12)) {
+                            memset(
+                                hash_keys,
+                                0,
+                                sizeof(uint32_t) * LZW_HASH_SIZE
+                            );
+                            gen = 1;
+                        }
                         nextcode = LZW_FIRST;
                         bitw = 9;
                         incount_base = srcindex;
