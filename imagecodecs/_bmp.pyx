@@ -56,7 +56,7 @@ class BmpError(RuntimeError):
 
 def bmp_version():
     """Return bmp codec version string."""
-    return 'bmp 2026.3.6'
+    return 'bmp 2026.10.10'
 
 
 def bmp_check(const uint8_t[::1] data, /):
@@ -90,18 +90,17 @@ def bmp_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* dstptr = NULL
-        ssize_t dstsize, rowpad, srcindex, dstindex, i
+        uint8_t* srcrow = NULL
+        uint8_t* dstrow = NULL
+        ssize_t dstsize, rowpad, dstindex, i
         int32_t ppm_ = 3780 if ppm is None else max(1, ppm)  # 96 DPI
         bmp_fileheader_t fileheader
         bmp_infoheader_t infoheader
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_GRAY | IC_RGB | IC_ALPHA,
@@ -192,60 +191,51 @@ def bmp_encode(
                 dstindex += 1
                 dstptr[dstindex] = 255
                 dstindex += 1
-            # write index
-            srcindex = 0
-            for i in range(<ssize_t> infoheader.height):
-                dstindex = <ssize_t> (
-                    fileheader.offbits
-                    + (infoheader.height - 1 - i) * (infoheader.width + rowpad)
-                )
-                for _j in range(<ssize_t> infoheader.width):
-                    dstptr[dstindex] = srcptr[srcindex]
-                    dstindex += 1
-                    srcindex += 1
-                for _j in range(rowpad):
-                    dstptr[dstindex] = 0
-                    dstindex += 1
+            # write pixel rows via memcpy, bottom-up
+            srcrow = (
+                srcptr + (<ssize_t> infoheader.height - 1) * infoheader.width
+            )
+            dstrow = dstptr + fileheader.offbits
+            for _j in range(<ssize_t> infoheader.height):
+                memcpy(dstrow, srcrow, infoheader.width)
+                if rowpad:
+                    memset(dstrow + infoheader.width, 0, rowpad)
+                srcrow -= infoheader.width
+                dstrow += infoheader.width + rowpad
 
         elif layout.samples == 3:
             # write BGR
-            srcindex = 0
+            # srcrow advances forward, dstrow goes backward (BMP bottom-up)
+            srcrow = srcptr
             for i in range(<ssize_t> infoheader.height):
-                dstindex = <ssize_t> (
-                    fileheader.offbits
-                    + (infoheader.height - 1 - i)
+                dstrow = (
+                    dstptr + fileheader.offbits + (infoheader.height - 1 - i)
                     * (infoheader.width * 3 + rowpad)
                 )
                 for _j in range(<ssize_t> infoheader.width):
-                    dstptr[dstindex] = srcptr[srcindex + 2]
-                    dstindex += 1
-                    dstptr[dstindex] = srcptr[srcindex + 1]
-                    dstindex += 1
-                    dstptr[dstindex] = srcptr[srcindex]
-                    dstindex += 1
-                    srcindex += 3
-                for _j in range(rowpad):
-                    dstptr[dstindex] = 0
-                    dstindex += 1
+                    dstrow[0] = srcrow[2]
+                    dstrow[1] = srcrow[1]
+                    dstrow[2] = srcrow[0]
+                    srcrow += 3
+                    dstrow += 3
+                if rowpad:
+                    memset(dstrow, 0, rowpad)
 
         elif layout.samples == 4:
             # write BGRA (32-bit rows are always DWORD-aligned, no rowpad)
-            srcindex = 0
+            srcrow = srcptr
             for i in range(<ssize_t> infoheader.height):
-                dstindex = <ssize_t> (
-                    fileheader.offbits
-                    + (infoheader.height - 1 - i) * infoheader.width * 4
+                dstrow = (
+                    dstptr + fileheader.offbits + (infoheader.height - 1 - i)
+                    * infoheader.width * 4
                 )
                 for _j in range(<ssize_t> infoheader.width):
-                    dstptr[dstindex] = srcptr[srcindex + 2]  # B
-                    dstindex += 1
-                    dstptr[dstindex] = srcptr[srcindex + 1]  # G
-                    dstindex += 1
-                    dstptr[dstindex] = srcptr[srcindex]  # R
-                    dstindex += 1
-                    dstptr[dstindex] = srcptr[srcindex + 3]  # A
-                    dstindex += 1
-                    srcindex += 4
+                    dstrow[0] = srcrow[2]  # B
+                    dstrow[1] = srcrow[1]  # G
+                    dstrow[2] = srcrow[0]  # R
+                    dstrow[3] = srcrow[3]  # A
+                    srcrow += 4
+                    dstrow += 4
 
     del dst
     return _return_output(out, dstsize, fileheader.size, outgiven)
@@ -280,8 +270,8 @@ def bmp_decode(
     """
     cdef:
         numpy.ndarray dst
-        uint8_t* dstptr = NULL
         const uint8_t[::1] src = data
+        uint8_t* dstptr = NULL
         ssize_t srcsize = src.shape[0]
         ssize_t height, width, samples, rowpad, rowstride, i, j
         ssize_t x, y, row, k, srclimit, nbytes
@@ -299,7 +289,7 @@ def bmp_decode(
         bint has_alpha
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if <uint64_t> srcsize > UINT32_MAX:
         raise ValueError('input too large')
