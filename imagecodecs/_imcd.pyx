@@ -109,8 +109,9 @@ def numpy_abi_version():
     return f'numpy_abi 0x{NPY_VERSION:X}.{NPY_FEATURE_VERSION}'
 
 
-def imcd_check(data, /):
+def imcd_check(const uint8_t[::1] data, /):
     """Return whether data is encoded or None if unknown."""
+    return None if data.shape[0] >= 0 else False
 
 
 # Delta #######################################################################
@@ -237,7 +238,7 @@ cdef _delta(
 
         return out
 
-    src = _readable_input(data)
+    src = _readable_input(data, out=None)  # allow in-place
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
@@ -367,7 +368,7 @@ cdef _xor(
 
         return out
 
-    src = _readable_input(data)
+    src = _readable_input(data, out=None)  # allow in-place
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
@@ -476,7 +477,7 @@ cdef _byteshuffle(
 
     # this needs to pass silently in tifffile
     # if data is out:
-    #     raise ValueError('cannot decode in-place')
+    #     raise ValueError('cannot transform in-place')
     # TODO: support in-place decoding
     if data is out:
         out = None
@@ -720,9 +721,10 @@ def bitorder_encode(
             raise BitorderError('imcd_bitorder', ret)
         return data
 
-    src = _readable_input(data)
+    src = _readable_input(data, out=None)  # allow in-place
     srcsize = src.shape[0]
     out, dstsize, outgiven, outtype = _parse_output(out)
+
     if out is None:
         if dstsize < 0:
             dstsize = srcsize
@@ -779,10 +781,10 @@ def packbits_encode(
         int axis_ = 0
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     if isarray:
-        data = numpy.ascontiguousarray(data)
+        data = _array_input(data)
         if axis is None:
             axis = data.ndim - 1
         elif axis < 0:
@@ -873,7 +875,7 @@ def packbits_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -965,7 +967,7 @@ def dicomrle_decode(
         dicomrle_header header
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 64:
         raise ValueError(f'invalid DICOM RLE size {srcsize} < 64')
@@ -1086,7 +1088,7 @@ def packints_encode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     if bitorder is not None:
         if bitorder not in ('<', '>'):
@@ -1164,11 +1166,9 @@ def packints_encode(
     bytesize = <ssize_t> ceil(bitspersample / 8.0)
     itemsize = bytesize if bytesize < 3 else (8 if bytesize > 4 else 4)
 
-    data = numpy.ascontiguousarray(data)
+    data = numpy.asarray(data, order='C')
     if data.dtype.itemsize != itemsize:
         raise ValueError('dtype.itemsize does not fit bitspersample')
-    if not numpy.PyArray_ISCONTIGUOUS(data):
-        raise ValueError('data array is not contiguous')
 
     if runlen == 0:
         runlen = data.size
@@ -1253,7 +1253,7 @@ def packints_decode(
         ssize_t ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if bitorder is not None:
         if bitorder not in ('<', '>'):
@@ -1429,7 +1429,7 @@ def float24_encode(
         int feround = _enum_value(rounding, FLOAT24.ROUND, FE_TONEAREST)
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     data = numpy.asarray(data)
     if not data.dtype == numpy.float32:
@@ -1494,7 +1494,7 @@ def float24_decode(
         char boc
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize % 3 != 0:
         raise ValueError('data size not a multiple of 3')
@@ -1578,7 +1578,7 @@ def bfloat16_encode(
         int feround = _enum_value(rounding, BFLOAT16.ROUND, FE_TONEAREST)
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     data = numpy.asarray(data)
     if not data.dtype == numpy.float32:
@@ -1643,7 +1643,7 @@ def bfloat16_decode(
         char boc
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize % 2 != 0:
         raise ValueError('data size not a multiple of 2')
@@ -1697,6 +1697,7 @@ eer_version = imcd_version
 
 def eer_check(const uint8_t[::1] data, /):
     """Return whether data is EER encoded or None if unknown."""
+    return None if data.shape[0] >= 0 else False
 
 
 def eer_decode(
@@ -1721,7 +1722,7 @@ def eer_decode(
         uint8_t* dstptr
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if not (
         1 < skipbits < 15
@@ -1808,9 +1809,10 @@ lzw_version = imcd_version
 
 def lzw_check(const uint8_t[::1] data, /):
     """Return whether data is LZW encoded or None if unknown."""
-    if data.shape[0] < 2:
-        return False
-    return bool(imcd_lzw_check(<const uint8_t*> data._data, data.shape[0]))
+    return (
+        data.shape[0] >= 2
+        and bool(imcd_lzw_check(<const uint8_t*> data._data, data.shape[0]))
+    )
 
 
 def lzw_decode(
@@ -1829,7 +1831,7 @@ def lzw_decode(
         imcd_lzw_handle_t* handle = NULL
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -1875,14 +1877,11 @@ def lzw_encode(
 ):
     """Return LZW encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         ssize_t ret = 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
