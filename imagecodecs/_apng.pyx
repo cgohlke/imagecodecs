@@ -159,9 +159,10 @@ def apng_version():
 
 def apng_check(const uint8_t[::1] data, /):
     """Return whether data is APNG encoded image or None if unknown."""
-    if data.shape[0] < 8:
-        return False
-    return png_sig_cmp(<png_const_bytep> data._data, 0, 8) == 0
+    return (
+        data.shape[0] >= 8
+        and png_sig_cmp(<png_const_bytep> data._data, 0, 8) == 0
+    )
 
 
 def apng_encode(
@@ -191,7 +192,7 @@ def apng_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -217,9 +218,6 @@ def apng_encode(
         png_bytepp rowpointers = NULL
         mempng_t mempng
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_FRAMES,
@@ -426,7 +424,7 @@ def apng_decode(
         bint isapng
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 8 or png_sig_cmp(<png_const_bytep> src._data, 0, 8) != 0:
         raise ValueError('not a PNG image')
