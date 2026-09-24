@@ -75,20 +75,21 @@ def qoi_encode(
     data,
     /,
     *,
+    colorspace=None,
     out=None,
 ):
     """Return QOI encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         void* buffer = NULL
         qoi.qoi_desc desc
         int out_len
+        int colorspace_ = _enum_value(
+            colorspace, QOI.COLORSPACE, QOI.COLORSPACE.SRGB
+        )
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_RGB | IC_ALPHA,
@@ -114,9 +115,7 @@ def qoi_encode(
     desc.width = <unsigned int> layout.width
     desc.height = <unsigned int> layout.height
     desc.channels = <unsigned int> layout.samples
-    desc.colorspace = (
-        qoi.QOI_SRGB if layout.samples == 3 else qoi.QOI_LINEAR
-    )
+    desc.colorspace = colorspace_
 
     with nogil:
         buffer = qoi.qoi_encode(
@@ -162,7 +161,7 @@ def qoi_decode(
         qoi.qoi_desc desc
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('input too large')
