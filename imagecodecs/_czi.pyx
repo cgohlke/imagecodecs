@@ -106,18 +106,21 @@ def zstd1_encode(
     *,
     ssize_t itemsize=1,
     hilo=False,
+    numthreads=None,
     out=None,
 ):
     """Return ZSTD1 encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst
         uint8_t* dstptr
         uint8_t* tmpptr
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize, hdr_len
         int clevel = 0 if level is None else level
+        int workers = _default_threads(numthreads)
         bint do_hilo = hilo and itemsize > 1
+        ZSTD_CCtx* cctx = NULL
         size_t ret
 
     if itemsize < 1:
@@ -143,40 +146,91 @@ def zstd1_encode(
     dst = out
     dstsize = dst.shape[0]
 
-    with nogil:
-        dstptr = <uint8_t*> dst._data
-        dstptr[0] = <uint8_t> hdr_len  # header_size includes itself
-        if do_hilo:
-            dstptr[1] = 1  # chunk type 1
-            dstptr[2] = 1  # payload: hilo flag set
-            tmpptr = <uint8_t*> malloc(<size_t> srcsize)
-            if tmpptr == NULL:
-                raise MemoryError('zstd1_encode malloc failed')
-            _hilo_pack(
-                <const uint8_t *> src._data,
-                tmpptr,
-                <size_t> srcsize,
-                <size_t> itemsize
-            )
-            ret = ZSTD_compress(
-                <void*> (dstptr + hdr_len),
-                <size_t> (dstsize - hdr_len),
-                <void*> tmpptr,
-                <size_t> srcsize,
-                clevel,
-            )
-            free(tmpptr)
-        else:
-            ret = ZSTD_compress(
-                <void*> (dstptr + hdr_len),
-                <size_t> (dstsize - hdr_len),
-                <void*> src._data,
-                <size_t> srcsize,
-                clevel,
-            )
-        if ZSTD_isError(ret):
-            raise Zstd1Error('ZSTD_compress', err=ret)
-        ret += <size_t> hdr_len
+    if workers > 1:
+        try:
+            with nogil:
+                cctx = ZSTD_createCCtx()
+                if cctx == NULL:
+                    raise Zstd1Error('ZSTD_createCCtx', 'NULL')
+                ret = ZSTD_CCtx_setParameter(
+                    cctx, ZSTD_c_compressionLevel, clevel
+                )
+                if ZSTD_isError(ret):
+                    raise Zstd1Error('ZSTD_CCtx_setParameter', err=ret)
+                ret = ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, workers)
+                if ZSTD_isError(ret):
+                    raise Zstd1Error('ZSTD_CCtx_setParameter', err=ret)
+                dstptr = <uint8_t*> dst._data
+                dstptr[0] = <uint8_t> hdr_len  # header_size includes itself
+                if do_hilo:
+                    dstptr[1] = 1  # chunk type 1
+                    dstptr[2] = 1  # payload: hilo flag set
+                    tmpptr = <uint8_t*> malloc(<size_t> srcsize)
+                    if tmpptr == NULL:
+                        raise MemoryError('zstd1_encode malloc failed')
+                    _hilo_pack(
+                        <const uint8_t*> src._data,
+                        tmpptr,
+                        <size_t> srcsize,
+                        <size_t> itemsize,
+                    )
+                    ret = ZSTD_compress2(
+                        cctx,
+                        <void*> (dstptr + hdr_len),
+                        <size_t> (dstsize - hdr_len),
+                        <void*> tmpptr,
+                        <size_t> srcsize,
+                    )
+                    free(tmpptr)
+                else:
+                    ret = ZSTD_compress2(
+                        cctx,
+                        <void*> (dstptr + hdr_len),
+                        <size_t> (dstsize - hdr_len),
+                        <void*> src._data,
+                        <size_t> srcsize,
+                    )
+                if ZSTD_isError(ret):
+                    raise Zstd1Error('ZSTD_compress2', err=ret)
+                ret += <size_t> hdr_len
+        finally:
+            if cctx != NULL:
+                ZSTD_freeCCtx(cctx)
+    else:
+        with nogil:
+            dstptr = <uint8_t*> dst._data
+            dstptr[0] = <uint8_t> hdr_len  # header_size includes itself
+            if do_hilo:
+                dstptr[1] = 1  # chunk type 1
+                dstptr[2] = 1  # payload: hilo flag set
+                tmpptr = <uint8_t*> malloc(<size_t> srcsize)
+                if tmpptr == NULL:
+                    raise MemoryError('zstd1_encode malloc failed')
+                _hilo_pack(
+                    <const uint8_t *> src._data,
+                    tmpptr,
+                    <size_t> srcsize,
+                    <size_t> itemsize
+                )
+                ret = ZSTD_compress(
+                    <void*> (dstptr + hdr_len),
+                    <size_t> (dstsize - hdr_len),
+                    <void*> tmpptr,
+                    <size_t> srcsize,
+                    clevel,
+                )
+                free(tmpptr)
+            else:
+                ret = ZSTD_compress(
+                    <void*> (dstptr + hdr_len),
+                    <size_t> (dstsize - hdr_len),
+                    <void*> src._data,
+                    <size_t> srcsize,
+                    clevel,
+                )
+            if ZSTD_isError(ret):
+                raise Zstd1Error('ZSTD_compress', err=ret)
+            ret += <size_t> hdr_len
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -201,12 +255,12 @@ def zstd1_decode(
         ssize_t dstsize, hdr_pos, items
         uint64_t cntsize
         uint8_t header_size, chunk_type
-        uint8_t* tmp
+        uint8_t* tmp = NULL
         bint hilo = False
         size_t ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 2:
         raise ValueError(f'{srcsize=} < 2')
@@ -256,7 +310,9 @@ def zstd1_decode(
                 <size_t> (srcsize - header_size),
             )
             if cntsize == ZSTD_CONTENTSIZE_ERROR:
-                raise Zstd1Error('ZSTD_getFrameContentSize', f'{cntsize}')
+                raise Zstd1Error(
+                    'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_ERROR'
+                )
             if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > SIZE_MAX >> 1:
                 # use streaming API for unknown or suspiciously large sizes
                 return _zstd1_decode_stream(
@@ -269,28 +325,38 @@ def zstd1_decode(
     dstsize = dst.shape[0]
 
     with nogil:
-        ret = ZSTD_decompress(
-            <void*> dst._data,
-            <size_t> dstsize,
-            <void*> &src[header_size],
-            <size_t> (srcsize - header_size),
-        )
-        if ZSTD_isError(ret):
-            raise Zstd1Error('ZSTD_decompress', err=ret)
-
         if hilo and itemsize > 1:
+            # decompress into tmp, unshuffle directly into dst to avoid memcpy
+            tmp = <uint8_t*> malloc(<size_t> dstsize)
+            if tmp == NULL:
+                raise MemoryError('failed to allocate hilo_unpack buffer')
+            ret = ZSTD_decompress(
+                tmp,
+                <size_t> dstsize,
+                <void*> &src[header_size],
+                <size_t> (srcsize - header_size),
+            )
+            if ZSTD_isError(ret):
+                free(tmp)
+                raise Zstd1Error('ZSTD_decompress', err=ret)
             items = <ssize_t> ret // itemsize
+            if items * itemsize == <ssize_t> ret:
+                _hilo_unpack(tmp, <uint8_t*> dst._data, ret, itemsize)
+            free(tmp)
+
             if items * itemsize != <ssize_t> ret:
                 raise ValueError(
                     'decompressed size not a multiple of itemsize'
                 )
-            tmp = <uint8_t*> malloc(<size_t> ret)
-            if tmp == NULL:
-                raise MemoryError('failed to allocate hilo_unpack buffer')
-            _hilo_unpack(
-                <uint8_t*> dst._data, tmp, <size_t> ret, <size_t> itemsize
+        else:
+            ret = ZSTD_decompress(
+                <void*> dst._data,
+                <size_t> dstsize,
+                <void*> &src[header_size],
+                <size_t> (srcsize - header_size),
             )
-            free(tmp)
+            if ZSTD_isError(ret):
+                raise Zstd1Error('ZSTD_decompress', err=ret)
 
         if samples == 3 or samples == 4:
             items = <ssize_t> ret // (samples * itemsize)
@@ -322,7 +388,7 @@ cdef _zstd1_decode_stream(
         size_t srcsize = <size_t> (src.shape[0] - header_offset)
         size_t outsize = ZSTD_DStreamOutSize()
         size_t incsize = max((srcsize // outsize) * outsize // 2, outsize)
-        uint8_t* tmp
+        uint8_t* tmp = NULL
         size_t ret
 
     try:
@@ -369,12 +435,21 @@ cdef _zstd1_decode_stream(
                 tmp = <uint8_t*> malloc(<size_t> size)
                 if tmp == NULL:
                     raise MemoryError('failed to allocate hilo_unpack buffer')
+                # unshuffle output.data to tmp
+                # _create_output will copy from tmp
                 _hilo_unpack(
                     output.data, tmp, <size_t> size, <size_t> itemsize
                 )
-                free(tmp)
 
-            if samples == 3 or samples == 4:
+                if samples == 3 or samples == 4:
+                    items = size // (samples * itemsize)
+                    if items * samples * itemsize != size:
+                        raise ValueError(
+                            'decompressed size not a multiple of '
+                            'samples*itemsize'
+                        )
+                    _bgr_swap(tmp, items, samples, itemsize)
+            elif samples == 3 or samples == 4:
                 size = <ssize_t> output.pos
                 items = size // (samples * itemsize)
                 if items * samples * itemsize != size:
@@ -383,9 +458,15 @@ cdef _zstd1_decode_stream(
                     )
                 _bgr_swap(output.data, items, samples, itemsize)
 
-        out = _create_output(outtype, output.pos, <const char*> output.data)
+        if hilo and itemsize > 1:
+            out = _create_output(outtype, size, <const char*> tmp)
+        else:
+            out = _create_output(
+                outtype, output.pos, <const char*> output.data
+            )
 
     finally:
+        free(tmp)
         output_del(output)
         ZSTD_freeDCtx(dctx)
 
@@ -468,7 +549,7 @@ class ChunkedError(RuntimeError):
 
 def chunked_version():
     """Return CHUNKED codec version string."""
-    return 'chunked 2026.8.16'
+    return 'chunked 2026.10.10'
 
 
 def chunked_check(const uint8_t[::1] data, /):
@@ -522,7 +603,7 @@ def chunked_encode(
 ):
     """Return CHUNKED encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize, nchunks, chunk_start, chunk_size_i, i
@@ -537,9 +618,6 @@ def chunked_encode(
         int clevel, ret_l4
         bint do_hilo = hilo and itemsize > 1
         size_t ret_zstd, zbound
-
-    if data is out:
-        raise ValueError('cannot transform in-place')
 
     if chunk_size < 1:
         raise ValueError(f'{chunksize=} < 1')
@@ -708,6 +786,7 @@ def chunked_decode(
         uint32_t* decomp_sizes = NULL
         uint8_t* dstptr = NULL
         uint8_t* hilo_buffer = NULL
+        uint8_t* chunk_dst = NULL
         ssize_t srcsize = src.shape[0]
         ssize_t nchunks, header_size, decomp_size, comp_size, decomp_size_max
         ssize_t src_offset, dst_offset, dstsize, items, i
@@ -786,9 +865,15 @@ def chunked_decode(
                 comp_size_i = comp_sizes[i]
                 decomp_size_i = decomp_sizes[i]
 
+                # when hilo: decompress into hilo_buffer, unshuffle into dst
+                chunk_dst = (
+                    hilo_buffer if hilo_buffer != NULL
+                    else dstptr + dst_offset
+                )
+
                 if codec_id == CODEC_ZSTD:
                     ret_zstd = ZSTD_decompress(
-                        <void*> (dstptr + dst_offset),
+                        <void*> chunk_dst,
                         <size_t> decomp_size_i,
                         <const void*> (src._data + src_offset),
                         <size_t> comp_size_i,
@@ -810,7 +895,7 @@ def chunked_decode(
                         )
                     ret_l4 = LZ4_decompress_safe(
                         <const char*> (src._data + src_offset),
-                        <char*> (dstptr + dst_offset),
+                        <char*> chunk_dst,
                         <int> comp_size_i,
                         <int> decomp_size_i,
                     )
@@ -823,8 +908,8 @@ def chunked_decode(
 
                 if hilo_buffer != NULL:
                     _hilo_unpack(
-                        dstptr + dst_offset,
                         hilo_buffer,
+                        dstptr + dst_offset,
                         <size_t> decomp_size_i,
                         2,
                     )
@@ -1449,8 +1534,8 @@ cdef void _hilo_pack(
 
 
 cdef void _hilo_unpack(
-    uint8_t* data,
-    uint8_t* temp,
+    const uint8_t* src,
+    uint8_t* dst,
     size_t size,
     size_t itemsize,
 ) noexcept nogil:
@@ -1461,10 +1546,9 @@ cdef void _hilo_unpack(
 
     for k in range(itemsize):
         for g in range(ngroups):
-            temp[g * itemsize + k] = data[k * ngroups + g]
+            dst[g * itemsize + k] = src[k * ngroups + g]
     for g in range(ngroups * itemsize, size):
-        temp[g] = data[g]
-    memcpy(data, temp, size)
+        dst[g] = src[g]
 
 
 cdef void _bgr_swap(
