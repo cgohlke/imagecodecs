@@ -1,6 +1,6 @@
 # imagecodecs/blosc2.pxd
 
-# Cython declarations for the `c-blosc2 3.3.1` library.
+# Cython declarations for the `c-blosc2 3.3.5` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
@@ -19,7 +19,7 @@ cdef extern from 'blosc2.h' nogil:
     char* BLOSC2_VERSION_STRING
     char* BLOSC2_VERSION_DATE
 
-    int BLOSC2_MAX_DIM
+    # int BLOSC2_MAX_DIM
 
     int BLOSC1_VERSION_FORMAT_PRE1
     int BLOSC1_VERSION_FORMAT
