@@ -1,6 +1,6 @@
 # imagecodecs/meshoptimizer.pxd
 
-# Cython declarations for the `meshoptimizer 1.2` library.
+# Cython declarations for the `meshoptimizer 1.3` library.
 # https://github.com/zeux/meshoptimizer
 
 cdef extern from 'meshoptimizer.h' nogil:
@@ -370,6 +370,8 @@ cdef extern from 'meshoptimizer.h' nogil:
         meshopt_SimplifyRegularize
         meshopt_SimplifyPermissive
         meshopt_SimplifyRegularizeLight
+        meshopt_SimplifyPreserveFolds
+        meshopt_SimplifyErrorClamped
 
     cdef enum:
         meshopt_SimplifyVertex_Lock
@@ -757,6 +759,33 @@ cdef extern from 'meshoptimizer.h' nogil:
         size_t vertex_normals_stride,
         const float* vertex_uvs,
         size_t vertex_uvs_stride,
+        unsigned int options
+    )
+
+    void meshopt_generateNormals(
+        float* result,
+        const unsigned int* indices,
+        size_t index_count,
+        const float* vertex_positions,
+        size_t vertex_count,
+        size_t vertex_positions_stride,
+        float crease_angle,
+        float smoothing
+    )
+
+    cdef enum:
+        meshopt_RemeshShell
+        meshopt_RemeshSolve
+
+    size_t meshopt_remesh(
+        float* destination,
+        size_t max_triangle_count,
+        const unsigned int* indices,
+        size_t index_count,
+        const float* vertex_positions,
+        size_t vertex_count,
+        size_t vertex_positions_stride,
+        int resolution,
         unsigned int options
     )
 
