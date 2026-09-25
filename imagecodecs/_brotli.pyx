@@ -84,6 +84,7 @@ def brotli_version():
 
 def brotli_check(const uint8_t[::1] data, /):
     """Return whether data is BROTLI encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def brotli_encode(
@@ -97,7 +98,7 @@ def brotli_encode(
 ):
     """Return BROTLI encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -119,9 +120,6 @@ def brotli_encode(
         #     BROTLI_MIN_INPUT_BLOCK_BITS,
         #     BROTLI_MAX_INPUT_BLOCK_BITS
         # )
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -170,7 +168,7 @@ def brotli_decode(
         BrotliDecoderResult ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
