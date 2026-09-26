@@ -216,10 +216,10 @@ def avif_encode(
 ):
     """Return AVIF encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize, size
-        ssize_t itemsize = data.dtype.itemsize
+        ssize_t itemsize = src.dtype.itemsize
         int quality = AVIF_QUALITY_LOSSLESS
         int speed_ = AVIF_SPEED_DEFAULT
         int tilerowslog2 = 0
@@ -257,9 +257,6 @@ def avif_encode(
             )
         avifResult res
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT
@@ -317,15 +314,14 @@ def avif_encode(
         AVIF_QUALITY_BEST  # 100
     )
 
-    speed_ = _default_value(
-        speed, AVIF_SPEED_DEFAULT, AVIF_SPEED_SLOWEST, AVIF_SPEED_FASTEST
-    )
+    # use default speed from avifenc (AVIF_SPEED_DEFAULT=-1 is too slow)
+    speed_ = _default_value(speed, 6, AVIF_SPEED_DEFAULT, AVIF_SPEED_FASTEST)
 
     codecchoice = _enum_value(codec, AVIF.CODEC_CHOICE, AVIF_CODEC_CHOICE_AUTO)
 
     if monochrome:
         yuvformat = AVIF_PIXEL_FORMAT_YUV400
-        quality = AVIF_QUALITY_LOSSLESS
+        # quality = AVIF_QUALITY_LOSSLESS
     elif quality == AVIF_QUALITY_LOSSLESS:
         yuvformat = AVIF_PIXEL_FORMAT_YUV444
     elif pixelformat is not None:
@@ -459,6 +455,7 @@ def avif_decode(
     /,
     index=None,
     *,
+    codec=None,
     numthreads=None,
     out=None,
 ):
@@ -475,10 +472,13 @@ def avif_decode(
         avifDecoder* decoder = NULL
         avifImage* image = NULL
         avifRGBImage rgb
+        avifCodecChoice codecchoice = _enum_value(
+            codec, AVIF.CODEC_CHOICE, AVIF_CODEC_CHOICE_AUTO
+        )
         avifResult res
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
@@ -489,6 +489,7 @@ def avif_decode(
             # required to read AVIF files created by ImageMagick
             decoder.strictFlags = AVIF_STRICT_DISABLED
 
+            decoder.codecChoice = codecchoice
             decoder.maxThreads = maxthreads
 
             res = avifDecoderSetSource(decoder, AVIF_DECODER_SOURCE_AUTO)
