@@ -90,7 +90,7 @@ def gif_encode(
 ):
     """Return GIF encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -104,9 +104,6 @@ def gif_encode(
         int imagecount = 1
         int ret, err = 0
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_GRAY | IC_FRAMES,
@@ -241,7 +238,7 @@ def gif_decode(
         bint previous_is_background = False
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
@@ -335,12 +332,12 @@ def gif_decode(
                     background[0] = bgcolor.Red
                     background[1] = bgcolor.Green
                     background[2] = bgcolor.Blue
-                    background[3] = 255
+                    background[3] = 0 if samples == 4 else 255
                 else:
                     background[0] = 0
                     background[1] = 0
                     background[2] = 0
-                    background[3] = 255
+                    background[3] = 0 if samples == 4 else 255
 
                 for i in range(imagecount):
 
