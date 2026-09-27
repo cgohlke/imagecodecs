@@ -511,9 +511,11 @@ cdef extern from 'JXRGlue.h' nogil:
     GUID GUID_PKPixelFormat16bppRGB565
     GUID GUID_PKPixelFormat24bppBGR
     GUID GUID_PKPixelFormat24bppRGB
+    GUID GUID_PKPixelFormat32bppBGR
     GUID GUID_PKPixelFormat32bppRGB
     GUID GUID_PKPixelFormat32bppRGBA
     GUID GUID_PKPixelFormat32bppBGRA
+    GUID GUID_PKPixelFormat32bppPBGRA
     GUID GUID_PKPixelFormat32bppPRGBA
     GUID GUID_PKPixelFormat32bppRGBE
     GUID GUID_PKPixelFormat32bppCMYK
