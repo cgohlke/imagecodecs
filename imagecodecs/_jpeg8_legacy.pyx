@@ -89,17 +89,7 @@ def jpeg8_version():
 
 def jpeg8_check(const uint8_t[::1] data, /):
     """Return whether data is JPEG encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:10])
-
-    return (
-        sig[:4] == b'\xFF\xD8\xFF\xDB'
-        or sig[:4] == b'\xFF\xD8\xFF\xEE'
-        or sig[:4] == b'\xFF\xD8\xFF\xC3'
-        or sig[:4] == b'\xFF\xD8\xFF\xC4'
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
-    )
+    return bool(data.shape[0] > 4 and data[0] == 0xFF and data[1] == 0xD8)
 
 
 def jpeg8_encode(
@@ -120,10 +110,9 @@ def jpeg8_encode(
 ):
     """Return JPEG encoded image."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize
-        ssize_t rowstride = src.strides[0]
+        ssize_t dstsize, rowstride
         int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
@@ -139,10 +128,7 @@ def jpeg8_encode(
         int optimize_coding = -1 if optimize is None else 1 if optimize else 0
         imagelayout_t layout
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
-    if src.dtype == numpy.uint16:
+    if src.dtype.char == 'H':
         raise ValueError('dtype uint16 not supported by legacy JPEG codec')
     if lossless:
         raise ValueError('lossless mode not supported by legacy JPEG codec')
@@ -169,6 +155,8 @@ def jpeg8_encode(
         and (src.ndim == 2 or src.strides[1] == layout.samples * src.itemsize)
     ):
         raise ValueError('invalid data shape, strides, or dtype')
+
+    rowstride = src.strides[0]
 
     if colorspace is not None:
         in_color_space = _jcs_colorspace(colorspace)
@@ -198,7 +186,9 @@ def jpeg8_encode(
     else:
         jpeg_color_space = JCS_UNKNOWN
 
-    if jpeg_color_space == JCS_YCbCr and subsampling is not None:
+    if subsampling is not None and (
+        jpeg_color_space == JCS_YCbCr or jpeg_color_space == JCS_YCCK
+    ):
         if subsampling in {'444', (1, 1)}:
             h_samp_factor = 1
             v_samp_factor = 1
@@ -266,6 +256,9 @@ def jpeg8_encode(
             cinfo.comp_info[1].v_samp_factor = 1
             cinfo.comp_info[2].h_samp_factor = 1
             cinfo.comp_info[2].v_samp_factor = 1
+            if cinfo.num_components == 4:
+                cinfo.comp_info[3].h_samp_factor = 1
+                cinfo.comp_info[3].v_samp_factor = 1
 
         # TODO: add option to use or return JPEG tables
 
@@ -324,7 +317,7 @@ def jpeg8_decode(
         char[200] msg  # JMSG_LENGTH_MAX
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > ULONG_MAX:
         raise ValueError(f'{srcsize=} > {ULONG_MAX}')
@@ -366,7 +359,6 @@ def jpeg8_decode(
             raise Jpeg8Error(msg.decode())
 
         jpeg_create_decompress(&cinfo)
-        cinfo.do_fancy_upsampling = do_fancy_upsampling
         if width > 0:
             cinfo.image_width = width
             cinfo.image_height = height
@@ -382,6 +374,8 @@ def jpeg8_decode(
         )
         jpeg_read_header(&cinfo, 1)
 
+        cinfo.do_fancy_upsampling = do_fancy_upsampling
+
         if jpeg_color_space != JCS_UNKNOWN:
             cinfo.jpeg_color_space = jpeg_color_space
         if out_color_space != JCS_UNKNOWN:
@@ -394,9 +388,14 @@ def jpeg8_decode(
             #     _jcs_colorspace_samples(out_color_space)):
             #     raise ValueError('invalid output shape')
 
-            shape = cinfo.output_height, cinfo.output_width
             if cinfo.output_components > 1:
-                shape += cinfo.output_components,
+                shape = (
+                    cinfo.output_height,
+                    cinfo.output_width,
+                    cinfo.output_components
+                )
+            else:
+                shape = cinfo.output_height, cinfo.output_width
 
             # TODO: allow strides
             out = _create_array(out, shape, numpy.uint8)
@@ -464,6 +463,15 @@ cdef dict _JCS_COLORSPACE_MAP = {
     'YCCK': JCS_YCCK,
     'YCBCR': JCS_YCbCr,
     'RGBA': 12,
+    'BGR': 8,
+    'BGRA': 13,
+    'ARGB': 15,
+    'ABGR': 14,
+    'RGBX': 7,
+    'BGRX': 9,
+    'XBGR': 10,
+    'XRGB': 11,
+    'RGB565': 16,
     JCS_UNKNOWN: JCS_UNKNOWN,
     JCS_GRAYSCALE: JCS_GRAYSCALE,
     JCS_RGB: JCS_RGB,
