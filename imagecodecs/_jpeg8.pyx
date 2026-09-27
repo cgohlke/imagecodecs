@@ -92,17 +92,16 @@ def jpeg8_version():
 
 def jpeg8_check(const uint8_t[::1] data, /):
     """Return whether data is JPEG encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:10])
-
-    return (
-        sig[:4] == b'\xFF\xD8\xFF\xDB'
-        or sig[:4] == b'\xFF\xD8\xFF\xEE'
-        or sig[:4] == b'\xFF\xD8\xFF\xC3'
-        or sig[:4] == b'\xFF\xD8\xFF\xC4'
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
-    )
+    return bool(data.shape[0] > 4 and data[0] == 0xFF and data[1] == 0xD8)
+    # cdef bytes sig = bytes(data[:10])
+    # return (
+    #     sig[:4] == b'\xFF\xD8\xFF\xDB'
+    #     or sig[:4] == b'\xFF\xD8\xFF\xEE'
+    #     or sig[:4] == b'\xFF\xD8\xFF\xC3'
+    #     or sig[:4] == b'\xFF\xD8\xFF\xC4'
+    #     or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
+    #     or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
+    # )
 
 
 def jpeg8_encode(
@@ -123,10 +122,9 @@ def jpeg8_encode(
 ):
     """Return JPEG encoded image."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize
-        ssize_t rowstride = src.strides[0]
+        ssize_t dstsize, rowstride
         int quality = _default_value(level, 95, 0, 100)
         my_error_mgr err
         jpeg_compress_struct cinfo
@@ -145,9 +143,6 @@ def jpeg8_encode(
         int data_precision
         int predictor_selection_value = 0
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_BPS,
@@ -175,8 +170,13 @@ def jpeg8_encode(
     ):
         raise ValueError('invalid data shape, strides, or dtype')
 
+    rowstride = src.strides[0]
+
     if lossless:
         predictor_selection_value = 1 if predictor is None else predictor
+        if layout.itemsize == 2 and bitspersample is None:
+            # data_precision = 12 if _check_range(src) else 16 (too slow)
+            data_precision = 16
 
     if (
         bitspersample is not None
@@ -212,7 +212,9 @@ def jpeg8_encode(
     else:
         jpeg_color_space = JCS_UNKNOWN
 
-    if jpeg_color_space == JCS_YCbCr and subsampling is not None:
+    if subsampling is not None and (
+        jpeg_color_space == JCS_YCbCr or jpeg_color_space == JCS_YCCK
+    ):
         if subsampling in {'444', (1, 1)}:
             h_samp_factor = 1
             v_samp_factor = 1
@@ -284,6 +286,9 @@ def jpeg8_encode(
                 cinfo.comp_info[1].v_samp_factor = 1
                 cinfo.comp_info[2].h_samp_factor = 1
                 cinfo.comp_info[2].v_samp_factor = 1
+                if cinfo.num_components == 4:
+                    cinfo.comp_info[3].h_samp_factor = 1
+                    cinfo.comp_info[3].v_samp_factor = 1
 
         # TODO: add option to use or return JPEG tables
 
@@ -357,7 +362,7 @@ def jpeg8_decode(
         char[200] msg  # JMSG_LENGTH_MAX
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > ULONG_MAX:
         raise ValueError(f'{srcsize=} > {ULONG_MAX}')
@@ -399,7 +404,6 @@ def jpeg8_decode(
             raise Jpeg8Error(msg.decode())
 
         jpeg_create_decompress(&cinfo)
-        cinfo.do_fancy_upsampling = do_fancy_upsampling
         if width > 0:
             cinfo.image_width = width
             cinfo.image_height = height
@@ -415,6 +419,8 @@ def jpeg8_decode(
         )
         jpeg_read_header(&cinfo, 1)
 
+        cinfo.do_fancy_upsampling = do_fancy_upsampling
+
         if jpeg_color_space != JCS_UNKNOWN:
             cinfo.jpeg_color_space = jpeg_color_space
         if out_color_space != JCS_UNKNOWN:
@@ -427,9 +433,14 @@ def jpeg8_decode(
             #     _jcs_colorspace_samples(out_color_space)):
             #     raise ValueError('invalid output shape')
 
-            shape = cinfo.output_height, cinfo.output_width
             if cinfo.output_components > 1:
-                shape += cinfo.output_components,
+                shape = (
+                    cinfo.output_height,
+                    cinfo.output_width,
+                    cinfo.output_components
+                )
+            else:
+                shape = cinfo.output_height, cinfo.output_width
 
             # TODO: allow strides
 
@@ -512,6 +523,15 @@ cdef dict _JCS_COLORSPACE_MAP = {
     'YCCK': JCS_YCCK,
     'YCBCR': JCS_YCbCr,
     'RGBA': JCS_EXT_RGBA,
+    'BGR': JCS_EXT_BGR,
+    'BGRA': JCS_EXT_BGRA,
+    'ARGB': JCS_EXT_ARGB,
+    'ABGR': JCS_EXT_ABGR,
+    'RGBX': JCS_EXT_RGBX,
+    'BGRX': JCS_EXT_BGRX,
+    'XBGR': JCS_EXT_XBGR,
+    'XRGB': JCS_EXT_XRGB,
+    'RGB565': JCS_RGB565,
     JCS_UNKNOWN: JCS_UNKNOWN,
     JCS_GRAYSCALE: JCS_GRAYSCALE,
     JCS_RGB: JCS_RGB,
