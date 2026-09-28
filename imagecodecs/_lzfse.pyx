@@ -77,14 +77,11 @@ def lzfse_encode(
 ):
     """Return LZFSE encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t dst_size
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if srcsize > INT32_MAX:
         # arbitrary 2GB limit
@@ -131,10 +128,10 @@ def lzfse_decode(
         size_t dst_size
 
     if srcsize < 12 or bytes(src[:3]) != b'bvx':
-        raise LzfseError('invalid LZFSE stream')
+        raise ValueError('invalid LZFSE stream')
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -150,6 +147,7 @@ def lzfse_decode(
     dstsize = dst.shape[0]
 
     if dstsize == 0 or srcsize == 12:
+        del dst
         return _return_output(out, dstsize, 0, outgiven)
 
     with nogil:
