@@ -117,13 +117,14 @@ def heif_encode(
     bitspersample=None,
     photometric=None,
     compression=None,
+    numthreads=None,
     out=None,
 ):
     """Return HEIF encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t itemsize = data.dtype.itemsize
+        ssize_t itemsize = src.dtype.itemsize
         ssize_t dstsize
         ssize_t srcindex
         ssize_t depth, rowsize
@@ -139,6 +140,7 @@ def heif_encode(
         heif_error err
         int lossless = 1 if (level is None or level > 100) else 0
         int quality = _default_value(level, 90, 0, 100)
+        int nthreads = <int> _default_threads(numthreads)
         int stride, ystride, astride
         bint monochrome, hasalpha
         uint8_t* srcptr = NULL
@@ -149,9 +151,6 @@ def heif_encode(
         uint16_t* y2ptr = NULL
         uint16_t* a2ptr = NULL
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_UINT
@@ -242,6 +241,9 @@ def heif_encode(
                 )
 
             # heif_encoder_set_logging_level(encoder, 4)
+
+            # threads are ignored when unsupported by encoder
+            heif_encoder_set_parameter_integer(encoder, 'threads', nthreads)
 
             # disable color subsampling
             # TODO: encode monochrome in chroma 400?
@@ -462,6 +464,7 @@ def heif_decode(
     index=0,
     *,
     photometric=None,
+    numthreads=None,
     out=None,
 ):
     """Return decoded HEIF image.
@@ -482,6 +485,7 @@ def heif_decode(
         ssize_t height, width, samples, imagecount
         ssize_t rowsize, srcindex, dstindex
         int stride, itemsize, bps
+        int nthreads = <int> _default_threads(numthreads)
         uint8_t* srcptr = NULL
         uint8_t* dstptr = NULL
         uint16_t* src2ptr = NULL
@@ -499,7 +503,7 @@ def heif_decode(
         bint monochrome = False
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if photometric is not None:
         monochrome = (
@@ -513,6 +517,8 @@ def heif_decode(
             if context == NULL:
                 raise HeifError('heif_context_alloc', b'NULL')
 
+            heif_context_set_max_decoding_threads(context, nthreads)
+
             err = heif_context_read_from_memory_without_copy(
                 context,
                 <const void*> src._data,
@@ -524,10 +530,11 @@ def heif_decode(
                     'heif_context_read_from_memory_without_copy', err.message
                 )
 
-            # options = heif_decoding_options_alloc()
-            # if options == NULL:
-            #     raise HeifError('heif_decoding_options_alloc', b'NULL')
-            # options.convert_hdr_to_8bit = 0
+            options = heif_decoding_options_alloc()
+            if options == NULL:
+                raise HeifError('heif_decoding_options_alloc', b'NULL')
+            if options.version >= 8:
+                options.num_codec_threads = nthreads
 
             imagecount = heif_context_get_number_of_top_level_images(context)
             if imagecount <= 0:
