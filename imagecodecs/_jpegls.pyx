@@ -47,6 +47,14 @@ class JPEGLS:
 
     available = True
 
+    class COLOR_TRANSFORMATION(enum.IntEnum):
+        """CharLS color transformation (HP extension)."""
+
+        NONE = CHARLS_COLOR_TRANSFORMATION_NONE
+        HP1 = CHARLS_COLOR_TRANSFORMATION_HP1
+        HP2 = CHARLS_COLOR_TRANSFORMATION_HP2
+        HP3 = CHARLS_COLOR_TRANSFORMATION_HP3
+
 
 class JpeglsError(RuntimeError):
     """JPEGLS codec exceptions."""
@@ -95,11 +103,14 @@ def jpegls_encode(
     /,
     level=None,
     *,
+    bitspersample=None,
+    transformation=None,
+    spiff=None,
     out=None,
 ):
     """Return JPEGLS encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
@@ -107,24 +118,32 @@ def jpegls_encode(
         charls_jpegls_encoder* encoder = NULL
         charls_frame_info frameinfo
         # charls_jpegls_pc_parameters preset_coding_parameters
+        charls_color_transformation color_transformation = \
+            <charls_color_transformation> <int> _enum_value(
+                transformation, JPEGLS.COLOR_TRANSFORMATION, 0
+            )
         charls_interleave_mode interleave_mode
         charls_spiff_color_space spiff_color_space
+        bint write_spiff = bool(spiff)
         int32_t near_lossless = _default_value(level, 0, 0, None)
-        uint32_t rowstride = <uint32_t> src.strides[0]
+        uint32_t rowstride
         size_t byteswritten
         size_t size_in_bytes
         imagelayout_t layout
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     _image_layout(
-        IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA,
+        IC_UINT
+        | IC_SZ1
+        | IC_SZ2
+        | IC_GRAY
+        | IC_RGB
+        | IC_ALPHA
+        | IC_BPS,
         src.ndim,
         src.shape,
         src.dtype,
         None,  # photometric
-        None,  # bitspersample
+        bitspersample,
         None,  # planar
         None,  # frames
         None,  # volumetric
@@ -132,11 +151,10 @@ def jpegls_encode(
         &layout,
     )
 
-    if not (
-        layout.height > 0
-        and srcsize <= UINT32_MAX
-    ):
+    if not (layout.height > 0 and srcsize <= UINT32_MAX):
         raise ValueError('invalid data shape or dtype')
+
+    rowstride = <uint32_t> src.strides[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -207,14 +225,14 @@ def jpegls_encode(
                     'charls_jpegls_encoder_set_interleave_mode', ret
                 )
 
-            # ret = charls_jpegls_encoder_set_color_transformation(
-            #     encoder,
-            #     color_transformation
-            # )
-            # if ret:
-            #     raise JpeglsError(
-            #         'charls_jpegls_encoder_set_color_transformation', ret
-            #     )
+            ret = charls_jpegls_encoder_set_color_transformation(
+                encoder,
+                color_transformation
+            )
+            if ret:
+                raise JpeglsError(
+                    'charls_jpegls_encoder_set_color_transformation', ret
+                )
 
             # ret charls_jpegls_encoder_set_preset_coding_parameters(
             #     encoder,
@@ -235,7 +253,13 @@ def jpegls_encode(
                         'charls_jpegls_encoder_get_estimated_destination_size',
                         ret
                     )
-                dstsize = size_in_bytes + sizeof(charls_spiff_header)
+                # pad for incompressible data where estimate may be too small
+                if size_in_bytes < <size_t> srcsize + 65536:
+                    size_in_bytes = <size_t> srcsize + 65536
+                if write_spiff:
+                    dstsize = size_in_bytes + sizeof(charls_spiff_header)
+                else:
+                    dstsize = size_in_bytes
                 with gil:
                     out = _create_output(outtype, dstsize)
                     dst = out
@@ -251,17 +275,19 @@ def jpegls_encode(
                     'charls_jpegls_encoder_set_destination_buffer', ret
                 )
 
-            ret = charls_jpegls_encoder_write_standard_spiff_header(
-                encoder,
-                spiff_color_space,
-                CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_INCH,
-                300,
-                300
-            )
-            if ret:
-                raise JpeglsError(
-                    'charls_jpegls_encoder_write_standard_spiff_header', ret
+            if write_spiff:
+                ret = charls_jpegls_encoder_write_standard_spiff_header(
+                    encoder,
+                    spiff_color_space,
+                    CHARLS_SPIFF_RESOLUTION_UNITS_DOTS_PER_INCH,
+                    300,
+                    300
                 )
+                if ret:
+                    raise JpeglsError(
+                        'charls_jpegls_encoder_write_standard_spiff_header',
+                        ret
+                    )
 
             ret = charls_jpegls_encoder_encode_from_buffer(
                 encoder,
@@ -311,7 +337,7 @@ def jpegls_decode(
         # int32_t header_found
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
@@ -427,6 +453,7 @@ def jpegls_decode(
         frameinfo.component_count > 1
         and interleave_mode == CHARLS_INTERLEAVE_MODE_NONE
     ):
-        out = numpy.moveaxis(out, 0, -1)
+        # TODO: this is a supposedly rare path left unoptimized
+        out = numpy.moveaxis(out, 0, -1).copy()
 
     return out
