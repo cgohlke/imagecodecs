@@ -75,6 +75,7 @@ def lz4_version():
 
 def lz4_check(const uint8_t[::1] data, /):
     """Return whether data is LZ4 encoded or None if unknown."""
+    return None if data.shape[0] > 0 else False
 
 
 def lz4_encode(
@@ -88,7 +89,7 @@ def lz4_encode(
 ):
     """Return LZ4 encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         int srcsize = <int> src.shape[0]
         int dstsize
@@ -96,9 +97,6 @@ def lz4_encode(
         int ret
         uint8_t* pdst
         int acceleration, compressionlevel
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.shape[0] > LZ4_MAX_INPUT_SIZE:
         raise ValueError('data too large')
@@ -177,7 +175,7 @@ def lz4_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if src.shape[0] > INT32_MAX:
         raise ValueError('data too large')
@@ -269,32 +267,31 @@ def lz4f_encode(
     level=None,
     *,
     blocksizeid=None,
-    contentchecksum=None,
     blockchecksum=None,
+    contentchecksum=None,
+    contentsize=None,
     out=None,
 ):
     """Return LZ4F encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         size_t srcsize = <size_t> src.shape[0]
         ssize_t dstsize
         size_t ret
         LZ4F_preferences_t prefs
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     memset(<void*> &prefs, 0, sizeof(LZ4F_preferences_t))
-    prefs.frameInfo.contentSize = srcsize
+    if contentsize is None or contentsize:
+        prefs.frameInfo.contentSize = srcsize
     if level is not None:
         prefs.compressionLevel = _default_value(level, 0, -1, LZ4HC_CLEVEL_MAX)
     if blocksizeid is not None:
         prefs.frameInfo.blockSizeID = <LZ4F_blockSizeID_t> blocksizeid
-    if contentchecksum:
-        prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
     if blockchecksum:
         prefs.frameInfo.blockChecksumFlag = LZ4F_blockChecksumEnabled
+    if contentchecksum:
+        prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -333,16 +330,17 @@ def lz4f_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
+        uint8_t* outbuf = NULL
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
-        size_t byteswritten, bytesread, ret
+        size_t byteswritten, bytesread, ret, blksize
         size_t srcindex = 0
         LZ4F_dctx* dctx = NULL
         LZ4F_decompressOptions_t* options = NULL
         LZ4F_frameInfo_t frameinfo
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -372,16 +370,32 @@ def lz4f_decode(
                 if frameinfo.contentSize > 0:
                     dstsize = <ssize_t> frameinfo.contentSize
                 else:
-                    # TODO: use streaming API
-                    dstsize = (
-                        LZ4F_HEADER_SIZE_MAX
-                        + LZ4F_BLOCK_HEADER_SIZE
-                        + LZ4F_BLOCK_CHECKSUM_SIZE
-                        + LZ4F_CONTENT_CHECKSUM_SIZE
+                    # content size not in header
+                    with nogil:
+                        blksize = _lz4f_blocksize(frameinfo.blockSizeID)
+                        ret = _lz4f_decode_chunked(
+                            dctx,
+                            <const uint8_t*> src._data,
+                            <size_t> srcsize,
+                            srcindex,
+                            &outbuf,
+                            blksize
+                        )
+                        LZ4F_freeDecompressionContext(dctx)
+                        dctx = NULL
+
+                    if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                        if ret == SIZE_MAX:
+                            raise MemoryError('Failed to allocatedecode chunk')
+                        raise Lz4fError('LZ4F_decompress', ret)
+                    out = _create_output(
+                        outtype, <ssize_t> ret, <const char*> outbuf
                     )
-                    # ugh
-                    dstsize = max(dstsize, dstsize + 24 + 255 * (srcsize - 10))
+                    free(outbuf)
+                    return out
             except Exception:
+                if outbuf != NULL:
+                    free(outbuf)
                 LZ4F_freeDecompressionContext(dctx)
                 raise
 
@@ -416,6 +430,75 @@ def lz4f_decode(
     return _return_output(out, dstsize, byteswritten, outgiven)
 
 
+cdef inline size_t _lz4f_blocksize(
+    LZ4F_blockSizeID_t blocksizeid
+) noexcept nogil:
+    # Return block size in bytes for given block size ID
+    # replaces static LZ4F_getBlockSize function
+    if blocksizeid == LZ4F_default or blocksizeid == LZ4F_max64KB:
+        return <size_t> 65536
+    if blocksizeid == LZ4F_max256KB:
+        return <size_t> 262144
+    if blocksizeid == LZ4F_max1MB:
+        return <size_t> 1048576
+    if blocksizeid == LZ4F_max4MB:
+        return <size_t> 4194304
+    return <size_t> 65536
+
+
+cdef size_t _lz4f_decode_chunked(
+    LZ4F_dctx* dctx,
+    const uint8_t* src,
+    size_t srcsize,
+    size_t srcindex,
+    uint8_t** pdst,
+    const size_t blksize
+) noexcept nogil:
+    """Decode LZ4F compressed data in chunks.
+
+    Return bytes written to ``pdst`` or LZ4F error code on decode error,
+    SIZE_MAX on malloc failure.
+
+    """
+    cdef:
+        size_t cap = blksize * 2
+        uint8_t* buf = <uint8_t*> malloc(cap)
+        uint8_t* newbuf
+        size_t used = 0
+        size_t src0, dst0, ret
+
+    pdst[0] = NULL
+    if buf == NULL:
+        return SIZE_MAX
+
+    while True:
+        if cap - used < blksize:
+            cap *= 2
+            newbuf = <uint8_t*> realloc(buf, cap)
+            if newbuf == NULL:
+                free(buf)
+                return SIZE_MAX
+            buf = newbuf
+        dst0 = cap - used
+        src0 = srcsize - srcindex
+        ret = LZ4F_decompress(
+            dctx, buf + used, &dst0, src + srcindex, &src0, NULL
+        )
+        if LZ4F_isError(<LZ4F_errorCode_t> ret):
+            free(buf)
+            return ret
+        used += dst0
+        srcindex += src0
+        if ret == 0:
+            break
+        if src0 == 0 and dst0 == 0:
+            free(buf)
+            return ret
+
+    pdst[0] = buf
+    return used
+
+
 # LZ4H5 #######################################################################
 
 # LZ4H5 implements H5Z_FILTER_LZ4
@@ -448,9 +531,7 @@ lz4h5_version = lz4_version
 
 def lz4h5_check(const uint8_t[::1] data, /):
     """Return whether data is LZ4H5 encoded or None if unknown."""
-    if data.shape[0] < 12:
-        return False
-    return None
+    return None if data.shape[0] >= 12 else False
 
 
 def lz4h5_encode(
@@ -463,7 +544,7 @@ def lz4h5_encode(
 ):
     """Return LZ4H5 encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -473,9 +554,6 @@ def lz4h5_encode(
         int blksize
         int lz4size, lz4dstsize
         int acceleration = _default_value(level, 1, 1, 65537)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if blocksize is None:
         blksize = <int> min(1073741823, max(srcsize, 1))
@@ -559,7 +637,7 @@ def lz4h5_decode(
         int ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 12:
         raise Lz4h5Error(f'LZ4H5 data too short {srcsize} < 12')
