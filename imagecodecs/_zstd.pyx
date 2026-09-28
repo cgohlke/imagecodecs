@@ -83,11 +83,12 @@ def zstd_encode(
     /,
     level=None,
     *,
+    numthreads=None,
     out=None,
 ):
     """Return ZSTD encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
@@ -95,9 +96,8 @@ def zstd_encode(
         int compresslevel = _default_value(
             level, ZSTD_CLEVEL_DEFAULT, 0, 22  # ZSTD_CLEVEL_DEFAULT = 3
         )
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
+        int workers = _default_threads(numthreads)
+        ZSTD_CCtx* cctx = NULL
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -113,16 +113,44 @@ def zstd_encode(
     dst = out
     dstsize = dst.shape[0]
 
-    with nogil:
-        ret = ZSTD_compress(
-            <void*> dst._data,
-            <size_t> dstsize,
-            <void*> src._data,
-            <size_t> srcsize,
-            compresslevel
-        )
-    if ZSTD_isError(ret):
-        raise ZstdError('ZSTD_compress', err=ret)
+    if workers > 1:
+        # only worth for srcsize > ~15 MB
+        try:
+            with nogil:
+                cctx = ZSTD_createCCtx()
+                if cctx == NULL:
+                    raise ZstdError('ZSTD_createCCtx', 'NULL')
+                ret = ZSTD_CCtx_setParameter(
+                    cctx, ZSTD_c_compressionLevel, compresslevel
+                )
+                if ZSTD_isError(ret):
+                    raise ZstdError('ZSTD_CCtx_setParameter', err=ret)
+                ret = ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, workers)
+                if ZSTD_isError(ret):
+                    raise ZstdError('ZSTD_CCtx_setParameter', err=ret)
+                ret = ZSTD_compress2(
+                    cctx,
+                    <void*> dst._data,
+                    <size_t> dstsize,
+                    <void*> src._data,
+                    <size_t> srcsize,
+                )
+            if ZSTD_isError(ret):
+                raise ZstdError('ZSTD_compress2', err=ret)
+        finally:
+            if cctx != NULL:
+                ZSTD_freeCCtx(cctx)
+    else:
+        with nogil:
+            ret = ZSTD_compress(
+                <void*> dst._data,
+                <size_t> dstsize,
+                <void*> src._data,
+                <size_t> srcsize,
+                compresslevel
+            )
+        if ZSTD_isError(ret):
+            raise ZstdError('ZSTD_compress', err=ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -144,7 +172,7 @@ def zstd_decode(
         uint64_t cntsize
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -154,7 +182,9 @@ def zstd_decode(
                 <uint8_t*> src._data, <size_t> srcsize
             )
             if cntsize == ZSTD_CONTENTSIZE_ERROR:
-                raise ZstdError('ZSTD_getFrameContentSize', f'{cntsize}')
+                raise ZstdError(
+                    'ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_ERROR'
+                )
             if cntsize == ZSTD_CONTENTSIZE_UNKNOWN or cntsize > INT32_MAX:
                 # use streaming API for unknown or suspiciously large sizes
                 return _zstd_decode(data, outtype)
