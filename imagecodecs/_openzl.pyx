@@ -73,14 +73,20 @@ def openzl_version():
 def openzl_check(const uint8_t[::1] data, /):
     """Return whether data is OpenZL encoded or None if unknown."""
     cdef:
+        ZL_FrameInfo* fi
         ZL_Report ret
 
     if data.shape[0] == 0:
         return False
-    ret = ZL_getFormatVersionFromFrame(
-        <const void*> data._data, <size_t> data.shape[0]
-    )
-    return not ZL_isError(ret)
+
+    fi = ZL_FrameInfo_create(<const void*> data._data, <size_t> data.shape[0])
+    if fi == NULL:
+        return False
+    try:
+        ret = ZL_FrameInfo_getFormatVersion(fi)
+        return not ZL_isError(ret)
+    finally:
+        ZL_FrameInfo_free(fi)
 
 
 def openzl_encode(
@@ -109,7 +115,7 @@ def openzl_decode(
         ZL_Report res
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
