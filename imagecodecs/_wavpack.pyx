@@ -105,7 +105,7 @@ def wavpack_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         const void* srcptr = <const void*> src.data
         ssize_t srcsize = <ssize_t> src.size
@@ -123,9 +123,6 @@ def wavpack_encode(
         int nchannels, ret, config_float_norm_exp, config_qmode
         int clevel = _default_value(level, 2, 1, 4)
         uint8_t nthreads = _default_threads(numthreads)
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if dtype_char not in b'bBhHilf' or itemsize > 4:
         raise ValueError(f'invalid data {src.dtype=!r}')
@@ -290,7 +287,7 @@ def wavpack_decode(
 
     """
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = data
         const uint8_t[::1] src_c
         numpy.ndarray dst
         void* dstptr = NULL
@@ -308,7 +305,7 @@ def wavpack_decode(
         uint8_t nthreads = _default_threads(numthreads)
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if correction is not None:
         src_c = _readable_input(correction)
@@ -432,9 +429,9 @@ def wavpack_decode(
 
 
 def wavpack_info(data, /):
-    """Return metadata from a WavPack stream."""
+    """Return information about WavPack encoded data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = data
         WavpackContext* wpc = NULL
         WavpackReadContext rctx
         WavpackStreamReader64 reader
