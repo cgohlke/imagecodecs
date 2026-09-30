@@ -1,11 +1,13 @@
-﻿/* bcdec.h - v0.97
+﻿/* bcdec.h - v0.985
    provides functions to decompress blocks of BC compressed images
    written by Sergii "iOrange" Kudlai in 2022
 
    This library does not allocate memory and is trying to use as less stack as possible
 
-   The library was never optimized specifically for speed but for the overall size
+   This library was never optimized specifically for speed but for the overall size
    it has zero external dependencies and is not using any runtime functions
+
+   This library was writtem by humans and will never contain any LLM-generated code
 
    Supported BC formats:
    BC1 (also known as DXT1) + it's "binary alpha" variant BC1A (DXT1A)
@@ -41,6 +43,7 @@
 
    bugfixes:
       @linkmauve
+      @wkjarosz
 
    LICENSE: See end of file for license information.
 */
@@ -49,7 +52,7 @@
 #define BCDEC_HEADER_INCLUDED
 
 #define BCDEC_VERSION_MAJOR 0
-#define BCDEC_VERSION_MINOR 98
+#define BCDEC_VERSION_MINOR 985
 
 /* if BCDEC_STATIC causes problems, try defining BCDECDEF to 'inline' or 'static inline' */
 #ifndef BCDECDEF
@@ -119,6 +122,22 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
 
 #ifdef BCDEC_IMPLEMENTATION
 
+static unsigned short bcdec__getu16le(const void* s) {
+    unsigned short l = (unsigned short)((const unsigned char*)s)[0];
+    unsigned short h = (unsigned short)((const unsigned char*)s)[1];
+    return l | (h << 8);
+}
+static unsigned int bcdec__getu32le(const void* s) {
+    unsigned int l = bcdec__getu16le(s);
+    unsigned int h = bcdec__getu16le((const unsigned char*)s + 2);
+    return l | (h << 16);
+}
+static unsigned long long bcdec__getu64le(const void* s) {
+    unsigned long long l = bcdec__getu32le(s);
+    unsigned long long h = bcdec__getu32le((const unsigned char*)s + 4);
+    return l | (h << 32);
+}
+
 static void bcdec__color_block(const void* compressedBlock, void* decompressedBlock, int destinationPitch, int onlyOpaqueMode) {
     unsigned short c0, c1;
     unsigned int refColors[4]; /* 0xAABBGGRR */
@@ -127,8 +146,8 @@ static void bcdec__color_block(const void* compressedBlock, void* decompressedBl
     int i, j, idx;
     unsigned int r0, g0, b0, r1, g1, b1, r, g, b;
 
-    c0 = ((unsigned short*)compressedBlock)[0];
-    c1 = ((unsigned short*)compressedBlock)[1];
+    c0 = bcdec__getu16le(compressedBlock);
+    c1 = bcdec__getu16le((const unsigned char*)compressedBlock + 2);
 
     /* Unpack 565 ref colors */
     r0 = (c0 >> 11) & 0x1F;
@@ -173,7 +192,7 @@ static void bcdec__color_block(const void* compressedBlock, void* decompressedBl
         refColors[3] = 0x00000000;
     }
 
-    colorIndices = ((unsigned int*)compressedBlock)[1];
+    colorIndices = bcdec__getu32le((const unsigned char*)compressedBlock + 4);
 
     /* Fill out the decompressed color block */
     dstColors = (unsigned char*)decompressedBlock;
@@ -189,18 +208,22 @@ static void bcdec__color_block(const void* compressedBlock, void* decompressedBl
 }
 
 static void bcdec__sharp_alpha_block(const void* compressedBlock, void* decompressedBlock, int destinationPitch) {
-    unsigned short* alpha;
+    unsigned short alpha;
+    const unsigned char* alphaPtr;
     unsigned char* decompressed;
     int i, j;
 
-    alpha = (unsigned short*)compressedBlock;
+    alphaPtr = (const unsigned char*)compressedBlock;
     decompressed = (unsigned char*)decompressedBlock;
 
     for (i = 0; i < 4; ++i) {
+        alpha = bcdec__getu16le(alphaPtr);
+
         for (j = 0; j < 4; ++j) {
-            decompressed[j * 4] = ((alpha[i] >> (4 * j)) & 0x0F) * 17;
+            decompressed[j * 4] = ((alpha >> (4 * j)) & 0x0F) * 17;
         }
 
+        alphaPtr += 2;
         decompressed += destinationPitch;
     }
 }
@@ -211,7 +234,7 @@ static void bcdec__smooth_alpha_block(const void* compressedBlock, void* decompr
     int i, j;
     unsigned long long block, indices;
 
-    block = *(unsigned long long*)compressedBlock;
+    block = bcdec__getu64le(compressedBlock);
     decompressed = (unsigned char*)decompressedBlock;
 
     alpha[0] = block & 0xFF;
@@ -258,7 +281,7 @@ static void bcdec__bc4_block(const void* compressedBlock, void* decompressedBloc
     static int aWeights4[4] = { 13107, 26215, 39321, 52429 };
     static int aWeights6[6] = { 9363, 18724, 28086, 37450, 46812, 56173 };
 
-    block = *(unsigned long long*)compressedBlock;
+    block = bcdec__getu64le(compressedBlock);
 
     if (isSigned) {
         alpha[0] = (char)(block & 0xFF);
@@ -290,10 +313,10 @@ static void bcdec__bc4_block(const void* compressedBlock, void* decompressedBloc
 
     indices = block >> 16;
     if (isSigned) {
-        sblock = (char*)decompressedBlock;
+        sblock = (signed char*)decompressedBlock;
         for (i = 0; i < 4; ++i) {
             for (j = 0; j < 4; ++j) {
-                sblock[j * pixelSize] = (char)alpha[indices & 0x07];
+                sblock[j * pixelSize] = (signed char)alpha[indices & 0x07];
                 indices >>= 3;
             }
             sblock += destinationPitch;
@@ -316,7 +339,7 @@ static void bcdec__bc4_block_float(const void* compressedBlock, void* decompress
     int i, j;
     unsigned long long block, indices;
 
-    block = *(unsigned long long*)compressedBlock;
+    block = bcdec__getu64le(compressedBlock);
     decompressed = (float*)decompressedBlock;
 
     if (isSigned) {
@@ -600,8 +623,8 @@ BCDECDEF void bcdec_bc6h_half(const void* compressedBlock, void* decompressedBlo
 
     decompressed = (unsigned short*)decompressedBlock;
 
-    bstream.low = ((unsigned long long*)compressedBlock)[0];
-    bstream.high = ((unsigned long long*)compressedBlock)[1];
+    bstream.low = bcdec__getu64le(compressedBlock);
+    bstream.high = bcdec__getu64le((const unsigned char*)compressedBlock + 8);
 
     r[0] = r[1] = r[2] = r[3] = 0;
     g[0] = g[1] = g[2] = g[3] = 0;
@@ -1237,8 +1260,8 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
 
     decompressed = (unsigned char*)decompressedBlock;
 
-    bstream.low = ((unsigned long long*)compressedBlock)[0];
-    bstream.high = ((unsigned long long*)compressedBlock)[1];
+    bstream.low = bcdec__getu64le(compressedBlock);
+    bstream.high = bcdec__getu64le((const unsigned char*)compressedBlock + 8);
 
     for (mode = 0; mode < 8 && (0 == bcdec__bitstream_read_bit(&bstream)); ++mode);
 
@@ -1408,10 +1431,10 @@ BCDECDEF void bcdec_bc7(const void* compressedBlock, void* decompressedBlock, in
             }
 
             switch (rotation) {
-                case 1: {   /* 01 - Block format is Scalar(R) Vector(AGB) - swap A and R */
+                case 1: {   /* 01 – Block format is Scalar(R) Vector(AGB) - swap A and R */
                     bcdec__swap_values(&a, &r);
                 } break;
-                case 2: {   /* 10 - Block format is Scalar(G) Vector(RAB) - swap A and G */
+                case 2: {   /* 10 – Block format is Scalar(G) Vector(RAB) - swap A and G */
                     bcdec__swap_values(&a, &g);
                 } break;
                 case 3: {   /* 11 - Block format is Scalar(B) Vector(RGA) - swap A and B */
