@@ -116,8 +116,7 @@ static volatile int pixarlog_tables_ready = 0;
  */
 
 void
-pixarlog_init(
-    void)
+pixarlog_init(void)
 {
     int nlin, lt2size;
     int i, j;
