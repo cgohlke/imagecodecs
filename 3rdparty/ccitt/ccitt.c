@@ -373,8 +373,7 @@ ccitt_lut_add(
  * Not thread-safe; callers must ensure serialization
  * (for example, call once at module initialization under a lock). */
 void
-ccitt_lut_init(
-    void)
+ccitt_lut_init(void)
 {
     int i;
     uint8_t makeup_val;
