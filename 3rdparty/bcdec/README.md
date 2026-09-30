@@ -7,8 +7,10 @@ This library provides functions to decompress blocks of BC compressed images.
 
 This library does not allocate memory and is trying to use as less stack as possible.
 
-The library was never optimized specifically for speed but for the overall size.
+This library was never optimized specifically for speed but for the overall size.
 It has zero external dependencies and is not using any runtime functions.
+
+**This library was writtem by humans and will never contain any LLM-generated code**
 
 ### Supported BC formats:
 - BC1 (also known as DXT1) + it's "binary alpha" variant BC1A (DXT1A)
@@ -21,10 +23,12 @@ It has zero external dependencies and is not using any runtime functions.
 
 ---
 
-BC1/BC2/BC3/BC7 are expected to decompress into 4\*4 RGBA blocks 8bit per component (32bit pixel)
-BC4/BC5 are expected to decompress into 4\*4 R/RG blocks 8bit per component (8bit and 16bit pixel)
-BC6H is expected to decompress into 4*4 RGB blocks of either 32bit float or 16bit "half" per
+BC1/BC2/BC3/BC7 are expected to decompress into 4x4 RGBA blocks 8bit per component (32bit pixel)
+BC4/BC5 are expected to decompress into 4x4 R/RG blocks 8bit per component (8bit and 16bit pixel)
+BC6H is expected to decompress into 4x4 RGB blocks of either 32bit float or 16bit "half" per
 component (96bit or 48bit pixel)
+
+*\* Note that BCDEC\_BC4BC5\_PRECISE option enables signed/unsigned and float support for BC4/BC5*
 
 ---
 
@@ -44,3 +48,13 @@ Used HDRI image "Lythwood Room" from <https://polyhaven.com/a/lythwood_room> lic
      - BC6H/BC7 bits pulling routines optimizations
      - optimized BC6H by moving unquantize out of the loop
      - Split BC6H decompression function into 'half' and 'float' variants
+
+ - Michael Schmidt (@RunDevelopment)
+     - Found better "magic" coefficients for integer interpolation
+       of reference colors in BC1 color block, that match with
+       the floating point interpolation. This also made it faster
+       than integer division.
+
+### bugfixes:
+  @linkmauve
+  @wkjarosz
