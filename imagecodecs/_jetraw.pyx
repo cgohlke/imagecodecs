@@ -84,6 +84,7 @@ def jetraw_version():
 
 def jetraw_check(const uint8_t[::1] data, /):
     """Return whether data is JETRAW encoded image or None if unknown."""
+    return None if data.shape[0] > 1 else False
 
 
 def jetraw_init(
@@ -226,7 +227,7 @@ def jetraw_decode(
         jetraw.dp_status status = jetraw.dp_success
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is None:
         raise ValueError('invalid output buffer')
