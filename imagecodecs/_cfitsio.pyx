@@ -91,9 +91,7 @@ def hcomp_version():
 
 def hcomp_check(const uint8_t[::1] data, /):
     """Return whether data is HCOMP encoded or None if unknown."""
-    if data.shape[0] < 25:
-        return False
-    return data[0] == 0xDD and data[1] == 0x99
+    return data.shape[0] >= 25 and data[0] == 0xDD and data[1] == 0x99
 
 
 def hcomp_encode(
@@ -105,7 +103,7 @@ def hcomp_encode(
 ):
     """Return HCOMP encoded data."""
     cdef:
-        numpy.ndarray src = numpy.asarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         long nbytes
@@ -113,9 +111,6 @@ def hcomp_encode(
         int scale = _default_value(level, 0, 0, None)
         int status = 0
         int ret = 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.ndim != 2:
         raise ValueError('data must be 2-dimensional')
@@ -212,7 +207,7 @@ def hcomp_decode(
         int ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < 25:
         raise ValueError('data too short')
@@ -329,15 +324,12 @@ def plio_encode(
 ):
     """Return PLIO encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data, dtype=numpy.int32)
+        numpy.ndarray src = _array_input(data, out, dtype=numpy.int32)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         int nout = 0
         int ret = 0
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.ndim != 1:
         raise ValueError('data must be 1-dimensional')
@@ -391,7 +383,7 @@ def plio_decode(
         int ret = 0
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize < PLIO_HEADER_SIZE * 2:
         raise ValueError('data too short')
@@ -453,6 +445,7 @@ def rcomp_version():
 
 def rcomp_check(const uint8_t[::1] data, /):
     """Return whether data is RCOMP encoded or None if unknown."""
+    return None if data.shape[0] > 2 else False
 
 
 def rcomp_encode(
@@ -464,24 +457,22 @@ def rcomp_encode(
 ):
     """Return RCOMP encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
-        numpy.dtype dtype = data.dtype
+        numpy.ndarray src = _array_input(data, out)
+        numpy.dtype dtype = src.dtype
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
         int nblock_ = 32 if nblock is None else nblock
         int ret = 0
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
         srcsize <= INT32_MAX
         and dtype.kind in {'i', 'u'}
         and dtype.itemsize in {1, 2, 4}
+        and dtype.byteorder != '>'
     ):
         raise ValueError(
-            'data is not a numpy integers array of size < 2**31'
+            'data is not a big-endian integer array of size < 2**31'
         )
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -561,7 +552,7 @@ def rcomp_decode(
         int nblock_ = 32 if nblock is None else nblock
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('input buffer too large')
