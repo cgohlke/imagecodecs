@@ -114,7 +114,7 @@ def wic_check(const uint8_t[::1] data, /):
 def wic_encode(data, /, level=None, *, format=None, out=None):
     """Return WIC encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         uint8_t* dst = NULL
         size_t dstsize = 0
         uint32_t width, height, components, bpc
@@ -122,6 +122,7 @@ def wic_encode(data, /, level=None, *, format=None, out=None):
         int32_t quality = -1
         int32_t hr
 
+    # TODO: handle big-endian data
     if src.dtype == numpy.uint8:
         bpc = 8
     elif src.dtype == numpy.uint16:
@@ -192,7 +193,7 @@ def wic_decode(data, /, index=0, *, out=None):
         numpy.ndarray dst
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     with nogil:
         hr = wic_get_info(
