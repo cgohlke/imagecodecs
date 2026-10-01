@@ -165,31 +165,32 @@ def jpegxl_encode(
     planar=None,
     primaries=None,
     transfer=None,
+    perceptualheuristics=None,
     usecontainer=None,
     numthreads=None,
     out=None,
 ):
     """Return JPEGXL encoded image.
 
-    Float must be in nominal range [0, 1].
+    Float must be in nominal range [0, 1] unless perceptualheuristics is False.
 
     Currently, L, LA, RGB, and RGBA images are supported in contig mode.
     Extra channels are only supported for grayscale images in planar mode.
 
     """
     cdef:
-        numpy.ndarray src
-        numpy.dtype dtype
+        numpy.ndarray src = _array_input(data, out)
+        numpy.dtype dtype = src.dtype
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
-        size_t srcsize
+        size_t srcsize = <size_t> src.nbytes
         ssize_t frame
         int colorspace = -1
         size_t avail_out = 0
         uint8_t* next_out = NULL
         output_t* output = NULL
         size_t framesize = 0
-        char* buffer = NULL
+        char* buffer = <char*> src.data
         void* runner = NULL
         JxlEncoder* encoder = NULL
         JxlEncoderFrameSettings* frame_settings = NULL
@@ -204,6 +205,11 @@ def jpegxl_encode(
         # JxlBlendInfo blend_info
         JXL_BOOL use_container = bool(usecontainer)
         JXL_BOOL option_lossless = lossless is None or bool(lossless)
+        int option_perceptual_heuristics = (
+            -1 if perceptualheuristics is None else (
+                0 if perceptualheuristics else 1
+            )
+        )
         int option_tier = _default_value(decodingspeed, 0, 0, 4)
         int option_effort = _default_value(effort, 5, 1, 10)  # 7 is too slow
         float option_distance = _default_value(distance, 1.0, 0.0, 25.0)
@@ -218,9 +224,6 @@ def jpegxl_encode(
         uint32_t bits_per_sample
         bint is_planar
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if level is not None:
         if level > 100:
@@ -240,11 +243,6 @@ def jpegxl_encode(
         # requires uses_original_profile=true be set
         option_lossless = JXL_TRUE
 
-    src = numpy.ascontiguousarray(data)
-    dtype = src.dtype
-    srcsize = <size_t> src.nbytes
-    buffer = src.data
-
     _image_layout(
         IC_UINT
         | IC_FLOAT
@@ -257,7 +255,8 @@ def jpegxl_encode(
         | IC_EXTRA
         | IC_FRAMES
         | IC_PLANAR
-        | IC_BPS,
+        | IC_BPS
+        | IC_BE,
         src.ndim,
         src.shape,
         src.dtype,
@@ -349,26 +348,26 @@ def jpegxl_encode(
     pixel_format.endianness = JXL_NATIVE_ENDIAN
     pixel_format.align = 0  # TODO: allow strides
 
-    if dtype.byteorder == b'<':
+    if dtype.byteorder == '<':
         pixel_format.endianness = JXL_LITTLE_ENDIAN
-    elif dtype.byteorder == b'>':
+    elif dtype.byteorder == '>':
         pixel_format.endianness = JXL_BIG_ENDIAN
 
-    if dtype == numpy.uint8:
+    if dtype.char == 'B':
         pixel_format.data_type = JXL_TYPE_UINT8
         if bits_per_sample < 1 or bits_per_sample > 8:
             bits_per_sample = 8
         basic_info.bits_per_sample = bits_per_sample
-    elif dtype == numpy.uint16:
+    elif dtype.char == 'H':
         pixel_format.data_type = JXL_TYPE_UINT16
         if bits_per_sample < 1 or bits_per_sample > 16:
             bits_per_sample = 16
         basic_info.bits_per_sample = bits_per_sample
-    elif dtype == numpy.float32:
+    elif dtype.char == 'f':
         pixel_format.data_type = JXL_TYPE_FLOAT
         basic_info.bits_per_sample = 32
         basic_info.exponent_bits_per_sample = 8
-    elif dtype == numpy.float16:
+    elif dtype.char == 'e':
         pixel_format.data_type = JXL_TYPE_FLOAT16
         basic_info.bits_per_sample = 16
         basic_info.exponent_bits_per_sample = 5
@@ -377,7 +376,7 @@ def jpegxl_encode(
 
     try:
         with nogil:
-            if option_lossless != 0:
+            if option_lossless != 0 or option_perceptual_heuristics == 1:
                 # avoid lossy colorspace conversion
                 basic_info.uses_original_profile = JXL_TRUE
 
@@ -410,16 +409,16 @@ def jpegxl_encode(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-            if num_threads > 1:
-                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-                if runner == NULL:
-                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
-
-                status = JxlEncoderSetParallelRunner(
-                    encoder, JxlThreadParallelRunner, runner
-                )
-                if status != JXL_ENC_SUCCESS:
-                    raise JpegxlError('JxlEncoderSetParallelRunner', status)
+            runner = JxlThreadParallelRunnerCreate(
+                NULL, num_threads if num_threads > 1 else 0
+            )
+            if runner == NULL:
+                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            status = JxlEncoderSetParallelRunner(
+                encoder, JxlThreadParallelRunner, runner
+            )
+            if status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderSetParallelRunner', status)
 
             status = JxlEncoderSetBasicInfo(encoder, &basic_info)
             if status != JXL_ENC_SUCCESS:
@@ -508,6 +507,19 @@ def jpegxl_encode(
                     raise JpegxlError(
                         'JxlEncoderFrameSettingsSetOption '
                         'JXL_ENC_FRAME_SETTING_EFFORT',
+                        status
+                    )
+
+            if option_perceptual_heuristics >= 0:
+                status = JxlEncoderFrameSettingsSetOption(
+                    frame_settings,
+                    JXL_ENC_FRAME_SETTING_DISABLE_PERCEPTUAL_HEURISTICS,
+                    option_perceptual_heuristics
+                )
+                if status != JXL_ENC_SUCCESS:
+                    raise JpegxlError(
+                        'JxlEncoderFrameSettingsSetOption '
+                        'JXL_ENC_FRAME_SETTING_DISABLE_PERCEPTUAL_HEURISTICS',
                         status
                     )
 
@@ -661,7 +673,7 @@ def jpegxl_decode(
         bint is_planar = False
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     # TODO: decode from ISOBMFF container ("box")
 
@@ -691,16 +703,16 @@ def jpegxl_decode(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-            if num_threads > 1:
-                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-                if runner == NULL:
-                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
-
-                status = JxlDecoderSetParallelRunner(
-                    decoder, JxlThreadParallelRunner, runner
-                )
-                if status != JXL_DEC_SUCCESS:
-                    raise JpegxlError('JxlDecoderSetParallelRunner', status)
+            runner = JxlThreadParallelRunnerCreate(
+                NULL, num_threads if num_threads > 1 else 0
+            )
+            if runner == NULL:
+                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            status = JxlDecoderSetParallelRunner(
+                decoder, JxlThreadParallelRunner, runner
+            )
+            if status != JXL_DEC_SUCCESS:
+                raise JpegxlError('JxlDecoderSetParallelRunner', status)
 
             status = JxlDecoderSetInput(
                 decoder, <const uint8_t*> src._data, srcsize
@@ -967,7 +979,7 @@ def jpegxl_encode_jpeg(
         size_t num_threads = _default_threads(numthreads)
 
     if data is out:
-        raise ValueError('cannot encode in-place')
+        raise ValueError('cannot transform in-place')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -1001,16 +1013,16 @@ def jpegxl_encode_jpeg(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-            if num_threads > 1:
-                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-                if runner == NULL:
-                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
-
-                status = JxlEncoderSetParallelRunner(
-                    encoder, JxlThreadParallelRunner, runner
-                )
-                if status != JXL_ENC_SUCCESS:
-                    raise JpegxlError('JxlEncoderSetParallelRunner', status)
+            runner = JxlThreadParallelRunnerCreate(
+                NULL, num_threads if num_threads > 1 else 0
+            )
+            if runner == NULL:
+                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            status = JxlEncoderSetParallelRunner(
+                encoder, JxlThreadParallelRunner, runner
+            )
+            if status != JXL_ENC_SUCCESS:
+                raise JpegxlError('JxlEncoderSetParallelRunner', status)
 
             # JxlEncoderSetBasicInfo
             # JxlEncoderSetColorEncoding
@@ -1100,7 +1112,7 @@ def jpegxl_decode_jpeg(
         size_t num_threads = _default_threads(numthreads)
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     signature = JxlSignatureCheck(<const uint8_t*> src._data, srcsize)
     if signature != JXL_SIG_CODESTREAM and signature != JXL_SIG_CONTAINER:
@@ -1130,16 +1142,16 @@ def jpegxl_decode_jpeg(
 
             if num_threads == 0:
                 num_threads = JxlThreadParallelRunnerDefaultNumWorkerThreads()
-            if num_threads > 1:
-                runner = JxlThreadParallelRunnerCreate(NULL, num_threads)
-                if runner == NULL:
-                    raise JpegxlError('JxlThreadParallelRunnerCreate', None)
-
-                status = JxlDecoderSetParallelRunner(
-                    decoder, JxlThreadParallelRunner, runner
-                )
-                if status != JXL_DEC_SUCCESS:
-                    raise JpegxlError('JxlDecoderSetParallelRunner', status)
+            runner = JxlThreadParallelRunnerCreate(
+                NULL, num_threads if num_threads > 1 else 0
+            )
+            if runner == NULL:
+                raise JpegxlError('JxlThreadParallelRunnerCreate', None)
+            status = JxlDecoderSetParallelRunner(
+                decoder, JxlThreadParallelRunner, runner
+            )
+            if status != JXL_DEC_SUCCESS:
+                raise JpegxlError('JxlDecoderSetParallelRunner', status)
 
             status = JxlDecoderSetInput(
                 decoder, <const uint8_t*> src._data, srcsize
