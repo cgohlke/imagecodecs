@@ -97,7 +97,7 @@ def lerc_encode(
 ):
     """Return LERC encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         numpy.ndarray msk
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
@@ -115,8 +115,8 @@ def lerc_encode(
         unsigned int blobSize
         int ndim = src.ndim
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
+    if src.dtype.byteorder == '>':
+        raise ValueError('big-endian data not supported')
 
     if src.dtype == numpy.uint8:
         dataType = dt_uchar
@@ -160,7 +160,7 @@ def lerc_encode(
         raise ValueError('data shape not supported by LERC')
 
     if masks is not None:
-        msk = numpy.ascontiguousarray(masks)
+        msk = numpy.asarray(masks, order='C')
         if msk.dtype != bool:
             raise ValueError('masks array must be of dtype bool')
         if msk.ndim == 2:
@@ -261,7 +261,7 @@ def lerc_decode(
         unsigned int blobSize
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     sig = bytes(src[:9])
 
