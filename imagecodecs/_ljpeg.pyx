@@ -71,9 +71,7 @@ def ljpeg_version():
 
 def ljpeg_check(const uint8_t[::1] data, /):
     """Return whether data is LJPEG encoded image or None if unknown."""
-    if data.shape[0] < 10:
-        return False
-    return None
+    return None if data.shape[0] > 10 else False
 
 
 def ljpeg_encode(
@@ -86,7 +84,7 @@ def ljpeg_encode(
 ):
     """Return Lossless JPEG encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         numpy.ndarray table
         const uint8_t[::1] dst  # must be const to write to bytes
         const uint16_t* delinearize_table = NULL
@@ -101,11 +99,9 @@ def ljpeg_encode(
         int samples = <int> src.shape[2] if src.ndim == 3 else 1
         int ret = LJ92_ERROR_NONE
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
+        and src.dtype.byteorder != '>'
         and src.size > 0
         and src.ndim in {2, 3}
         and samples == 1  # {1, 3, 4}  RGB does not work correctly
@@ -130,7 +126,7 @@ def ljpeg_encode(
         raise ValueError('invalid bitspersample')
 
     if delinearize is not None:
-        table = numpy.ascontiguousarray(delinearize)
+        table = numpy.asarray(delinearize, order='C')
         if table.ndim != 1 or table.dtype != numpy.uint16:
             raise ValueError('invalid delinearize shape or dtype')
         delinearize_table = <uint16_t*> table.data
@@ -201,13 +197,13 @@ def ljpeg_decode(
         lj92 lj
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if srcsize > INT32_MAX:
         raise ValueError('data too large')
 
     if linearize is not None:
-        table = numpy.ascontiguousarray(linearize)
+        table = numpy.asarray(linearize, order='C')
         if table.ndim != 1 or table.dtype != numpy.uint16:
             raise ValueError('invalid linearize shape or dtype')
         linearize_table = <uint16_t*> table.data
