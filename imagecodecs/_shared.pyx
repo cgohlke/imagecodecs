@@ -58,14 +58,15 @@ from libc.stdint cimport uint8_t
 numpy.import_array()
 
 
+# (object, ssize_t, bint, object)
 cdef tuple _parse_output(
     out, ssize_t outsize=-1, bint outgiven=False, outtype=bytes
 ):
     """Return out, outsize, outgiven, outtype from output argument."""
     if out is None:
         # create new bytes output
-        return out, outsize, outgiven, outtype
-    if out is bytes:
+        pass
+    elif out is bytes:
         # create new bytes output
         out = None
         outtype = bytes
@@ -145,6 +146,39 @@ cdef _return_output(out, ssize_t size, ssize_t used, bint outgiven):
     return out
 
 
+cdef numpy.ndarray _array_input(
+    data, out=None, dtype=None, bint contig=True, bint empty=False
+):
+    """Return C-contiguous ndarray from input data.
+
+    Raise ValueError for invalid inputs, scalar arrays, and optionally empty
+    arrays.
+
+    """
+    cdef:
+        numpy.ndarray src
+
+    if out is not None and data is out:
+        raise ValueError('cannot transform in-place')
+
+    try:
+        if contig:
+            # do not use ascontiguousarray, which promotes 0-D to 1-D
+            src = numpy.asarray(data, dtype=dtype, order='C')
+        else:
+            src = numpy.asarray(data, dtype=dtype)
+    except Exception as exc:
+        raise ValueError('invalid input data') from exc
+
+    if src.ndim == 0:
+        raise ValueError('cannot transform 0-dimensional array')
+
+    if not empty and src.size == 0:
+        raise ValueError('cannot transform empty array')
+
+    return src
+
+
 cdef numpy.ndarray _create_array(
     out,
     tuple shape,
@@ -197,7 +231,7 @@ cdef numpy.ndarray _create_array(
     return out
 
 
-cdef const uint8_t[::1] _readable_input(data):
+cdef const uint8_t[::1] _readable_input(data, out=None):
     """Return readable, contiguous 1D uint8 view of input data.
 
     Use input directly when possible.
@@ -208,6 +242,12 @@ cdef const uint8_t[::1] _readable_input(data):
     cdef:
         const uint8_t[::1] src
         memoryview view
+
+    if data is None:
+        raise ValueError('input data is None')
+
+    if out is not None and data is out:
+        raise ValueError('cannot transform in-place')
 
     try:
         src = data
@@ -405,6 +445,7 @@ class IC(enum.IntFlag):
     SZ16 = IC_SZ16  # 16-byte item size supported
     BPS = IC_BPS  # custom bits-per-sample supported
     EMPTY = IC_EMPTY  # empty input supported
+    BE = IC_BE  # big-endian byte order supported
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -566,10 +607,33 @@ cdef int _image_layout(
     else:
         raise ValueError(f'unsupported dtype itemsize {itemsize_}')
 
+    if (
+        itemsize_ > 1
+        and caps != 0
+        and not (caps & IC_BE)
+        and dtype.byteorder == '>'
+    ):
+        raise ValueError('big-endian byte order not supported')
+
     # bitspersample hint
     bitspersample_ = itemsize_ * 8
     if bitspersample is not None:
         bitspersample_ = int(bitspersample)
+        if bitspersample_ <= 0 or bitspersample_ > itemsize_ * 8:
+            raise ValueError(
+                f'bitspersample={bitspersample_} out of range '
+                f'1..{itemsize_ * 8} for {dtype!r}'
+            )
+        if bitspersample_ <= 8 and itemsize_ > 1:
+            raise ValueError(
+                f'bitspersample={bitspersample_} requires dtype itemsize=1, '
+                f'got {itemsize_}'
+            )
+        if bitspersample_ <= 16 and itemsize_ > 2:
+            raise ValueError(
+                f'bitspersample={bitspersample_} requires dtype itemsize=2, '
+                f'got itemsize={itemsize_}'
+            )
         if bitspersample_ != itemsize_ * 8:
             if caps != 0 and not (caps & IC_BPS):
                 raise ValueError(
@@ -590,7 +654,7 @@ cdef int _image_layout(
         elif s == 'CONTIG':
             planar_ = False
         else:
-            raise ValueError(f'planar={planar!r} not recognised')
+            raise ValueError(f'{planar=!r} not recognised')
 
     if planar_ and ndim < 3:
         raise ValueError('planar requires at least 3 dimensions')
@@ -615,9 +679,7 @@ cdef int _image_layout(
     else:
         s = str(photometric).upper()
         if s not in _IC_PHOTO_NAMES:
-            raise ValueError(
-                f'photometric={photometric!r} not recognised'
-            )
+            raise ValueError(f'{photometric=!r} not recognised')
         photo_hint = _IC_PHOTO_NAMES[s]
 
     # extrasample hint
@@ -628,9 +690,7 @@ cdef int _image_layout(
     else:
         s = str(extrasample).upper()
         if s not in _IC_EXTRA_NAMES:
-            raise ValueError(
-                f'extrasample={extrasample!r} not recognised'
-            )
+            raise ValueError(f'{extrasample=!r} not recognised')
         extra_type_ = _IC_EXTRA_NAMES[s]
 
     # shape dispatch
@@ -714,7 +774,7 @@ cdef int _image_layout(
 
         if ndim < core_axes:
             raise ValueError(
-                f'ndim={ndim} too small for '
+                f'{ndim=} too small for '
                 f'{"volumetric " if volumetric_ else ""}'
                 f'{"planar " if planar_ else ""}'
                 f'image with {"" if has_channels else "no "}channels'
@@ -829,7 +889,7 @@ cdef int _image_layout(
     layout.photometric = photo_
     layout.planar = planar_
     layout.extraindex = extra_index_
-    layout.extratype = <uint8_t>extra_type_
+    layout.extratype = <uint8_t> extra_type_
     layout.extracount = extra
 
     return 0
@@ -850,17 +910,17 @@ def image_layout(
     cdef:
         imagelayout_t layout
         numpy.npy_intp[32] shape_buf
-        int ndim_
+        numpy.dtype dtype_ = numpy.dtype(dtype)
+        int ndim_ = <int> len(shape)
 
-    ndim_ = <int> len(shape)
     for i in range(ndim_):
         shape_buf[i] = shape[i]
-    dtype = numpy.dtype(dtype)
+
     _image_layout(
         caps,
         ndim_,
         shape_buf,
-        dtype,
+        dtype_,
         photometric,
         bitspersample,
         planar,
@@ -869,6 +929,7 @@ def image_layout(
         extrasample,
         &layout,
     )
+
     return ImageLayout(
         frames=layout.frames,
         depth=layout.depth,
