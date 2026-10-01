@@ -80,6 +80,7 @@ def pixarlog_version():
 
 def pixarlog_check(const uint8_t[::1] data, /):
     """Return whether data is PixarLog encoded or None if unknown."""
+    return None if data.shape[0] > 1 else False
 
 
 def pixarlog_encode(
@@ -92,7 +93,7 @@ def pixarlog_encode(
 ):
     """Return PixarLog encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.nbytes
         ssize_t dstsize, width, stride, ret
@@ -100,9 +101,6 @@ def pixarlog_encode(
         int clevel = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if not (src.ndim == 2 or src.ndim == 3):
         raise ValueError('data must be a 2D or 3D array')
@@ -114,6 +112,7 @@ def pixarlog_encode(
         width = <ssize_t> src.shape[1]
         stride = 1
 
+    # TODO: handle big-endian data
     if src.dtype == numpy.uint8:
         datafmt = PIXARLOG_FMT_8BIT
     elif src.dtype == numpy.uint16:
@@ -190,7 +189,7 @@ def pixarlog_decode(
         numpy.dtype outdtype
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if out is not None and isinstance(out, numpy.ndarray):
         if shape is None:
