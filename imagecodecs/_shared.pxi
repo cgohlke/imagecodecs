@@ -33,6 +33,7 @@ from libc.string cimport memcpy, memmove, memset
 
 from ._shared cimport (
     IC_ALPHA,
+    IC_BE,
     IC_BOOL,
     IC_BPS,
     IC_CIELAB,
@@ -72,6 +73,7 @@ from ._shared cimport (
     IC_SZ16,
     IC_UINT,
     IC_YCBCR,
+    _array_input,
     _create_array,
     _create_output,
     _default_threads,
