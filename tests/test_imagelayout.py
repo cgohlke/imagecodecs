@@ -415,6 +415,22 @@ def test_image_layout_bps_no_caps():
     assert r.bitspersample == 12
 
 
+@pytest.mark.parametrize('bps', [0, -1, -8, 17, 32])
+def test_image_layout_bps_out_of_range(bps):
+    """Test bitspersample outside 1..itemsize*8 raises."""
+    with pytest.raises(ValueError, match='out of range'):
+        image_layout((64, 64), dtype=numpy.uint16, bitspersample=bps)
+
+
+def test_image_layout_bps_dtype_mismatch():
+    """Test dtype too wide for bitspersample raises."""
+    # https://github.com/cgohlke/imagecodecs/issues/153
+    with pytest.raises(ValueError, match='requires dtype itemsize=1'):
+        image_layout((64, 64), dtype=numpy.uint16, bitspersample=8)
+    with pytest.raises(ValueError, match='requires dtype itemsize=2'):
+        image_layout((64, 64), dtype=numpy.uint32, bitspersample=16)
+
+
 @pytest.mark.parametrize(
     ('name', 'expected'),
     [
@@ -745,6 +761,34 @@ def test_image_layout_3d_frames_false():
     r = image_layout((48, 64, 64), numpy.uint8, frames=False)
     assert r.frames == 1
     assert r.samples == 64
+
+
+def test_image_layout_be():
+    """Test big-endian dtype rejected when IC_BE not in caps."""
+    # reject >u2 without IC_BE in caps
+    caps = IC.UINT | IC.SZ2 | IC.GRAY
+    with pytest.raises(ValueError):
+        image_layout((48, 64), dtype='>u2', caps=int(caps))
+
+    # accept >u2 with IC_BE in caps
+    caps = IC.UINT | IC.SZ2 | IC.GRAY | IC.BE
+    r = image_layout((48, 64), dtype='>u2', caps=int(caps))
+    assert r.itemsize == 2
+    assert r.sampleformat == SampleFormat.UINT
+
+    # uint8 does not require IC_BE
+    caps = IC.UINT | IC.SZ1 | IC.GRAY
+    r = image_layout((48, 64), dtype='>u1', caps=int(caps))
+    assert r.itemsize == 1
+
+    # uint8 ignores IC_BE
+    caps = IC.UINT | IC.SZ1 | IC.GRAY | IC.BE
+    r = image_layout((48, 64), dtype='>u1', caps=int(caps))
+    assert r.itemsize == 1
+
+    # caps=0 skips validation
+    r = image_layout((48, 64), dtype='>u2')
+    assert r.itemsize == 2
 
 
 # mypy: allow-untyped-defs
