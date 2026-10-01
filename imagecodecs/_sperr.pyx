@@ -79,9 +79,7 @@ def sperr_version():
 
 def sperr_check(const uint8_t[::1] data, /):
     """Return whether data is SPERR encoded or None if unknown."""
-    if data.shape[0] < 10:
-        return False
-    return None
+    return None if data.shape[0] >= 10 else False
 
 
 def sperr_encode(
@@ -97,7 +95,7 @@ def sperr_encode(
 ):
     """Return SPERR encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         void* dst_ptr = NULL
@@ -108,15 +106,15 @@ def sperr_encode(
         int out_inc_header = bool(header)
         int is_float, mode_, ret
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if src.size == 0:
         raise ValueError('src is empty')
 
-    if src.dtype.char == 'd':
+    if src.dtype.byteorder == '>':
+        raise ValueError('big-endian data not supported')
+
+    if src.dtype == numpy.float64:
         is_float = 0
-    elif src.dtype.char == 'f':
+    elif src.dtype == numpy.float32:
         is_float = 1
     else:
         raise ValueError(f'invalid {src.dtype=}')
@@ -239,7 +237,7 @@ def sperr_decode(
         int is_float, ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if src_len == 0:
         raise ValueError('src is empty')
