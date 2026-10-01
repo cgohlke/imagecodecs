@@ -6,17 +6,23 @@ cimport numpy
 from libc.stdint cimport uint8_t, uint64_t
 
 
-cdef const uint8_t[::1] _readable_input(data)
+cdef const uint8_t[::1] _readable_input(data, out=*)
 
 cdef const uint8_t[::1] _writable_input(data)
 
 cdef const uint8_t[::1] _inplace_input(data)
 
-cdef tuple _parse_output(out, ssize_t outsize=*, bint outgiven=*, outtype=*)
+cdef tuple _parse_output(
+    out, ssize_t outsize=*, bint outgiven=*, outtype=*
+)
 
 cdef _create_output(out, ssize_t size, const char* string=*)
 
 cdef _return_output(out, ssize_t size, ssize_t used, bint outgiven)
+
+cdef numpy.ndarray _array_input(
+    data, out=*, dtype=*, bint contig=*, bint empty=*
+)
 
 cdef numpy.ndarray _create_array(
     out, tuple shape, dtype, tuple strides=*, bint zero=*, bint contig=*
@@ -117,3 +123,4 @@ cdef:
     const imagecaps_t IC_SZ16 = <imagecaps_t>(1 << 25)
     const imagecaps_t IC_BPS = <imagecaps_t>(1 << 26)
     const imagecaps_t IC_EMPTY = <imagecaps_t>(1 << 27)
+    const imagecaps_t IC_BE = <imagecaps_t>(1 << 28)
