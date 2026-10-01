@@ -236,7 +236,7 @@ def tiff_encode(
 ):
     """Return TIFF encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         numpy.ndarray pal
         const uint8_t[::1] buf  # must be const to write to bytes
         uint8_t* srcptr = <uint8_t*> src.data
@@ -291,9 +291,6 @@ def tiff_encode(
         int ret
         bint bigendian = False
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     if src.dtype.kind == 'u':
         sampleformat_ = SAMPLEFORMAT_UINT
@@ -406,7 +403,7 @@ def tiff_encode(
             raise ValueError('palette image requires colormap')
         if src.dtype.kind != 'u':
             raise ValueError('palette image requires unsigned image')
-        pal = numpy.ascontiguousarray(colormap)
+        pal = _array_input(colormap)
         if pal.dtype.kind != 'u' or pal.dtype.itemsize != 2:
             raise ValueError(f'invalid colormap dtype={pal.dtype}')
         if (
@@ -490,7 +487,8 @@ def tiff_encode(
         | IC_PLANAR
         | IC_ALPHA
         | IC_EXTRA
-        | IC_BPS,
+        | IC_BPS
+        | IC_BE,
         src.ndim,
         src.shape,
         src.dtype,
@@ -1026,7 +1024,7 @@ def tiff_decode(
         bint rgb = asrgb
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     # TODO: special case STK, ImageJ hyperstacks, and shaped TIFF
 
