@@ -127,7 +127,7 @@ def jpegxr_encode(
 ):
     """Return JPEGXR encoded image."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         numpy.dtype dtype = src.dtype
         const uint8_t[::1] dst  # must be const to write to bytes
         U8* outbuffer = NULL
@@ -146,9 +146,6 @@ def jpegxr_encode(
         U32 stride
         ERR err
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     _image_layout(
         IC_BOOL
@@ -323,9 +320,10 @@ def jpegxr_decode(
         ssize_t samples
         int typenum
         bint fp2int_ = fp2int
+        int strip
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
@@ -346,7 +344,7 @@ def jpegxr_decode(
                 raise JpegxrError('PKImageDecode_GetPixelFormat', err)
 
             err = jxr_decode_guid(
-                &pixelformat, &typenum, &samples, &alpha, fp2int_
+                &pixelformat, &typenum, &samples, &alpha, fp2int_, &strip
             )
             if err:
                 raise JpegxrError('jxr_decode_guid', err)
@@ -370,7 +368,7 @@ def jpegxr_decode(
                 if samples > 1:
                     shape += samples,
                 dtype = numpy.PyArray_DescrNewFromType(typenum)
-                out = _create_array(out, shape, dtype)
+                out = _create_array(None if strip else out, shape, dtype)
                 dst = out
 
             rect.X = 0
@@ -394,6 +392,14 @@ def jpegxr_decode(
         if decoder != NULL:
             PKImageDecode_Release(&decoder)
 
+    if strip == 1:
+        out = out[..., :3].copy()
+    elif strip == 2:
+        # strip padding channel and reverse BGR to RGB
+        out = numpy.ascontiguousarray(out[..., 2::-1]).copy()
+    elif strip == 3:
+        # reverse BGRA to RGBA
+        out = numpy.ascontiguousarray(out[..., [2, 1, 0, 3]]).copy()
     return out
 
 
@@ -501,14 +507,21 @@ cdef ERR jxr_decode_guid(
     ssize_t* samples,
     U8* alpha,
     bint fp2int,
+    int* strip,
 ) noexcept nogil:
     """Return dtype, samples, alpha from GUID.
 
     Change pixelformat to output format in-place.
+    strip:
+        0=none
+        1=strip last channel
+        2=strip last channel and reverse BGR to RGB
+        3=reverse BGRA to RGBA
 
     """
     alpha[0] = 0
     samples[0] = 1
+    strip[0] = 0
 
     # bool
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormatBlackWhite):
@@ -539,6 +552,10 @@ cdef ERR jxr_decode_guid(
         pixelformat[0] = GUID_PKPixelFormat24bppRGB
         samples[0] = 3
         return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppBGR):
+        samples[0] = 4
+        strip[0] = 2  # strip last channel and reverse BGR to RGB
+        return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppBGRA):
         pixelformat[0] = GUID_PKPixelFormat32bppRGBA
         alpha[0] = 2
@@ -547,6 +564,11 @@ cdef ERR jxr_decode_guid(
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGBA):
         alpha[0] = 2
         samples[0] = 4
+        return WMP_errSuccess
+    if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppPBGRA):
+        alpha[0] = 2
+        samples[0] = 4
+        strip[0] = 3  # reverse BGRA to RGBA
         return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppPRGBA):
         alpha[0] = 2
@@ -562,6 +584,17 @@ cdef ERR jxr_decode_guid(
         alpha[0] = 2
         samples[0] = 5
         return WMP_errSuccess
+    # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppCMYKDIRECT):
+    #     # WMP_errUnsupportedFormat
+    #     pixelformat[0] = GUID_PKPixelFormat32bppCMYK
+    #     samples[0] = 4
+    #     return WMP_errSuccess
+    # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat40bppCMYKDIRECTAlpha):
+    #     # WMP_errUnsupportedFormat
+    #     pixelformat[0] = GUID_PKPixelFormat40bppCMYKAlpha
+    #     alpha[0] = 2
+    #     samples[0] = 5
+    #     return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat24bpp3Channels):
         samples[0] = 3
         return WMP_errSuccess
@@ -628,6 +661,17 @@ cdef ERR jxr_decode_guid(
         alpha[0] = 2
         samples[0] = 5
         return WMP_errSuccess
+    # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppCMYKDIRECT):
+    #     # WMP_errUnsupportedFormat
+    #     pixelformat[0] = GUID_PKPixelFormat64bppCMYK
+    #     samples[0] = 4
+    #     return WMP_errSuccess
+    # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat80bppCMYKDIRECTAlpha):
+    #     # WMP_errUnsupportedFormat
+    #     pixelformat[0] = GUID_PKPixelFormat80bppCMYKAlpha
+    #     alpha[0] = 2
+    #     samples[0] = 5
+    #     return WMP_errSuccess
 
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppRGB101010):
         pixelformat[0] = GUID_PKPixelFormat48bppRGB
@@ -688,6 +732,10 @@ cdef ERR jxr_decode_guid(
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBFloat):
         pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
         samples[0] = 3
+        # conversion to 128bppRGBAFloat gives wrong values
+        # pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+        # samples[0] = 4
+        # strip[0] = 1  # strip last channel
         return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFloat):
         alpha[0] = 2
@@ -708,6 +756,9 @@ cdef ERR jxr_decode_guid(
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBHalf):
         pixelformat[0] = GUID_PKPixelFormat48bppRGBHalf
         samples[0] = 3
+        # alternative pass through
+        # samples[0] = 4
+        # strip[0] = 1  # strip last channel
         return WMP_errSuccess
     if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAHalf):
         alpha[0] = 2
@@ -723,20 +774,28 @@ cdef ERR jxr_decode_guid(
             samples[0] = 3
             return WMP_errSuccess
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
+            alpha[0] = 2
             samples[0] = 4
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBFixedPoint):
+            samples[0] = 4
+            strip[0] = 1  # strip last channel
             return WMP_errSuccess
 
         typenum[0] = numpy.NPY_INT32
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
-            pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
             return WMP_errSuccess
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat96bppRGBFixedPoint):
-            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
             samples[0] = 3
             return WMP_errSuccess
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
             pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            alpha[0] = 2
             samples[0] = 4
+            return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBFixedPoint):
+            samples[0] = 4
+            strip[0] = 1  # strip last channel
             return WMP_errSuccess
 
     else:
@@ -751,8 +810,19 @@ cdef ERR jxr_decode_guid(
             return WMP_errSuccess
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBAFixedPoint):
             pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            alpha[0] = 2
             samples[0] = 4
             return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+            samples[0] = 3
+            return WMP_errSuccess
+        # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat64bppRGBFixedPoint):
+        #     # float conversion unavailable; use fp2int=True to get int16
+        #     typenum[0] = numpy.NPY_INT16
+        #     samples[0] = 4
+        #     strip[0] = 1
+        #     return WMP_errSuccess
 
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat32bppGrayFixedPoint):
             pixelformat[0] = GUID_PKPixelFormat32bppGrayFloat
@@ -763,8 +833,18 @@ cdef ERR jxr_decode_guid(
             return WMP_errSuccess
         if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBAFixedPoint):
             pixelformat[0] = GUID_PKPixelFormat128bppRGBAFloat
+            alpha[0] = 2
             samples[0] = 4
             return WMP_errSuccess
+        if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBFixedPoint):
+            pixelformat[0] = GUID_PKPixelFormat96bppRGBFloat
+            samples[0] = 3
+            return WMP_errSuccess
+        # if IsEqualGUID(pixelformat, &GUID_PKPixelFormat128bppRGBFixedPoint):
+        #     # float conversion unavailable; use fp2int=True to get int32
+        #     samples[0] = 4
+        #     strip[0] = 1
+        #     return WMP_errSuccess
 
     return WMP_errUnsupportedFormat
 
@@ -954,7 +1034,7 @@ cdef ERR jxr_set_encoder(
     # default: lossless, no tiles
     wmiscp.uiDefaultQPIndex = 1
     wmiscp.uiDefaultQPIndexAlpha = 1
-    wmiscp.olOverlap = OL_NONE
+    wmiscp.olOverlap = OL_ONE  # match reference encoder
     wmiscp.cfColorFormat = YUV_444
     wmiscp.sbSubband = SB_ALL
     wmiscp.bfBitstreamFormat = SPATIAL
@@ -974,7 +1054,6 @@ cdef ERR jxr_set_encoder(
     if quality >= 1.0:
         return WMP_errSuccess
     if quality < 0.5:
-        # overlap
         wmiscp.olOverlap = OL_TWO
 
     if quality < 0.5 and pixelinfo.uBitsPerSample <= 8 and pi != PK_PI_CMYK:
