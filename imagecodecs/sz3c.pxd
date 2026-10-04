@@ -1,6 +1,6 @@
 # imagecodecs/sz3.pxd
 
-# Cython declarations for the `sz3 3.3.2` library.
+# Cython declarations for the `sz3 3.4.0` library.
 # https://github.com/szcompressor/SZ3
 
 cdef extern from 'SZ3c/sz3c.h' nogil:
