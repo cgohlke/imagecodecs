@@ -70,11 +70,15 @@ class Sz3Error(RuntimeError):
 
 def sz3_version():
     """Return sz3 library version string."""
-    return 'sz3 3.3.2'
+    return 'sz3 3.4.0'
 
 
 def sz3_check(const uint8_t[::1] data, /):
     """Return whether data is SZ3 encoded or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:4])
+
+    return sig == b'\x10\xf3\x42\xf3'
 
 
 def sz3_encode(
@@ -88,7 +92,7 @@ def sz3_encode(
 ):
     """Return SZ3 encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         unsigned char* buffer = NULL
         size_t r1, r2, r3, r4, r5
@@ -99,10 +103,10 @@ def sz3_encode(
         double pwrBoundRatio = 0.0  # if pwr is None else pwr
         int errBoundMode, dataType
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     errBoundMode = _enum_value(mode, SZ3.MODE, SZ3.MODE.ABS)
+
+    if src.dtype.byteorder == '>':
+        raise ValueError('big-endian data not supported')
 
     if src.dtype == numpy.float32:
         dataType = SZ_FLOAT
@@ -207,11 +211,13 @@ def sz3_decode(
         int dataType
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if dtype is None:
         raise ValueError(f'{dtype=!r} not supported')
     dtype = numpy.dtype(dtype)
+    if dtype.byteorder == '>':
+        raise ValueError('big-endian data not supported')
     if dtype == numpy.float32:
         dataType = SZ_FLOAT
     elif dtype == numpy.float64:
