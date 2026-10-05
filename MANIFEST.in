@@ -8,14 +8,16 @@ exclude *.py
 include setup.py
 include imagecodecs/py.typed
 
-include imagecodecs/*.c
-include imagecodecs/*.h
 include imagecodecs/*.pyi
 include imagecodecs/*.pyx
 include imagecodecs/*.pxd
 include imagecodecs/*.pxi
 
-exclude imagecodecs/_*.c
+exclude imagecodecs/*.c
+exclude imagecodecs/*.h
+
+include imagecodecs/imcd.c
+include imagecodecs/imcd.h
 
 include imagecodecs/licenses/*
 include imagecodecs/patches/*
@@ -51,6 +53,7 @@ include tests/data/libaec/121B2TestData/*.txt
 include tests/data/libaec/121B2TestData/AllOptions/*.*
 
 # files too large or not licensed
+exclude tests/test_jpegxr.py
 exclude tests/test_imagecodecs_more.py
 exclude tests/data/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/data/tiff/gray.movie.*.tif
@@ -83,5 +86,5 @@ recursive-exclude * *.py[co]
 recursive-exclude * *-
 recursive-exclude * *.html
 recursive-exclude * *Copy*.*
-
+recursive-exclude * *.lib
 recursive-exclude * numpy/*.h
