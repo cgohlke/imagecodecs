@@ -527,6 +527,7 @@ __all__ = [
     'rgbe_check',
     'rgbe_decode',
     'rgbe_encode',
+    'rgbe_info',
     'rgbe_version',
     'snappy_check',
     'snappy_decode',
@@ -559,7 +560,9 @@ __all__ = [
     'tiff_version',
     'ultrahdr_check',
     'ultrahdr_decode',
+    'ultrahdr_decode_jpeg',
     'ultrahdr_encode',
+    'ultrahdr_encode_jpeg',
     'ultrahdr_version',
     'version',
     'wavpack_check',
@@ -988,6 +991,7 @@ def avif_decode(
     /,
     index: int | None = None,
     *,
+    codec: AVIF.CODEC_CHOICE | int | str | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
@@ -1769,6 +1773,8 @@ class EXR:
         DWAB = ...
         HTJ2K256 = ...
         HTJ2K32 = ...
+        ZSTD = ...
+        LJ2K = ...
 
 class ExrError(RuntimeError): ...
 
@@ -1780,6 +1786,7 @@ def exr_encode(
     level: float | None = None,
     *,
     compression: EXR.COMPRESSION | int | str | None = None,
+    colorinteropid: str | None = None,
     planar: bool | None = None,
     frames: bool | None = None,
     out: int | bytearray | memoryview | None = None,
@@ -1972,6 +1979,7 @@ def heif_encode(
     bitspersample: int | None = None,
     photometric: HEIF.COLORSPACE | int | str | None = None,
     compression: HEIF.COMPRESSION | int | str | None = None,
+    numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def heif_decode(
@@ -1980,6 +1988,7 @@ def heif_decode(
     index: int | None = 0,
     *,
     photometric: HEIF.COLORSPACE | int | str | None = None,
+    numthreads: int | None = None,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
 
@@ -2007,6 +2016,7 @@ def htj2k_encode(
     *,
     rgb: bool | None = None,
     planar: bool | None = None,
+    bitspersample: int | None = None,
     tile: tuple[int, int] | None = None,
     resolutions: int | None = None,
     reversible: bool | None = None,
@@ -2137,6 +2147,7 @@ def jpeg2k_decode(
     /,
     *,
     planar: bool | None = None,
+    skipres: int | None = None,
     verbose: int | None = None,
     numthreads: int | None = None,
     out: NDArray[Any] | None = None,
@@ -2243,6 +2254,13 @@ class JPEGLS:
 
     available: bool
 
+    class COLOR_TRANSFORMATION(enum.IntEnum):
+
+        NONE = ...
+        HP1 = ...
+        HP2 = ...
+        HP3 = ...
+
 class JpeglsError(RuntimeError): ...
 
 def jpegls_version() -> str: ...
@@ -2252,6 +2270,9 @@ def jpegls_encode(
     /,
     level: int | None = None,
     *,
+    bitspersample: int | None = None,
+    transformation: JPEGLS.COLOR_TRANSFORMATION | int | str | None = None,
+    spiff: bool | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def jpegls_decode(
@@ -2342,6 +2363,7 @@ def jpegxl_encode(
     planar: bool | None = None,
     primaries: JPEGXL.PRIMARIES | int | str | None = None,
     transfer: JPEGXL.TRANSFER_FUNCTION | int | str | None = None,
+    perceptualheuristics: bool | None = None,
     usecontainer: bool | None = None,
     numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
@@ -2544,8 +2566,9 @@ def lz4f_encode(
     level: int | None = None,
     *,
     blocksizeid: int | None = None,
-    contentchecksum: bool | None = None,
     blockchecksum: bool | None = None,
+    contentchecksum: bool | None = None,
+    contentsize: bool | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def lz4f_decode(
@@ -3182,6 +3205,7 @@ def qoi_encode(
     data: ArrayLike,
     /,
     *,
+    colorspace: QOI.COLORSPACE | int | str | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def qoi_decode(
@@ -3260,10 +3284,17 @@ class RGBE:
 
     available: bool
 
+    class ORIENT(enum.IntFlag):
+        IDENTITY = ...
+        FLIP_X = ...
+        FLIP_Y = ...
+        TRANSPOSE = ...
+
 class RgbeError(RuntimeError): ...
 
 def rgbe_version() -> str: ...
 def rgbe_check(data: Buffer, /) -> bool | None: ...
+def rgbe_info(data: Buffer, /) -> dict[str, Any]: ...
 def rgbe_encode(
     data: ArrayLike,
     /,
@@ -3285,6 +3316,11 @@ class SNAPPY:
 
     available: bool
 
+    class COMPRESSION_LEVEL(enum.IntEnum):
+        DEFAULT = ...
+        MIN = ...
+        MAX = ...
+
 class SnappyError(RuntimeError): ...
 
 def snappy_version() -> str: ...
@@ -3292,6 +3328,7 @@ def snappy_check(data: Buffer, /) -> bool | None: ...
 def snappy_encode(
     data: Buffer,
     /,
+    level: SNAPPY.COMPRESSION_LEVEL | int | None = None,
     *,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
@@ -3663,6 +3700,9 @@ def ultrahdr_encode(
     crange: ULTRAHDR.CR | int | str | None = None,
     usage: ULTRAHDR.USAGE | int | str | None = None,
     codec: ULTRAHDR.CODEC | int | str | None = None,
+    gainmap_gamma: float | None = None,
+    gainmap_level: int | None = None,
+    multichannel: bool | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def ultrahdr_decode(
@@ -3675,6 +3715,25 @@ def ultrahdr_decode(
     gpu: bool = False,
     out: NDArray[Any] | None = None,
 ) -> NDArray[Any]: ...
+def ultrahdr_decode_jpeg(
+    data: Buffer,
+    /,
+) -> tuple[bytes, bytes, dict[str, Any]]: ...
+def ultrahdr_encode_jpeg(
+    base_jpeg: Buffer,
+    gainmap_jpeg: Buffer,
+    /,
+    *,
+    gamut: ULTRAHDR.CG | int | str | None = None,
+    gamma: tuple[float, float, float] | float | None = None,
+    max_content_boost: tuple[float, float, float] | float | None = None,
+    min_content_boost: tuple[float, float, float] | float | None = None,
+    offset_sdr: tuple[float, float, float] | float | None = None,
+    offset_hdr: tuple[float, float, float] | float | None = None,
+    hdr_capacity_min: float | None = None,
+    hdr_capacity_max: float | None = None,
+    use_base_cg: bool | None = None,
+) -> bytes | bytearray | memoryview: ...
 
 class WAVPACK:
 
@@ -3993,6 +4052,7 @@ def zstd_encode(
     /,
     level: int | None = None,
     *,
+    numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def zstd_decode(
@@ -4016,6 +4076,7 @@ def zstd1_encode(
     *,
     itemsize: int = 1,
     hilo: bool = False,
+    numthreads: int | None = None,
     out: int | bytearray | memoryview | None = None,
 ) -> bytes | bytearray | memoryview: ...
 def zstd1_decode(
