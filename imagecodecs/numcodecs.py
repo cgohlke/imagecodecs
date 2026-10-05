@@ -249,6 +249,7 @@ class Avif(Codec):
         bitspersample: int | None = None,
         pixelformat: imagecodecs.AVIF.PIXEL_FORMAT | int | str | None = None,
         codec: imagecodecs.AVIF.CODEC_CHOICE | int | str | None = None,
+        codec_decode: imagecodecs.AVIF.CODEC_CHOICE | int | str | None = None,
         primaries: imagecodecs.AVIF.COLOR_PRIMARIES | int | str | None = None,
         transfer: (
             imagecodecs.AVIF.TRANSFER_CHARACTERISTICS | int | str | None
@@ -274,6 +275,9 @@ class Avif(Codec):
             pixelformat, imagecodecs.AVIF.PIXEL_FORMAT
         )
         self.codec = _enum_name(codec, imagecodecs.AVIF.CODEC_CHOICE)
+        self.codec_decode = _enum_name(
+            codec_decode, imagecodecs.AVIF.CODEC_CHOICE
+        )
         self.primaries = _enum_name(
             primaries, imagecodecs.AVIF.COLOR_PRIMARIES
         )
@@ -303,7 +307,11 @@ class Avif(Codec):
 
     def decode(self, buf, out=None):
         return imagecodecs.avif_decode(
-            buf, index=self.index, numthreads=self.numthreads, out=out
+            buf,
+            index=self.index,
+            codec=self.codec_decode,
+            numthreads=self.numthreads,
+            out=out,
         )
 
 
@@ -1166,6 +1174,7 @@ class Exr(Codec):
         # encode
         level: float | None = None,
         compression: imagecodecs.EXR.COMPRESSION | int | str | None = None,
+        colorinteropid: str | None = None,
         planar: bool | None = None,
         frames: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1178,6 +1187,9 @@ class Exr(Codec):
 
         self.level = None if level is None else float(level)
         self.compression = _enum_name(compression, imagecodecs.EXR.COMPRESSION)
+        self.colorinteropid = (
+            None if colorinteropid is None else str(colorinteropid)
+        )
         self.planar = None if planar is None else bool(planar)
         self.frames = None if frames is None else bool(frames)
         self.index = None if index is None else int(index)
@@ -1189,6 +1201,7 @@ class Exr(Codec):
             buf,
             level=self.level,
             compression=self.compression,
+            colorinteropid=self.colorinteropid,
             planar=self.planar,
             frames=self.frames,
         )
@@ -1308,6 +1321,7 @@ class Heif(Codec):
         bitspersample: int | None = None,
         photometric: imagecodecs.HEIF.COLORSPACE | int | str | None = None,
         compression: imagecodecs.HEIF.COMPRESSION | int | str | None = None,
+        numthreads: int | None = None,
         index: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
@@ -1323,6 +1337,7 @@ class Heif(Codec):
         self.compression = _enum_name(
             compression, imagecodecs.HEIF.COMPRESSION
         )
+        self.numthreads = None if numthreads is None else int(numthreads)
         self.index = None if index is None else int(index)
         self.squeeze = squeeze
 
@@ -1334,6 +1349,7 @@ class Heif(Codec):
             bitspersample=self.bitspersample,
             photometric=self.photometric,
             compression=self.compression,
+            numthreads=self.numthreads,
         )
 
     def decode(self, buf, out=None):
@@ -1341,6 +1357,7 @@ class Heif(Codec):
             buf,
             index=self.index,
             photometric=self.photometric,
+            numthreads=self.numthreads,
             out=out,
         )
 
@@ -1356,6 +1373,7 @@ class Htj2k(Codec):
         level: float | None = None,
         rgb: bool | None = None,
         planar: bool | None = None,
+        bitspersample: int | None = None,
         tile: tuple[int, int] | None = None,
         resolutions: int | None = None,
         reversible: bool | None = None,
@@ -1375,6 +1393,9 @@ class Htj2k(Codec):
         self.level = None if level is None else float(level)
         self.rgb = None if rgb is None else bool(rgb)
         self.planar = None if planar is None else bool(planar)
+        self.bitspersample = (
+            None if bitspersample is None else int(bitspersample)
+        )
         self.tile = None if tile is None else (int(tile[0]), int(tile[1]))
         self.resolutions = None if resolutions is None else int(resolutions)
         self.reversible = None if reversible is None else bool(reversible)
@@ -1398,6 +1419,7 @@ class Htj2k(Codec):
             level=self.level,
             rgb=self.rgb,
             planar=self.planar,
+            bitspersample=self.bitspersample,
             tile=self.tile,
             resolutions=self.resolutions,
             reversible=self.reversible,
@@ -1563,6 +1585,7 @@ class Jpeg2k(Codec):
         resolutions: int | None = None,
         reversible: bool | None = None,
         mct: bool = True,
+        skipres: int | None = None,
         verbose: int | None = None,
         numthreads: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1583,6 +1606,7 @@ class Jpeg2k(Codec):
         self.resolutions = None if resolutions is None else int(resolutions)
         self.numthreads = None if numthreads is None else int(numthreads)
         self.mct = bool(mct)
+        self.skipres = None if skipres is None else int(skipres)
         self.verbose = None if verbose is None else int(verbose)
         self.squeeze = squeeze
 
@@ -1607,6 +1631,7 @@ class Jpeg2k(Codec):
         return imagecodecs.jpeg2k_decode(
             buf,
             planar=self.planar,
+            skipres=self.skipres,
             verbose=self.verbose,
             numthreads=self.numthreads,
             out=out,
@@ -1622,6 +1647,11 @@ class Jpegls(Codec):
         self,
         *,
         level: int | None = None,
+        bitspersample: int | None = None,
+        transformation: (
+            imagecodecs.JPEGLS.COLOR_TRANSFORMATION | int | str | None
+        ) = None,
+        spiff: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
         if not imagecodecs.JPEGLS.available:
@@ -1629,11 +1659,22 @@ class Jpegls(Codec):
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
+        self.bitspersample = (
+            None if bitspersample is None else int(bitspersample)
+        )
+        self.transformation = transformation
+        self.spiff = None if spiff is None else bool(spiff)
         self.squeeze = squeeze
 
     def encode(self, buf):
         buf = _image(buf, self.squeeze)
-        return imagecodecs.jpegls_encode(buf, level=self.level)
+        return imagecodecs.jpegls_encode(
+            buf,
+            level=self.level,
+            bitspersample=self.bitspersample,
+            transformation=self.transformation,
+            spiff=self.spiff,
+        )
 
     def decode(self, buf, out=None):
         return imagecodecs.jpegls_decode(buf, out=out)
@@ -1660,6 +1701,7 @@ class Jpegxl(Codec):
         transfer: (
             imagecodecs.JPEGXL.TRANSFER_FUNCTION | int | str | None
         ) = None,
+        perceptualheuristics: bool | None = None,
         usecontainer: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
         # decode
@@ -1690,6 +1732,11 @@ class Jpegxl(Codec):
         self.transfer = _enum_name(
             transfer, imagecodecs.JPEGXL.TRANSFER_FUNCTION
         )
+        self.perceptualheuristics = (
+            None
+            if perceptualheuristics is None
+            else bool(perceptualheuristics)
+        )
         self.usecontainer = (
             None if usecontainer is None else bool(usecontainer)
         )
@@ -1715,6 +1762,7 @@ class Jpegxl(Codec):
             primaries=self.primaries,
             transfer=self.transfer,
             usecontainer=self.usecontainer,
+            perceptualheuristics=self.perceptualheuristics,
             numthreads=self.numthreads,
         )
 
@@ -1922,8 +1970,9 @@ class Lz4f(Codec):
         *,
         level: int | None = None,
         blocksizeid: int | None = None,
-        contentchecksum: bool | None = None,
         blockchecksum: bool | None = None,
+        contentchecksum: bool | None = None,
+        contentsize: bool | None = None,
     ) -> None:
         if not imagecodecs.LZ4F.available:
             msg = 'imagecodecs.LZ4F not available'
@@ -1937,14 +1986,16 @@ class Lz4f(Codec):
         self.blockchecksum = (
             None if blockchecksum is None else bool(blockchecksum)
         )
+        self.contentsize = None if contentsize is None else bool(contentsize)
 
     def encode(self, buf):
         return imagecodecs.lz4f_encode(
             buf,
             level=self.level,
             blocksizeid=self.blocksizeid,
-            contentchecksum=self.contentchecksum,
             blockchecksum=self.blockchecksum,
+            contentchecksum=self.contentchecksum,
+            contentsize=self.contentsize,
         )
 
     def decode(self, buf, out=None):
@@ -2455,17 +2506,19 @@ class Qoi(Codec):
     def __init__(
         self,
         *,
+        colorspace: imagecodecs.QOI.COLORSPACE | int | str | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
         if not imagecodecs.QOI.available:
             msg = 'imagecodecs.QOI not available'
             raise ValueError(msg)
 
+        self.colorspace = _enum_name(colorspace, imagecodecs.QOI.COLORSPACE)
         self.squeeze = squeeze
 
     def encode(self, buf):
         buf = _image(buf, self.squeeze)
-        return imagecodecs.qoi_encode(buf)
+        return imagecodecs.qoi_encode(buf, colorspace=self.colorspace)
 
     def decode(self, buf, out=None):
         return imagecodecs.qoi_decode(buf, out=out)
@@ -2613,13 +2666,15 @@ class Snappy(Codec):
 
     codec_id = 'imagecodecs_snappy'
 
-    def __init__(self) -> None:
+    def __init__(self, level: int | None = None) -> None:
         if not imagecodecs.SNAPPY.available:
             msg = 'imagecodecs.SNAPPY not available'
             raise ValueError(msg)
 
+        self.level = None if level is None else int(level)
+
     def encode(self, buf):
-        return imagecodecs.snappy_encode(buf)
+        return imagecodecs.snappy_encode(buf, level=self.level)
 
     def decode(self, buf, out=None):
         return imagecodecs.snappy_decode(buf, out=_flat(out))
@@ -2975,6 +3030,9 @@ class Ultrahdr(Codec):
         boostmax: float | None = None,
         usage: imagecodecs.ULTRAHDR.USAGE | int | str | None = None,
         codec: imagecodecs.ULTRAHDR.CODEC | int | str | None = None,
+        gainmap_gamma: float | None = None,
+        gainmap_level: int | None = None,
+        multichannel: bool | None = None,
         # decode
         dtype: DTypeLike | None = None,
         boost: float | None = None,
@@ -2995,6 +3053,15 @@ class Ultrahdr(Codec):
         self.boostmax = None if boostmax is None else float(boostmax)
         self.usage = _enum_name(usage, imagecodecs.ULTRAHDR.USAGE)
         self.codec = _enum_name(codec, imagecodecs.ULTRAHDR.CODEC)
+        self.gainmap_gamma = (
+            None if gainmap_gamma is None else float(gainmap_gamma)
+        )
+        self.gainmap_level = (
+            None if gainmap_level is None else int(gainmap_level)
+        )
+        self.multichannel = (
+            None if multichannel is None else bool(multichannel)
+        )
         self.boost = None if boost is None else float(boost)
         self.squeeze = squeeze
 
@@ -3016,6 +3083,9 @@ class Ultrahdr(Codec):
             boostmax=self.boostmax,
             usage=self.usage,
             codec=self.codec,
+            gainmap_gamma=self.gainmap_gamma,
+            gainmap_level=self.gainmap_level,
+            multichannel=self.multichannel,
         )
 
     def decode(self, buf, out=None):
