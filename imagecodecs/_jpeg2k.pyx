@@ -89,7 +89,7 @@ def jpeg2k_check(const uint8_t[::1] data, /):
         bytes sig = bytes(data[:12])
 
     return (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2
+        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2/JPX
         or sig[:4] == b'\xff\x4f\xff\x51'  # J2K
         or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2
     )
@@ -120,11 +120,12 @@ def jpeg2k_encode(
 
     """
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
-        ssize_t byteswritten
+        ssize_t itemsize = src.itemsize
+        ssize_t byteswritten, size, i
         memopj_t memopj
         opj_codec_t* codec = NULL
         opj_image_t* image = NULL
@@ -135,19 +136,15 @@ def jpeg2k_encode(
         OPJ_BOOL ret = OPJ_TRUE
         OPJ_COLOR_SPACE color_space
         OPJ_UINT32 sgnd, prec, width, height, samples
-        ssize_t i
         int verbosity = int(verbose) if verbose else 0
-        int tile_width = 0
-        int tile_height = 0
+        # int tile_width = 0
+        # int tile_height = 0
         float quality = _default_value(level, 0, 0, None)
         int numresolution = _default_value(resolutions, 6, 1, OPJ_J2K_MAXRLVLS)
         int num_threads = _default_threads(numthreads)
         int irreversible = 0 if reversible else 1
         bint tcp_mct = bool(mct)
         imagelayout_t layout
-
-    if data is out:
-        raise ValueError('cannot encode in-place')
 
     # jpeg2k-specific planar auto-detection:
     # if planar is not explicitly set and the array looks like (S, H, W)
@@ -198,40 +195,15 @@ def jpeg2k_encode(
     height = <OPJ_UINT32> layout.height
     samples = <OPJ_UINT32> layout.samples
 
-    if samples > 1 and not layout.planar:
-        # contig: convert to planar for OpenJPEG
-        # TODO: avoid full copy
-        src = numpy.ascontiguousarray(numpy.moveaxis(src, -1, 0))
-
-    if bitspersample is not None:
-        if layout.itemsize == 1:
-            if prec > 0 and prec < 8:
-                pass  # use provided bitspersample
-            else:
-                prec = 8
-        elif layout.itemsize == 2:
-            if prec > 8 and prec < 16:
-                pass
-            else:
-                prec = 16
-        elif layout.itemsize == 4:
-            if prec > 16 and prec < 32:
-                pass
-            else:
-                prec = 32
     if prec > 26:
         # TODO: OpenJPEG currently only supports up to 31, effectively 26-bit?
         prec = 26
 
     if tile:
-        tile_height, tile_width = tile
+        # tile_height, tile_width = tile
         # if width % tile_width or height % tile_height:
         #     raise ValueError('invalid tiles')
         raise NotImplementedError('writing tiles not implemented yet')  # TODO
-    else:
-        # TODO: use one tile for now. Other code path not implemented yet
-        tile_height = height
-        tile_width = width
 
     if samples > 4095:
         # TODO: check this limit
@@ -298,14 +270,14 @@ def jpeg2k_encode(
                 # cmptparms[i].bpp = prec  # redundant, not required
                 cmptparms[i].sgnd = sgnd
 
-            if tile_height > 0:
-                image = opj_image_tile_create(samples, cmptparms, color_space)
-                if image == NULL:
-                    raise Jpeg2kError('opj_image_tile_create failed')
-            else:
-                image = opj_image_create(samples, cmptparms, color_space)
-                if image == NULL:
-                    raise Jpeg2kError('opj_image_create failed')
+            # if tile_height > 0:
+            #    image = opj_image_tile_create(samples, cmptparms, color_space)
+            #    if image == NULL:
+            #        raise Jpeg2kError('opj_image_tile_create failed')
+
+            image = opj_image_create(samples, cmptparms, color_space)
+            if image == NULL:
+                raise Jpeg2kError('opj_image_create failed')
 
             image.x0 = 0
             image.y0 = 0
@@ -335,9 +307,9 @@ def jpeg2k_encode(
             # single quality layer
             parameters.tcp_numlayers = 1
 
-            # number of resolutions depends on tile size
+            # number of resolutions depends on image size
             parameters.numresolution = <int> (
-                (log(<double> min(tile_height, tile_width)) / log(2)) - 2
+                (log(<double> min(width, height)) / log(2)) - 2
             )
             parameters.numresolution = min(
                 max(parameters.numresolution, 1), numresolution
@@ -378,12 +350,12 @@ def jpeg2k_encode(
                     parameters.prch_init[i] = 256
                 parameters.csty = 1
 
-            if tile_height > 0:
-                parameters.tile_size_on = OPJ_TRUE
-                parameters.cp_tx0 = 0
-                parameters.cp_ty0 = 0
-                parameters.cp_tdy = tile_height
-                parameters.cp_tdx = tile_width
+            # if tile_height > 0:
+            #     parameters.tile_size_on = OPJ_TRUE
+            #     parameters.cp_tx0 = 0
+            #     parameters.cp_ty0 = 0
+            #     parameters.cp_tdy = tile_height
+            #     parameters.cp_tdx = tile_width
 
             # create and setup encoder
             codec = opj_create_compress(codec_format)
@@ -421,27 +393,58 @@ def jpeg2k_encode(
                 if ret == OPJ_FALSE:
                     raise Jpeg2kError('opj_codec_set_threads failed')
 
+            size = <ssize_t> width * <ssize_t> height
+            if itemsize == 1:
+                if sgnd:
+                    _opj_fill_image_comps(
+                        <int8_t*> src.data,
+                        image.comps,
+                        size,
+                        <ssize_t> samples,
+                        not layout.planar
+                    )
+                else:
+                    _opj_fill_image_comps(
+                        <uint8_t*> src.data,
+                        image.comps,
+                        size,
+                        <ssize_t> samples,
+                        not layout.planar
+                    )
+            elif itemsize == 2:
+                if sgnd:
+                    _opj_fill_image_comps(
+                        <int16_t*> src.data,
+                        image.comps,
+                        size,
+                        <ssize_t> samples,
+                        not layout.planar
+                    )
+                else:
+                    _opj_fill_image_comps(
+                        <uint16_t*> src.data,
+                        image.comps,
+                        size,
+                        <ssize_t> samples,
+                        not layout.planar
+                    )
+            else:
+                _opj_fill_image_comps(
+                    <int32_t*> src.data,
+                    image.comps,
+                    size,
+                    <ssize_t> samples,
+                    not layout.planar
+                )
+
             ret = opj_start_compress(codec, image, stream)
             if ret == OPJ_FALSE:
                 raise Jpeg2kError('opj_start_compress failed')
 
-            if tile_height > 0:
-                # TODO: loop over tiles. Assume one tile for now
-                ret = opj_write_tile(
-                    codec,
-                    0,
-                    <OPJ_BYTE*> src.data,
-                    <OPJ_UINT32> srcsize,
-                    stream
-                )
-            else:
-                # this code path is currently not used
-                # TODO: copy data to image.comps[band].data[y, x]
-                # ret = opj_encode(codec, stream)
-                raise NotImplementedError
+            ret = opj_encode(codec, stream)
 
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_encode or opj_write_tile failed')
+                raise Jpeg2kError('opj_encode failed')
 
             ret = opj_end_compress(codec, stream)
             if ret == OPJ_FALSE:
@@ -481,6 +484,7 @@ def jpeg2k_decode(
     /,
     *,
     planar=None,
+    skipres=None,
     verbose=None,
     numthreads=None,
     out=None,
@@ -499,22 +503,26 @@ def jpeg2k_decode(
         OPJ_BOOL ret = OPJ_FALSE
         OPJ_CODEC_FORMAT codecformat
         OPJ_UINT32 sgnd, prec, width, height
+        OPJ_UINT32 cp_reduce = 0 if skipres is None else <OPJ_UINT32> skipres
         ssize_t i, bandsize, samples
         int num_threads = _default_threads(numthreads)
         int verbosity = int(verbose) if verbose else 0
-        bytes sig
+        memoryview sig = memoryview(src)
         bint contig = not planar
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
-    sig = bytes(src[:12])
     if sig[:4] == b'\xff\x4f\xff\x51':
         codecformat = OPJ_CODEC_J2K
-    elif (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
-        or sig[:4] == b'\x0d\x0a\x87\x0a'
-    ):
+    elif sig[:4] == b'\x0d\x0a\x87\x0a':
+        codecformat = OPJ_CODEC_JP2
+    elif sig[:12] == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a':
+        # OPJ_CODEC_JPX support not implemented in OpenJPEG
+        # if b'jpx ' in bytes(sig[12:24]):
+        #     codecformat = OPJ_CODEC_JPX
+        # else:
+        #     codecformat = OPJ_CODEC_JP2
         codecformat = OPJ_CODEC_JP2
     else:
         raise Jpeg2kError('not a J2K or JP2 data stream')
@@ -549,6 +557,7 @@ def jpeg2k_decode(
                         )
 
             opj_set_default_decoder_parameters(&parameters)
+            parameters.cp_reduce = cp_reduce
 
             ret = opj_setup_decoder(codec, &parameters)
             if ret == OPJ_FALSE:
@@ -725,6 +734,36 @@ cdef int _opj_copy_image_comps(
             dstband = dst + i * bandsize
             for j in range(bandsize):
                 dstband[j] = <data_t> band[j]
+
+
+cdef int _opj_fill_image_comps(
+    const data_t* src,
+    opj_image_comp_t* comps,
+    const ssize_t bandsize,
+    const ssize_t samples,
+    const bint contig,
+) noexcept nogil:
+    """Fill opj_image component data from buffer."""
+    cdef:
+        ssize_t i, j
+        OPJ_INT32* band
+        const data_t* srcband
+
+    if samples == 1:
+        band = comps[0].data
+        for j in range(bandsize):
+            band[j] = <OPJ_INT32> src[j]
+    elif contig:
+        for i in range(samples):
+            band = comps[i].data
+            for j in range(bandsize):
+                band[j] = <OPJ_INT32> src[j * samples + i]
+    else:
+        for i in range(samples):
+            band = comps[i].data
+            srcband = src + i * bandsize
+            for j in range(bandsize):
+                band[j] = <OPJ_INT32> srcband[j]
 
 
 ctypedef struct memopj_t:
