@@ -393,6 +393,7 @@ class Avif(ArrayBytesCodec):
     bitspersample: int | None = None
     pixelformat: str | None = None
     codec: str | None = None
+    codec_decode: str | None = None
     primaries: str | None = None
     transfer: str | None = None
     matrix: str | None = None
@@ -408,6 +409,7 @@ class Avif(ArrayBytesCodec):
         bitspersample: int | None = None,
         pixelformat: imagecodecs.AVIF.PIXEL_FORMAT | int | str | None = None,
         codec: imagecodecs.AVIF.CODEC_CHOICE | int | str | None = None,
+        codec_decode: imagecodecs.AVIF.CODEC_CHOICE | int | str | None = None,
         primaries: imagecodecs.AVIF.COLOR_PRIMARIES | int | str | None = None,
         transfer: (
             imagecodecs.AVIF.TRANSFER_CHARACTERISTICS | int | str | None
@@ -433,6 +435,9 @@ class Avif(ArrayBytesCodec):
             ),
             pixelformat=_enum_name(pixelformat, imagecodecs.AVIF.PIXEL_FORMAT),
             codec=_enum_name(codec, imagecodecs.AVIF.CODEC_CHOICE),
+            codec_decode=_enum_name(
+                codec_decode, imagecodecs.AVIF.CODEC_CHOICE
+            ),
             primaries=_enum_name(primaries, imagecodecs.AVIF.COLOR_PRIMARIES),
             transfer=_enum_name(
                 transfer, imagecodecs.AVIF.TRANSFER_CHARACTERISTICS
@@ -455,6 +460,7 @@ class Avif(ArrayBytesCodec):
             'bitspersample',
             'pixelformat',
             'codec',
+            'codec_decode',
             'primaries',
             'transfer',
             'matrix',
@@ -474,6 +480,7 @@ class Avif(ArrayBytesCodec):
         decoded = imagecodecs.avif_decode(
             chunk_bytes.as_numpy_array(),
             index=self.index,
+            codec=self.codec_decode,
             numthreads=self.numthreads,
         )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(
@@ -2273,6 +2280,7 @@ class Exr(ArrayBytesCodec):
 
     level: float | None = None
     compression: str | None = None
+    colorinteropid: str | None = None
     planar: bool | None = None
     frames: bool | None = None
     index: int | None = None
@@ -2282,6 +2290,7 @@ class Exr(ArrayBytesCodec):
         *,
         level: float | None = None,
         compression: imagecodecs.EXR.COMPRESSION | int | str | None = None,
+        colorinteropid: str | None = None,
         planar: bool | None = None,
         frames: bool | None = None,
         index: int | None = None,
@@ -2293,6 +2302,9 @@ class Exr(ArrayBytesCodec):
             self,
             level=None if level is None else float(level),
             compression=_enum_name(compression, imagecodecs.EXR.COMPRESSION),
+            colorinteropid=(
+                None if colorinteropid is None else str(colorinteropid)
+            ),
             planar=None if planar is None else bool(planar),
             frames=None if frames is None else bool(frames),
             index=None if index is None else int(index),
@@ -2304,7 +2316,14 @@ class Exr(ArrayBytesCodec):
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
-        for key in ('level', 'compression', 'planar', 'frames', 'index'):
+        for key in (
+            'level',
+            'compression',
+            'colorinteropid',
+            'planar',
+            'frames',
+            'index',
+        ):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
@@ -2339,6 +2358,7 @@ class Exr(ArrayBytesCodec):
             arr,
             level=self.level,
             compression=self.compression,
+            colorinteropid=self.colorinteropid,
             planar=self.planar,
             frames=self.frames,
         )
@@ -2575,6 +2595,7 @@ class Heif(ArrayBytesCodec):
     bitspersample: int | None = None
     photometric: str | None = None
     compression: str | None = None
+    numthreads: int | None = None
     index: int | None = None
 
     def __init__(
@@ -2584,6 +2605,7 @@ class Heif(ArrayBytesCodec):
         bitspersample: int | None = None,
         photometric: imagecodecs.HEIF.COLORSPACE | int | str | None = None,
         compression: imagecodecs.HEIF.COMPRESSION | int | str | None = None,
+        numthreads: int | None = None,
         index: int | None = None,
     ) -> None:
         if not imagecodecs.HEIF.available:
@@ -2597,6 +2619,7 @@ class Heif(ArrayBytesCodec):
             ),
             photometric=_enum_name(photometric, imagecodecs.HEIF.COLORSPACE),
             compression=_enum_name(compression, imagecodecs.HEIF.COMPRESSION),
+            numthreads=None if numthreads is None else int(numthreads),
             index=None if index is None else int(index),
         )
 
@@ -2611,6 +2634,7 @@ class Heif(ArrayBytesCodec):
             'bitspersample',
             'photometric',
             'compression',
+            'numthreads',
             'index',
         ):
             value = getattr(self, key)
@@ -2627,6 +2651,7 @@ class Heif(ArrayBytesCodec):
             chunk_bytes.as_numpy_array(),
             index=self.index,
             photometric=self.photometric,
+            numthreads=self.numthreads,
         )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(
             decoded.reshape(chunk_spec.shape)
@@ -2649,6 +2674,7 @@ class Heif(ArrayBytesCodec):
             bitspersample=self.bitspersample,
             photometric=self.photometric,
             compression=self.compression,
+            numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -2760,6 +2786,7 @@ class Htj2k(ArrayBytesCodec):
     level: float | None = None
     rgb: bool | None = None
     planar: bool | None = None
+    bitspersample: int | None = None
     tile: tuple[int, int] | None = None
     resolutions: int | None = None
     reversible: bool | None = None
@@ -2777,6 +2804,7 @@ class Htj2k(ArrayBytesCodec):
         level: float | None = None,
         rgb: bool | None = None,
         planar: bool | None = None,
+        bitspersample: int | None = None,
         tile: tuple[int, int] | None = None,
         resolutions: int | None = None,
         reversible: bool | None = None,
@@ -2796,6 +2824,9 @@ class Htj2k(ArrayBytesCodec):
             level=None if level is None else float(level),
             rgb=None if rgb is None else bool(rgb),
             planar=None if planar is None else bool(planar),
+            bitspersample=(
+                None if bitspersample is None else int(bitspersample)
+            ),
             tile=None if tile is None else (int(tile[0]), int(tile[1])),
             resolutions=None if resolutions is None else int(resolutions),
             reversible=None if reversible is None else bool(reversible),
@@ -2822,6 +2853,7 @@ class Htj2k(ArrayBytesCodec):
             'level',
             'rgb',
             'planar',
+            'bitspersample',
             'tile',
             'resolutions',
             'reversible',
@@ -2870,6 +2902,7 @@ class Htj2k(ArrayBytesCodec):
             level=self.level,
             rgb=self.rgb,
             planar=self.planar,
+            bitspersample=self.bitspersample,
             tile=self.tile,
             resolutions=self.resolutions,
             reversible=self.reversible,
@@ -3143,6 +3176,7 @@ class Jpeg2k(ArrayBytesCodec):
     resolutions: int | None = None
     reversible: bool | None = None
     mct: bool = True
+    skipres: int | None = None
     verbose: int | None = None
     numthreads: int | None = None
 
@@ -3158,6 +3192,7 @@ class Jpeg2k(ArrayBytesCodec):
         resolutions: int | None = None,
         reversible: bool | None = None,
         mct: bool = True,
+        skipres: int | None = None,
         verbose: int | None = None,
         numthreads: int | None = None,
     ) -> None:
@@ -3177,6 +3212,7 @@ class Jpeg2k(ArrayBytesCodec):
             resolutions=None if resolutions is None else int(resolutions),
             reversible=None if reversible is None else bool(reversible),
             mct=bool(mct),
+            skipres=None if skipres is None else int(skipres),
             verbose=None if verbose is None else int(verbose),
             numthreads=None if numthreads is None else int(numthreads),
         )
@@ -3196,6 +3232,7 @@ class Jpeg2k(ArrayBytesCodec):
             'bitspersample',
             'resolutions',
             'reversible',
+            'skipres',
             'verbose',
             'numthreads',
         ):
@@ -3214,6 +3251,7 @@ class Jpeg2k(ArrayBytesCodec):
         decoded = imagecodecs.jpeg2k_decode(
             chunk_bytes.as_numpy_array(),
             planar=self.planar,
+            skipres=self.skipres,
             verbose=self.verbose,
             numthreads=self.numthreads,
         )
@@ -3268,23 +3306,49 @@ class Jpegls(ArrayBytesCodec):
     is_fixed_size = False
 
     level: int | None = None
+    bitspersample: int | None = None
+    transformation: str | None = None
+    spiff: bool | None = None
 
-    def __init__(self, *, level: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        level: int | None = None,
+        bitspersample: int | None = None,
+        transformation: (
+            imagecodecs.JPEGLS.COLOR_TRANSFORMATION | int | str | None
+        ) = None,
+        spiff: bool | None = None,
+    ) -> None:
         if not imagecodecs.JPEGLS.available:
             msg = 'imagecodecs.JPEGLS not available'
             raise ValueError(msg)
-        _setattrs(self, level=None if level is None else int(level))
+        _setattrs(
+            self,
+            level=None if level is None else int(level),
+            bitspersample=(
+                None if bitspersample is None else int(bitspersample)
+            ),
+            transformation=_enum_name(
+                transformation, imagecodecs.JPEGLS.COLOR_TRANSFORMATION
+            ),
+            spiff=None if spiff is None else bool(spiff),
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
         return cls(**_parse_config(data, 'jpegls'))
 
     def to_dict(self) -> dict[str, JSON]:
+        cfg: dict[str, JSON] = {}
         if self.level is not None:
-            return {
-                'name': 'imagecodecs_jpegls',
-                'configuration': {'level': self.level},
-            }
+            cfg['level'] = self.level
+        if self.bitspersample is not None:
+            cfg['bitspersample'] = self.bitspersample
+        if self.transformation is not None:
+            cfg['transformation'] = self.transformation
+        if cfg:
+            return {'name': 'imagecodecs_jpegls', 'configuration': cfg}
         return {'name': 'imagecodecs_jpegls'}
 
     def _decode_sync(
@@ -3306,7 +3370,13 @@ class Jpegls(ArrayBytesCodec):
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
         arr = _squeeze(chunk_array)
-        encoded = imagecodecs.jpegls_encode(arr, level=self.level)
+        encoded = imagecodecs.jpegls_encode(
+            arr,
+            level=self.level,
+            bitspersample=self.bitspersample,
+            transformation=self.transformation,
+            spiff=self.spiff,
+        )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
     async def _encode_single(
@@ -3338,6 +3408,7 @@ class Jpegxl(ArrayBytesCodec):
     planar: bool | None = None
     primaries: str | None = None
     transfer: str | None = None
+    perceptualheuristics: bool | None = None
     usecontainer: bool | None = None
     index: int | None = None
     keeporientation: bool | None = None
@@ -3358,6 +3429,7 @@ class Jpegxl(ArrayBytesCodec):
         transfer: (
             imagecodecs.JPEGXL.TRANSFER_FUNCTION | int | str | None
         ) = None,
+        perceptualheuristics: bool | None = None,
         usecontainer: bool | None = None,
         index: int | None = None,
         keeporientation: bool | None = None,
@@ -3386,6 +3458,11 @@ class Jpegxl(ArrayBytesCodec):
             transfer=_enum_name(
                 transfer, imagecodecs.JPEGXL.TRANSFER_FUNCTION
             ),
+            perceptualheuristics=(
+                None
+                if perceptualheuristics is None
+                else bool(perceptualheuristics)
+            ),
             usecontainer=None if usecontainer is None else bool(usecontainer),
             index=None if index is None else int(index),
             keeporientation=(
@@ -3411,6 +3488,7 @@ class Jpegxl(ArrayBytesCodec):
             'planar',
             'primaries',
             'transfer',
+            'perceptualheuristics',
             'usecontainer',
             'index',
             'keeporientation',
@@ -3459,6 +3537,7 @@ class Jpegxl(ArrayBytesCodec):
             planar=self.planar,
             primaries=self.primaries,
             transfer=self.transfer,
+            perceptualheuristics=self.perceptualheuristics,
             usecontainer=self.usecontainer,
             numthreads=self.numthreads,
         )
@@ -3907,16 +3986,18 @@ class Lz4f(BytesBytesCodec):
 
     level: int | None = None
     blocksizeid: int | None = None
-    contentchecksum: bool | None = None
     blockchecksum: bool | None = None
+    contentchecksum: bool | None = None
+    contentsize: bool | None = None
 
     def __init__(
         self,
         *,
         level: int | None = None,
         blocksizeid: int | None = None,
-        contentchecksum: bool | None = None,
         blockchecksum: bool | None = None,
+        contentchecksum: bool | None = None,
+        contentsize: bool | None = None,
     ) -> None:
         if not imagecodecs.LZ4F.available:
             msg = 'imagecodecs.LZ4F not available'
@@ -3925,12 +4006,13 @@ class Lz4f(BytesBytesCodec):
             self,
             level=None if level is None else int(level),
             blocksizeid=None if blocksizeid is None else int(blocksizeid),
-            contentchecksum=(
-                None if contentchecksum is None else bool(contentchecksum)
-            ),
             blockchecksum=(
                 None if blockchecksum is None else bool(blockchecksum)
             ),
+            contentchecksum=(
+                None if contentchecksum is None else bool(contentchecksum)
+            ),
+            contentsize=(None if contentsize is None else bool(contentsize)),
         )
 
     @classmethod
@@ -3943,10 +4025,12 @@ class Lz4f(BytesBytesCodec):
             cfg['level'] = self.level
         if self.blocksizeid is not None:
             cfg['blocksizeid'] = self.blocksizeid
-        if self.contentchecksum is not None:
-            cfg['contentchecksum'] = self.contentchecksum
         if self.blockchecksum is not None:
             cfg['blockchecksum'] = self.blockchecksum
+        if self.contentchecksum is not None:
+            cfg['contentchecksum'] = self.contentchecksum
+        if self.contentsize is not None:
+            cfg['contentsize'] = self.contentsize
         if cfg:
             return {'name': 'imagecodecs_lz4f', 'configuration': cfg}
         return {'name': 'imagecodecs_lz4f'}
@@ -3971,8 +4055,9 @@ class Lz4f(BytesBytesCodec):
             chunk_bytes.as_numpy_array(),
             level=self.level,
             blocksizeid=self.blocksizeid,
-            contentchecksum=self.contentchecksum,
             blockchecksum=self.blockchecksum,
+            contentchecksum=self.contentchecksum,
+            contentsize=self.contentsize,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -5176,10 +5261,20 @@ class Qoi(ArrayBytesCodec):
 
     is_fixed_size = False
 
-    def __init__(self) -> None:
+    colorspace: str | None = None
+
+    def __init__(
+        self,
+        *,
+        colorspace: imagecodecs.QOI.COLORSPACE | int | str | None = None,
+    ) -> None:
         if not imagecodecs.QOI.available:
             msg = 'imagecodecs.QOI not available'
             raise ValueError(msg)
+        _setattrs(
+            self,
+            colorspace=_enum_name(colorspace, imagecodecs.QOI.COLORSPACE),
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
@@ -5187,6 +5282,11 @@ class Qoi(ArrayBytesCodec):
         return cls()
 
     def to_dict(self) -> dict[str, JSON]:
+        if self.colorspace:
+            return {
+                'name': 'imagecodecs_qoi',
+                'configuration': {'colorspace': self.colorspace},
+            }
         return {'name': 'imagecodecs_qoi'}
 
     def _decode_sync(
@@ -5208,7 +5308,7 @@ class Qoi(ArrayBytesCodec):
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
         arr = _squeeze(chunk_array)
-        encoded = imagecodecs.qoi_encode(arr)
+        encoded = imagecodecs.qoi_encode(arr, colorspace=self.colorspace)
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
     async def _encode_single(
@@ -5458,10 +5558,13 @@ class Snappy(BytesBytesCodec):
 
     is_fixed_size = False
 
-    def __init__(self) -> None:
+    level: int | None = None
+
+    def __init__(self, level: int | None = None) -> None:
         if not imagecodecs.SNAPPY.available:
             msg = 'imagecodecs.SNAPPY not available'
             raise ValueError(msg)
+        _setattrs(self, level=None if level is None else int(level))
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
@@ -5469,6 +5572,11 @@ class Snappy(BytesBytesCodec):
         return cls()
 
     def to_dict(self) -> dict[str, JSON]:
+        if self.level is not None:
+            return {
+                'name': 'imagecodecs_snappy',
+                'configuration': {'level': self.level},
+            }
         return {'name': 'imagecodecs_snappy'}
 
     def _decode_sync(
@@ -5486,7 +5594,9 @@ class Snappy(BytesBytesCodec):
     def _encode_sync(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
-        encoded = imagecodecs.snappy_encode(chunk_bytes.as_numpy_array())
+        encoded = imagecodecs.snappy_encode(
+            chunk_bytes.as_numpy_array(), level=self.level
+        )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
     async def _encode_single(
@@ -6086,6 +6196,9 @@ class Ultrahdr(ArrayBytesCodec):
     boostmax: float | None = None
     usage: str | None = None
     codec: str | None = None
+    gainmap_gamma: float | None = None
+    gainmap_level: int | None = None
+    multichannel: bool | None = None
     dtype: str | None = None
     boost: float | None = None
 
@@ -6102,6 +6215,9 @@ class Ultrahdr(ArrayBytesCodec):
         boostmax: float | None = None,
         usage: imagecodecs.ULTRAHDR.USAGE | int | str | None = None,
         codec: imagecodecs.ULTRAHDR.CODEC | int | str | None = None,
+        gainmap_gamma: float | None = None,
+        gainmap_level: int | None = None,
+        multichannel: bool | None = None,
         dtype: str | None = None,
         boost: float | None = None,
     ) -> None:
@@ -6120,6 +6236,13 @@ class Ultrahdr(ArrayBytesCodec):
             boostmax=None if boostmax is None else float(boostmax),
             usage=_enum_name(usage, imagecodecs.ULTRAHDR.USAGE),
             codec=_enum_name(codec, imagecodecs.ULTRAHDR.CODEC),
+            gainmap_gamma=(
+                None if gainmap_gamma is None else float(gainmap_gamma)
+            ),
+            gainmap_level=(
+                None if gainmap_level is None else int(gainmap_level)
+            ),
+            multichannel=None if multichannel is None else bool(multichannel),
             dtype=None if dtype is None else numpy.dtype(dtype).str,
             boost=None if boost is None else float(boost),
         )
@@ -6141,6 +6264,9 @@ class Ultrahdr(ArrayBytesCodec):
             'boostmax',
             'usage',
             'codec',
+            'gainmap_gamma',
+            'gainmap_level',
+            'multichannel',
             'dtype',
             'boost',
         ):
@@ -6190,6 +6316,9 @@ class Ultrahdr(ArrayBytesCodec):
             boostmax=self.boostmax,
             usage=self.usage,
             codec=self.codec,
+            gainmap_gamma=self.gainmap_gamma,
+            gainmap_level=self.gainmap_level,
+            multichannel=self.multichannel,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -6873,22 +7002,34 @@ class Zstd(BytesBytesCodec):
     is_fixed_size = False
 
     level: int | None = None
+    numthreads: int | None = None
 
-    def __init__(self, *, level: int | None = None) -> None:
+    def __init__(
+        self, *, level: int | None = None, numthreads: int | None = None
+    ) -> None:
         if not imagecodecs.ZSTD.available:
             msg = 'imagecodecs.ZSTD not available'
             raise ValueError(msg)
-        _setattrs(self, level=None if level is None else int(level))
+        _setattrs(
+            self,
+            level=None if level is None else int(level),
+            numthreads=None if numthreads is None else int(numthreads),
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
         return cls(**_parse_config(data, 'zstd'))
 
     def to_dict(self) -> dict[str, JSON]:
+        config: dict[str, JSON] = {}
         if self.level is not None:
+            config['level'] = self.level
+        if self.numthreads is not None:
+            config['numthreads'] = self.numthreads
+        if config:
             return {
                 'name': 'imagecodecs_zstd',
-                'configuration': {'level': self.level},
+                'configuration': config,
             }
         return {'name': 'imagecodecs_zstd'}
 
@@ -6936,6 +7077,7 @@ class Zstd1(BytesBytesCodec):
     itemsize: int | None = None
     samples: int | None = None
     hilo: bool | None = None
+    numthreads: int | None = None
 
     def __init__(
         self,
@@ -6944,6 +7086,7 @@ class Zstd1(BytesBytesCodec):
         itemsize: int | None = None,
         samples: int | None = None,
         hilo: bool | None = None,
+        numthreads: int | None = None,
     ) -> None:
         if not imagecodecs.ZSTD1.available:
             msg = 'imagecodecs.ZSTD1 not available'
@@ -6954,6 +7097,7 @@ class Zstd1(BytesBytesCodec):
             itemsize=None if itemsize is None else int(itemsize),
             samples=None if samples is None else int(samples),
             hilo=None if hilo is None else bool(hilo),
+            numthreads=None if numthreads is None else int(numthreads),
         )
 
     @classmethod
@@ -6970,6 +7114,8 @@ class Zstd1(BytesBytesCodec):
             cfg['samples'] = self.samples
         if self.hilo is not None:
             cfg['hilo'] = self.hilo
+        if self.numthreads is not None:
+            cfg['numthreads'] = self.numthreads
         if cfg:
             return {'name': 'imagecodecs_zstd1', 'configuration': cfg}
         return {'name': 'imagecodecs_zstd1'}
@@ -7010,6 +7156,7 @@ class Zstd1(BytesBytesCodec):
             level=self.level,
             itemsize=isize,
             hilo=hilo,
+            numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
