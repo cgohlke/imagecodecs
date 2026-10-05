@@ -69,11 +69,15 @@ class PcodecError(RuntimeError):
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 1.0.2'
+    return 'pcodec 1.0.4'
 
 
 def pcodec_check(const uint8_t[::1] data, /):
     """Return whether data is PCODEC encoded or None if unknown."""
+    cdef:
+        bytes sig = bytes(data[:4])
+
+    return sig == b'pco!'
 
 
 def pcodec_encode(
@@ -86,7 +90,7 @@ def pcodec_encode(
 ):
     """Return PCODEC encoded data."""
     cdef:
-        numpy.ndarray src = numpy.ascontiguousarray(data)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         PcoChunkConfig config
@@ -94,11 +98,11 @@ def pcodec_encode(
         size_t bound, n_written
         PcoError ret
 
-    if data is out:
-        raise ValueError('cannot encode in-place')
-
     if src.size > INT32_MAX:
         raise ValueError(f'invalid {src.size=}')
+
+    if src.dtype.byteorder == '>':
+        raise ValueError('big-endian data not supported')
 
     try:
         pcotype = PCO_TYPE[(src.dtype.kind, src.dtype.itemsize)]
@@ -132,11 +136,11 @@ def pcodec_encode(
             <size_t> dstsize,
             &n_written,
         )
-    del dst
 
     if ret != PcoSuccess:
         raise PcodecError('pco_standalone_simple_compress_into', ret)
 
+    del dst
     return _return_output(out, dstsize, <ssize_t> n_written, outgiven)
 
 
@@ -152,13 +156,13 @@ def pcodec_decode(
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        size_t src_len = <size_t> src.size
+        size_t src_len = <size_t> src.shape[0]
         unsigned char pcotype
         size_t n_written
         PcoError ret
 
     if data is out:
-        raise ValueError('cannot decode in-place')
+        raise ValueError('cannot transform in-place')
 
     if isinstance(out, numpy.ndarray):
         dtype = out.dtype
