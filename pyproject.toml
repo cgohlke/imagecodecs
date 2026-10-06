@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools", "numpy>=2.1", "Cython>=3.2"]
+requires = ["setuptools", "numpy>=2.1", "Cython!=3.3.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 79
-target-version = ["py312", "py313", "py314"]
+target-version = ["py312", "py313", "py314", "py315"]
 skip-string-normalization = true
 
 [tool.isort]
