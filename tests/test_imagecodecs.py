@@ -31,7 +31,7 @@
 
 """Unittests for the imagecodecs package.
 
-:Version: 2026.8.16
+:Version: 2026.10.10
 
 """
 
@@ -55,7 +55,8 @@ from typing import Any
 
 import numpy
 import pytest
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy import array_equal  # faster than assert_array_equal
+from numpy.testing import assert_allclose
 
 try:
     import imagecodecs
@@ -304,7 +305,7 @@ def test_imread_imwrite(filearg, codec):
                 fh, memmap=memmap, return_codec=True, numthreads=1
             )
             assert codec == imagecodecs.jpeg2k_decode
-            assert_array_equal(data, im)
+            assert array_equal(data, im)
         return
 
     if codec == 'none':
@@ -349,7 +350,7 @@ def test_imread_imwrite(filearg, codec):
 
         im, ret = imread(fh, codec=decode, return_codec=True)
         assert ret == imagecodecs.jpeg8_decode
-        assert_array_equal(data, im)
+        assert array_equal(data, im)
 
 
 @pytest.mark.parametrize(
@@ -436,10 +437,10 @@ def test_bitorder_ndarray():
     data = numpy.array([1, 666], dtype='uint16')
     reverse = numpy.array([128, 16473], dtype='uint16')
     # return new array
-    assert_array_equal(decode(data), reverse)
+    assert array_equal(decode(data), reverse)
     # inplace
     decode(data, out=data)
-    assert_array_equal(data, numpy.array([128, 16473], dtype='uint16'))
+    assert array_equal(data, numpy.array([128, 16473], dtype='uint16'))
     # array view
     data = numpy.array(
         [
@@ -457,10 +458,10 @@ def test_bitorder_ndarray():
         ],
         dtype='uint32',
     )
-    assert_array_equal(decode(data[1:, 1:3]), reverse[1:, 1:3])
+    assert array_equal(decode(data[1:, 1:3]), reverse[1:, 1:3])
     # array view inplace
     decode(data[1:, 1:3], out=data[1:, 1:3])
-    assert_array_equal(data, reverse)
+    assert array_equal(data, reverse)
 
 
 @pytest.mark.skipif(
@@ -544,7 +545,7 @@ def test_packints_bitorder_known():
         [0xA, 0x5, 0xA, 0x5, 0xA, 0x5], dtype=numpy.uint8
     )
     decoded = decode(data_none, numpy.uint8, 4)
-    numpy.testing.assert_array_equal(decoded, pixels_4_none)
+    assert array_equal(decoded, pixels_4_none)
     encoded = encode(pixels_4_none, 4)
     assert bytes(encoded) == data_none
 
@@ -553,7 +554,7 @@ def test_packints_bitorder_known():
         [1, 0, 1, 0, 0, 1, 0, 1] * 3, dtype=numpy.uint8
     )
     decoded = decode(data_none, numpy.uint8, 1)
-    numpy.testing.assert_array_equal(decoded, pixels_1_none)
+    assert array_equal(decoded, pixels_1_none)
     encoded = encode(pixels_1_none, 1)
     assert bytes(encoded) == data_none
 
@@ -595,7 +596,7 @@ def test_packints_roundtrip(bps):
         encoded = encode(data, bps)
         assert len(encoded) == (n * bps + 7) // 8
         decoded = decode(encoded, dtype, bps, runlen=n)
-        numpy.testing.assert_array_equal(decoded, data)
+        assert array_equal(decoded, data)
 
 
 @pytest.mark.skipif(
@@ -632,7 +633,7 @@ def test_packints_roundtrip_runlen(bps):
     assert len(encoded) == nrows * rowsize
 
     decoded = decode(encoded, dtype, bps, runlen=runlen)
-    numpy.testing.assert_array_equal(decoded, data)
+    assert array_equal(decoded, data)
 
     # encode flat array with explicit runlen produces identical bytes
     encoded2 = encode(data, bps, runlen=runlen)
@@ -640,7 +641,7 @@ def test_packints_roundtrip_runlen(bps):
 
     # re-decode to confirm
     decoded2 = decode(encoded2, dtype, bps, runlen=runlen)
-    numpy.testing.assert_array_equal(decoded2, data)
+    assert array_equal(decoded2, data)
 
 
 @pytest.mark.skipif(
@@ -674,7 +675,7 @@ def test_packints_roundtrip_bitorder(bps, bitorder):
 
         decoded = decode(encoded, numpy.uint16, bps, bitorder=bitorder)
         assert decoded.dtype == numpy.uint16
-        numpy.testing.assert_array_equal(decoded[:n], data)
+        assert array_equal(decoded[:n], data)
 
     # errors: runlen not supported with bitorder
     with pytest.raises(ValueError, match='runlen'):
@@ -799,7 +800,7 @@ def test_packbits_array(codec, output, dtype):
     if codec == 'encode':
         if output == 'array':
             out = numpy.zeros(data.nbytes, 'uint8')
-            assert_array_equal(
+            assert array_equal(
                 encode(data, out=out),
                 numpy.frombuffer(compressed, dtype=dtype).view('uint8'),
             )
@@ -807,7 +808,7 @@ def test_packbits_array(codec, output, dtype):
             assert encode(data) == compressed
     elif output == 'array':
         out = numpy.zeros(data.nbytes, 'uint8')
-        assert_array_equal(
+        assert array_equal(
             decode(compressed, out=out), data.flatten().view('uint8')
         )
     else:
@@ -954,7 +955,7 @@ def test_dicomrle(data, byteorder, output):
     dtype = byteorder + result.dtype.char
     assert imagecodecs.dicomrle_check(encoded)
     decoded = imagecodecs.dicomrle_decode(encoded, dtype, out=out)
-    assert_array_equal(
+    assert array_equal(
         numpy.frombuffer(decoded, dtype).reshape(result.shape), result
     )
     if out is not None:
@@ -969,7 +970,7 @@ def test_dicomrle_numcodecs():
     """Test DICOMRLE decoding."""
     encoded, result = DICOMRLE_DATA[-1]
     decoded = imagecodecs.dicomrle_decode(encoded, '<u4')
-    assert_array_equal(
+    assert array_equal(
         numpy.frombuffer(decoded, '<u4').reshape(result.shape), result
     )
 
@@ -1099,26 +1100,26 @@ def test_delta(output, byteorder, kind, codec, func):
         match (output, codec):
             case ('new', 'encode'):
                 encoded = encode(data, axis=axis)
-                assert_array_equal(encoded, diff)
+                assert array_equal(encoded, diff, equal_nan=True)
             case ('new', 'decode'):
                 decoded = decode(diff, axis=axis)
-                assert_array_equal(decoded, data)
+                assert array_equal(decoded, data, equal_nan=True)
             case ('out', 'encode'):
                 encoded = numpy.zeros_like(data)
                 encode(data, axis=axis, out=encoded)
-                assert_array_equal(encoded, diff)
+                assert array_equal(encoded, diff, equal_nan=True)
             case ('out', 'decode'):
                 decoded = numpy.zeros_like(data)
                 decode(diff, axis=axis, out=decoded)
-                assert_array_equal(decoded, data)
+                assert array_equal(decoded, data, equal_nan=True)
             case ('inplace', 'encode'):
                 encoded = data.copy()
                 encode(encoded, axis=axis, out=encoded)
-                assert_array_equal(encoded, diff)
+                assert array_equal(encoded, diff, equal_nan=True)
             case ('inplace', 'decode'):
                 decoded = diff.copy()
                 decode(decoded, axis=axis, out=decoded)
-                assert_array_equal(decoded, data)
+                assert array_equal(decoded, data, equal_nan=True)
 
 
 @pytest.mark.skipif(
@@ -1145,18 +1146,18 @@ def test_floatpred(planar, endian, output, codec):
             encoded = encoded.reshape((33, 31, 3))
             if output == 'new':
                 if codec == 'decode':
-                    assert_array_equal(decode(encoded, axis=axis), data)
+                    assert array_equal(decode(encoded, axis=axis), data)
                 elif codec == 'encode':
-                    assert_array_equal(encode(data, axis=axis), encoded)
+                    assert array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
                 out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
-                    assert_array_equal(out, data)
+                    assert array_equal(out, data)
                 elif codec == 'encode':
                     out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
-                    assert_array_equal(out, encoded)
+                    assert array_equal(out, encoded)
         elif endian == 'be':
             data = data.astype('>f4')
             encoded = numpy.fromfile(
@@ -1165,18 +1166,18 @@ def test_floatpred(planar, endian, output, codec):
             encoded = encoded.reshape((33, 31, 3))
             if output == 'new':
                 if codec == 'decode':
-                    assert_array_equal(decode(encoded, axis=axis), data)
+                    assert array_equal(decode(encoded, axis=axis), data)
                 elif codec == 'encode':
-                    assert_array_equal(encode(data, axis=axis), encoded)
+                    assert array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
                 out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
-                    assert_array_equal(out, data)
+                    assert array_equal(out, data)
                 elif codec == 'encode':
                     out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
-                    assert_array_equal(out, encoded)
+                    assert array_equal(out, encoded)
     else:
         axis = -1
         data = numpy.ascontiguousarray(numpy.moveaxis(data, 2, 0))
@@ -1187,18 +1188,18 @@ def test_floatpred(planar, endian, output, codec):
             encoded = encoded.reshape((3, 33, 31))
             if output == 'new':
                 if codec == 'decode':
-                    assert_array_equal(decode(encoded, axis=axis), data)
+                    assert array_equal(decode(encoded, axis=axis), data)
                 elif codec == 'encode':
-                    assert_array_equal(encode(data, axis=axis), encoded)
+                    assert array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
                 out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
-                    assert_array_equal(out, data)
+                    assert array_equal(out, data)
                 elif codec == 'encode':
                     out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
-                    assert_array_equal(out, encoded)
+                    assert array_equal(out, encoded)
         elif endian == 'be':
             data = data.astype('>f4')
             encoded = numpy.fromfile(
@@ -1207,18 +1208,18 @@ def test_floatpred(planar, endian, output, codec):
             encoded = encoded.reshape((3, 33, 31))
             if output == 'new':
                 if codec == 'decode':
-                    assert_array_equal(decode(encoded, axis=axis), data)
+                    assert array_equal(decode(encoded, axis=axis), data)
                 elif codec == 'encode':
-                    assert_array_equal(encode(data, axis=axis), encoded)
+                    assert array_equal(encode(data, axis=axis), encoded)
             elif output == 'out':
                 out = numpy.zeros_like(data)
                 if codec == 'decode':
                     decode(encoded, axis=axis, out=out)
-                    assert_array_equal(out, data)
+                    assert array_equal(out, data)
                 elif codec == 'encode':
                     out = numpy.zeros_like(data)
                     encode(data, axis=axis, out=out)
-                    assert_array_equal(out, encoded)
+                    assert array_equal(out, encoded)
 
 
 @pytest.mark.skipif(
@@ -1231,7 +1232,7 @@ def test_floatpred_broadcast():
     data = numpy.broadcast_to(numpy.float32(0.0), (16, 16))
     encoded = imagecodecs.floatpred_encode(data)
     decoded = imagecodecs.floatpred_decode(encoded)
-    assert_array_equal(decoded, numpy.zeros((16, 16), dtype=numpy.float32))
+    assert array_equal(decoded, numpy.zeros((16, 16), dtype=numpy.float32))
 
 
 @pytest.mark.skipif(
@@ -1252,7 +1253,7 @@ def test_byteshuffle_float24(delta, samples):
     axis = -2
     encoded = encode(data, axis=axis, delta=delta)
     decoded = decode(encoded, axis=axis, delta=delta)
-    assert_array_equal(decoded.tobytes(), data.tobytes())
+    assert array_equal(decoded.tobytes(), data.tobytes())
 
 
 @pytest.mark.skipif(
@@ -1378,8 +1379,10 @@ def test_bfloat16(value, encoded, decoded, byteorder):
         encoded = encoded[::-1]
     data = numpy.array([value], dtype=numpy.float32)
     assert imagecodecs.bfloat16_encode(data, byteorder=byteorder) == encoded
-    assert_array_equal(
-        imagecodecs.bfloat16_decode(encoded, byteorder=byteorder), decoded
+    assert array_equal(
+        imagecodecs.bfloat16_decode(encoded, byteorder=byteorder)[0],
+        decoded,
+        equal_nan=True,
     )
 
 
@@ -1472,7 +1475,7 @@ def test_eer_example(superres):
         encoded, (size, size), 7, 2, 2, superres=superres
     )
     expected = tifffile.imread(datafiles('EER/eer.tif'), key=superres)
-    assert_array_equal(decoded, expected)
+    assert array_equal(decoded, expected)
 
 
 @pytest.mark.parametrize('dtype', ['uint8', 'float32'])
@@ -1540,7 +1543,7 @@ def test_quantize_roundtrip(mode, dtype):
     encoded = imagecodecs.quantize_encode(data, mode, nsd)
     out = data.copy()
     imagecodecs.quantize_encode(data, mode, nsd, out=out)
-    assert_array_equal(out, encoded)
+    assert array_equal(out, encoded)
     assert_allclose(data, encoded, atol=atol)
 
 
@@ -1551,7 +1554,6 @@ def test_quantize_roundtrip(mode, dtype):
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
 def test_quantize_bitround(dtype, nsd):
     """Test BitRound quantize encode and that decode raises for lossy mode."""
-    # TODO: 31.4 fails
     data = numpy.linspace(-2.1, 31.5, 51, dtype=dtype).reshape((3, 17))
     encoded = imagecodecs.quantize_encode(data, 'bitround', nsd)
     assert encoded.shape == data.shape
@@ -1588,7 +1590,7 @@ def test_checksum_fletcher32():
         b"'\x02\x00\x00\x00\x00\x00\x00\xba\xf7\xff\xff\xff\xff\xff\xff"
     )
     checksum = int.from_bytes(b'\xfd%\x86d', 'little')  # 1686513149
-    assert_array_equal(
+    assert array_equal(
         numpy.frombuffer(data, dtype='<i8'),
         [1911, -2427, 1897, -2412, 2440, 873, -621, -829, 551, -2118],
     )
@@ -1788,25 +1790,25 @@ def test_lzw_decode(output):
         decoded = decode(encoded)
         decoded = numpy.frombuffer(decoded, 'uint8').reshape((16, 16))
         delta_decode(decoded, out=decoded, axis=-1)
-        assert_array_equal(BYTESIMG, decoded)
+        assert array_equal(BYTESIMG, decoded)
     elif output == 'size':
         decoded = decode(encoded, out=decoded_size)
         decoded = numpy.frombuffer(decoded, 'uint8').reshape((16, 16))
         delta_decode(decoded, out=decoded, axis=-1)
-        assert_array_equal(BYTESIMG, decoded)
+        assert array_equal(BYTESIMG, decoded)
         # with pytest.raises(RuntimeError):
         decode(encoded, out=decoded_size)
     elif output == 'ndarray':
         decoded = numpy.zeros_like(BYTESIMG)
         decode(encoded, out=decoded.reshape(-1))
         delta_decode(decoded, out=decoded, axis=-1)
-        assert_array_equal(BYTESIMG, decoded)
+        assert array_equal(BYTESIMG, decoded)
     elif output == 'bytearray':
         decoded = bytearray(decoded_size)
         decode(encoded, out=decoded)
         decoded = numpy.frombuffer(decoded, 'uint8').reshape((16, 16))
         delta_decode(decoded, out=decoded, axis=-1)
-        assert_array_equal(BYTESIMG, decoded)
+        assert array_equal(BYTESIMG, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.LZW.available, reason='LZW missing')
@@ -1851,7 +1853,7 @@ def test_lzw_decode_image_noeoi():
         fh.seek(0)
         im0 = tifffile.imread(fh)
         im1 = imagecodecs.tiff_decode(fh.getvalue())
-        assert_array_equal(im0, im1)
+        assert array_equal(im0, im1)
 
 
 @pytest.mark.skipif(not imagecodecs.OPENZL.available, reason='OPENZL missing')
@@ -2113,6 +2115,7 @@ def test_compressors(codec, func, output, length):
             encode = imagecodecs.snappy_encode
             decode = imagecodecs.snappy_decode
             check = imagecodecs.snappy_check
+            level = 1
             encoded = snappy.compress(data)
         case 'szip':
 
@@ -2317,7 +2320,7 @@ def test_bitshuffle_roundtrip(dtype, itemsize, blocksize):
     if dtype == 'bytes':
         assert data == decoded
     else:
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
 
 @pytest.mark.parametrize('numthreads', [1, 6])
@@ -2384,7 +2387,7 @@ def test_b2nd(dtype, compressor, shuffle, numthreads):
     decoded = decode(encoded, numthreads=numthreads)
     assert decoded.shape == shape
     assert decoded.dtype == dtype
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     # with level, chunkshape, and out= parameter
     chunkshape = (shape[0] // 2 or 1, shape[1], shape[2])
@@ -2398,7 +2401,7 @@ def test_b2nd(dtype, compressor, shuffle, numthreads):
     out = numpy.zeros(shape, dtype)
     result = decode(encoded, out=out)
     assert result is out
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
 
 # test data from libaec https://gitlab.dkrz.de/k202009/libaec/tree/master/data
@@ -2490,7 +2493,7 @@ def test_aec_extended(name, dtype):
         decoded = decode(
             encoded, flags=flags, blocksize=blocksize, rsi=rsi, out=out
         )
-        assert_array_equal(decoded, out)
+        assert array_equal(decoded, out)
 
 
 @pytest.mark.skipif(not imagecodecs.AEC.available, reason='aec missing')
@@ -2585,10 +2588,10 @@ def test_bcn(name, fmt, shape):
 
     offset = 128 if fmt in {1, 2, 3} else 148
     out = imagecodecs.bcn_decode(dds[offset:], fmt, shape=shape)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
     out = numpy.zeros_like(data)
     imagecodecs.bcn_decode(dds[offset:], fmt, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
 
 @pytest.mark.skipif(not imagecodecs.SZIP.available, reason='szip missing')
@@ -2688,6 +2691,17 @@ def test_zstd_multiframe():
 
 
 @pytest.mark.skipif(not imagecodecs.ZSTD.available, reason='zstd missing')
+@pytest.mark.parametrize('numthreads', [None, 0, 1, 4])
+@pytest.mark.parametrize('level', [None, 3])
+def test_zstd_numthreads(numthreads, level):
+    """Test ZSTD encoder with numthreads."""
+    data = RNG.integers(0, 256, 65536, dtype=numpy.uint8).tobytes()
+    encoded = imagecodecs.zstd_encode(data, level=level, numthreads=numthreads)
+    assert imagecodecs.zstd_check(encoded)
+    assert imagecodecs.zstd_decode(encoded) == data
+
+
+@pytest.mark.skipif(not imagecodecs.ZSTD.available, reason='zstd missing')
 def test_zstd_stream():
     """Test ZSTD decoder on stream with unknown decoded size."""
     # https://github.com/fsspec/kerchunk/issues/317
@@ -2725,6 +2739,10 @@ def test_zstd1_roundtrip():
     encoded = imagecodecs.zstd1_encode(data, level=3)
     assert imagecodecs.zstd1_decode(encoded) == data
 
+    # numthreads
+    encoded = imagecodecs.zstd1_encode(data, numthreads=4)
+    assert imagecodecs.zstd1_decode(encoded) == data
+
     # header_size=3, chunk type 1, hilo=False (format-compatibility check)
     header = b'\x03\x01\x00'
     encoded_manual = header + imagecodecs.zstd_encode(data)
@@ -2756,6 +2774,13 @@ def test_zstd1_hilo():
 
     # zstd1_check recognises the data
     assert imagecodecs.zstd1_check(encoded) is True
+
+    # numthreads
+    encoded = imagecodecs.zstd1_encode(
+        raw, itemsize=2, hilo=True, numthreads=4
+    )
+    decoded = imagecodecs.zstd1_decode(encoded, itemsize=2)
+    assert decoded == raw
 
     # format-compatibility: Zeiss header with extra pad byte (header_size=4)
     n = len(arr)
@@ -2798,7 +2823,7 @@ def test_zstd1_bgr():
     decoded = numpy.frombuffer(
         imagecodecs.zstd1_decode(encoded, samples=3), dtype=numpy.uint8
     ).reshape(bgr.shape)
-    numpy.testing.assert_array_equal(decoded, bgr[..., ::-1])
+    assert array_equal(decoded, bgr[..., ::-1])
 
     # samples=3, itemsize=2: uint16 BGR -> RGB
     bgr16 = numpy.array(
@@ -2809,7 +2834,7 @@ def test_zstd1_bgr():
         imagecodecs.zstd1_decode(encoded, itemsize=2, samples=3),
         dtype=numpy.uint16,
     ).reshape(bgr16.shape)
-    numpy.testing.assert_array_equal(decoded, bgr16[..., ::-1])
+    assert array_equal(decoded, bgr16[..., ::-1])
 
     # samples=4, itemsize=1: BGRA32 -> RGBA; alpha forced to 255
     bgra = numpy.array(
@@ -3021,31 +3046,31 @@ def test_hcomp(dtype, level):
     assert decoded.dtype == numpy.int32
 
     if level == 0:
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
         # encode does not modify input
         original = data.copy()
         encode(data)
-        assert_array_equal(data, original)
+        assert array_equal(data, original)
 
         # out parameter
         out = numpy.empty_like(data, dtype=numpy.int32)
         result = decode(encoded, out=out)
         assert result is out
-        assert_array_equal(data, out)
+        assert array_equal(data, out)
 
         # safe32 path: results must match 64-bit path
         if dtype in ('i1', 'u1', 'i2', 'u2'):
             decoded32 = decode(encoded, safe32=True)
             assert decoded32.dtype == numpy.int32
             assert decoded32.shape == data.shape
-            assert_array_equal(decoded, decoded32)
+            assert array_equal(decoded, decoded32)
 
             # safe32 with pre-allocated out: written directly, no copy
             out32 = numpy.empty(data.shape, dtype=numpy.int32)
             result32 = decode(encoded, safe32=True, out=out32)
             assert result32 is out32
-            assert_array_equal(data, out32)
+            assert array_equal(data, out32)
     else:
         assert_allclose(data, decoded, atol=level * 2, rtol=0)
 
@@ -3067,7 +3092,7 @@ def test_hcomp_shapes(shape):
     encode = imagecodecs.hcomp_encode
 
     data = numpy.arange(shape[0] * shape[1], dtype=numpy.int32).reshape(shape)
-    assert_array_equal(data, decode(encode(data)))
+    assert array_equal(data, decode(encode(data)))
 
     if shape == (4, 4):
         # special values
@@ -3076,18 +3101,18 @@ def test_hcomp_shapes(shape):
             numpy.full((8, 8), 42, dtype=numpy.int32),
             numpy.arange(-32, 32, dtype=numpy.int32).reshape(8, 8),
         ):
-            assert_array_equal(arr, decode(encode(arr)))
+            assert array_equal(arr, decode(encode(arr)))
 
         # large int32 values (int64 path handles overflow)
         data = numpy.full((8, 8), 2**30, dtype=numpy.int32)
         data[0, 0] = -(2**30)
-        assert_array_equal(data, decode(encode(data)))
+        assert array_equal(data, decode(encode(data)))
 
         # uint32 decoded as int32
         data = numpy.full((8, 8), 100000, dtype=numpy.uint32)
         decoded = decode(encode(data))
         assert decoded.dtype == numpy.int32
-        assert_array_equal(decoded, data.astype(numpy.int32))
+        assert array_equal(decoded, data.astype(numpy.int32))
 
 
 @pytest.mark.skipif(not imagecodecs.HCOMP.available, reason='hcomp missing')
@@ -3146,7 +3171,7 @@ def test_hcomp_groundtruth():
     decoded = decode(tile)
     assert decoded.shape == data_i32.shape
     assert decoded.dtype == numpy.int32
-    assert_array_equal(data_i32, decoded)
+    assert array_equal(data_i32, decoded)
 
     # lossy int32 (scale=4)
     tile_lossy = (DATA_PATH / 'hcomp_i32_32x31_scale4.bin').read_bytes()
@@ -3163,7 +3188,7 @@ def test_hcomp_groundtruth():
     decoded16 = decode(tile16)
     assert decoded16.shape == data_i16.shape
     assert decoded16.dtype == numpy.int32
-    assert_array_equal(data_i16, decoded16)
+    assert array_equal(data_i16, decoded16)
 
 
 @pytest.mark.skipif(not imagecodecs.RCOMP.available, reason='rcomp missing')
@@ -3182,21 +3207,21 @@ def test_rcomp(dtype, case):
 
     encoded = encode(data)
     if case == 1:
-        assert_array_equal(
+        assert array_equal(
             data, decode(encoded, shape=data.shape, dtype=data.dtype)
         )
     elif case == 2:
         decoded = decode(encoded, shape=data.size, dtype=data.dtype)
         decoded = decoded.reshape(data.shape)
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
     elif case == 3:
         out = numpy.zeros_like(data)
         decode(encoded, out=out)
-        assert_array_equal(data, out)
+        assert array_equal(data, out)
     elif case == 4:
         out = numpy.zeros_like(data)
         decode(encoded, shape=data.shape, dtype=data.dtype, out=out)
-        assert_array_equal(data, out)
+        assert array_equal(data, out)
 
 
 @pytest.mark.skipif(not imagecodecs.JETRAW.available, reason='jetraw missing')
@@ -3234,12 +3259,12 @@ def test_pcodec(dtype):
 
     encoded = imagecodecs.pcodec_encode(data)
     decoded = imagecodecs.pcodec_decode(encoded, shape, dtype)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     encoded = imagecodecs.pcodec_encode(data, level=10)
     out = numpy.empty_like(data)
     imagecodecs.pcodec_decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
 
 @pytest.mark.skipif(
@@ -3259,20 +3284,20 @@ def test_meshopt(dtype, shape):
 
     encoded = imagecodecs.meshopt_encode(data, level=0)
     decoded = imagecodecs.meshopt_decode(encoded, shape, dtype)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
     assert data.nbytes / len(encoded) > 1.1
 
     # level 3 compression
     encoded = imagecodecs.meshopt_encode(data, level=3)
     out = numpy.empty_like(data)
     imagecodecs.meshopt_decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
     assert data.nbytes / len(encoded) > 1.1
 
     # output to exact length
     encoded = imagecodecs.meshopt_encode(data, level=3, out=len(encoded))
     decoded = imagecodecs.meshopt_decode(encoded, shape, dtype)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(
@@ -3293,7 +3318,7 @@ def test_meshopt_recarray():
     decoded = imagecodecs.meshopt_decode(
         encoded, data.shape, data.dtype, items=1
     )
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
     assert data.nbytes / len(encoded) > 1.1
 
 
@@ -3321,6 +3346,19 @@ def test_meshopt_errors():
         imagecodecs.meshopt_decode(
             encoded, out=numpy.zeros((10, 10), numpy.float32)
         )
+
+
+@pytest.mark.skipif(not imagecodecs.RGBE.available, reason='rgbe missing')
+def test_rgbe_info():
+    """Test rgbe_info function."""
+    encoded = readfile('384x256.hdr')
+    info = imagecodecs.rgbe_info(encoded)
+    assert info['width'] == 256
+    assert info['height'] == 384
+    assert info['shape'] == (384, 256, 3)
+    assert info['dtype'] == numpy.dtype('float32')
+    assert info['orientation'] == imagecodecs.RGBE.ORIENT.IDENTITY
+    assert info['programtype'] == 'RADIANCE'
 
 
 @pytest.mark.skipif(not imagecodecs.RGBE.available, reason='rgbe missing')
@@ -3383,7 +3421,7 @@ def test_rgbe_decode():
     out[:] = 0.0
     decode(encoded, header=False, rle=True, out=out)
     assert tuple(out[227, 201]) == (133.0, 73.0, 39.0)
-    assert_array_equal(out, image)
+    assert array_equal(out, image)
 
     encoded_array = numpy.frombuffer(
         encoded, count=-1, dtype=numpy.uint8
@@ -3412,16 +3450,16 @@ def test_rgbe_roundtrip():
     # encode to bytes
     encoded = encode(data)
     assert encoded[:10] == b'#?RADIANCE'
-    assert_array_equal(data, decode(encoded))
-    assert_array_equal(data, decode(encode(data, header=True)))
-    assert_array_equal(data, decode(encode(data, header=True, rle=True)))
-    assert_array_equal(data, decode(encode(data, out=bytearray)))
+    assert array_equal(data, decode(encoded))
+    assert array_equal(data, decode(encode(data, header=True)))
+    assert array_equal(data, decode(encode(data, header=True, rle=True)))
+    assert array_equal(data, decode(encode(data, out=bytearray)))
 
-    assert_array_equal(data[0, 0], numpy.squeeze(decode(encode(data[0, 0]))))
+    assert array_equal(data[0, 0], numpy.squeeze(decode(encode(data[0, 0]))))
 
-    assert_array_equal(data, decode(encode(data, out=len(encoded))))
-    assert_array_equal(data, decode(encode(data, out=len(encoded) + 4)))
-    assert_array_equal(data, decode(encode(data, out=bytearray(len(encoded)))))
+    assert array_equal(data, decode(encode(data, out=len(encoded))))
+    assert array_equal(data, decode(encode(data, out=len(encoded) + 4)))
+    assert array_equal(data, decode(encode(data, out=bytearray(len(encoded)))))
 
     with pytest.raises(imagecodecs.RgbeError):
         encode(data, out=1)
@@ -3434,22 +3472,22 @@ def test_rgbe_roundtrip():
     assert encoded[:10] != b'#?RADIANCE'
     out = numpy.zeros_like(data)
     decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
     encoded = encode(data, header=False, rle=True)
     out = numpy.zeros_like(data)
     decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
     encoded = encode(data, header=False, rle=True)
     out = numpy.zeros_like(data)
     decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
     # encode to output
     out = numpy.zeros((384, 256, 4), numpy.uint8)
     encode(data, out=out)
-    assert_array_equal(decode(out), data)
+    assert array_equal(decode(out), data)
 
     with pytest.raises(ValueError):
         encode(data, out=numpy.zeros((384, 256, 3), numpy.uint8))
@@ -3459,7 +3497,7 @@ def test_rgbe_roundtrip():
 
     out = numpy.zeros((384 * 256 * 4), numpy.uint8)
     encode(data, out=out)
-    assert_array_equal(decode(out.reshape((384, 256, 4))), data)
+    assert array_equal(decode(out.reshape((384, 256, 4))), data)
 
 
 CCITT_TIF_FILES = (
@@ -3503,7 +3541,7 @@ def test_ccitt_decode_strips(tif_path):
         expected = ground_truth[row_start : row_start + strip_rows]
 
         if len(raw_strip) == 0:
-            assert_array_equal(
+            assert array_equal(
                 numpy.zeros((strip_rows, width), dtype=numpy.uint8), expected
             )
             row_start += strip_rows
@@ -3526,7 +3564,7 @@ def test_ccitt_decode_strips(tif_path):
         else:
             pytest.fail(f'unexpected {compression=}')
 
-        assert_array_equal(decoded, expected)
+        assert array_equal(decoded, expected)
 
         # also try width-only decode (auto-height via pre-scan)
         # may fail for corrupt or truncated streams
@@ -3551,7 +3589,7 @@ def test_ccitt_decode_strips(tif_path):
                     f'strip {i}: auto-height shape mismatch '
                     f'{decoded_auto.shape} != {expected.shape}'
                 )
-            assert_array_equal(decoded_auto, expected)
+            assert array_equal(decoded_auto, expected)
 
         row_start += strip_rows
 
@@ -3631,7 +3669,7 @@ def test_ccitt_roundtrip(pattern, compression, shape):
         else:
             pytest.fail(f'unexpected compression {comp} in encoded TIFF')
 
-        assert_array_equal(decoded, expected_strip)
+        assert array_equal(decoded, expected_strip)
         row_start += strip_rows
 
     assert row_start == height
@@ -4047,7 +4085,7 @@ def test_cms_identity_transforms(dtype, outdtype, planar, outplanar, out):
             else:
                 out = numpy.moveaxis(out, 0, -1)
         if dtype.kind == 'u':
-            assert_array_equal(data, out)
+            assert array_equal(data, out)
         else:
             # float16 requires lcms2 2.17+ to pass
             assert_allclose(data, out, atol=0.001)
@@ -4093,7 +4131,7 @@ def test_cms_multiframe(planar, outplanar):
             planar=planar,
             outplanar=outplanar,
         )
-        assert_array_equal(output[f], expected)
+        assert array_equal(output[f], expected)
 
 
 @pytest.mark.skipif(not imagecodecs.CMS.available, reason='cms missing')
@@ -4106,7 +4144,7 @@ def test_cms_colorspace_inference():
     output = cms_transform(data, cms_profile('srgb'), cms_profile('srgb'))
     assert output.shape == data.shape
     assert output.dtype == data.dtype
-    assert_array_equal(data, output)
+    assert array_equal(data, output)
 
     data_gray = image_data('gray', 'u1').squeeze()  # (H, W)
     gray_profile = cms_profile('gray', gamma=2.2)
@@ -4153,7 +4191,7 @@ def test_bmpsuite(name):
     else:
         assert tuple(decoded[19, 98]) == (0, 0, 0)
 
-    assert_array_equal(
+    assert array_equal(
         decoded,
         imagecodecs.bmp_decode(imagecodecs.bmp_encode(decoded, ppm=3780)),
     )
@@ -4246,7 +4284,7 @@ def test_jpeg8_decode(output):
     elif output == 'bytearray':
         decoded = bytearray(BYTESIMG.size * BYTESIMG.itemsize)
         decoded = decode(data, out=decoded)
-    assert_array_equal(BYTESIMG, decoded)
+    assert array_equal(BYTESIMG, decoded)
 
 
 @pytest.mark.skipif(
@@ -4326,7 +4364,7 @@ def test_mozjpeg():
     data = readfile('bytes.jpeg8.bin')
     tables = readfile('bytes.jpeg8_tables.bin')
     decoded = imagecodecs.mozjpeg_decode(data, tables=tables)
-    assert_array_equal(BYTESIMG, decoded)
+    assert array_equal(BYTESIMG, decoded)
 
     data = image_data('rgb', 'uint8')
     encoded = imagecodecs.mozjpeg_encode(
@@ -4431,7 +4469,7 @@ def test_ljpeg(filename, result, codec):
     shape, dtype, index, value = result
     assert decoded.shape == shape
     assert decoded.dtype == dtype
-    assert_array_equal(decoded[index], value)
+    assert array_equal(decoded[index], value)
 
 
 @pytest.mark.parametrize('codec', ['jpeg8', 'ljpeg', 'jpegsof3'])
@@ -4442,7 +4480,7 @@ def test_ljpeg_modulo(codec):
         pytest.skip(f'{codec} missing')
     decode = getattr(imagecodecs, f'{codec}_decode')
 
-    assert_array_equal(
+    assert array_equal(
         decode(
             base64.b64decode(
                 '/9j/wwALCAAEAAYBAREA/8QAGAABAQEBAQAAAAAAAAAAAAAABAUGBwj'
@@ -4519,7 +4557,7 @@ def test_jpegxl_planar(dtype):
     assert image.shape == (11, 8, 32, 31)
     encoded = imagecodecs.jpegxl_encode(image, photometric='gray', planar=True)
     decoded = imagecodecs.jpegxl_decode(encoded)
-    assert_array_equal(image, decoded)
+    assert array_equal(image, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXL.available, reason='jpegxl missing')
@@ -4532,7 +4570,7 @@ def test_jpegxl_bitspersample():
     # with open('12bit.jxl', 'wb') as fh: fh.write(encoded)
     # jxlinfo 12bit.jxl -> JPEG XL image, 31x32, lossless, 12-bit RGB
     decoded = imagecodecs.jpegxl_decode(encoded)
-    assert_array_equal(image, decoded)
+    assert array_equal(image, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXL.available, reason='jpegxl missing')
@@ -4552,6 +4590,8 @@ def test_jpegxl_bitspersample():
 def test_jpegxl_color_encoding(dtype, primaries, transfer):
     """Test JPEG XL roundtrip with primaries and transfer parameters."""
     image = image_data('rgb', dtype)
+    if dtype in {'float16', 'float32'}:
+        image = image * 4.0 - 2.0  # values in [-2, 2], including negatives
     encoded = imagecodecs.jpegxl_encode(
         image,
         lossless=True,
@@ -4561,7 +4601,29 @@ def test_jpegxl_color_encoding(dtype, primaries, transfer):
     decoded = imagecodecs.jpegxl_decode(encoded)
     assert decoded.shape == image.shape
     assert decoded.dtype == image.dtype
-    assert_array_equal(image, decoded)
+    assert array_equal(image, decoded)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXL.available, reason='jpegxl missing')
+@pytest.mark.parametrize('dtype', ['float32', 'float16'])
+@pytest.mark.parametrize('perceptualheuristics', [False, True])
+def test_jpegxl_perceptualheuristics(dtype, perceptualheuristics):
+    """Test JPEG XL lossy roundtrip with perceptualheuristics=False."""
+    image = image_data('gray', dtype).astype(dtype)[..., 0]
+    image = image * 4.0 - 2.0  # values in [-2, 2], including negatives
+    encoded = imagecodecs.jpegxl_encode(
+        image,
+        lossless=False,
+        distance=0.5,
+        perceptualheuristics=perceptualheuristics,
+    )
+    decoded = imagecodecs.jpegxl_decode(encoded)
+    assert decoded.shape == image.shape
+    assert decoded.dtype == numpy.dtype(dtype)
+    assert decoded.min() < 0.0
+    assert_allclose(
+        image, decoded, atol=1.5 if perceptualheuristics else 0.1, rtol=0
+    )
 
 
 @pytest.mark.skipif(
@@ -4576,14 +4638,102 @@ def test_jpegxl_transcode():
     jpeg2 = imagecodecs.jpegxl_decode_jpeg(jpegxl)
     assert isinstance(jpeg2, (bytes, bytearray))
     assert imagecodecs.jpeg8_check(jpeg2)
-    assert_array_equal(
+    assert array_equal(
         imagecodecs.jpeg8_decode(jpeg1), imagecodecs.jpeg8_decode(jpeg2)
     )
     out = bytearray(len(jpeg2))
     imagecodecs.jpegxl_decode_jpeg(jpegxl, out=out)
-    assert_array_equal(
+    assert array_equal(
         imagecodecs.jpeg8_decode(jpeg1), imagecodecs.jpeg8_decode(out)
     )
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGXL.available, reason='jpegxl missing')
+@pytest.mark.parametrize('dtype', ['u2', 'f4'])
+def test_jpegxl_big_endian(dtype):
+    """Test JPEG XL encodes big-endian arrays correctly."""
+    data_le = image_data('rgb', dtype)
+    data_be = numpy.asarray(data_le, dtype=f'>{dtype}')
+    assert data_be.dtype.byteorder == '>'
+
+    encoded_le = imagecodecs.jpegxl_encode(data_le, lossless=True)
+    encoded_be = imagecodecs.jpegxl_encode(data_be, lossless=True)
+
+    assert imagecodecs.jpegxl_check(encoded_le)
+    assert imagecodecs.jpegxl_check(encoded_be)
+
+    decoded_le = imagecodecs.jpegxl_decode(encoded_le)
+    decoded_be = imagecodecs.jpegxl_decode(encoded_be)
+    # assert decoded_be.dtype.byteorder == '>'
+
+    assert array_equal(decoded_le, decoded_be)
+    assert array_equal(decoded_le, data_le)
+
+
+@pytest.mark.skipif(not imagecodecs.EXR.available, reason='exr missing')
+@pytest.mark.parametrize(
+    ('compression', 'level'),
+    [
+        ('NONE', None),
+        ('ZIP', 5),
+        ('ZIPS', 5),
+        ('DWAA', 0.5),
+        ('DWAB', 0.5),
+        ('RLE', None),
+        ('PIZ', None),
+        ('PXR24', None),
+        ('B44', None),
+        ('B44A', None),
+        ('HTJ2K256', None),
+        ('HTJ2K32', None),
+        ('LJ2K', 1.0),
+        ('ZSTD', 5),
+    ],
+)
+def test_exr_roundtrip(compression, level):
+    """Test EXR roundtrip with 4D image."""
+    lossless = compression not in {'PXR24', 'B44', 'B44A', 'LJ2K'}
+    data = image_data('channels', 'float16', planar=True, frames=True)
+    nframes, nsamples, height, width = data.shape
+
+    encoded = imagecodecs.exr_encode(
+        data,
+        level=level,
+        compression=compression,
+        planar=True,
+        frames=True,
+    )
+
+    decoded_planar = imagecodecs.exr_decode(encoded, index=None, planar=True)
+    assert decoded_planar.shape == (nframes, nsamples, height, width)
+    if lossless:
+        assert array_equal(data, decoded_planar)
+    else:
+        assert_allclose(data, decoded_planar, atol=1e-2, rtol=0)
+
+    decoded_nonplanar = imagecodecs.exr_decode(
+        encoded, index=None, planar=False
+    )
+    assert decoded_nonplanar.shape == (nframes, height, width, nsamples)
+    if lossless:
+        assert array_equal(numpy.moveaxis(data, -3, -1), decoded_nonplanar)
+    else:
+        assert_allclose(
+            numpy.moveaxis(data, -3, -1), decoded_nonplanar, atol=1e-2, rtol=0
+        )
+
+    for index in (0, nframes - 1):
+        frame_planar = imagecodecs.exr_decode(
+            encoded, index=index, planar=True
+        )
+        assert frame_planar.shape == (nsamples, height, width)
+        assert array_equal(decoded_planar[index], frame_planar)
+
+        frame_nonplanar = imagecodecs.exr_decode(
+            encoded, index=index, planar=False
+        )
+        assert frame_nonplanar.shape == (height, width, nsamples)
+        assert array_equal(decoded_nonplanar[index], frame_nonplanar)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXR.available, reason='jpegxr missing')
@@ -4605,7 +4755,7 @@ def test_jpegxr_decode(output):
     elif output == 'bytearray':
         decoded = bytearray(image.size * image.itemsize)
         decoded = decode(data, out=decoded)
-    assert_array_equal(image, decoded)
+    assert array_equal(image, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXR.available, reason='jpegxr missing')
@@ -4638,9 +4788,7 @@ def test_avif_strict_disabled():
 
 
 @pytest.mark.skipif(not imagecodecs.AVIF.available, reason='avif missing')
-@pytest.mark.parametrize(
-    'codec', ['auto', 'aom', 'rav1e', 'svt']  # 'libgav1', 'avm'
-)
+@pytest.mark.parametrize('codec', ['auto', 'aom', 'svt'])  # 'rav1e', 'libgav1'
 def test_avif_encoder(codec):
     """Test various AVIF encoder codecs."""
     data = numpy.load(datafiles('rgb.u1.npy'))
@@ -4652,9 +4800,24 @@ def test_avif_encoder(codec):
     else:
         pixelformat = None
     encoded = imagecodecs.avif_encode(
-        data, level=95, codec=codec, pixelformat=pixelformat, numthreads=2
+        data,
+        level=95,
+        speed=-1,  # AVIF_SPEED_DEFAULT
+        codec=codec,
+        pixelformat=pixelformat,
+        numthreads=2,
     )
     decoded = imagecodecs.avif_decode(encoded, numthreads=2)
+    assert_allclose(decoded, data, atol=11, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.AVIF.available, reason='avif missing')
+@pytest.mark.parametrize('codec', ['auto', 'aom', 'dav1d'])
+def test_avif_decoder(codec):
+    """Test various AVIF decoder codecs."""
+    data = numpy.load(datafiles('rgb.u1.npy'))
+    encoded = imagecodecs.avif_encode(data, level=95, numthreads=2)
+    decoded = imagecodecs.avif_decode(encoded, codec=codec, numthreads=2)
     assert_allclose(decoded, data, atol=6, rtol=0)
 
 
@@ -4675,10 +4838,77 @@ def test_avif_encoder_cicp():
         numthreads=25,
     )
     decoded = imagecodecs.avif_decode(encoded, numthreads=2)
-    assert_allclose(decoded, data, atol=47)
+    assert_allclose(decoded, data, atol=60)
 
     with pytest.raises(ValueError):
         imagecodecs.avif_encode(data, bitspersample=12, matrix=100)
+
+
+@pytest.mark.skipif(not imagecodecs.HEIF.available, reason='heif missing')
+@pytest.mark.parametrize('numthreads', [None, 0, 2])
+@pytest.mark.parametrize('level', [None, 90])
+@pytest.mark.parametrize('itype', ['rgb', 'rgba'])
+def test_heif_roundtrip(itype, level, numthreads):
+    """Test HEIF encode/decode roundtrip."""
+    data = image_data(itype, 'uint8')
+    encoded = imagecodecs.heif_encode(data, level=level, numthreads=numthreads)
+    assert imagecodecs.heif_check(encoded)
+    decoded = imagecodecs.heif_decode(encoded, numthreads=numthreads)
+    assert decoded.dtype == numpy.dtype('uint8')
+    assert decoded.shape == data.shape
+    if level is None:
+        assert array_equal(data, decoded)
+    else:
+        assert_allclose(data, decoded, atol=10, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.HEIF.available, reason='heif missing')
+def test_heif_bitspersample():
+    """Test HEIF 10-bit encode/decode roundtrip."""
+    data = image_data('rgb', 'uint16')
+    data >>= 6  # scale from 16-bit to 10-bit range (0..1023)
+    try:
+        encoded = imagecodecs.heif_encode(data, level=90, bitspersample=10)
+    except Exception as exc:
+        pytest.skip(f'heif 10-bit encode not supported: {exc}')
+    assert imagecodecs.heif_check(encoded)
+    decoded = imagecodecs.heif_decode(encoded)
+    assert decoded.dtype == numpy.dtype('uint16')
+    assert decoded.shape == data.shape
+    assert_allclose(data, decoded, atol=8, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.HEIF.available, reason='heif missing')
+def test_heif_index():
+    """Test HEIF multi-image encode/decode by index."""
+    frames = image_data('rgb', 'uint8', frames=True)
+    assert frames.ndim == 4
+    encoded = imagecodecs.heif_encode(frames, level=90)
+    assert imagecodecs.heif_check(encoded)
+    decoded_all = imagecodecs.heif_decode(encoded, index=None)
+    assert decoded_all.shape == frames.shape
+    decoded_first = imagecodecs.heif_decode(encoded, index=0)
+    assert array_equal(decoded_first, decoded_all[0])
+    decoded_last = imagecodecs.heif_decode(encoded, index=frames.shape[0] - 1)
+    assert array_equal(decoded_last, decoded_all[-1])
+
+
+@pytest.mark.skipif(not imagecodecs.HEIF.available, reason='heif missing')
+@pytest.mark.parametrize('compression', ['HEVC', 'JPEG'])
+def test_heif_compression(compression):
+    """Test HEIF lossy roundtrip with different compression formats."""
+    data = image_data('rgb', 'uint8')
+    try:
+        encoded = imagecodecs.heif_encode(
+            data, level=90, compression=compression
+        )
+    except Exception:
+        pytest.skip(f'heif {compression} encoder not available')
+    assert imagecodecs.heif_check(encoded)
+    decoded = imagecodecs.heif_decode(encoded)
+    assert decoded.dtype == numpy.dtype('uint8')
+    assert decoded.shape == data.shape
+    assert_allclose(data, decoded, atol=10, rtol=0)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGLS.available, reason='jpegls missing')
@@ -4705,6 +4935,35 @@ def test_jpegls_decode(output):
     assert decoded.shape == shape
     assert decoded[25, 25, 1] == 97
     assert decoded[-1, -1, -1] == 63
+
+
+@pytest.mark.skipif(not imagecodecs.JPEGLS.available, reason='jpegls missing')
+def test_jpegls_encode():
+    """Test JPEG LS encoder with RGBA32 image."""
+    data = image_data('rgba', 'uint8')
+    encoded = imagecodecs.jpegls_encode(data, transformation='hp3')
+    decoded = imagecodecs.jpegls_decode(encoded)
+    assert array_equal(decoded, data)
+
+    encoded = imagecodecs.jpegls_encode(data, level=2)
+    decoded = imagecodecs.jpegls_decode(encoded)
+    assert_allclose(decoded, data, atol=2)
+
+    encoded = imagecodecs.jpegls_encode(data, spiff=True)
+    decoded = imagecodecs.jpegls_decode(encoded)
+    assert array_equal(decoded, data)
+
+    data = image_data('rgba', 'uint16')
+    encoded = imagecodecs.jpegls_encode(data)
+    decoded = imagecodecs.jpegls_decode(encoded)
+    assert_allclose(decoded, data)
+
+    encoded = imagecodecs.jpegls_encode(data, bitspersample=12)
+    decoded = imagecodecs.jpegls_decode(encoded)
+    assert_allclose(decoded, data)
+
+    with pytest.raises(ValueError):
+        imagecodecs.jpegls_encode(data.astype('>u2'))
 
 
 @pytest.mark.skipif(
@@ -4795,7 +5054,7 @@ def test_webp_animated(index):
     assert imagecodecs.webp_check(data)
     decoded = decode(data, index=index)
     expected = image_data('gray', 'uint8', frames=True)[..., 0]
-    assert_array_equal(decoded[:, :, 0], expected[index])
+    assert array_equal(decoded[:, :, 0], expected[index])
 
 
 @pytest.mark.skipif(not imagecodecs.WEBP.available, reason='webp missing')
@@ -4818,16 +5077,16 @@ def test_webp_encode_frames(itype):
     # index= returns single frame as 3D array
     frame = imagecodecs.webp_decode(encoded, index=0)
     assert frame.shape == data.shape[1:]
-    assert_array_equal(frame, decoded[0])
+    assert array_equal(frame, decoded[0])
 
     frame = imagecodecs.webp_decode(encoded, index=-1)
     assert frame.shape == data.shape[1:]
-    assert_array_equal(frame, decoded[nframes - 1])
+    assert array_equal(frame, decoded[nframes - 1])
 
     # decode(index=i) == decode()[i] for all frames
     for i in range(nframes):
         frame = imagecodecs.webp_decode(encoded, index=i)
-        assert_array_equal(frame, decoded[i])
+        assert array_equal(frame, decoded[i])
 
 
 @pytest.mark.skipif(not imagecodecs.WEBP.available, reason='webp missing')
@@ -4840,10 +5099,10 @@ def test_webp_opaque():
     encoded = imagecodecs.webp_encode(data, level=90, lossless=True, method=5)
     decoded = imagecodecs.webp_decode(encoded)
     assert decoded.shape == (data.shape[0], data.shape[1], 3)
-    assert_array_equal(decoded, data[..., :3])
+    assert array_equal(decoded, data[..., :3])
 
     decoded = imagecodecs.webp_decode(encoded, hasalpha=True)
-    assert_array_equal(decoded, data)
+    assert array_equal(decoded, data)
 
 
 @pytest.mark.skipif(
@@ -4871,14 +5130,14 @@ def test_wavpack(itype, dtype, level):
     decoded = imagecodecs.wavpack_decode(encoded)
     assert decoded.dtype == dtype
     assert decoded.shape == shape
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     # encode to bytearray, decode to pre-allocated array
     encoded = bytearray(len(encoded))
     imagecodecs.wavpack_encode(data, level=level, out=encoded)
     out = numpy.empty(shape, dtype)
     imagecodecs.wavpack_decode(encoded, out=out)
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
     info = imagecodecs.wavpack_info(encoded)
     assert isinstance(info, dict)
@@ -4999,7 +5258,7 @@ def test_sz3(dtype, itype, enout, deout):
     kwargs = {'mode': imagecodecs.SZ3.MODE.ABS, 'abs': atol}
     encoded = encode(data, **kwargs)
 
-    assert imagecodecs.sz3_check(encoded) is None
+    assert imagecodecs.sz3_check(encoded)
 
     if enout == 'new':
         pass
@@ -5070,18 +5329,18 @@ def test_ultrahdr():
     assert u1.shape == (32, 31, 4)
     # TODO: SDR is way too bright
     # assert_allclose(u1[0, 0], [128, 196, 160, 255])
-    assert_array_equal(u1[0, 0], [151, 175, 162, 255])
+    assert array_equal(u1[0, 0], [151, 175, 162, 255])
 
     u2 = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint16)
     assert u2.dtype == numpy.uint16
     assert u2.shape == (32, 31, 4)
-    assert_array_equal(u2[0, 0], [661, 718, 685, 3])
+    assert array_equal(u2[0, 0], [661, 718, 685, 3])
 
     u4 = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.uint32, transfer=1)
     assert u4.dtype == numpy.uint32
     assert u4.shape == (32, 31)
     assert u4[0, 0] == 3940235925  # 3894166016
-    assert_array_equal((u4 >> 10) & 1023, u2[..., 1])
+    assert array_equal((u4 >> 10) & 1023, u2[..., 1])
 
     uhdr = imagecodecs.ultrahdr_encode(u4, level=100, transfer=1, gamut=1)
 
@@ -5176,6 +5435,54 @@ def test_ultrahdr_sdr():
     assert_allclose(hdr, decoded_auto, atol=0.1)
     assert_allclose(hdr, decoded_sdr, atol=0.1)
 
+    encoded_params = encode(
+        hdr, level=100, gainmap_level=75, gainmap_gamma=1.0, multichannel=False
+    )
+    assert imagecodecs.ultrahdr_check(encoded_params)
+    decoded_params = decode(encoded_params, dtype=dtype)
+    assert decoded_params.shape == hdr.shape
+    assert decoded_params.dtype == dtype
+    assert_allclose(hdr, decoded_params, atol=0.1)
+
+
+@pytest.mark.skipif(
+    not imagecodecs.ULTRAHDR.available, reason='ultrahdr missing'
+)
+@pytest.mark.skipif(not imagecodecs.JPEG8.available, reason='jpeg8 missing')
+def test_ultrahdr_jpeg():
+    """Test ULTRAHDR encode/decode roundtrip from JPEG components."""
+    uhdr = readfile('rgba.uhdr')
+    assert imagecodecs.ultrahdr_check(uhdr)
+
+    base_jpeg, gainmap_jpeg, metadata = imagecodecs.ultrahdr_decode_jpeg(uhdr)
+    assert isinstance(base_jpeg, bytes)
+    assert isinstance(gainmap_jpeg, bytes)
+    assert isinstance(metadata, dict)
+    assert 'gamma' in metadata
+    assert 'max_content_boost' in metadata
+
+    assert imagecodecs.jpeg8_check(base_jpeg)
+    img = imagecodecs.jpeg8_decode(base_jpeg)
+    assert img.shape == (32, 31, 3)
+    assert img.dtype == numpy.uint8
+
+    assert imagecodecs.jpeg8_check(gainmap_jpeg)
+    img = imagecodecs.jpeg8_decode(gainmap_jpeg)
+    assert img.shape == (32, 31, 3)
+    assert img.dtype == numpy.uint8
+
+    uhdr_merged = imagecodecs.ultrahdr_encode_jpeg(
+        base_jpeg, gainmap_jpeg, **metadata
+    )
+    assert imagecodecs.ultrahdr_check(uhdr_merged)
+
+    decoded_orig = imagecodecs.ultrahdr_decode(uhdr, dtype=numpy.float16)
+    decoded_merged = imagecodecs.ultrahdr_decode(
+        uhdr_merged, dtype=numpy.float16
+    )
+
+    assert_allclose(decoded_orig, decoded_merged, atol=0.001)
+
 
 @pytest.mark.skipif(not imagecodecs.SPERR.available, reason='sperr missing')
 @pytest.mark.parametrize('mode', ['bpp', 'psnr', 'pwe'])
@@ -5244,6 +5551,36 @@ def test_sperr_empty():
 
     with pytest.raises(ValueError):
         imagecodecs.sperr_decode(b'', header=False, shape=(0, 0), dtype='f4')
+
+
+@pytest.mark.parametrize(
+    ('codec', 'dtype', 'shape', 'kwargs'),
+    [
+        ('rcomp', '>u2', (4,), {}),
+        ('rcomp', '>u4', (4,), {}),
+        ('pcodec', '>u2', (4,), {}),
+        ('pcodec', '>f8', (4,), {}),
+        ('sperr', '>f4', (2, 2), {'level': 16.0, 'mode': 'bpp'}),
+        ('sperr', '>f8', (2, 2), {'level': 16.0, 'mode': 'bpp'}),
+        ('sz3', '>f4', (2, 2), {}),
+        ('sz3', '>f8', (2, 2), {}),
+        ('zfp', '>u2', (2, 2), {}),
+        ('jpeg8', '>u2', (32, 32), {}),
+    ],
+)
+def test_big_endian_rejection(codec, dtype, shape, kwargs):
+    """Test big-endian arrays are rejected."""
+    codec_obj = getattr(imagecodecs, codec.upper())
+    if not codec_obj.available:
+        pytest.skip(f'{codec} not available')
+
+    data_be = numpy.arange(numpy.prod(shape), dtype=dtype).reshape(shape)
+    if dtype.startswith('>f'):
+        data_be *= 1.234
+
+    encode_func = getattr(imagecodecs, f'{codec}_encode')
+    with pytest.raises(ValueError):
+        encode_func(data_be, **kwargs)
 
 
 @pytest.mark.skipif(not imagecodecs.LERC.available, reason='lerc missing')
@@ -5320,12 +5657,12 @@ def test_lerc_files(file):
     decoded = imagecodecs.lerc_decode(encoded, masks=False)
     decoded1, masks = imagecodecs.lerc_decode(encoded, masks=True)
 
-    assert_array_equal(decoded, decoded1)
+    assert array_equal(decoded, decoded1)
 
     if file[:4] != 'zstd':
         out = numpy.zeros_like(masks)
         decoded1, _ = imagecodecs.lerc_decode(encoded, masks=out)
-        assert_array_equal(masks, out)
+        assert array_equal(masks, out)
 
     if file[:5] == 'world':
         assert decoded.dtype == numpy.float32
@@ -5369,7 +5706,7 @@ def test_lerc_compression(compression):
         data, compression=compression, compressionargs=compressionargs
     )
     decompressed = imagecodecs.lerc_decode(compressed)
-    assert_array_equal(data, decompressed)
+    assert array_equal(data, decompressed)
 
 
 @pytest.mark.skipif(not imagecodecs.LERC.available, reason='lerc missing')
@@ -5390,13 +5727,13 @@ def test_lerc_masks():
     data = stack[0]
     encoded = imagecodecs.lerc_encode(data, masks=masks[0])
     decoded, masks1 = imagecodecs.lerc_decode(encoded, masks=True)
-    assert_array_equal(masks[0], masks1)
+    assert array_equal(masks[0], masks1)
 
     # 1 band, 3 masks
     data = stack[:3]
     encoded = imagecodecs.lerc_encode(data, masks=masks[0], planar=True)
     decoded, masks1 = imagecodecs.lerc_decode(encoded, masks=True)
-    assert_array_equal(masks[0], masks1)
+    assert array_equal(masks[0], masks1)
 
     # 3 bands, 3 masks
     data = stack[:3]
@@ -5406,12 +5743,44 @@ def test_lerc_masks():
         planar=True,
     )
     decoded, masks1 = imagecodecs.lerc_decode(encoded, masks=True)
-    assert_array_equal(masks[:3], masks1)
+    assert array_equal(masks[:3], masks1)
 
     # out
     out = numpy.zeros_like(masks[:3])
     decoded, _ = imagecodecs.lerc_decode(encoded, masks=out)
-    assert_array_equal(masks[:3], out)
+    assert array_equal(masks[:3], out)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
+def test_jpeg2k_bitspersample():
+    """Test JPEG 2000 bitspersample with int32/uint32 input."""
+    # https://github.com/cgohlke/imagecodecs/issues/153
+    data_u4 = RNG.integers(0, 4096, (32, 31), dtype=numpy.uint32)
+    data_i4 = RNG.integers(-2048, 2048, (32, 31), dtype=numpy.int32)
+
+    for data in (data_u4, data_i4):
+        with pytest.raises(ValueError):
+            imagecodecs.jpeg2k_encode(data, bitspersample=12)
+        with pytest.raises(ValueError):
+            imagecodecs.jpeg2k_encode(data, bitspersample=12, reversible=False)
+
+    # uint16/int16 with bitspersample=12
+    data_u2 = data_u4.astype(numpy.uint16)
+    data_i2 = data_i4.astype(numpy.int16)
+    for data, level, atol in [
+        (data_u2, None, 1),
+        (data_u2, 500, 2),
+        (data_i2, None, 1),
+        (data_i2, 500, 2),
+    ]:
+        encoded = imagecodecs.jpeg2k_encode(
+            data, bitspersample=12, level=level
+        )
+        assert imagecodecs.jpeg2k_check(encoded) in {None, True}
+        decoded = imagecodecs.jpeg2k_decode(encoded)
+        assert decoded.dtype == data.dtype
+        assert decoded.shape == data.shape
+        assert_allclose(decoded, data, atol=atol, rtol=0)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
@@ -5497,7 +5866,7 @@ def test_jpeg2k_codecformat(codecformat):
     )
     assert imagecodecs.jpeg2k_check(encoded) in {None, True}
     decoded = imagecodecs.jpeg2k_decode(encoded, verbose=2)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
@@ -5510,7 +5879,7 @@ def test_jpeg2k_numthreads(numthreads):
     decoded = imagecodecs.jpeg2k_decode(
         encoded, numthreads=numthreads, verbose=2
     )
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
@@ -5544,12 +5913,12 @@ def test_jpeg2k_samples():
     encoded = imagecodecs.jpeg2k_encode(data, verbose=2)
     assert imagecodecs.jpeg2k_check(encoded)
     decoded = imagecodecs.jpeg2k_decode(encoded, verbose=2)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     data = numpy.moveaxis(data, -1, 0)
     encoded = imagecodecs.jpeg2k_encode(data, planar=True, verbose=2)
     decoded = imagecodecs.jpeg2k_decode(encoded, planar=True, verbose=2)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
@@ -5560,7 +5929,7 @@ def test_jpeg2k_realloc(caplog):
     encoded = imagecodecs.jpeg2k_encode(data, level=0, verbose=3)
     assert imagecodecs.jpeg2k_check(encoded)
     decoded = imagecodecs.jpeg2k_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     encoded2 = imagecodecs.jpeg2k_encode(
         data, level=0, out=len(encoded), verbose=3
@@ -5587,7 +5956,23 @@ def test_jpeg2k_trailing_bytes(caplog):
         assert encoded == jpeg2k
         decoded = imagecodecs.jpeg2k_decode(encoded, verbose=3)
         assert 'stream error' not in caplog.text
-        assert_array_equal(decoded, data)
+        assert array_equal(decoded, data)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
+def test_jpeg2k_resolution():
+    """Test JPEG 2000 codec resolution."""
+    data = image_data('rgb', numpy.uint16)
+    shape = data.shape
+
+    encoded = imagecodecs.jpeg2k_encode(data, resolutions=5)
+    decoded = imagecodecs.jpeg2k_decode(encoded, skipres=1)
+
+    assert decoded.shape[0] == (shape[0] + 1) // 2
+    assert decoded.shape[1] == (shape[1] + 1) // 2
+
+    with pytest.raises(imagecodecs.Jpeg2kError):
+        imagecodecs.jpeg2k_decode(encoded, skipres=10)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEG2K.available, reason='jpeg2k missing')
@@ -5622,7 +6007,7 @@ def test_jpeg2k(dtype, planar, bitspersample):
     )
     assert imagecodecs.jpeg2k_check(encoded) in {None, True}
     decoded = imagecodecs.jpeg2k_decode(encoded, planar=planar, verbose=2)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
@@ -5639,7 +6024,7 @@ def test_htj2k_dtype(dtype, planar):
     encoded = imagecodecs.htj2k_encode(data, planar=planar)
     assert imagecodecs.htj2k_check(encoded)
     decoded = imagecodecs.htj2k_decode(encoded, planar=planar)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
@@ -5665,7 +6050,7 @@ def test_htj2k_planar(is_planar, to_planar):
             decoded = numpy.moveaxis(decoded, 0, -1)
         else:
             decoded = numpy.moveaxis(decoded, -1, 0)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
@@ -5692,16 +6077,16 @@ def test_htj2k_reversible():
     encoded = imagecodecs.htj2k_encode(data, reversible=False)
     decoded = imagecodecs.htj2k_decode(encoded)
     with pytest.raises(AssertionError):
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
     encoded = imagecodecs.htj2k_encode(data, level=0.01)
     decoded = imagecodecs.htj2k_decode(encoded)
     with pytest.raises(AssertionError):
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
     encoded = imagecodecs.htj2k_encode(data, level=0.01, reversible=True)
     decoded = imagecodecs.htj2k_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
@@ -5721,7 +6106,7 @@ def test_htj2k_tile():
     )
     assert imagecodecs.htj2k_check(encoded)
     decoded = imagecodecs.htj2k_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 def test_htj2k_level():
@@ -5731,7 +6116,7 @@ def test_htj2k_level():
     encoded = imagecodecs.htj2k_encode(data, level=0.0)  # lossless
     assert imagecodecs.htj2k_check(encoded)
     decoded = imagecodecs.htj2k_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     encoded = imagecodecs.htj2k_encode(data, level=0.01)  # qstep
     assert imagecodecs.htj2k_check(encoded)
@@ -5759,7 +6144,7 @@ def test_htj2k_float32(planar):
     decoded = imagecodecs.htj2k_decode(encoded, planar=planar)
     assert decoded.dtype == dtype
     assert decoded.shape == data.shape
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     # lossy: irreversible with explicit quantization step
     encoded = imagecodecs.htj2k_encode(data, planar=planar, level=0.001)
@@ -5770,7 +6155,7 @@ def test_htj2k_float32(planar):
     # lossy encoding treats float bits as integers; quantization error in
     # bit-pattern space maps to large errors in float value space
     with pytest.raises(AssertionError):
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
     with pytest.raises(ValueError):
         imagecodecs.htj2k_encode(data.astype(numpy.float64))
@@ -5790,6 +6175,32 @@ def test_htj2k_exception(capfd, verbose):
     else:
         assert captured.err == ''
     imagecodecs.htj2k_init()
+
+
+@pytest.mark.skipif(not imagecodecs.HTJ2K.available, reason='htj2k missing')
+@pytest.mark.parametrize('dtype', ['u1', 'u2', 'u4'])
+def test_htj2k_bitspersample(dtype):
+    """Test HTJ2K codec bitspersample."""
+    dtype = numpy.dtype(dtype)
+    itemsize = dtype.itemsize
+    data = image_data('gray', dtype).squeeze()
+
+    if itemsize == 1:
+        bitspersample = 7
+        data //= 2
+    elif itemsize == 2:
+        bitspersample = 12
+        data //= 16
+    else:
+        bitspersample = 20
+        data //= 4096
+
+    encoded = imagecodecs.htj2k_encode(data, bitspersample=bitspersample)
+    assert imagecodecs.htj2k_check(encoded)
+    decoded = imagecodecs.htj2k_decode(encoded)
+    assert decoded.dtype == dtype
+    assert decoded.shape == data.shape
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXR.available, reason='jpegxr missing')
@@ -5868,9 +6279,20 @@ def test_jpegxr(itype, enout, deout, level):
     if level is None:
         atol = 0.00001 if dtype.kind == 'f' else 1
     if level == 90:
-        atol = 0.005 if dtype.kind == 'f' else 8 if dtype == 'uint8' else 12
+        if dtype.kind == 'f':
+            atol = 0.005
+        elif itype.startswith('cmyk') and dtype == numpy.dtype('uint8'):
+            atol = 24  # OL_ONE reconstruction differs more for CMYK
+        elif dtype == numpy.dtype('uint8'):
+            atol = 8
+        else:
+            atol = 12
     else:
-        atol = 0.1 if dtype.kind == 'f' else 64 if dtype == 'uint8' else 700
+        atol = (
+            0.1
+            if dtype.kind == 'f'
+            else 64 if dtype == numpy.dtype('uint8') else 700
+        )
     assert_allclose(data, decoded, atol=atol, rtol=0)
 
 
@@ -5886,7 +6308,7 @@ def test_jpegxs(dtype, config):
     )
     assert imagecodecs.jpegxs_check(encoded)
     decoded = imagecodecs.jpegxs_decode(encoded)
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.JPEGXS.available, reason='jpegxs missing')
@@ -5910,7 +6332,7 @@ def test_png_encode_fast():
         filter=imagecodecs.PNG.FILTER.SUB,
     )
     decoded = imagecodecs.png_decode(encoded)
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.APNG.available, reason='apng missing')
@@ -5924,7 +6346,7 @@ def test_apng_encode_fast():
         filter=imagecodecs.APNG.FILTER.SUB,
     )
     decoded = imagecodecs.apng_decode(encoded)
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.PNG.available, reason='png missing')
@@ -5940,7 +6362,7 @@ def test_png_encode_cicp():
         matrix=9,  # BT2020_NCL
     )
     decoded = imagecodecs.png_decode(encoded)
-    assert_array_equal(decoded, data, verbose=True)
+    assert array_equal(decoded, data)
 
     with pytest.raises(ValueError):
         imagecodecs.png_encode(data, matrix=100)
@@ -5959,7 +6381,7 @@ def test_apng_encode_cicp():
         matrix=9,  # BT2020_NCL
     )
     decoded = imagecodecs.apng_decode(encoded)
-    assert_array_equal(decoded, data, verbose=True)
+    assert array_equal(decoded, data)
 
     with pytest.raises(ValueError):
         imagecodecs.apng_encode(data, matrix=100)
@@ -6002,16 +6424,14 @@ def test_apng(samples, dtype):
     ).reshape(shape)
     encoded = imagecodecs.apng_encode(data, delay=100)
     decoded = imagecodecs.apng_decode(encoded)
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
     decoded = imagecodecs.apng_decode(encoded, index=0)
-    assert_array_equal(data[0], decoded, verbose=True)
+    assert array_equal(data[0], decoded)
     for index in (0, 5, 8):
         decoded = imagecodecs.apng_decode(encoded, index=index)
-        assert_array_equal(data[index], decoded, verbose=True)
+        assert array_equal(data[index], decoded)
     if imagecodecs.PNG.available:
-        assert_array_equal(
-            imagecodecs.png_decode(encoded), data[0], verbose=True
-        )
+        assert array_equal(imagecodecs.png_decode(encoded), data[0])
 
 
 @pytest.mark.parametrize(
@@ -6031,8 +6451,8 @@ def test_image_strided(codec):
     decoded = decode(encoded, out=out)
     assert decoded.shape == data.shape
     if codec != 'jpeg':
-        assert_array_equal(data, decoded)
-        assert_array_equal(data, out.squeeze())
+        assert array_equal(data, decoded)
+        assert array_equal(data, out.squeeze())
 
 
 @pytest.mark.skipif(not imagecodecs.SPNG.available, reason='spng missing')
@@ -6044,15 +6464,16 @@ def test_spng_encode(itype, dtype, level):
     data = image_data(itype, numpy.dtype(dtype)).squeeze()
     encoded = imagecodecs.spng_encode(data, level=level)
     decoded = imagecodecs.png_decode(encoded)
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
 
 
+@pytest.mark.parametrize('data', [None, 'abc', b'', 1, (), (0,), (0, 0)])
 @pytest.mark.parametrize(
     'codec',
     [
         'apng',
         'avif',
-        # 'b2nd',
+        'b2nd',
         'bmp',
         'brunsli',
         'dds',
@@ -6069,40 +6490,106 @@ def test_spng_encode(itype, dtype, level):
         'jpegxs',
         'lerc',
         'ljpeg',
+        'meshopt',
         'mozjpeg',
-        # 'pcodec',
+        'pcodec',
         'pcx',
+        'pixarlog',
         'plio',
         'png',
         'qoi',
-        # 'rcomp',
+        'rcomp',
+        'rgbe',
         'sperr',
         'spng',
-        # 'sz3',
+        'sz3',
         'tga',
         'tiff',
         'ultrahdr',
+        'wavpack',
         'webp',
-        'zfp',
         'wic',
+        'zfp',
     ],
 )
-def test_empty_array(codec):
-    """Test various array codecs with empty input."""
+def test_invalid_input_array(data, codec):
+    """Test various array codecs with empty/invalid input."""
+    # https://github.com/cgohlke/imagecodecs/issues/151
     if not getattr(imagecodecs, codec.upper()).available:
         pytest.skip(f'{codec} missing')
 
-    dtype = numpy.float32 if codec in {'sperr', 'sz3', 'zfp'} else numpy.uint8
-
-    data = numpy.empty((0, 0), dtype)
     encode = getattr(imagecodecs, f'{codec}_encode')
     decode = getattr(imagecodecs, f'{codec}_decode')
     check = getattr(imagecodecs, f'{codec}_check')
-    with pytest.raises(Exception):  # noqa: B017
+
+    if isinstance(data, tuple):
+        dtype = (
+            numpy.float32 if codec in {'sperr', 'sz3', 'zfp'} else numpy.uint8
+        )
+        data = numpy.empty(data, dtype)
+
+    if codec == 'sperr':
+        encodeargs = {'level': 1.0, 'mode': imagecodecs.SPERR.MODE.PSNR}
+    else:
+        encodeargs = {}
+
+    with pytest.raises(ValueError):
+        encode(data, **encodeargs)
+
+    with pytest.raises((ValueError, TypeError, RuntimeError)):
+        decode(data)
+
+    with contextlib.suppress(ValueError, TypeError):
+        assert check(data) is False
+
+
+@pytest.mark.parametrize('data', [None, 'abc', 1, (), (0,)])
+@pytest.mark.parametrize(
+    'codec',
+    [
+        'bitshuffle',
+        'brotli',
+        'blosc',
+        'blosc2',
+        'bz2',
+        'chunked',
+        'deflate',
+        'gzip',
+        'isal',
+        'lz4',
+        'lz4h5',
+        'lz4f',
+        'lzf',
+        'lzfse',
+        'lzham',
+        'lzma',
+        'lzw',
+        'snappy',
+        'szip',
+        'zlib',
+        'zlibng',
+        'zopfli',
+        'zstd',
+        'zstd1',
+    ],
+)
+def test_invalid_input_byte(data, codec):
+    """Test various byte codecs with empty/invalid input."""
+    if not getattr(imagecodecs, codec.upper()).available:
+        pytest.skip(f'{codec} missing')
+
+    encode = getattr(imagecodecs, f'{codec}_encode')
+    decode = getattr(imagecodecs, f'{codec}_decode')
+    check = getattr(imagecodecs, f'{codec}_check')
+
+    with pytest.raises((ValueError, TypeError)):
         encode(data)
-    with pytest.raises(Exception):  # noqa: B017
-        decode(b'')
-    assert check(b'') is False
+
+    with pytest.raises((ValueError, TypeError)):
+        decode(data)
+
+    with contextlib.suppress(ValueError, TypeError):
+        assert check(data) == (codec == 'bitshuffle')
 
 
 @pytest.mark.parametrize('level', [None, 5, -1])
@@ -6117,6 +6604,7 @@ def test_empty_array(codec):
         'avif',
         'bmp',
         'brunsli',
+        'exr',
         'gif',
         'heif',
         'htj2k',
@@ -6195,6 +6683,14 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             atol = 24
             if level:
                 level += 95
+        case 'exr':
+            if itype == 'view' or deout == 'view':
+                pytest.skip('xfail - exr does not support this case')
+            dtype = {'uint8': 'float16', 'uint16': 'float32'}[dtype]
+            check = imagecodecs.exr_check
+            encode = imagecodecs.exr_encode
+            decode = imagecodecs.exr_decode
+            encodeargs = {'compression': 'zip'}
         case 'gif':
             if itype != 'gray' or deout == 'view' or dtype != 'uint8':
                 pytest.skip('xfail - gif does not support this case')
@@ -6342,6 +6838,7 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
             decode = imagecodecs.qoi_decode
             encode = imagecodecs.qoi_encode
             check = imagecodecs.qoi_check
+            encodeargs['colorspace'] = 'srgb'
             level = None
             if (
                 itype in {'view', 'gray', 'graya'}
@@ -6458,10 +6955,10 @@ def test_image_roundtrips(codec, dtype, itype, enout, deout, level):
                 atol *= 4
             assert_allclose(data, decoded, atol=atol)
         case 'avif' if level == 94:
-            atol = 67 if dtype.itemsize > 1 else 7
+            atol = 70 if dtype.itemsize > 1 else 8
             assert_allclose(data, decoded, atol=atol)
         case _:
-            assert_array_equal(data, decoded, verbose=True)
+            assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.TGA.available, reason='TGA missing')
@@ -6476,7 +6973,7 @@ def test_tga_roundtrips(itype, rle):
     decoded = imagecodecs.tga_decode(encoded)
     assert decoded.shape == data.shape
     assert decoded.dtype == dtype
-    assert_array_equal(data, decoded, verbose=True)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.PCX.available, reason='PCX missing')
@@ -6492,12 +6989,12 @@ def test_pcx_roundtrips(itype):
     decoded = imagecodecs.pcx_decode(encoded)
     assert decoded.shape == frames.shape
     assert decoded.dtype == dtype
-    assert_array_equal(frames, decoded, verbose=True)
+    assert array_equal(frames, decoded)
     # test single page indexing
     for i in range(nframes):
         page = imagecodecs.pcx_decode(encoded, index=i)
         assert page.shape == data.shape
-        assert_array_equal(data, page, verbose=True)
+        assert array_equal(data, page)
 
 
 @pytest.mark.skipif(not imagecodecs.GIF.available, reason='GIF missing')
@@ -6541,7 +7038,7 @@ def test_gif_roundtrips(index, frames, enout, deout):
 
     if index == 0 and frames:
         data = data[index]
-    assert_array_equal(data, decoded[..., 1], verbose=True)
+    assert array_equal(data, decoded[..., 1])
 
 
 @pytest.mark.skipif(not imagecodecs.PNG.available, reason='png missing')
@@ -6596,7 +7093,7 @@ def test_tiff_decode_files(name, asrgb):
 
     data = tifffile.imread(filename)
     decoded = decode(encoded, index=None, verbose=1)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -6613,7 +7110,7 @@ def test_tiff_decode_index(index):
     elif index is list:
         data = tifffile.imread(filename, series=1)
         decoded = imagecodecs.tiff_decode(encoded, index=[1, 3, 5, 7])
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
     elif index is slice:
         for idx in (slice(None), slice(1, None, None), slice(1, 3, None)):
             with pytest.raises((IndexError, ValueError)):
@@ -6621,15 +7118,15 @@ def test_tiff_decode_index(index):
         data = tifffile.imread(filename, series=1)
         for idx in (slice(1, None, 2), slice(1, 8, 2)):
             decoded = imagecodecs.tiff_decode(encoded, index=idx)
-            assert_array_equal(data, decoded)
+            assert array_equal(data, decoded)
     elif index is None:
         data = tifffile.imread(filename)
         decoded = imagecodecs.tiff_decode(encoded, index=None)
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
     else:
         data = tifffile.imread(filename, key=index)
         decoded = imagecodecs.tiff_decode(encoded, index=index)
-        assert_array_equal(data, decoded)
+        assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='')
@@ -6643,12 +7140,12 @@ def test_tiff_decode_asrgb():
     data = tifffile.imread(filename, series=0)
     decoded = imagecodecs.tiff_decode(encoded, index=None, asrgb=True)
     assert decoded.shape[-1] == 4
-    assert_array_equal(data, decoded[..., 0])
+    assert array_equal(data, decoded[..., 0])
 
     data = tifffile.imread(filename, series=1)
     decoded = imagecodecs.tiff_decode(encoded, index=[1, 3, 5, 7], asrgb=True)
     assert decoded.shape[-1] == 4
-    assert_array_equal(data, decoded[..., :3])
+    assert array_equal(data, decoded[..., :3])
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -6686,7 +7183,7 @@ def test_tiff_encode():
     assert isinstance(encoded, bytearray)
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded, index=0)
-    assert_array_equal(decoded, data.reshape(decoded.shape))
+    assert array_equal(decoded, data.reshape(decoded.shape))
 
     encoded = imagecodecs.tiff_encode(
         data[..., 0],
@@ -6705,7 +7202,7 @@ def test_tiff_encode():
     assert isinstance(encoded, bytes)
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded, index=1)
-    assert_array_equal(decoded, data[..., 0].reshape(decoded.shape))
+    assert array_equal(decoded, data[..., 0].reshape(decoded.shape))
 
     data = image_data('rgb', numpy.uint8, frames=True).squeeze()[:3]
     encoded = imagecodecs.tiff_encode(
@@ -6757,7 +7254,7 @@ def test_tiff_encode():
         assert page.resolution == (1.0, 1.0)
         assert page.description == ''
         assert page.tile == (32, 32)
-        assert_array_equal(page.colormap, colormap)
+        assert array_equal(page.colormap, colormap)
         page = tif.pages[2]
         assert page.photometric == tifffile.PHOTOMETRIC.YCBCR
         assert page.planarconfig == tifffile.PLANARCONFIG.CONTIG
@@ -6785,10 +7282,10 @@ def test_tiff_encode_issue_rc3():
         # packbits with predictor not supported by libtiff:
         # predictor=imagecodecs.TIFF.PREDICTOR.HORIZONTAL,
     )
-    assert_array_equal(data, data_copy)  # ensure input not modified
+    assert array_equal(data, data_copy)  # ensure input not modified
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded, index=0)
-    assert_array_equal(decoded, data.reshape(decoded.shape))
+    assert array_equal(decoded, data.reshape(decoded.shape))
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -6957,12 +7454,12 @@ def test_tiff_encode_heuristics(shape, dtype, kwargs, shaped, photometric):
     encoded = imagecodecs.tiff_encode(data, tile=(16, 16), **kwargs)
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded, index=None)
-    assert_array_equal(decoded, data.reshape(decoded.shape))
+    assert array_equal(decoded, data.reshape(decoded.shape))
 
     # striped
     encoded = imagecodecs.tiff_encode(data, **kwargs)
     decoded = imagecodecs.tiff_decode(encoded, index=None)
-    assert_array_equal(decoded, data.reshape(decoded.shape))
+    assert array_equal(decoded, data.reshape(decoded.shape))
 
     if tifffile is None:
         return
@@ -7035,7 +7532,7 @@ def test_tiff_encode_compression(
         photometric='rgb',
         tile=tile,
     )
-    assert_array_equal(data, data_copy)  # not modified in-place
+    assert array_equal(data, data_copy)  # not modified in-place
     decoded = imagecodecs.tiff_decode(encoded)
     assert decoded.dtype == dtype
     if compression == 'jpeg':
@@ -7044,7 +7541,7 @@ def test_tiff_encode_compression(
     elif compression == 'webp' and level is not None and level < 0:
         assert_allclose(decoded, data.reshape(decoded.shape), atol=50)
     else:
-        assert_array_equal(decoded, data.reshape(decoded.shape))
+        assert array_equal(decoded, data.reshape(decoded.shape))
 
     if tifffile is None:
         return
@@ -7084,14 +7581,14 @@ def test_tiff_bitspersample(bitspersample, samples, tile):
     encoded = imagecodecs.tiff_encode(data, **kwargs)
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     if bitspersample <= 8 and samples == 1:
         decoded = imagecodecs.tiff_decode(encoded, asrgb=True)
         expected = (
             data.astype(numpy.uint16) * 255 // (2**bitspersample - 1)
         ).astype(numpy.uint8)
-        assert_array_equal(decoded[..., 0], expected)
+        assert array_equal(decoded[..., 0], expected)
 
     if tifffile is None:
         return
@@ -7100,6 +7597,24 @@ def test_tiff_bitspersample(bitspersample, samples, tile):
         page = tif.pages.first
         assert page.bitspersample == bitspersample
         assert page.tile == tile
+
+
+@pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
+def test_tiff_encode_deflate_predictor():
+    """Test TIFF deflate+horizontal-predictor with small near-random data."""
+    # Regression for Pyodide wasm32 hang: libtiff's libdeflate codec enters an
+    # infinite retry loop in TIFFLibDeflateEncode when libdeflate_zlib_compress
+    # returns 0 (output buffer too small) for incompressible predictor-encoded
+    # data
+    data = RNG.integers(20, 235, (32, 48, 3), dtype=numpy.uint8)
+    encoded = imagecodecs.tiff_encode(
+        data,
+        compression=imagecodecs.TIFF.COMPRESSION.DEFLATE,
+        predictor=imagecodecs.TIFF.PREDICTOR.HORIZONTAL,
+    )
+    assert imagecodecs.tiff_check(encoded)
+    decoded = imagecodecs.tiff_decode(encoded)
+    assert array_equal(decoded.reshape(data.shape), data)
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -7119,10 +7634,10 @@ def test_tiff_encode_fax(compression, tile):
     )
     assert imagecodecs.tiff_check(encoded)
     decoded = imagecodecs.tiff_decode(encoded)
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     decoded = imagecodecs.tiff_decode(encoded, asrgb=True)
-    assert_array_equal(decoded[..., 0], data.astype(numpy.uint8) * 255)
+    assert array_equal(decoded[..., 0], data.astype(numpy.uint8) * 255)
 
     if tifffile is None:
         return
@@ -7185,7 +7700,7 @@ def test_tiff_encode_pixarlog(photometric, dtype):
             )
             total_rows += rows_in_strip
         reassembled = numpy.concatenate(strips, axis=0)
-        assert_array_equal(reassembled, decoded)
+        assert array_equal(reassembled, decoded)
 
 
 @pytest.mark.skipif(
@@ -7221,7 +7736,7 @@ def test_pixarlog(dtype, samples, deflate):
 
     if dtype == numpy.uint8:
         # u8 is lossless through the 11-bit log tables
-        assert_array_equal(decoded, data)
+        assert array_equal(decoded, data)
     elif dtype == numpy.uint16:
         # 11-bit log quantization; step grows in log-space, up to ~128 near max
         assert_allclose(decoded, data, atol=128, rtol=0)
@@ -7249,18 +7764,18 @@ def test_plio(dtype):
     decoded = decode(encoded, npix=data.size)
     assert decoded.shape == (data.size,)
     assert decoded.dtype == numpy.int32
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
     # out parameter: pre-allocated ndarray
     out = numpy.empty(data.size, dtype=numpy.int32)
     result = decode(encoded, out=out)
     assert result is out
-    assert_array_equal(data, out)
+    assert array_equal(data, out)
 
     # encode does not modify input
     original = data.copy()
     encode(data)
-    assert_array_equal(data, original)
+    assert array_equal(data, original)
 
 
 @pytest.mark.skipif(not imagecodecs.PLIO.available, reason='plio missing')
@@ -7284,7 +7799,7 @@ def test_plio_values(data):
     )
     assert decoded.shape == data.shape
     assert decoded.dtype == numpy.int32
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.PLIO.available, reason='plio missing')
@@ -7301,7 +7816,7 @@ def test_plio_errors():
     data_f = numpy.array([1.9, 2.5, 3.7], dtype=numpy.float32)
     encoded_f = encode(data_f)
     decoded_f = decode(encoded_f, npix=3)
-    assert_array_equal(decoded_f, data_f.astype(numpy.int32))
+    assert array_equal(decoded_f, data_f.astype(numpy.int32))
 
     # npix required when out is not an ndarray
     encoded = encode(numpy.zeros(10, dtype=numpy.int32))
@@ -7342,7 +7857,7 @@ def test_plio_groundtruth():
     decoded = decode(tile, npix=data.size)
     assert decoded.shape == (data.size,)
     assert decoded.dtype == numpy.int32
-    assert_array_equal(data, decoded)
+    assert array_equal(data, decoded)
 
 
 @pytest.mark.skipif(not imagecodecs.TIFF.available, reason='tiff missing')
@@ -7464,7 +7979,7 @@ def test_tifffile(byteorder, dtype, codec, predictor):
             image = image.byteswap()
             image = image.view(image.dtype.newbyteorder())
         if codec != 'jpeg':
-            assert_array_equal(data, image, verbose=True)
+            assert array_equal(data, image)
 
         if not imagecodecs.TIFF.available:
             return
@@ -7472,7 +7987,7 @@ def test_tifffile(byteorder, dtype, codec, predictor):
             # libtiff does not support {codec} with predictor
             fh.seek(0)
             image2 = imagecodecs.tiff_decode(fh.read())
-            assert_array_equal(image2, image, verbose=True)
+            assert array_equal(image2, image)
 
 
 @pytest.mark.skipif(
@@ -7498,7 +8013,7 @@ def test_tifffile_ljpeg(dtype):
         )
         fh.seek(0)
         image = tifffile.imread(fh)
-    assert_array_equal(data, image, verbose=True)
+    assert array_equal(data, image)
 
 
 def test_czifile():
@@ -7549,7 +8064,7 @@ def test_liffile():
         assert im.shape == (10, 2, 512, 512)
         assert im.dims == ('Z', 'C', 'Y', 'X')
         assert im.sizes == {'Z': 10, 'C': 2, 'Y': 512, 'X': 512}
-        assert_array_equal(im.coords['C'], ['Ch0', 'Ch1'])
+        assert array_equal(im.coords['C'], ['Ch0', 'Ch1'])
         assert_allclose(
             im.coords['Z'][[0, -1]], [-2.345302e-05, 1.786591e-05], atol=1e-4
         )
@@ -7562,6 +8077,23 @@ def test_liffile():
         data = im.asarray(mode='r', out='memmap')
         assert isinstance(data, numpy.memmap), type(data)
         assert data.sum(dtype=numpy.uint64) == 80177798
+
+
+@pytest.mark.skipif(not imagecodecs.LZ4F.available, reason='lz4 missing')
+def test_lz4f_no_content_size():
+    """Test lz4f_decode with frame that has no content size in header."""
+    data = RNG.integers(0, 256, 65537, dtype=numpy.uint8).tobytes()
+    # test via lz4f_encode with contentsize=False
+    encoded = imagecodecs.lz4f_encode(data, contentsize=False)
+    assert imagecodecs.lz4f_check(encoded)
+    decoded = imagecodecs.lz4f_decode(encoded)
+    assert decoded == data
+
+    if lz4 is not None:
+        encoded = lz4.frame.compress(data, store_size=False)
+        assert imagecodecs.lz4f_check(encoded)
+        decoded = imagecodecs.lz4f_decode(encoded)
+        assert decoded == data
 
 
 @pytest.mark.skipif(not imagecodecs.LZ4F.available, reason='lz4 missing')
@@ -7621,12 +8153,14 @@ def test_roifile(kind):
     decoded_image = roi2.image
     assert decoded_image is not None
     assert decoded_image.shape == image.shape
-    numpy.testing.assert_array_equal(decoded_image, image)
+    assert array_equal(decoded_image, image)
 
     str(roi)
     str(roi2)
 
 
+@pytest.mark.parallel_threads(1)  # too large for multiple threads
+@pytest.mark.iterations(1)
 @pytest.mark.skipif(
     not imagecodecs.JPEG8.available or imagecodecs.JPEG8.legacy,
     reason='jpeg8 missing',
