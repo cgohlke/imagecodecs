@@ -1,6 +1,44 @@
 Revisions
 =========
 
+2026.10.10
+
+- Reject 0-D input to array codecs (#151, breaking).
+- Reject bitspersample outside dtype range (breaking).
+- Reject dtype too wide for bitspersample (#153, breaking).
+- Reject big-endian arrays in many codecs.
+- Add skipres parameter to jpeg2k_decode (#155).
+- Add bitspersample parameter to htj2k_encode (#153).
+- Add bitspersample and color transformation parameter to jpegls_encode (#150).
+- Add option to write SPIFF header in jpegls_encode (breaking).
+- Add perceptualheuristics parameter to jpegxl_encode (#149).
+- Add numthreads parameter to zstd_encode and zstd1_encode.
+- Add gainmap_gamma, gainmap_level, and multichannel to ultrahdr_encode.
+- Add ultrahdr_encode_jpeg and ultrahdr_decode_jpeg functions.
+- Add colorinteropid parameter to exr_encode.
+- Add compression level parameter to snappy_encode (require Snappy 1.3).
+- Add contentsize parameter to lz4f_encode.
+- Add chunked decoder to lz4f_decode, used when content size not in header.
+- Add ZSTD and LJ2K compression to EXR codec (require OpenEXR 3.5).
+- Add colorspace parameter to qoi_encode.
+- Add codec parameter to avif_decode.
+- Add numthreads parameter to heif_encode and heif_decode.
+- Add rgbe_info function, and orientation field to rgbe_header_info C struct.
+- Set GIF background alpha to 0 when alpha channel is present (breaking).
+- Set JPEG8 lossless data precision to 16 for uint16 by default.
+- Set AVIF encoder default speed to match avifenc (breaking).
+- Enable writing lossy monochrome AVIF images.
+- Update OPENZL codec to FrameInfo API (require OpenZL 0.3.0).
+- Support more pixelformats in jpegxr_decode.
+- Avoid copy of non-planar input in jpeg2k_encode.
+- Avoid extra copy in CZI hilo unpacking.
+- Avoid memset on CLEAR in lzw_encode.
+- Improve lzw_decode using literal table.
+- Improve inner loops in bmp_encode.
+- Improve HTJ2K error handling.
+- Use uint64 accumulators in imcd_delta, imcd_xor, and imcd_packints_decode.
+- Fix issues in static Pyodide builds.
+
 2026.8.16
 
 - Add CHUNKED codec for experimental chunked compression in CZI files.
