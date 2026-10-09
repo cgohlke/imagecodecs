@@ -58,7 +58,7 @@ floating point); and
 
 :Author: `Christoph Gohlke <https://www.cgohlke.com>`_
 :License: BSD-3-Clause
-:Version: 2026.8.16
+:Version: 2026.10.10
 :DOI: `10.5281/zenodo.6915978 <https://doi.org/10.5281/zenodo.6915978>`_
 
 Quickstart
@@ -87,20 +87,20 @@ Requirements
 This revision was tested with the following requirements and dependencies
 (other versions may work):
 
-- `CPython <https://www.python.org>`_ 3.12.10, 3.13.15, 3.14.7, 3.15.0rc 64-bit
-- `numpy <https://pypi.org/project/numpy>`_ 2.5.2
-- `zarr <https://pypi.org/project/zarr/>`_ 3.3.0
+- `CPython <https://www.python.org>`_ 3.12.10, 3.13.16, 3.14.8, 3.15.0 64-bit
+- `numpy <https://pypi.org/project/numpy>`_ 2.5.3
+- `zarr <https://pypi.org/project/zarr/>`_ 3.4.1
   (optional, for Zarr 3 compatible codecs)
-- `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.16.5
+- `numcodecs <https://pypi.org/project/numcodecs/>`_ 0.17.0
   (optional, for Zarr file format 2 compatible codecs)
 
 Build requirements:
 
-- `cython <https://github.com/cython/cython>`_ 3.2.9
+- `Cython <https://github.com/cython/cython>`_ 3.2.9
 - `brotli <https://github.com/google/brotli>`_ 1.2.0
 - `bzip2 <https://gitlab.com/bzip2/bzip2>`_ 1.0.8
 - `c-blosc <https://github.com/Blosc/c-blosc>`_ 1.21.6
-- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 3.3.2
+- `c-blosc2 <https://github.com/Blosc/c-blosc2>`_ 3.3.5
 - `charls <https://github.com/team-charls/charls>`_ 2.4.4
 - `giflib <https://sourceforge.net/projects/giflib/>`_ 6.1.3
 - `isa-l <https://github.com/intel/isa-l>`_ 2.32.1
@@ -109,35 +109,36 @@ Build requirements:
 - `lerc <https://github.com/Esri/lerc>`_ 4.2.0
 - `libaec <https://github.com/Deutsches-Klimarechenzentrum/libaec>`_ 1.1.7
 - `libavif <https://github.com/AOMediaCodec/libavif>`_ 1.4.2
-  (`aom <https://aomedia.googlesource.com/aom>`_ 3.14.1,
+  (`aom <https://aomedia.googlesource.com/aom>`_ 3.15.1,
   `dav1d <https://github.com/videolan/dav1d>`_ 1.5.4,
   `rav1e <https://github.com/xiph/rav1e>`_ 0.8.1,
   `svt-av1 <https://gitlab.com/AOMediaCodec/SVT-AV1>`_ 4.2.0,
   `libyuv <https://chromium.googlesource.com/libyuv/libyuv>`_ main,
-  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.3)
-- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.25
-- `libheif <https://github.com/strukturag/libheif>`_ 1.23.1
-  (`libde265 <https://github.com/strukturag/libde265>`_ 1.1.1,
+  `libxml2 <https://gitlab.gnome.org/GNOME/libxml2>`_ 2.15.4)
+- `libdeflate <https://github.com/ebiggers/libdeflate>`_ 1.26
+- `libheif <https://github.com/strukturag/libheif>`_ 1.23.6
+  (`libde265 <https://github.com/strukturag/libde265>`_ 1.1.3,
   `x265 <https://bitbucket.org/multicoreware/x265_git/src/master/>`_ 4.2)
 - `libjpeg-turbo <https://github.com/libjpeg-turbo/libjpeg-turbo>`_ 3.2.0
 - `libjxl <https://github.com/libjxl/libjxl>`_ 0.12.0
 - `libjxs <https://jpeg.org/jpegxs/software.html>`_ 3.0.2-ED3
-- `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.3
-- `libpng <https://github.com/glennrp/libpng>`_ 1.6.58
-- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.58
+- `liblzma <https://github.com/tukaani-project/xz>`_ 5.8.4
+- `libpng <https://github.com/glennrp/libpng>`_ 1.6.59
+- `libpng-apng <https://sourceforge.net/projects/libpng-apng/>`_ 1.6.59
 - `libtiff <https://gitlab.com/libtiff/libtiff>`_ 4.7.2 (with issue 864 patch)
 - `libultrahdr <https://github.com/google/libultrahdr>`_ 2.0.2
 - `libwebp <https://github.com/webmproject/libwebp>`_ 1.6.0
 - `lz4 <https://github.com/lz4/lz4>`_ 1.10.0
-- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.2
-- `openexr <https://github.com/AcademySoftwareFoundation/openexr>`_ 3.4.14
+- `meshoptimizer <https://github.com/zeux/meshoptimizer>`_ 1.3
+- `openexr <https://github.com/AcademySoftwareFoundation/openexr>`_ 3.5.2
+  (`imath <https://github.com/AcademySoftwareFoundation/Imath>`_ 3.2.3)
 - `openjpeg <https://github.com/uclouvain/openjpeg>`_ 2.5.4
-- `openjph <https://github.com/aous72/OpenJPH>`_ 0.31.0
-- `openzl <https://github.com/facebook/openzl>`_ 0.2.0
-- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.3
-- `snappy <https://github.com/google/snappy>`_ 1.2.2
+- `openjph <https://github.com/aous72/OpenJPH>`_ 0.32.0
+- `openzl <https://github.com/facebook/openzl>`_ 0.3.0
+- `pcodec <https://github.com/mwlon/pcodec>`_ 1.0.4
+- `snappy <https://github.com/google/snappy>`_ 1.3.1
 - `sperr <https://github.com/NCAR/SPERR>`_ 0.8.5
-- `sz3 <https://github.com/szcompressor/SZ3>`_ 3.3.2
+- `sz3 <https://github.com/szcompressor/SZ3>`_ 3.4.0
 - `wavpack <https://github.com/dbry/wavpack>`_ 5.9.0
 - `zfp <https://github.com/LLNL/zfp>`_ 1.0.1
 - `zlib <https://github.com/madler/zlib>`_ 1.3.2
@@ -156,7 +157,7 @@ Unmaintained or discontinued build requirements:
 
 Bundled source files:
 
-- `bcdec.h <https://github.com/iOrange/bcdec>`_ 93628fe
+- `bcdec.h <https://github.com/iOrange/bcdec>`_ 80859ed
 - `bitshuffle <https://github.com/kiyo-masui/bitshuffle>`_ 0.5.2
 - ccitt.c original 0BSD implementation
 - `cfitsio ricecomp.c, pliocomp.c, hcompress.c
@@ -181,24 +182,62 @@ Bundled source files:
 
 Test requirements:
 
-- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.8.16
+- `tifffile <https://github.com/cgohlke/tifffile>`_ 2026.9.20
 - `czifile <https://github.com/cgohlke/czifile>`_ 2026.8.16
-- `liffile <https://github.com/cgohlke/liffile>`_ 2026.7.14
+- `liffile <https://github.com/cgohlke/liffile>`_ 2026.10.8
 - `sdtfile <https://github.com/cgohlke/sdtfile>`_ 2026.7.30
-- `roifile <https://github.com/cgohlke/roifile>`_ 2026.7.30
+- `roifile <https://github.com/cgohlke/roifile>`_ 2026.9.22
 - `kerchunk <https://github.com/fsspec/kerchunk>`_ 0.2.10
 - `python-blosc <https://github.com/Blosc/python-blosc>`_ 1.11.4
-- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.10.0
+- `python-blosc2 <https://github.com/Blosc/python-blosc2>`_ 4.14.1
 - `python-brotli <https://github.com/google/brotli/tree/master/python>`_ 1.2.0
 - `python-lz4 <https://github.com/python-lz4/python-lz4>`_ 4.4.5
 - `python-lzf <https://github.com/teepark/python-lzf>`_ 0.2.6
 - `python-snappy <https://github.com/andrix/python-snappy>`_ 0.6.1
 - `pyliblzfse <https://github.com/ydkhatri/pyliblzfse>`_ 0.4.1
-- `backports.zstd <https://github.com/rogdham/backports.zstd>`_ 1.6.0
-- `zopflipy <https://github.com/hattya/zopflipy>`_ 1.12
+- `backports.zstd <https://github.com/rogdham/backports.zstd>`_ 1.7.0
+- `zopflipy <https://github.com/hattya/zopflipy>`_ 1.13
 
 Revisions
 ---------
+
+2026.10.10
+
+- Reject 0-D input to array codecs (#151, breaking).
+- Reject bitspersample outside dtype range (breaking).
+- Reject dtype too wide for bitspersample (#153, breaking).
+- Reject big-endian arrays in many codecs.
+- Add skipres parameter to jpeg2k_decode (#155).
+- Add bitspersample parameter to htj2k_encode (#153).
+- Add bitspersample and color transformation parameter to jpegls_encode (#150).
+- Add option to write SPIFF header in jpegls_encode (breaking).
+- Add perceptualheuristics parameter to jpegxl_encode (#149).
+- Add numthreads parameter to zstd_encode and zstd1_encode.
+- Add gainmap_gamma, gainmap_level, and multichannel to ultrahdr_encode.
+- Add ultrahdr_encode_jpeg and ultrahdr_decode_jpeg functions.
+- Add colorinteropid parameter to exr_encode.
+- Add compression level parameter to snappy_encode (require Snappy 1.3).
+- Add contentsize parameter to lz4f_encode.
+- Add chunked decoder to lz4f_decode, used when content size not in header.
+- Add ZSTD and LJ2K compression to EXR codec (require OpenEXR 3.5).
+- Add colorspace parameter to qoi_encode.
+- Add codec parameter to avif_decode.
+- Add numthreads parameter to heif_encode and heif_decode.
+- Add rgbe_info function, and orientation field to rgbe_header_info C struct.
+- Set GIF background alpha to 0 when alpha channel is present (breaking).
+- Set JPEG8 lossless data precision to 16 for uint16 by default.
+- Set AVIF encoder default speed to match avifenc (breaking).
+- Enable writing lossy monochrome AVIF images.
+- Update OPENZL codec to FrameInfo API (require OpenZL 0.3.0).
+- Support more pixelformats in jpegxr_decode.
+- Avoid copy of non-planar input in jpeg2k_encode.
+- Avoid extra copy in CZI hilo unpacking.
+- Avoid memset on CLEAR in lzw_encode.
+- Improve lzw_decode using literal table.
+- Improve inner loops in bmp_encode.
+- Improve HTJ2K error handling.
+- Use uint64 accumulators in imcd_delta, imcd_xor, and imcd_packints_decode.
+- Fix issues in static Pyodide builds.
 
 2026.8.16
 
@@ -264,51 +303,6 @@ Revisions
 
 2026.3.6
 
-- Add CCITTRLE, CCITTFAX3 and CCITTFAX4 codecs (decode only).
-- Implement packints_encode function.
-- Support lerc subcodec in tiff_encode function.
-- Support packed integers, ccitt and pixarlog compression in TIFF codec.
-- Support bitorder option in PACKINTS codec.
-- Support rounding in BFLOAT16 codec.
-- Support more BMP types.
-- Update PCODEC to new API.
-- Fix buffer overflows in third-party code.
-- Fix code review issues.
-
-2026.1.14
-
-- Add tiff_encode function.
-- Add extra options for HTJ2K (#134).
-- Add linear RGB option to cms_profile.
-- Change ZSTD default compression level to 3.
-
-2026.1.1
-
-- Enforce positional-only and keyword-only parameters (breaking).
-- Base numcodecs.Jpeg on JPEG8 codec (breaking).
-- Add HTJ2K codec based on OpenJPH library (#125).
-- Add MESHOPT codec based on meshoptimizer library.
-- Fix decoding concatenated ZStandard frames.
-- Fix potential issues in TIFF and WEBP codecs.
-- Fix pyi stub file.
-- Change default Brotli compression level to 4.
-- Use Brotli streaming API for decoding.
-- Enable decoding UltraHDR to uint16.
-- Tweak memory allocation and reallocation strategies.
-- Use fused types.
-- Improve code quality.
-
-2025.11.11
-
-- Fix EER superresolution decoding (breaking; see tifffile #313).
-- Add option to eer_decode to add to uint16 array.
-- Add option to specify CICP/NCLX parameters in avif_encode (#131).
-- Add BFLOAT16 codec.
-- Build ABI3 wheels.
-- Require Cython >= 3.2.
-- Deprecate Python 3.11.
-
-2025.8.2
 
 - …
 
@@ -383,9 +377,10 @@ Before building imagecodecs from source code, install required tools and
 libraries. For example, on latest Ubuntu Linux distributions::
 
     sudo apt-get install build-essential python3-dev cython3 python3-pip \
-    python3-setuptools python3-wheel python3-numpy libdeflate-dev libjpeg-dev \
-    libjxr-dev liblcms2-dev liblz4-dev liblerc-dev liblzma-dev \
-    libopenjp2-7-dev libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev
+    python3-setuptools python3-wheel python3-numpy \
+    libbrotli-dev libcharls-dev libdeflate-dev liblerc-dev libjpeg-dev \
+    libjxr-dev liblcms2-dev liblz4-dev liblzma-dev libopenjp2-7-dev \
+    libpng-dev libtiff-dev libwebp-dev libz-dev libzstd-dev
 
 To build and install imagecodecs from source code, run::
 
@@ -398,55 +393,6 @@ library names and compiler arguments, provide a
 ``imagecodecs_distributor_setup.customize_build`` function, which is
 imported and executed during setup.
 See ``setup.py`` for pre-defined ``customize_build`` functions.
-
-Other projects providing imaging or compression codecs:
-`stdlib-zlib <https://docs.python.org/3/library/zlib.html>`_,
-`stdlib-bz2 <https://docs.python.org/3/library/bz2.html>`_,
-`stdlib-lzma <https://docs.python.org/3/library/lzma.html>`_,
-`backports.lzma <https://github.com/peterjc/backports.lzma>`_,
-`python-lzo <https://github.com/jd-boyd/python-lzo>`_,
-`python-lzw <https://github.com/joeatwork/python-lzw>`_,
-`python-lerc <https://pypi.org/project/lerc/>`_,
-`wavpack-numcodecs
-<https://github.com/AllenNeuralDynamics/wavpack-numcodecs>`_,
-`packbits <https://github.com/psd-tools/packbits>`_,
-`fpzip <https://github.com/seung-lab/fpzip>`_,
-`libmng <https://sourceforge.net/projects/libmng/>`_,
-`openhtj2k <https://github.com/osamu620/OpenHTJ2K>`_,
-`pyjetraw <https://github.com/Jetraw>`_,
-`tinyexr <https://github.com/syoyo/tinyexr>`_,
-`pytinyexr <https://github.com/syoyo/pytinyexr>`_,
-`pyroexr <https://github.com/dragly/pyroexr>`_,
-`jasper <https://github.com/jasper-software/jasper>`_,
-`libjpeg <https://github.com/thorfdbg/libjpeg>`_ (gpl),
-`pylibjpeg <https://github.com/pydicom/pylibjpeg>`_,
-`pylibjpeg-libjpeg <https://github.com/pydicom/pylibjpeg-libjpeg>`_ (gpl),
-`pylibjpeg-openjpeg <https://github.com/pydicom/pylibjpeg-openjpeg>`_,
-`pylibjpeg-rle <https://github.com/pydicom/pylibjpeg-rle>`_,
-`glymur <https://github.com/quintusdias/glymur>`_,
-`pyheif <https://github.com/carsales/pyheif>`_,
-`pyrus-cramjam <https://github.com/milesgranger/pyrus-cramjam>`_,
-`pylzham <https://github.com/Galaxy1036/pylzham>`_,
-`brieflz <https://github.com/jibsen/brieflz>`_,
-`quicklz <http://www.quicklz.com/>`_ (gpl),
-`lzo <http://www.oberhumer.com/opensource/lzo/>`_ (gpl),
-`nvjpeg <https://developer.nvidia.com/nvjpeg>`_,
-`nvjpeg2k <https://developer.nvidia.com/nvjpeg>`_,
-`pyturbojpeg <https://github.com/lilohuang/PyTurboJPEG>`_,
-`ccsds123 <https://github.com/drowzie/CCSDS123-Issue-2>`_,
-`lpc-rice <https://sourceforge.net/projects/lpcrice/>`_,
-`compression-algorithms <https://github.com/glampert/compression-algorithms>`_,
-`compressonator <https://github.com/GPUOpen-Tools/Compressonator>`_,
-`wuffs <https://github.com/google/wuffs>`_,
-`tinydng <https://github.com/syoyo/tinydng>`_,
-`grok <https://github.com/GrokImageCompression/grok>`_ (agpl),
-`mafisc
-<https://wr.informatik.uni-hamburg.de/research/projects/icomex/mafisc>`_,
-`b3d <https://github.com/balintbalazs/B3D>`_,
-`fo-dicom.codecs <https://github.com/Efferent-Health/fo-dicom.Codecs>`_,
-`jpegli <https://github.com/google/jpegli>`_,
-`crackle <https://github.com/seung-lab/crackle>`_,
-`hdf5plugin <https://github.com/silx-kit/hdf5plugin>`_.
 
 Examples
 --------
@@ -575,7 +521,7 @@ View the image in the JP2 file from the command line::
 
 from __future__ import annotations
 
-__version__ = '2026.8.16'
+__version__ = '2026.10.10'
 
 import contextlib
 import functools
@@ -694,7 +640,7 @@ _MODULES: dict[str, list[str]] = {
     '_png': ['PNG'],
     '_qoi': ['QOI'],
     '_quantize': ['QUANTIZE'],
-    '_rgbe': ['RGBE'],
+    '_rgbe': ['RGBE', 'rgbe_info'],
     '_snappy': ['SNAPPY'],
     '_sperr': ['SPERR'],
     '_spng': ['SPNG'],
@@ -702,7 +648,7 @@ _MODULES: dict[str, list[str]] = {
     '_szip': ['SZIP', 'szip_params'],
     '_tga': ['TGA'],
     '_tiff': ['TIFF'],
-    '_ultrahdr': ['ULTRAHDR'],
+    '_ultrahdr': ['ULTRAHDR', 'ultrahdr_decode_jpeg', 'ultrahdr_encode_jpeg'],
     '_wavpack': ['WAVPACK', 'wavpack_info'],
     '_webp': ['WEBP'],
     '_wic': ['WIC'],
@@ -1282,7 +1228,7 @@ def _imcodecs() -> tuple[dict[str, str], list[str]]:
         'ultrahdr': ('uhdr', 'jpr'),  # jpg
         'wavpack': ('wv',),
         'webp': ('webp', 'webm'),
-        'wic': ('ico',),  # bmp, heif, jpg, png, tiff, webp
+        'wic': ('ico'),  # bmp, heif, jpg, jxr, png, tiff, webp, wpd
         'zfp': ('zfp',),
     }
     return (
