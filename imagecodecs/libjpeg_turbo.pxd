@@ -163,9 +163,6 @@ cdef extern from 'jpeglib.h' nogil:
         int Ah
         int Al
 
-    struct jpeg_marker_struct:
-        pass
-
     ctypedef jpeg_marker_struct* jpeg_saved_marker_ptr
 
     struct jpeg_marker_struct:
