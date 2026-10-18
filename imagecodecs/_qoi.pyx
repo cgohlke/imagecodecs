@@ -63,12 +63,9 @@ def qoi_version():
     return 'qoi 4461cc3'
 
 
-def qoi_check(const uint8_t[::1] data, /):
+def qoi_check(const uint8_t[::1] data not None, /):
     """Return whether data is QOI encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'qoif'
+    return _startswith(data, b'qoif')
 
 
 def qoi_encode(
@@ -130,6 +127,8 @@ def qoi_encode(
     try:
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < <ssize_t> out_len:
+                raise ValueError('output too small')
             out = _create_output(outtype, out_len)
         dst = out
         dstsize = dst.shape[0]
@@ -192,3 +191,41 @@ def qoi_decode(
         free(buffer)
 
     return out
+
+
+def qoi_info(const uint8_t[::1] data not None, /):
+    """Return information about QOI image."""
+    cdef:
+        uint32_t width, height
+        uint8_t channels, colorspace
+
+    # header: magic, uint32 BE width, uint32 BE height, channels, colorspace
+    if data.shape[0] < 14 or not _startswith(data, b'qoif'):
+        raise QoiError('invalid QOI header')
+
+    width = (
+        (<uint32_t> data[4] << 24)
+        | (<uint32_t> data[5] << 16)
+        | (<uint32_t> data[6] << 8)
+        | <uint32_t> data[7]
+    )
+    height = (
+        (<uint32_t> data[8] << 24)
+        | (<uint32_t> data[9] << 16)
+        | (<uint32_t> data[10] << 8)
+        | <uint32_t> data[11]
+    )
+    channels = data[12]
+    colorspace = data[13]
+
+    if width == 0 or height == 0 or channels < 3 or channels > 4:
+        raise QoiError('invalid QOI header')
+
+    return {
+        '_codec': 'qoi',
+        'shape': (int(height), int(width), int(channels)),
+        'dtype': numpy.dtype(numpy.uint8),
+        'colorspace': (
+            QOI.COLORSPACE(colorspace) if colorspace <= 1 else int(colorspace)
+        ),
+    }
