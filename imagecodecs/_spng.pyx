@@ -47,6 +47,15 @@ class SPNG:
 
     available = True
 
+    class COLOR_TYPE(enum.IntEnum):
+        """SPNG codec color types."""
+
+        GRAY = SPNG_COLOR_TYPE_GRAYSCALE
+        GRAY_ALPHA = SPNG_COLOR_TYPE_GRAYSCALE_ALPHA
+        RGB = SPNG_COLOR_TYPE_TRUECOLOR
+        RGB_ALPHA = SPNG_COLOR_TYPE_TRUECOLOR_ALPHA
+        PALETTE = SPNG_COLOR_TYPE_INDEXED
+
     class FMT(enum.IntEnum):
         """SPNG codec formats."""
 
@@ -88,7 +97,7 @@ class SpngError(RuntimeError):
             msg = error_message.decode().strip()
         except Exception:
             msg = 'NULL' if err is None else f'unknown error {err!r}'
-        msg = f'{func} returned {msg}'
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -99,12 +108,9 @@ def spng_version():
     )
 
 
-def spng_check(const uint8_t[::1] data, /):
+def spng_check(const uint8_t[::1] data not None, /):
     """Return whether data is PNG encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:8])
-
-    return sig == b'\x89PNG\r\n\x1a\n'
+    return _startswith(data, b'\x89PNG\r\n\x1a\n')
 
 
 def spng_encode(
@@ -123,7 +129,6 @@ def spng_encode(
         size_t srcsize = <size_t> src.nbytes
         int clevel = _default_value(level, -1, -1, 9)
         int err = 0
-        int flags = 0
         int filter_choice = _enum_value(
             filter,
             SPNG.FILTER,
@@ -137,6 +142,7 @@ def spng_encode(
         void* output = NULL
         spng_ctx* ctx = NULL
         spng_ihdr ihdr
+        spng_alloc alloc
         imagelayout_t layout
 
     _image_layout(
@@ -155,6 +161,7 @@ def spng_encode(
 
     if not (
         layout.height > 0
+        and layout.width > 0
         and layout.height <= INT32_MAX
         and layout.width <= INT32_MAX
     ):
@@ -164,36 +171,28 @@ def spng_encode(
     ihdr.height = <uint32_t> layout.height
     ihdr.bit_depth = <uint8_t> layout.bitspersample
 
-    # libpng can read these files but spng_decode fails with "invalid format"
-    # if ihdr.bit_depth > 8:
-    #     if layout.samples == 1:
-    #         raise ValueError('SPNG_FMT_G16 not supported')
-    #     if layout.samples == 2:
-    #         raise ValueError('SPNG_FMT_GA16 not supported')
-    #     if layout.samples == 3:
-    #         raise ValueError('SPNG_FMT_RGB16 not supported')
-    # elif layout.samples == 2:
-    #     raise ValueError('SPNG_FMT_GA8 not supported')
+    # output buffer is released with this module's free()
+    alloc.malloc_fn = malloc
+    alloc.realloc_fn = realloc
+    alloc.calloc_fn = calloc
+    alloc.free_fn = free
 
     try:
         with nogil:
-            ctx = spng_ctx_new(SPNG_CTX_ENCODER)
+            ctx = spng_ctx_new2(&alloc, SPNG_CTX_ENCODER)
             if ctx == NULL:
-                raise SpngError('spng_ctx_new', None)
+                raise SpngError('spng_ctx_new2', None)
 
             if layout.samples == 1:
                 ihdr.color_type = SPNG_COLOR_TYPE_GRAYSCALE
-                # ihdr.color_type = SPNG_COLOR_TYPE_INDEXED
             elif layout.samples == 2:
-                flags = SPNG_DECODE_TRNS
                 ihdr.color_type = SPNG_COLOR_TYPE_GRAYSCALE_ALPHA
             elif layout.samples == 3:
                 ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR
             elif layout.samples == 4:
-                flags = SPNG_DECODE_TRNS
                 ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR_ALPHA
             else:
-                raise ValueError('samples={layout.samples} not supported')
+                raise ValueError(f'samples={layout.samples} not supported')
 
             ihdr.compression_method = 0
             ihdr.filter_method = SPNG_FILTER_NONE
@@ -261,11 +260,12 @@ def spng_decode(
     /,
     *,
     out=None,
+    bint _info=False,
 ):
     """Return decoded PNG image.
 
-    Supported formats: G8, RGB8, RGBA8, RGBA16
-    Not supported: GA8, GA16, G16, RGB16
+    Palette images are expanded to RGB or RGBA. Transparency chunks are
+    expanded to an alpha channel, except for 16-bit grayscale images.
 
     """
     cdef:
@@ -278,8 +278,13 @@ def spng_decode(
         int err = 0
         int fmt = 0
         int flags = 0
+        bint has_trns = False
         spng_ctx* ctx = NULL
         spng_ihdr ihdr
+        spng_trns trns
+        spng_sbit sbit
+        spng_iccp iccp
+        spng_phys phys
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -302,28 +307,44 @@ def spng_decode(
             if err != SPNG_OK:
                 raise SpngError('spng_get_ihdr', err)
 
+            err = spng_get_trns(ctx, &trns)
+            if err == SPNG_OK:
+                has_trns = True
+            elif err != SPNG_ECHUNKAVAIL:
+                raise SpngError('spng_get_trns', err)
+
+            # SPNG_FMT_G8/GA8/GA16 require grayscale with bit_depth <= 8
             itemsize = 1 if ihdr.bit_depth <= 8 else 2
             if ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE:
-                samples = 1
-                if itemsize == 1:
+                if itemsize == 2:
+                    samples = 1
+                    fmt = SPNG_FMT_PNG
+                elif has_trns:
+                    samples = 2
+                    fmt = SPNG_FMT_GA8
+                    flags = SPNG_DECODE_TRNS
+                else:
+                    samples = 1
                     fmt = SPNG_FMT_G8
-                else:
-                    fmt = 128  # TODO: SPNG_FMT_G16 not defined
             elif ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR:
-                samples = 3
-                if itemsize == 1:
-                    fmt = SPNG_FMT_RGB8
+                if has_trns:
+                    samples = 4
+                    fmt = SPNG_FMT_RGBA8 if itemsize == 1 else SPNG_FMT_RGBA16
+                    flags = SPNG_DECODE_TRNS
                 else:
-                    fmt = 8  # TODO: SPNG_FMT_RGB16 not defined
+                    samples = 3
+                    fmt = SPNG_FMT_RGB8 if itemsize == 1 else SPNG_FMT_PNG
             elif ihdr.color_type == SPNG_COLOR_TYPE_INDEXED:
-                samples = 3
-                fmt = SPNG_FMT_RGB8
+                if has_trns:
+                    samples = 4
+                    fmt = SPNG_FMT_RGBA8
+                    flags = SPNG_DECODE_TRNS
+                else:
+                    samples = 3
+                    fmt = SPNG_FMT_RGB8
             elif ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE_ALPHA:
                 samples = 2
-                if itemsize == 1:
-                    fmt = SPNG_FMT_GA8  # doesn't work
-                else:
-                    fmt = SPNG_FMT_GA16  # doesn't work
+                fmt = SPNG_FMT_PNG
             elif ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR_ALPHA:
                 samples = 4
                 if itemsize == 1:
@@ -345,6 +366,51 @@ def spng_decode(
         else:
             shape = int(ihdr.height), int(ihdr.width)
 
+        if _info:
+            color_type = int(ihdr.color_type)
+            bit_depth = int(ihdr.bit_depth)
+
+            if spng_get_sbit(ctx, &sbit) == SPNG_OK:
+                if color_type in {
+                    SPNG_COLOR_TYPE_TRUECOLOR,
+                    SPNG_COLOR_TYPE_TRUECOLOR_ALPHA,
+                    SPNG_COLOR_TYPE_INDEXED,
+                }:
+                    bitspersample = int(
+                        max(sbit.red_bits, sbit.green_bits, sbit.blue_bits)
+                    )
+                else:
+                    bitspersample = int(sbit.grayscale_bits)
+            elif color_type == SPNG_COLOR_TYPE_INDEXED:
+                bitspersample = 8
+            else:
+                bitspersample = bit_depth
+
+            iccprofile = None
+            if spng_get_iccp(ctx, &iccp) == SPNG_OK and iccp.profile != NULL:
+                iccprofile = iccp.profile[:iccp.profile_len]
+
+            resolution = None
+            resolutionunit = None
+            if spng_get_phys(ctx, &phys) == SPNG_OK:
+                resolution = (int(phys.ppu_x), int(phys.ppu_y))
+                if phys.unit_specifier == 1:
+                    resolutionunit = 'meter'
+
+            return {
+                '_codec': 'spng',
+                'shape': shape,
+                'dtype': dtype,
+                'photometric': 'gray' if samples <= 2 else 'rgb',
+                'bitspersample': bitspersample,
+                'bit_depth': bit_depth,
+                'color_type': _enum_or_int(color_type, SPNG.COLOR_TYPE),
+                'interlace': ihdr.interlace_method == SPNG_INTERLACE_ADAM7,
+                'resolution': resolution,
+                'resolutionunit': resolutionunit,
+                'iccprofile': iccprofile,
+            }
+
         out = _create_array(out, shape, dtype)
         dst = out
         if <size_t> dst.nbytes != out_size:
@@ -362,3 +428,8 @@ def spng_decode(
             spng_ctx_free(ctx)
 
     return out
+
+
+def spng_info(data, /):
+    """Return info about PNG image."""
+    return spng_decode(data, _info=True)
