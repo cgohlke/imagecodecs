@@ -57,6 +57,7 @@ class PNG:
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
+        PALETTE = PNG_COLOR_TYPE_PALETTE
 
     class COMPRESSION(enum.IntEnum):
         """PNG codec compression levels."""
@@ -75,7 +76,7 @@ class PNG:
         RLE = Z_RLE
         FIXED = Z_FIXED
 
-    class FILTER(enum.IntEnum):  # IntFlag
+    class FILTER(enum.IntFlag):
         """PNG codec filters."""
 
         NO = PNG_NO_FILTERS
@@ -157,7 +158,7 @@ def png_version():
     return 'libpng ' + PNG_LIBPNG_VER_STRING.decode()
 
 
-def png_check(const uint8_t[::1] data, /):
+def png_check(const uint8_t[::1] data not None, /):
     """Return whether data is PNG encoded image or None if unknown."""
     return (
         data.shape[0] >= 8
@@ -191,19 +192,22 @@ def png_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
-        ssize_t rowstride, row
-        png_bytep rowptr = <png_bytep> src.data
+        ssize_t row, rowstride
         int color_type = PNG_COLOR_TYPE_GRAY
         int level_ = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
         int strategy_ = _default_value(
-            _enum_value(strategy, PNG.STRATEGY), Z_DEFAULT_STRATEGY, 0, Z_FIXED
+            _enum_value(strategy, PNG.STRATEGY),
+            Z_DEFAULT_STRATEGY,
+            0,
+            Z_FIXED
         )
         int filter_ = _enum_value(filter, PNG.FILTER, -1)
         int primaries_ = -1
         int transfer_ = -1
         int matrix_ = -1
+        png_bytep rowptr = <png_bytep> src.data
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp rowpointers = NULL
@@ -240,11 +244,9 @@ def png_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use dynamic mempng
-            dstsize = _png_size_max(srcsize)
+            dstsize = _png_size_max(srcsize, layout.height)
         out = _create_output(outtype, dstsize)
-        mempng.owner = 0
-    else:
-        mempng.owner = 0
+    mempng.owner = 0
 
     dst = out
     dstsize = dst.shape[0]
@@ -252,6 +254,9 @@ def png_encode(
     primaries_ = _enum_value(primaries, PNG.COLOR_PRIMARIES, -1)
     transfer_ = _enum_value(transfer, PNG.TRANSFER_CHARACTERISTICS, -1)
     matrix_ = _enum_value(matrix, PNG.MATRIX_COEFFICIENTS, -1)
+    if matrix_ > 0:
+        # PNG only supports RGB (identity) cICP matrix coefficients
+        raise ValueError(f'{matrix=!r} not supported')
 
     try:
         with nogil:
@@ -268,6 +273,14 @@ def png_encode(
                 color_type = PNG_COLOR_TYPE_RGB
             elif layout.samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
+
+            # allocate before setjmp. locals modified after it are clobbered
+            rowpointers = <png_bytepp> calloc(layout.height, sizeof(png_bytep))
+            if rowpointers == NULL:
+                raise MemoryError('failed to allocate row pointers')
+            for row in range(layout.height):
+                rowpointers[row] = rowptr
+                rowptr += rowstride
 
             png_ptr = png_create_write_struct(
                 PNG_LIBPNG_VER_STRING,
@@ -312,7 +325,7 @@ def png_encode(
                     info_ptr,
                     <png_byte> (primaries_ if primaries_ >= 0 else 2),
                     <png_byte> (transfer_ if transfer_ >= 0 else 2),
-                    <png_byte> (matrix_ if matrix_ >= 0 else 2),
+                    0,
                     1
                 )
 
@@ -323,15 +336,6 @@ def png_encode(
                 png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
             if layout.bitspersample > 8:
                 png_set_swap(png_ptr)
-
-            rowpointers = <png_bytepp> calloc(
-                layout.height, sizeof(png_bytep)
-            )
-            if rowpointers == NULL:
-                raise MemoryError('failed to allocate row pointers')
-            for row in range(layout.height):
-                rowpointers[row] = rowptr
-                rowptr += rowstride
 
             png_write_image(png_ptr, rowpointers)
             png_write_end(png_ptr, info_ptr)
@@ -353,13 +357,13 @@ def png_decode(
     /,
     *,
     out=None,
+    bint _info=False,
 ):
     """Return decoded PNG image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        int samples = 0
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
@@ -367,6 +371,7 @@ def png_decode(
         png_uint_32 width = 0
         png_uint_32 height = 0
         png_uint_32 row
+        int samples = 0
         int bit_depth = 0
         int color_type = -1
         png_bytepp rowpointers = NULL
@@ -450,6 +455,7 @@ def png_decode(
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
                 png_set_tRNS_to_alpha(png_ptr)
 
+            png_set_interlace_handling(png_ptr)
             png_read_update_info(png_ptr, info_ptr)
 
             samples = <int> (
@@ -464,6 +470,15 @@ def png_decode(
             shape = int(height), int(width)
             strides = None, int(itemsize)
 
+        if _info:
+            return {
+                '_codec': 'png',
+                'shape': shape,
+                'dtype': dtype,
+                'photometric': 'gray' if samples <= 2 else 'rgb',
+                **_png_info(png_ptr, info_ptr, color_type, bit_depth),
+            }
+
         out = _create_array(out, shape, dtype, strides)
         dst = out
         rowptr = <png_bytep> dst.data
@@ -476,7 +491,15 @@ def png_decode(
             for row in range(height):
                 rowpointers[row] = rowptr
                 rowptr += rowstride
+
+            # re-arm error handler for this block
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise PngError(mempng.error.decode().strip())
+                raise PngError('unknown error')
+
             png_read_image(png_ptr, rowpointers)
+            png_read_end(png_ptr, NULL)
 
     finally:
         if rowpointers != NULL:
@@ -487,6 +510,96 @@ def png_decode(
             png_destroy_read_struct(&png_ptr, NULL, NULL)
 
     return out
+
+
+def png_info(data, /):
+    """Return information about PNG image."""
+    return png_decode(data, _info=True)
+
+
+cdef dict _png_info(
+    png_structp png_ptr,
+    png_infop info_ptr,
+    int color_type,
+    int bit_depth,
+):
+    """Return metadata from PNG chunks preceding IDAT."""
+    cdef:
+        png_color_8p sig_bit = NULL
+        png_charp iccname = NULL
+        png_bytep iccdata = NULL
+        png_uint_32 icclen = 0
+        png_uint_32 res_x = 0
+        png_uint_32 res_y = 0
+        png_byte primaries = 0
+        png_byte transfer = 0
+        png_byte matrix = 0
+        png_byte fullrange = 0
+        int icccomp = 0
+        int unit_type = 0
+        bint has_cicp
+
+    has_cicp = png_get_cICP(
+        png_ptr, info_ptr, &primaries, &transfer, &matrix, &fullrange
+    ) != 0
+
+    if png_get_sBIT(png_ptr, info_ptr, &sig_bit) and sig_bit != NULL:
+        if color_type in {
+            PNG_COLOR_TYPE_RGB,
+            PNG_COLOR_TYPE_RGB_ALPHA,
+            PNG_COLOR_TYPE_PALETTE,
+        }:
+            bitspersample = int(
+                max(sig_bit.red, sig_bit.green, sig_bit.blue)
+            )
+        else:
+            bitspersample = int(sig_bit.gray)
+    elif color_type == PNG_COLOR_TYPE_PALETTE:
+        bitspersample = 8
+    else:
+        bitspersample = bit_depth
+
+    iccprofile = None
+    if (
+        png_get_iCCP(
+            png_ptr, info_ptr, &iccname, &icccomp, &iccdata, &icclen
+        )
+        and iccdata != NULL
+    ):
+        iccprofile = iccdata[:icclen]
+
+    resolution = None
+    resolutionunit = None
+    if png_get_pHYs(png_ptr, info_ptr, &res_x, &res_y, &unit_type):
+        resolution = (int(res_x), int(res_y))
+        if unit_type == PNG_RESOLUTION_METER:
+            resolutionunit = 'meter'
+
+    return {
+        'bitspersample': bitspersample,
+        'bit_depth': bit_depth,
+        'color_type': _enum_or_int(color_type, PNG.COLOR_TYPE),
+        'interlace': (
+            png_get_interlace_type(png_ptr, info_ptr) == PNG_INTERLACE_ADAM7
+        ),
+        'resolution': resolution,
+        'resolutionunit': resolutionunit,
+        'primaries': (
+            _enum_or_int(primaries, PNG.COLOR_PRIMARIES) if has_cicp else None
+        ),
+        'transfer': (
+            _enum_or_int(transfer, PNG.TRANSFER_CHARACTERISTICS)
+            if has_cicp
+            else None
+        ),
+        'matrix': (
+            _enum_or_int(matrix, PNG.MATRIX_COEFFICIENTS)
+            if has_cicp
+            else None
+        ),
+        'fullrange': bool(fullrange) if has_cicp else None,
+        'iccprofile': iccprofile,
+    }
 
 
 cdef void png_error_callback(
@@ -530,11 +643,12 @@ cdef void png_read_data_fn(
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
 
     if mempng == NULL:
+        png_error(png_ptr, b'png_read_data_fn invalid io pointer')
         return
-    if mempng.offset >= mempng.size:
-        return
-    if size > mempng.size - mempng.offset:
-        # size = mempng.size - mempng.offset
+    if (
+        mempng.offset > mempng.size
+        or size > mempng.size - mempng.offset
+    ):
         png_error(png_ptr, b'png_read_data_fn input stream too small')
         return
     memcpy(
@@ -557,8 +671,6 @@ cdef void png_write_data_fn(
         png_bytep tmp
 
     if mempng == NULL:
-        return
-    if mempng.offset >= mempng.size:
         return
     if size > mempng.size - mempng.offset:
         if not mempng.owner:
@@ -586,8 +698,9 @@ cdef void png_output_flush_fn(png_structp png_ptr) noexcept nogil:
     """PNG flush callback function."""
 
 
-cdef ssize_t _png_size_max(ssize_t size) noexcept nogil:
+cdef ssize_t _png_size_max(ssize_t size, ssize_t height) noexcept nogil:
     """Return upper bound size of PNG stream from uncompressed image size."""
+    size += height  # filter type byte per row
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
     size += 8 + 25 + 16 + 44 + 12  # sig IHDR gAMA cHRM IEND
