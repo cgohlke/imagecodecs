@@ -2026,7 +2026,7 @@ imcd_eer_decode(
         return IMCD_VALUE_ERROR;
     }
 
-    while (bitindex < srcbits) {
+    while (bitindex <= srcbits) {
         word = 0;
         v = bitindex / 8;
         h = srcsize - v;
@@ -2116,7 +2116,7 @@ imcd_eer_decode_u2(
         return IMCD_VALUE_ERROR;
     }
 
-    while (bitindex < srcbits) {
+    while (bitindex <= srcbits) {
         word = 0;
         v = bitindex / 8;
         h = srcsize - v;

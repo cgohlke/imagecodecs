@@ -1461,6 +1461,23 @@ def test_eer_superres():
         im = imagecodecs.eer_decode(encoded, (40, 30), 7, 1, 1, superres=1)
 
 
+@pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
+def test_eer_last_code():
+    """Test EER decoder reads code ending exactly at end of stream."""
+    # 7-bit skip of 127 without event, then 9-bit code with skip 0:
+    # one event at the last pixel, its code ending at the last bit
+    encoded = b'\x7f\x00'
+
+    im = imagecodecs.eer_decode(encoded, (1, 128), 7, 1, 1)
+    assert im[0, 127]
+    assert im.sum() == 1
+
+    out = numpy.zeros((1, 128), numpy.uint16)
+    imagecodecs.eer_decode(encoded, (1, 128), 7, 1, 1, out=out)
+    assert out[0, 127] == 1
+    assert out.sum() == 1
+
+
 @pytest.mark.skipif(not IS_CG, reason='data files not available')
 @pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
 @pytest.mark.parametrize('superres', [0, 1, 2])
