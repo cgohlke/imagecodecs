@@ -292,14 +292,15 @@ cdef extern from 'png.h' nogil:
     ctypedef png_struct* png_const_structp
     ctypedef png_struct* png_structp
     ctypedef png_struct** png_structpp
-    ctypedef png_info_def png_info
-    ctypedef png_info* png_infop
-    ctypedef png_info* png_const_infop
-    ctypedef png_info** png_infopp
+    # renamed to avoid clash with png_info function in _png.pyx
+    ctypedef png_info_def png_info_t 'png_info'
+    ctypedef png_info_t* png_infop
+    ctypedef png_info_t* png_const_infop
+    ctypedef png_info_t** png_infopp
     ctypedef png_struct* png_structrp
     ctypedef png_struct* png_const_structrp
-    ctypedef png_info* png_inforp
-    ctypedef png_info* png_const_inforp
+    ctypedef png_info_t* png_inforp
+    ctypedef png_info_t* png_const_inforp
 
     cdef struct png_color_struct:
         png_byte red
