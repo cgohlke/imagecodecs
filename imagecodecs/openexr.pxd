@@ -478,6 +478,14 @@ cdef extern from 'openexr_part.h' nogil:
         const char* s
     )
 
+    exr_result_t exr_attr_get_string(
+        exr_const_context_t ctxt,
+        int part_index,
+        const char* name,
+        int32_t* length,
+        const char** out
+    )
+
 
 cdef extern from 'openexr_coding.h' nogil:
 
