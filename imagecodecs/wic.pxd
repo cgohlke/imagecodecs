@@ -17,17 +17,24 @@ cdef extern from 'wic.h' nogil:
         uint32_t bpc
         uint32_t frame_count
 
+    ctypedef struct wic_info_t:
+        uint32_t width
+        uint32_t height
+        uint32_t components
+        uint32_t bpc
+        uint32_t frame_count
+        uint32_t bitspersample
+        char format[16]
+        char pixelformat[64]
+
     int32_t wic_factory_init()
     void wic_factory_destroy()
 
     int32_t wic_get_info(
         const uint8_t* src,
         size_t srcsize,
-        uint32_t* width,
-        uint32_t* height,
-        uint32_t* components,
-        uint32_t* bpc,
-        uint32_t* frame_count
+        uint32_t frame_index,
+        wic_info_t* info
     )
 
     int32_t wic_copy_pixels(
