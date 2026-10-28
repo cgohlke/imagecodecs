@@ -70,12 +70,9 @@ def zstd_version():
     )
 
 
-def zstd_check(const uint8_t[::1] data, /):
+def zstd_check(const uint8_t[::1] data not None, /):
     """Return whether data is ZSTD encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'\x28\xB5\x2F\xFD'
+    return _startswith(data, b'\x28\xB5\x2F\xFD')
 
 
 def zstd_encode(
@@ -191,7 +188,7 @@ def zstd_decode(
             dstsize = <ssize_t> cntsize
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     with nogil:
@@ -206,6 +203,24 @@ def zstd_decode(
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
+
+def zstd_info(const uint8_t[::1] data not None, /):
+    """Return information about ZSTD encoded data."""
+    cdef:
+        uint64_t cntsize
+
+    with nogil:
+        cntsize = _zstd_content_size(
+            <const uint8_t*> data._data, <size_t> data.shape[0]
+        )
+    if cntsize == ZSTD_CONTENTSIZE_ERROR:
+        raise ZstdError('ZSTD_getFrameContentSize', 'ZSTD_CONTENTSIZE_ERROR')
+
+    return {
+        '_codec': 'zstd',
+        'size': None if cntsize == ZSTD_CONTENTSIZE_UNKNOWN else cntsize,
+    }
 
 
 cdef _zstd_decode(
