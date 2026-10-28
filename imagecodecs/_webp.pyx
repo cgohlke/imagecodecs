@@ -73,7 +73,13 @@ class WebpError(RuntimeError):
             }
         else:
             errors = {
-                0: 'NULL',
+                0: 'NULL' if func in {
+                    'WebPDemux',
+                    'WebPAnimDecoderNew',
+                    'WebPAnimEncoderNew',
+                    'WebPDecodeRGBAInto',
+                    'WebPDecodeRGBInto',
+                } else 'False',
                 VP8_STATUS_OUT_OF_MEMORY: 'VP8_STATUS_OUT_OF_MEMORY',
                 VP8_STATUS_INVALID_PARAM: 'VP8_STATUS_INVALID_PARAM',
                 VP8_STATUS_BITSTREAM_ERROR: 'VP8_STATUS_BITSTREAM_ERROR',
@@ -96,12 +102,9 @@ def webp_version():
     return f'libwebp {ver >> 16}.{(ver >> 8) & 255}.{ver & 255}'
 
 
-def webp_check(const uint8_t[::1] data, /):
+def webp_check(const uint8_t[::1] data not None, /):
     """Return whether data is WEBP encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:12])
-
-    return sig[:4] == b'RIFF' and sig[8:12] == b'WEBP'
+    return _startswith(data, b'RIFF') and _startswith(data, b'WEBP', 8)
 
 
 def webp_encode(
@@ -111,17 +114,19 @@ def webp_encode(
     *,
     lossless=None,
     method=None,
-    numthreads=None,
     delay=None,
+    numthreads=None,
     out=None,
 ):
     """Return WEBP encoded image.
 
+    Encode lossless unless `lossless` is False or `level` is non-negative.
     Libwebp drops entire alpha channel if all alpha values are 255 (opaque).
+    The frame `delay` in milliseconds is ignored for single frames.
 
     """
     cdef:
-        numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         uint8_t* output = NULL
         size_t output_size = 0
@@ -153,24 +158,23 @@ def webp_encode(
     if not (
         layout.width > 0
         and layout.height > 0
-        and layout.height < WEBP_MAX_DIMENSION
-        and layout.width < WEBP_MAX_DIMENSION
+        and layout.height <= WEBP_MAX_DIMENSION
+        and layout.width <= WEBP_MAX_DIMENSION
     ):
         raise ValueError('invalid data shape or dtype')
 
-    if not (
-        # validate trailing [..., height, width, samples] layout while
-        # allowing any number of leading frame dimensions
-        src.ndim >= 3
-        and src.strides[src.ndim - 1] == 1
-        and src.strides[src.ndim - 2] == layout.samples
-        and src.strides[src.ndim - 3] >= layout.samples * layout.width
-    ):
-        raise ValueError('invalid data strides')
+    stride = <int> (layout.width * layout.samples)
 
-    lossless_ = int(lossless is None or lossless or quality_factor < 0.0)
+    if lossless is None:
+        lossless_ = int(level is None or quality_factor < 0.0)
+    else:
+        lossless_ = int(bool(lossless) or quality_factor < 0.0)
 
     if layout.frames > 1:
+        if delay is not None:
+            delay = int(round(delay))
+            if delay < 1 or delay > INT_MAX // layout.frames:
+                raise ValueError(f'{delay=} out of range')
         return _webp_encode_frames(
             src,
             layout,
@@ -181,8 +185,6 @@ def webp_encode(
             delay,
             out
         )
-
-    stride = <int> src.strides[0]
 
     WebPMemoryWriterInit(&writer)
     if WebPPictureInit(&picture) == 0:
@@ -266,19 +268,20 @@ def webp_decode(
     *,
     hasalpha=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded WEBP image."""
     cdef:
         numpy.ndarray dst
-        numpy.ndarray rgba_temp
+        numpy.ndarray rgba_temp = None
         const uint8_t[::1] src = data
         ssize_t fi, target_frame, nframes
-        ssize_t anim_row_bytes, pi
-        uint32_t width, height, frames
+        ssize_t anim_frame_bytes, pi, npixels
+        uint32_t width, height, frames, flags
         int frame, output_stride, ret, timestamp
         int err = 0
         uint8_t* anim_buf = NULL
-        uint8_t* dest = NULL
+        uint8_t* temp_buf = NULL
         uint8_t* pout = NULL
         WebPDemuxer* demux = NULL
         WebPAnimDecoder* anim_dec = NULL
@@ -287,8 +290,9 @@ def webp_decode(
         WebPIterator iter
         WebPData webp_data
         bint iter_active = 0
-        bint has_alpha
-        bint all_opaque
+        bint has_alpha = 0
+        bint scan_alpha = 0
+        bint all_opaque = 1
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -304,13 +308,10 @@ def webp_decode(
         width = WebPDemuxGetI(demux, WEBP_FF_CANVAS_WIDTH)
         height = WebPDemuxGetI(demux, WEBP_FF_CANVAS_HEIGHT)
         frames = WebPDemuxGetI(demux, WEBP_FF_FRAME_COUNT)
-        # flags = WebPDemuxGetI(demux, WEBP_FF_FORMAT_FLAGS)
+        flags = WebPDemuxGetI(demux, WEBP_FF_FORMAT_FLAGS)
 
-        if frames > 1:
+        if flags & ANIMATION_FLAG:
             # use WebPAnimDecoder for correct frame compositing
-            WebPDemuxDelete(demux)
-            demux = NULL
-
             if WebPAnimDecoderOptionsInit(&anim_options) == 0:
                 raise WebpError('WebPAnimDecoderOptionsInit', 0)
             anim_options.color_mode = MODE_RGBA
@@ -326,30 +327,45 @@ def webp_decode(
 
                 nframes = <ssize_t> anim_info.frame_count
 
+                if index is None and nframes == 1:
+                    index = 0
                 if index is not None:
                     target_frame = (
                         index if index >= 0 else nframes + index
                     )
                     if target_frame < 0 or target_frame >= nframes:
                         raise IndexError(
-                            f'{index=} out of range [0, {nframes - 1}]'
+                            f'frame {index=} out of range [0, {nframes})'
                         )
                 else:
                     target_frame = -1
 
-                anim_row_bytes = (
-                    <ssize_t> anim_info.canvas_width * 4
+                if hasalpha is not None:
+                    has_alpha = <bint> hasalpha
+                elif flags & ALPHA_FLAG:
+                    # composited canvas may be opaque despite alpha flag
+                    scan_alpha = 1
+                else:
+                    has_alpha = 0
+
+                shape = (
+                    <ssize_t> anim_info.canvas_height,
+                    <ssize_t> anim_info.canvas_width,
                 )
-                rgba_temp = numpy.empty(
-                    (
-                        nframes if target_frame < 0 else 1,
-                        <ssize_t> anim_info.canvas_height,
-                        <ssize_t> anim_info.canvas_width,
-                        4,
-                    ),
-                    dtype=numpy.uint8,
+                if target_frame < 0:
+                    shape = (nframes, *shape)
+
+                if not _info:
+                    rgba_temp = numpy.empty((*shape, 4), dtype=numpy.uint8)
+                    temp_buf = <uint8_t*> rgba_temp.data
+                elif not scan_alpha:
+                    nframes = 0  # no need to decode
+
+                npixels = (
+                    <ssize_t> anim_info.canvas_width
+                    * <ssize_t> anim_info.canvas_height
                 )
-                all_opaque = 1
+                anim_frame_bytes = npixels * 4
 
                 with nogil:
                     for fi in range(nframes):
@@ -359,36 +375,20 @@ def webp_decode(
                         if ret == 0:
                             err = 1
                             break
-                        if target_frame < 0:
-                            dest = (
-                                <uint8_t*> rgba_temp.data
-                                + fi
-                                * <ssize_t> anim_info.canvas_height
-                                * anim_row_bytes
-                            )
-                            memcpy(
-                                dest,
-                                anim_buf,
-                                <ssize_t> anim_info.canvas_height
-                                * anim_row_bytes,
-                            )
-                        elif fi == target_frame:
-                            memcpy(
-                                <uint8_t*> rgba_temp.data,
-                                anim_buf,
-                                <ssize_t> anim_info.canvas_height
-                                * anim_row_bytes,
-                            )
-                        else:
+                        if target_frame >= 0 and fi != target_frame:
                             continue
-                        if all_opaque:
-                            for pi in range(
-                                <ssize_t> anim_info.canvas_width
-                                * <ssize_t> anim_info.canvas_height
-                            ):
+                        if temp_buf != NULL:
+                            memcpy(temp_buf, anim_buf, anim_frame_bytes)
+                            temp_buf += anim_frame_bytes
+                        if scan_alpha and all_opaque:
+                            for pi in range(npixels):
                                 if anim_buf[pi * 4 + 3] != 255:
                                     all_opaque = 0
                                     break
+                        if target_frame >= 0:
+                            break
+                        if _info and not all_opaque:
+                            break
 
                 if err:
                     raise WebpError('WebPAnimDecoderGetNext', 0)
@@ -397,41 +397,37 @@ def webp_decode(
                 if anim_dec != NULL:
                     WebPAnimDecoderDelete(anim_dec)
 
-            # determine alpha handling
-            if hasalpha is not None:
-                has_alpha = <bint> hasalpha
-            else:
+            if scan_alpha:
                 has_alpha = not all_opaque
 
-            if target_frame >= 0:
-                if has_alpha:
-                    result = numpy.asarray(rgba_temp[0], order='C')
-                else:
-                    result = numpy.asarray(rgba_temp[0, :, :, :3], order='C')
-            else:
-                if has_alpha:
-                    result = numpy.asarray(rgba_temp, order='C')
-                else:
-                    result = numpy.asarray(rgba_temp[:, :, :, :3], order='C')
+            shape = (*shape, 4 if has_alpha else 3)
 
-            if out is not None:
-                out = _create_array(
-                    out,
-                    result.shape,
-                    numpy.uint8,
-                    strides=None,
-                    zero=False,
-                )
-                numpy.copyto(out, result)
-                return out
-            return result
+            if _info:
+                return {
+                    '_codec': 'webp',
+                    'shape': shape,
+                    'dtype': numpy.dtype(numpy.uint8),
+                    'frames': frames,
+                    **_webp_info(demux, flags),
+                }
+
+            if not has_alpha:
+                rgba_temp = rgba_temp[..., :3]
+            elif out is None:
+                return rgba_temp
+
+            out = _create_array(
+                out, shape, numpy.uint8, strides=None, zero=False
+            )
+            numpy.copyto(out, rgba_temp)
+            return out
 
         else:
             if index is None:
                 index = 0
             frame = index + 1 if index >= 0 else frames + index + 1
             if frame < 1 or <uint32_t> frame > frames:
-                raise IndexError(f'{index=} out of range [0, {frames - 1}]')
+                raise IndexError(f'frame {index=} out of range [0, {frames})')
 
             ret = WebPDemuxGetFrame(demux, frame, &iter)
             iter_active = 1
@@ -442,6 +438,16 @@ def webp_decode(
                 (iter.has_alpha and hasalpha is None) or hasalpha
             )
             shape = int(height), int(width), 4 if has_alpha else 3
+
+            if _info:
+                return {
+                    '_codec': 'webp',
+                    'shape': shape,
+                    'dtype': numpy.dtype(numpy.uint8),
+                    'frames': frames,
+                    **_webp_info(demux, flags),
+                }
+
             out = _create_array(
                 out,
                 shape,
@@ -485,6 +491,63 @@ def webp_decode(
     return out
 
 
+def webp_info(
+    data,
+    /,
+    index=None,
+    *,
+    hasalpha=None,
+):
+    """Return information about WEBP image."""
+    return webp_decode(data, index=index, hasalpha=hasalpha, _info=True)
+
+
+cdef dict _webp_info(const WebPDemuxer* demux, uint32_t flags):
+    """Return WEBP metadata from demuxer without decoding pixels."""
+    cdef:
+        WebPIterator iter
+        WebPChunkIterator chunk
+        WebPBitstreamFeatures features
+        bint animation = (flags & ANIMATION_FLAG) != 0
+        bint hasalpha = (flags & ALPHA_FLAG) != 0
+        set formats = set()
+        list delays = []
+        bytes iccprofile = None
+
+    if WebPDemuxGetFrame(demux, 1, &iter):
+        try:
+            while True:
+                if WebPGetFeatures(
+                    iter.fragment.bytes, iter.fragment.size, &features
+                ) == VP8_STATUS_OK:
+                    formats.add(features.format)
+                if iter.has_alpha:
+                    hasalpha = 1
+                delays.append(int(iter.duration))
+                if not WebPDemuxNextFrame(&iter):
+                    break
+        finally:
+            WebPDemuxReleaseIterator(&iter)
+
+    if flags & ICCP_FLAG and WebPDemuxGetChunk(demux, b'ICCP', 1, &chunk):
+        iccprofile = (<const char*> chunk.chunk.bytes)[: chunk.chunk.size]
+        WebPDemuxReleaseChunkIterator(&chunk)
+
+    return {
+        # format 1 is lossy VP8, 2 is lossless VP8L; frames may be mixed
+        'lossless': formats.pop() == 2 if len(formats) == 1 else None,
+        'delay': tuple(delays) if animation else None,
+        'animation': animation,
+        'hasalpha': hasalpha,
+        'loopcount': (
+            int(WebPDemuxGetI(demux, WEBP_FF_LOOP_COUNT))
+            if animation
+            else None
+        ),
+        'iccprofile': iccprofile,
+    }
+
+
 cdef _webp_encode_frames(
     numpy.ndarray src,
     imagelayout_t layout,
@@ -495,15 +558,15 @@ cdef _webp_encode_frames(
     object delay,
     object out,
 ):
-    """Return animated WEBP encoded from multiple frames."""
+    """Return animated WEBP encoded from C-contiguous frames."""
     cdef:
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize, output_size
-        ssize_t frame_stride = src.strides[0]
-        int stride = <int> src.strides[1]
+        const uint8_t* frame_ptr
+        ssize_t dstsize, output_size, i
+        ssize_t frame_bytes = layout.height * layout.width * layout.samples
+        int stride = <int> (layout.width * layout.samples)
         int delay_ms = 100 if delay is None else <int> delay
-        ssize_t i
-        uint8_t* frame_ptr
+        int ret
         WebPConfig config
         WebPPicture picture
         WebPAnimEncoder* enc = NULL
@@ -539,34 +602,34 @@ cdef _webp_encode_frames(
                 config.exact = 1
 
             for i in range(layout.frames):
+                frame_ptr = <const uint8_t*> src.data + i * frame_bytes
+
                 if WebPPictureInit(&picture) == 0:
                     raise WebpError('WebPPictureInit', 0)
 
                 picture.use_argb = lossless_
                 picture.width = <int> layout.width
                 picture.height = <int> layout.height
-                frame_ptr = (<uint8_t*> src.data) + i * frame_stride
 
                 if layout.samples == 4:
-                    if WebPPictureImportRGBA(
-                        &picture, frame_ptr, stride
-                    ) == 0:
-                        WebPPictureFree(&picture)
-                        raise WebpError('WebPPictureImportRGBA', 0)
+                    ret = WebPPictureImportRGBA(&picture, frame_ptr, stride)
                 else:
-                    if WebPPictureImportRGB(
-                        &picture, frame_ptr, stride
-                    ) == 0:
-                        WebPPictureFree(&picture)
-                        raise WebpError('WebPPictureImportRGB', 0)
-
-                if WebPAnimEncoderAdd(
-                    enc, &picture, <int> i * delay_ms, &config
-                ) == 0:
+                    ret = WebPPictureImportRGB(&picture, frame_ptr, stride)
+                if ret == 0:
                     WebPPictureFree(&picture)
-                    raise WebpError('WebPAnimEncoderAdd', 0)
+                    raise WebpError(
+                        'WebPPictureImportRGBA'
+                        if layout.samples == 4
+                        else 'WebPPictureImportRGB',
+                        0
+                    )
 
+                ret = WebPAnimEncoderAdd(
+                    enc, &picture, <int> i * delay_ms, &config
+                )
                 WebPPictureFree(&picture)
+                if ret == 0:
+                    raise WebpError('WebPAnimEncoderAdd', 0)
 
             # NULL frame marks end of animation
             if WebPAnimEncoderAdd(
