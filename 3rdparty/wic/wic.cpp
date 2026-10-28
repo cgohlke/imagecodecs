@@ -35,6 +35,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <cwctype>
 #include <mutex>
 #include <new>
 
@@ -186,39 +187,61 @@ seh_copy_pixels_conv(
     }
 }
 
-/* SEH-safe wrapper for determine_target_format's slow-path COM queries.
+struct pixel_info {
+    UINT channels;
+    UINT bitsPerPixel;
+    UINT bitsPerSample;  /* max set bits in any channel mask */
+    WICPixelFormatNumericRepresentation numeric;
+    WCHAR name[64];
+};
+
+/* SEH-safe query of source pixel format properties.
  * Uses raw pointers only in the __try scope. */
 static __declspec(noinline) void
 seh_query_pixel_format_info(
     IWICImagingFactory* factory,
     const WICPixelFormatGUID& srcFormat,
-    UINT* channelCount,
-    UINT* bitsPerPixel)
+    pixel_info* info)
 {
-    *channelCount = 0;
-    *bitsPerPixel = 0;
+    memset(info, 0, sizeof(pixel_info));
     __try {
         IWICComponentInfo* compInfo = nullptr;
         if (FAILED(factory->CreateComponentInfo(srcFormat, &compInfo)))
             return;
-        IWICPixelFormatInfo* pixInfo = nullptr;
+        UINT actual = 0;
+        if (FAILED(compInfo->GetFriendlyName(64, info->name, &actual)))
+            info->name[0] = 0;
+        info->name[63] = 0;
+        IWICPixelFormatInfo2* pixInfo = nullptr;
         if (
             SUCCEEDED(
             compInfo->QueryInterface(
-            __uuidof(IWICPixelFormatInfo),
+            __uuidof(IWICPixelFormatInfo2),
             reinterpret_cast<void**>(&pixInfo)
             )
         ))
         {
-            pixInfo->GetChannelCount(channelCount);
-            pixInfo->GetBitsPerPixel(bitsPerPixel);
+            pixInfo->GetChannelCount(&info->channels);
+            pixInfo->GetBitsPerPixel(&info->bitsPerPixel);
+            pixInfo->GetNumericRepresentation(&info->numeric);
+            for (UINT i = 0; i < info->channels; i++) {
+                BYTE mask[64];
+                actual = 0;
+                if (FAILED(pixInfo->GetChannelMask(
+                    i, sizeof(mask), mask, &actual)))
+                    continue;
+                UINT bits = 0;
+                for (UINT j = 0; j < actual && j < sizeof(mask); j++) {
+                    for (BYTE b = mask[j]; b; b &= (BYTE)(b - 1)) bits++;
+                }
+                if (bits > info->bitsPerSample) info->bitsPerSample = bits;
+            }
             pixInfo->Release();
         }
         compInfo->Release();
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        *channelCount = 0;
-        *bitsPerPixel = 0;
+        memset(info, 0, sizeof(pixel_info));
     }
 }
 
@@ -635,15 +658,16 @@ public:
 /*
  * Determine the best canonical target pixel format for decoding.
  *
- * Fast-path: six common formats are resolved by GUID comparison alone,
- * avoiding IWICComponentInfo/IWICPixelFormatInfo COM object creation.
- * Fallback: queries WIC for channel count and bits-per-pixel, then
- * maps to Gray/RGB/RGBA at 8 or 16 bpc.
+ * Fast-path: six common formats are resolved by GUID comparison alone.
+ * Fallback: uses channel count and significant bits per channel from
+ * `pinfo`, or queries them if `pinfo` is NULL, then maps to
+ * Gray/RGB/RGBA at 8 or 16 bpc.
  */
 void
 determine_target_format(
     IWICImagingFactory* pFactory,
     const WICPixelFormatGUID& srcFormat,
+    const pixel_info* pinfo,
     WICPixelFormatGUID& dstFormat,
     uint32_t& components,
     uint32_t& bpc) noexcept
@@ -679,19 +703,21 @@ determine_target_format(
     components = 4;
     bpc = 8;
 
-    UINT channelCount = 0, bitsPerPixel = 0;
-    seh_query_pixel_format_info(
-        pFactory,
-        srcFormat,
-        &channelCount,
-        &bitsPerPixel
-    );
+    pixel_info local;
+    if (!pinfo) {
+        seh_query_pixel_format_info(pFactory, srcFormat, &local);
+        pinfo = &local;
+    }
+    const UINT channelCount = pinfo->channels;
     if (channelCount == 0) return;
 
-    const UINT bpcSource = bitsPerPixel / channelCount;
+    /* padding bits (e.g. 32bppBGR) must not count as sample bits */
+    const UINT bpcSource = pinfo->bitsPerSample
+        ? pinfo->bitsPerSample
+        : pinfo->bitsPerPixel / channelCount;
     const bool highBPC = bpcSource > 8;
 
-    /* identify grayscale by GUID */
+    /* identify grayscale by GUID or single non-indexed channel */
     const bool isGray = (
         IsEqualGUID(srcFormat, GUID_WICPixelFormatBlackWhite)
         || IsEqualGUID(srcFormat, GUID_WICPixelFormat2bppGray)
@@ -699,6 +725,10 @@ determine_target_format(
         || IsEqualGUID(srcFormat, GUID_WICPixelFormat8bppGray)
         || IsEqualGUID(srcFormat, GUID_WICPixelFormat16bppGray)
         || IsEqualGUID(srcFormat, GUID_WICPixelFormat32bppGrayFloat)
+        || (
+            channelCount == 1
+            && pinfo->numeric != WICPixelFormatNumericRepresentationIndexed
+        )
     );
 
     /* alpha heuristic: 2 channels (gray+alpha) or 4+ (RGBA, CMYKA, ...) */
@@ -767,6 +797,50 @@ pixel_format_guid(
         }
     }
     return false;
+}
+
+/* Write short lowercase container format name, e.g. "png", to out. */
+void
+container_name(
+    IWICBitmapDecoder* decoder, char* out, size_t size) noexcept
+{
+    static const struct { const GUID* guid; const char* name; } names[] = {
+        {&GUID_ContainerFormatBmp, "bmp"},
+        {&GUID_ContainerFormatPng, "png"},
+        {&GUID_ContainerFormatIco, "ico"},
+        {&GUID_ContainerFormatJpeg, "jpeg"},
+        {&GUID_ContainerFormatTiff, "tiff"},
+        {&GUID_ContainerFormatGif, "gif"},
+        {&GUID_ContainerFormatWmp, "wmp"},
+        {&GUID_ContainerFormatDds, "dds"},
+        {&GUID_ContainerFormatAdng, "dng"},
+        {&GUID_ContainerFormatHeif, "heif"},
+        {&GUID_ContainerFormatWebp, "webp"},
+        {&GUID_ContainerFormatRaw, "raw"},
+    };
+    out[0] = 0;
+    GUID guid;
+    if (SUCCEEDED(decoder->GetContainerFormat(&guid))) {
+        for (const auto& n : names) {
+            if (IsEqualGUID(guid, *n.guid)) {
+                snprintf(out, size, "%s", n.name);
+                return;
+            }
+        }
+    }
+    /* unknown container: use first file extension of decoder, e.g. ".jxl" */
+    ComPtr<IWICBitmapDecoderInfo> pInfo;
+    if (FAILED(decoder->GetDecoderInfo(&pInfo))) return;
+    WCHAR ext[64] = {};
+    UINT actual = 0;
+    if (FAILED(pInfo->GetFileExtensions(64, ext, &actual))) return;
+    size_t i = 0;
+    for (const WCHAR* p = ext[0] == L'.' ? ext + 1 : ext;
+         *p && *p != L',' && i + 1 < size; p++) {
+        if (*p > 127) break;
+        out[i++] = (char)towlower(*p);
+    }
+    out[i] = 0;
 }
 
 }  /* namespace */
@@ -838,13 +912,13 @@ extern "C" int32_t
 wic_get_info(
     const uint8_t* src,
     size_t srcsize,
-    uint32_t* width,
-    uint32_t* height,
-    uint32_t* components,
-    uint32_t* bpc,
-    uint32_t* frame_count)
+    uint32_t frame_index,
+    wic_info_t* info)
 {
-    if (!src || !srcsize || !width || !height || !components || !bpc)
+    if (!info)
+        return (int32_t)E_INVALIDARG;
+    memset(info, 0, sizeof(wic_info_t));
+    if (!src || !srcsize)
         return (int32_t)E_INVALIDARG;
     if (!g_factory)
         return (int32_t)CO_E_NOTINITIALIZED;
@@ -859,27 +933,40 @@ wic_get_info(
     UINT frameCount = 0;
     hr = seh_get_frame_count(pDecoder.Get(), &frameCount);
     if (FAILED(hr)) return (int32_t)hr;
-    if (frame_count) *frame_count = frameCount;
+    info->frame_count = frameCount;
+    if (frame_index >= frameCount) return (int32_t)E_INVALIDARG;
+
+    container_name(pDecoder.Get(), info->format, sizeof(info->format));
 
     ComPtr<IWICBitmapFrameDecode> pFrame;
-    hr = seh_get_frame(pDecoder.Get(), 0, &pFrame);
+    hr = seh_get_frame(pDecoder.Get(), frame_index, &pFrame);
     if (FAILED(hr)) return (int32_t)hr;
 
     WICPixelFormatGUID srcFmt, dstFmt;
     hr = seh_get_pixel_format(pFrame.Get(), &srcFmt);
     if (FAILED(hr)) return (int32_t)hr;
 
+    pixel_info pinfo;
+    seh_query_pixel_format_info(g_factory.Get(), srcFmt, &pinfo);
+
     uint32_t comp = 0, bpcVal = 0;
-    determine_target_format(g_factory.Get(), srcFmt, dstFmt, comp, bpcVal);
+    determine_target_format(
+        g_factory.Get(), srcFmt, &pinfo, dstFmt, comp, bpcVal
+    );
 
     UINT w = 0, h = 0;
     hr = seh_get_size(pFrame.Get(), &w, &h);
     if (FAILED(hr)) return (int32_t)hr;
 
-    *width = w;
-    *height = h;
-    *components = comp;
-    *bpc = bpcVal;
+    info->width = w;
+    info->height = h;
+    info->components = comp;
+    info->bpc = bpcVal;
+    info->bitspersample = pinfo.bitsPerSample;
+    if (!WideCharToMultiByte(
+        CP_UTF8, 0, pinfo.name, -1,
+        info->pixelformat, (int)sizeof(info->pixelformat), nullptr, nullptr))
+        info->pixelformat[0] = 0;
     return S_OK;
 }
 
@@ -923,6 +1010,7 @@ wic_copy_pixels(
     determine_target_format(
         g_factory.Get(),
         srcFmt,
+        nullptr,
         dstFmt,
         components,
         bpcVal
@@ -942,35 +1030,18 @@ wic_copy_pixels(
         return (int32_t)hr;
     }
 
-    /* try preferred format first, fall back to universally-convertible RGBA 8.
-    */
-    auto try_convert = [&](const WICPixelFormatGUID& fmt) -> HRESULT {
-        ComPtr<IWICFormatConverter> pConv;
-        HRESULT h = seh_create_format_converter(g_factory.Get(), &pConv);
-        if (FAILED(h)) return h;
-        h = seh_converter_init(pConv.Get(), pFrame.Get(), fmt);
-        if (FAILED(h)) return h;
-        return seh_copy_pixels_conv(
-            pConv.Get(),
-            dst_stride,
-            (UINT)dst_size,
-            dst
-        );
-    };
-
-    hr = try_convert(dstFmt);
-    if (FAILED(hr)) {
-        /* verify buffer is large enough for RGBA 8-bit fallback */
-        UINT w = 0, h = 0;
-        HRESULT hr2 = seh_get_size(pFrame.Get(), &w, &h);
-        if (FAILED(hr2)) return (int32_t)hr2;
-        const size_t fallback_stride = (size_t)w * 4;
-        if (
-            dst_stride < fallback_stride
-            || dst_size < fallback_stride * h)
-            return (int32_t)hr;  /* buffer too small for fallback */
-        hr = try_convert(GUID_WICPixelFormat32bppRGBA);
-    }
+    /* No fallback format: the caller sized and interprets dst for dstFmt. */
+    ComPtr<IWICFormatConverter> pConv;
+    hr = seh_create_format_converter(g_factory.Get(), &pConv);
+    if (FAILED(hr)) return (int32_t)hr;
+    hr = seh_converter_init(pConv.Get(), pFrame.Get(), dstFmt);
+    if (FAILED(hr)) return (int32_t)hr;
+    hr = seh_copy_pixels_conv(
+        pConv.Get(),
+        dst_stride,
+        (UINT)dst_size,
+        dst
+    );
     return (int32_t)hr;
 }
 
@@ -987,20 +1058,15 @@ wic_decode_(
 
     memset(result, 0, sizeof(wic_decode_result_t));
 
-    uint32_t width = 0, height = 0, components = 0, bpcVal = 0, frameCount = 0;
-    int32_t hr = wic_get_info(
-        src,
-        srcsize,
-        &width,
-        &height,
-        &components,
-        &bpcVal,
-        &frameCount
-    );
+    wic_info_t info;
+    int32_t hr = wic_get_info(src, srcsize, frame_index, &info);
+    result->frame_count = info.frame_count;
     if (hr != 0) return hr;
 
-    result->frame_count = frameCount;
-    if (frame_index >= frameCount) return (int32_t)E_INVALIDARG;
+    const uint32_t width = info.width;
+    const uint32_t height = info.height;
+    const uint32_t components = info.components;
+    const uint32_t bpcVal = info.bpc;
 
     const uint32_t bytes_per_pixel = components * (bpcVal / 8);
     if (bytes_per_pixel == 0 || width > UINT32_MAX / bytes_per_pixel)
@@ -1149,13 +1215,38 @@ wic_encode_(
         hr = g_factory->CreateFormatConverter(&pConv);
         if (FAILED(hr)) return (int32_t)hr;
 
+        /* indexed target formats (e.g. BMP gray, GIF) require a palette */
+        ComPtr<IWICPalette> pPalette;
+        WICBitmapPaletteType paletteType = WICBitmapPaletteTypeCustom;
+        if (
+            IsEqualGUID(frameFormat, GUID_WICPixelFormat8bppIndexed)
+            || IsEqualGUID(frameFormat, GUID_WICPixelFormat4bppIndexed)
+            || IsEqualGUID(frameFormat, GUID_WICPixelFormat2bppIndexed)
+            || IsEqualGUID(frameFormat, GUID_WICPixelFormat1bppIndexed))
+        {
+            hr = g_factory->CreatePalette(&pPalette);
+            if (FAILED(hr)) return (int32_t)hr;
+            if (components == 1) {
+                paletteType = WICBitmapPaletteTypeFixedGray256;
+                hr = pPalette->InitializePredefined(paletteType, FALSE);
+            }
+            else {
+                hr = pPalette->InitializeFromBitmap(
+                    pBitmap.Get(), 256, components == 4 ? TRUE : FALSE
+                );
+            }
+            if (FAILED(hr)) return (int32_t)hr;
+            hr = pFrame->SetPalette(pPalette.Get());
+            if (FAILED(hr)) return (int32_t)hr;
+        }
+
         hr = pConv->Initialize(
             pBitmap.Get(),
             frameFormat,
             WICBitmapDitherTypeNone,
-            nullptr,
+            pPalette.Get(),
             0.0,
-            WICBitmapPaletteTypeCustom
+            paletteType
         );
         if (FAILED(hr)) return (int32_t)hr;
 
