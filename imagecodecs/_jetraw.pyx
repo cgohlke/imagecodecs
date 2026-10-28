@@ -82,7 +82,7 @@ def jetraw_version():
     return 'jetraw ' + jetraw.jetraw_version().decode()
 
 
-def jetraw_check(const uint8_t[::1] data, /):
+def jetraw_check(const uint8_t[::1] data not None, /):
     """Return whether data is JETRAW encoded image or None if unknown."""
     return None if data.shape[0] > 1 else False
 
