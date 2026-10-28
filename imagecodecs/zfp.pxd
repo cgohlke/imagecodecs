@@ -46,6 +46,11 @@ cdef extern from 'zfp/bitstream.h' nogil:
         bitstream* stream
     )
 
+    void stream_skip(
+        bitstream* stream,
+        uint64 n
+    )
+
 cdef extern from 'zfp.h' nogil:
 
     int ZFP_MIN_BITS
