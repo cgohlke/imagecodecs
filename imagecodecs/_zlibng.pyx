@@ -68,7 +68,7 @@ class ZLIBNG:
 class ZlibngError(RuntimeError):
     """ZLIBNG codec exceptions."""
 
-    def __init__(self, func, err):
+    def __init__(self, func, err, details=None):
         msg = {
             Z_OK: 'Z_OK',
             Z_STREAM_END: 'Z_STREAM_END',
@@ -81,6 +81,8 @@ class ZlibngError(RuntimeError):
             Z_VERSION_ERROR: 'Z_VERSION_ERROR',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
+        if details:
+            msg = f'{msg} ({details})'
         super().__init__(msg)
 
 
@@ -89,20 +91,24 @@ def zlibng_version():
     return f'zlib_ng {ZLIBNG_VERSION.decode()}'
 
 
-def zlibng_check(const uint8_t[::1] data, /):
+def zlibng_check(const uint8_t[::1] data not None, /):
     """Return whether data is DEFLATE encoded or None if unknown."""
     cdef:
-        bytes sig = bytes(data[:2])
+        unsigned int cmf, flg
 
-    # most common ZLIB headers
+    if data.shape[0] < 2:
+        return False
+    cmf = data[0]
+    flg = data[1]
+    # ZLIB header: CM=8, CINFO<=7, no preset dictionary, valid FCHECK
     if (
-        sig == b'\x78\x9C'
-        or sig == b'\x78\x5E'
-        or sig == b'\x78\x01'
-        or sig == b'\x78\xDA'
+        (cmf & 0x0F) == 8
+        and (cmf >> 4) <= 7
+        and (flg & 0x20) == 0
+        and ((cmf << 8) | flg) % 31 == 0
     ):
         return True
-    return None
+    return False
 
 
 def zlibng_encode(
@@ -146,7 +152,11 @@ def zlibng_encode(
             compresslevel
         )
     if ret != Z_OK:
-        raise ZlibngError('zng_compress2', ret)
+        raise ZlibngError(
+            'zng_compress2',
+            ret,
+            'output too small' if ret == Z_BUF_ERROR else None
+        )
 
     del dst
     return _return_output(out, dstsize, dstlen, outgiven)
@@ -178,7 +188,7 @@ def zlibng_decode(
         out = _create_output(outtype, dstsize)
 
     src = data
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     dstlen = <size_t> dstsize
     srclen = <size_t> src.shape[0]
@@ -191,13 +201,17 @@ def zlibng_decode(
             &srclen
         )
     if ret != Z_OK:
-        raise ZlibngError('zng_uncompress2', ret)
+        raise ZlibngError(
+            'zng_uncompress2',
+            ret,
+            'output too small' if ret == Z_BUF_ERROR else None
+        )
 
     del dst
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-def _zlibng_decode(const uint8_t[::1] src, outtype):
+def _zlibng_decode(const uint8_t[::1] src not None, outtype):
     """Decompress using streaming API."""
     cdef:
         output_t* output = NULL
@@ -206,6 +220,7 @@ def _zlibng_decode(const uint8_t[::1] src, outtype):
         size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
         int32_t ret
+        bint initialized = False
 
     try:
         with nogil:
@@ -218,6 +233,7 @@ def _zlibng_decode(const uint8_t[::1] src, outtype):
             ret = zng_inflateInit(&stream)
             if ret != Z_OK:
                 raise ZlibngError('zng_inflateInit', ret)
+            initialized = True
 
             if incsize > 268435456:  # 256 MB
                 incsize = 268435456
@@ -245,7 +261,7 @@ def _zlibng_decode(const uint8_t[::1] src, outtype):
                 if stream.avail_out == 0:
                     if left == 0:
                         # resize output buffer
-                        left = incsize
+                        left = max(incsize, <size_t> output.size // 2)
                         if output.size > SIZE_MAX - left:
                             raise MemoryError('output buffer size overflow')
                         if output_resize(output, output.size + left) == 0:
@@ -262,8 +278,14 @@ def _zlibng_decode(const uint8_t[::1] src, outtype):
 
                 ret = zng_inflate(&stream, Z_NO_FLUSH)
 
-            if ret != Z_STREAM_END:
-                raise ZlibngError('zng_inflate', ret)
+        if ret != Z_STREAM_END:
+            if stream.msg != NULL:
+                details = stream.msg.decode(errors='replace')
+            elif ret == Z_BUF_ERROR:
+                details = 'incomplete or truncated stream'
+            else:
+                details = None
+            raise ZlibngError('zng_inflate', ret, details)
 
         out = _create_output(
             outtype, stream.total_out, <const char*> output.data
@@ -271,7 +293,8 @@ def _zlibng_decode(const uint8_t[::1] src, outtype):
 
     finally:
         output_del(output)
-        zng_inflateEnd(&stream)
+        if initialized:
+            zng_inflateEnd(&stream)
 
     return out
 
