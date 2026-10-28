@@ -61,9 +61,11 @@ def meshopt_version():
     )
 
 
-def meshopt_check(const uint8_t[::1] data, /):
+def meshopt_check(const uint8_t[::1] data not None, /):
     """Return whether data is MESHOPT encoded or None if unknown."""
-    return None if data.shape[0] > 1 else False
+    if data.shape[0] < 2 or (data[0] & 0xF0) != 0xA0:
+        return False
+    return None
 
 
 def meshopt_encode(
@@ -74,13 +76,25 @@ def meshopt_encode(
     items=None,
     out=None,
 ):
-    """Return MESHOPT encoded vertex array."""
+    """Return MESHOPT encoded vertex array.
+
+    The array is encoded as vertices of `items` consecutive array items.
+    By default, `items` is derived from the last array dimension.
+    The byte size of a vertex must be a multiple of 4 and at most 256.
+    Compression `level` ranges from 0 (fastest) to 3 (smallest),
+    default 2.
+    Data are encoded in vertex codec format version 1, which requires
+    meshoptimizer >= 0.23 to decode.
+
+    """
     cdef:
-        numpy.ndarray src = _array_input(data, out)
+        numpy.ndarray src = _array_input(
+            data, out, dtype=None, contig=True, empty=False, native=False
+        )
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         size_t vertex_count, vertex_size, ret
-        int clevel = _default_value(level, 3, 0, 3)
+        int clevel = _default_value(level, 2, 0, 3)
 
     vertex_count, vertex_size = _meshopt_vertex_array(
         src, 0 if items is None else items
@@ -128,24 +142,34 @@ def meshopt_decode(
     items=None,
     out=None,
 ):
-    """Return decoded MESHOPT vertex array."""
+    """Return decoded MESHOPT vertex array.
+
+    The `shape`, `dtype`, and `items` arguments must match the encoded
+    array. If `shape` and `dtype` are not specified, they are taken from
+    the `out` array.
+
+    """
     cdef:
         numpy.ndarray dst
-        const uint8_t[::1] src = data
+        const uint8_t[::1] src = _readable_input(data, out)
         ssize_t srcsize = src.shape[0]
         size_t vertex_count, vertex_size
         int ret
 
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    if out is None:
-        if shape is None or dtype is None:
-            raise TypeError(
-                "'meshopt_decode' is missing required arguments: "
-                "'shape' and 'dtype'"
-            )
-        out = _create_array(out, shape, dtype)
+    if shape is not None and dtype is not None:
+        out = _create_array(out, tuple(shape), dtype)
+    elif out is None:
+        raise TypeError(
+            "'meshopt_decode' is missing required arguments: "
+            "'shape' and 'dtype'"
+        )
+    elif isinstance(out, numpy.ndarray):
+        out = _create_array(out, out.shape, out.dtype)
+    else:
+        raise TypeError(
+            "'meshopt_decode' requires 'shape' and 'dtype' "
+            'if out is not a numpy array'
+        )
     dst = out
 
     vertex_count, vertex_size = _meshopt_vertex_array(
@@ -177,26 +201,37 @@ cdef (size_t, size_t) _meshopt_vertex_array(numpy.ndarray arr, ssize_t items):
     """
     cdef:
         size_t vertex_count, vertex_size
+        ssize_t lastdim, itemsize, i
 
     if arr.ndim == 0:
         raise ValueError(f'invalid vertex array dimension {arr.ndim}')
 
+    lastdim = arr.shape[arr.ndim - 1]
+    itemsize = arr.itemsize
+
     if items <= 0:
-        items = arr.shape[arr.ndim - 1]
-        if arr.ndim == 1 or arr.itemsize * items > 256:
+        items = lastdim
+        if arr.ndim == 1 or itemsize * items > 256:
             items = 1
-    elif arr.shape[arr.ndim - 1] % items != 0:
+        if (itemsize * items) % 4 != 0:
+            # smallest group of items with valid vertex size
+            for i in range(2, 256 // itemsize + 1):
+                if lastdim % i == 0 and (itemsize * i) % 4 == 0:
+                    items = i
+                    break
+    elif lastdim % items != 0:
         raise ValueError(
-            f'last dimension of vertex array {arr.shape[arr.ndim - 1]} '
+            f'last dimension of vertex array {lastdim} '
             f'is not a multiple of {items=}'
         )
 
     vertex_count = <size_t> (arr.size // items)
-    vertex_size = <size_t> (arr.itemsize * items)
+    vertex_size = <size_t> (itemsize * items)
 
     if vertex_size % 4 != 0 or vertex_size > 256:
         raise ValueError(
-            f'{vertex_size=} must be a multiple of 4 and not greater than 256'
+            f'{vertex_size=} must be a multiple of 4 and not greater than '
+            '256; specify a valid number of items per vertex'
         )
 
     if arr.nbytes != vertex_count * vertex_size:
