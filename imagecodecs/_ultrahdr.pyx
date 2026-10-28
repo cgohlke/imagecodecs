@@ -88,13 +88,17 @@ class ULTRAHDR:
 class UltrahdrError(RuntimeError):
     """ULTRAHDR codec exceptions."""
 
-    def __init__(self, func, code=None, detail=None):
-        if code is None:
+    def __init__(self, func, err=None):
+        if err is None:
             msg = 'NULL'
-        elif detail:
-            msg = detail.decode()
+        elif isinstance(err, dict):
+            # converted uhdr_error_info_t
+            if err['has_detail'] and err['detail']:
+                msg = err['detail'].decode(errors='replace')
+            else:
+                msg = f'error code {err["error_code"]}'
         else:
-            msg = f'error code {code}'
+            msg = f'error code {err}'
         msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
@@ -104,8 +108,10 @@ def ultrahdr_version():
     return 'libultrahdr ' + UHDR_LIB_VERSION_STR.decode()
 
 
-def ultrahdr_check(const uint8_t[::1] data, /):
+def ultrahdr_check(const uint8_t[::1] data not None, /):
     """Return whether data is ULTRAHDR encoded or None if unknown."""
+    if data.shape[0] > INT32_MAX:
+        return None
     return (
         data.shape[0] >= 12
         and bool(is_uhdr_image(<void*> data._data, <int> data.shape[0]))
@@ -152,7 +158,7 @@ def ultrahdr_encode(
         ssize_t dstsize
         int quality = _default_value(level, -1, 0, 100)
         int gainmap_quality = _default_value(gainmap_level, -1, 0, 100)
-        int scale_factor = _default_value(scale, 1, 1, 128)
+        int scale_factor = _default_value(scale, 0, 1, 128)
         float cnits = _default_value(nits, 0.0, None, 10000)
         bint has_sdr = sdr is not None
         bint has_boost = boostmin is not None and boostmax is not None
@@ -161,7 +167,7 @@ def ultrahdr_encode(
         float cgamma = gainmap_gamma if has_gamma else 0.0
         float cboostmax = boostmax if has_boost else 0.0
         float cboostmin = boostmin if has_boost else 0.0
-        bint cmultichannel = bool(has_multichannel)
+        bint cmultichannel = bool(multichannel)
         uhdr_enc_preset_t preset = _enum_value(
             usage, ULTRAHDR.USAGE, UHDR_USAGE_BEST_QUALITY
         )
@@ -173,6 +179,9 @@ def ultrahdr_encode(
         uhdr_compressed_image_t* compressed_image
         uhdr_codec_private_t* encoder = NULL
         uhdr_error_info_t error
+
+    if (boostmin is None) != (boostmax is None):
+        raise ValueError('boostmin and boostmax must be specified together')
 
     if src.dtype.char != 'e' and not (
         src.dtype.kind == 'u' and src.dtype.itemsize == 4
@@ -240,42 +249,30 @@ def ultrahdr_encode(
 
             error = uhdr_enc_set_preset(encoder, preset)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_enc_set_preset', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_enc_set_preset', error)
 
             error = uhdr_enc_set_raw_image(encoder, &raw_image, UHDR_HDR_IMG)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_enc_set_raw_image', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_enc_set_raw_image', error)
 
             if has_sdr:
                 error = uhdr_enc_set_raw_image(
                     encoder, &sdr_image, UHDR_SDR_IMG
                 )
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enc_set_raw_image',
-                        error.error_code,
-                        error.detail
-                    )
+                    raise UltrahdrError('uhdr_enc_set_raw_image', error)
 
             if quality >= 0:
                 error = uhdr_enc_set_quality(encoder, quality, UHDR_BASE_IMG)
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enc_set_quality', error.error_code, error.detail
-                    )
+                    raise UltrahdrError('uhdr_enc_set_quality', error)
 
             if gainmap_quality >= 0:
                 error = uhdr_enc_set_quality(
                     encoder, gainmap_quality, UHDR_GAIN_MAP_IMG
                 )
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enc_set_quality', error.error_code, error.detail
-                    )
+                    raise UltrahdrError('uhdr_enc_set_quality', error)
 
             if cnits > 0.0:
                 error = uhdr_enc_set_target_display_peak_brightness(
@@ -283,9 +280,7 @@ def ultrahdr_encode(
                 )
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
-                        'uhdr_enc_set_target_display_peak_brightness',
-                        error.error_code,
-                        error.detail
+                        'uhdr_enc_set_target_display_peak_brightness', error
                     )
 
             if has_boost:
@@ -294,35 +289,26 @@ def ultrahdr_encode(
                 )
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
-                        'uhdr_enc_set_min_max_content_boost',
-                        error.error_code,
-                        error.detail
+                        'uhdr_enc_set_min_max_content_boost', error
                     )
 
             # error = uhdr_enc_set_exif_data(encoder, &exif)
             # if error.error_code != UHDR_CODEC_OK:
-            #     raise UltrahdrError(
-            #         'uhdr_enc_set_exif_data',
-            #         error.error_code,
-            #         error.detail
-            #     )
+            #     raise UltrahdrError('uhdr_enc_set_exif_data', error)
 
             if output_format != UHDR_CODEC_JPG:
                 error = uhdr_enc_set_output_format(encoder, output_format)
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enc_set_output_format',
-                        error.error_code,
-                        error.detail
-                    )
+                    raise UltrahdrError('uhdr_enc_set_output_format', error)
 
-            error = uhdr_enc_set_gainmap_scale_factor(encoder, scale_factor)
-            if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_enc_set_gainmap_scale_factor',
-                    error.error_code,
-                    error.detail
+            if scale_factor > 0:
+                error = uhdr_enc_set_gainmap_scale_factor(
+                    encoder, scale_factor
                 )
+                if error.error_code != UHDR_CODEC_OK:
+                    raise UltrahdrError(
+                        'uhdr_enc_set_gainmap_scale_factor', error
+                    )
 
             if has_multichannel:
                 error = uhdr_enc_set_using_multi_channel_gainmap(
@@ -330,25 +316,17 @@ def ultrahdr_encode(
                 )
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
-                        'uhdr_enc_set_using_multi_channel_gainmap',
-                        error.error_code,
-                        error.detail
+                        'uhdr_enc_set_using_multi_channel_gainmap', error
                     )
 
             if has_gamma:
                 error = uhdr_enc_set_gainmap_gamma(encoder, cgamma)
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enc_set_gainmap_gamma',
-                        error.error_code,
-                        error.detail
-                    )
+                    raise UltrahdrError('uhdr_enc_set_gainmap_gamma', error)
 
             error = uhdr_encode(encoder)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_encode', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_encode', error)
 
             compressed_image = uhdr_get_encoded_stream(encoder)
             if compressed_image == NULL:
@@ -357,6 +335,11 @@ def ultrahdr_encode(
         out, dstsize, outgiven, outtype = _parse_output(out)
 
         if out is None:
+            if 0 <= dstsize < <ssize_t> compressed_image.data_sz:
+                raise ValueError(
+                    f'output too small {dstsize} < '
+                    f'{compressed_image.data_sz}'
+                )
             dstsize = <ssize_t> compressed_image.data_sz
             out = _create_output(
                 outtype,
@@ -396,6 +379,7 @@ def ultrahdr_decode(
     boost=None,
     gpu=False,
     out=None,
+    bint _info=False,
 ):
     """Return decoded ULTRAHDR image.
 
@@ -404,6 +388,7 @@ def ultrahdr_decode(
         - float16 (default): linear RGBA, shape (H, W, 4)
         - uint8: SRGB RGBA, shape (H, W, 4)
         - uint16: unpacked RGBA1010102, Hybrid Log-Gamma (HLG), shape (H, W, 4)
+          (alpha is not rescaled and in range 0..3)
         - uint32: packed RGBA1010102, Hybrid Log-Gamma (HLG), shape (H, W)
 
     """
@@ -445,43 +430,37 @@ def ultrahdr_decode(
         raise ValueError(f'{dtype} not supported')
 
     if transfer is not None:
-        otf = transfer
+        otf = _enum_value(transfer, ULTRAHDR.CT)
 
-    memset(<void*> &compressed_image, 0, sizeof(uhdr_compressed_image_t))
-    compressed_image.data = <void*> src._data
-    compressed_image.data_sz = <size_t> src.shape[0]
-    compressed_image.capacity = <size_t> src.shape[0]
-    compressed_image.cg = UHDR_CG_UNSPECIFIED
-    compressed_image.ct = UHDR_CT_UNSPECIFIED
-    compressed_image.range = UHDR_CR_UNSPECIFIED
+    bpp = 4 if dtype.itemsize == 4 else dtype.itemsize * 4
 
     try:
         with nogil:
+            memset(
+                <void*> &compressed_image, 0, sizeof(uhdr_compressed_image_t)
+            )
+            compressed_image.data = <void*> src._data
+            compressed_image.data_sz = <size_t> src.shape[0]
+            compressed_image.capacity = <size_t> src.shape[0]
+            compressed_image.cg = UHDR_CG_UNSPECIFIED
+            compressed_image.ct = UHDR_CT_UNSPECIFIED
+            compressed_image.range = UHDR_CR_UNSPECIFIED
+
             decoder = uhdr_create_decoder()
             if decoder == NULL:
                 raise UltrahdrError('uhdr_create_decoder')
 
             error = uhdr_dec_set_image(decoder, &compressed_image)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_set_image', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_dec_set_image', error)
 
             error = uhdr_dec_set_out_img_format(decoder, fmt)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_set_out_img_format',
-                    error.error_code,
-                    error.detail
-                )
+                raise UltrahdrError('uhdr_dec_set_out_img_format', error)
 
             error = uhdr_dec_set_out_color_transfer(decoder, otf)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_set_out_color_transfer',
-                    error.error_code,
-                    error.detail
-                )
+                raise UltrahdrError('uhdr_dec_set_out_color_transfer', error)
 
             if display_boost >= 1.0:
                 error = uhdr_dec_set_out_max_display_boost(
@@ -489,25 +468,17 @@ def ultrahdr_decode(
                 )
                 if error.error_code != UHDR_CODEC_OK:
                     raise UltrahdrError(
-                        'uhdr_dec_set_out_max_display_boost',
-                        error.error_code,
-                        error.detail
+                        'uhdr_dec_set_out_max_display_boost', error
                     )
 
             if enable_gpu:
                 error = uhdr_enable_gpu_acceleration(decoder, enable_gpu)
                 if error.error_code != UHDR_CODEC_OK:
-                    raise UltrahdrError(
-                        'uhdr_enable_gpu_acceleration',
-                        error.error_code,
-                        error.detail
-                    )
+                    raise UltrahdrError('uhdr_enable_gpu_acceleration', error)
 
             error = uhdr_dec_probe(decoder)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_probe', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_dec_probe', error)
 
             width = uhdr_dec_get_image_width(decoder)
             if width < 0:
@@ -517,11 +488,25 @@ def ultrahdr_decode(
             if height < 0:
                 raise UltrahdrError('uhdr_dec_get_image_height', height)
 
+        if dtype.itemsize == 4:
+            shape = (int(height), int(width))
+        else:
+            shape = (int(height), int(width), 4)
+
+        if _info:
+            return {
+                '_codec': 'ultrahdr',
+                'shape': shape,
+                'dtype': dtype,
+                **_ultrahdr_info(decoder, width),
+            }
+
+        dst = _create_array(out, shape, dtype)
+
+        with nogil:
             error = uhdr_decode(decoder)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_decode', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_decode', error)
 
             raw_image = uhdr_get_decoded_image(decoder)
             if raw_image == NULL:
@@ -533,14 +518,10 @@ def ultrahdr_decode(
                     f' != ({height}, {width})'
                 )
 
-            with gil:
-                if dtype.itemsize == 4:
-                    out = _create_array(out, (height, width), dtype)
-                    bpp = 4
-                else:
-                    out = _create_array(out, (height, width, 4), dtype)
-                    bpp = dtype.itemsize * 4
-                dst = out
+            if raw_image.fmt != fmt:
+                raise ValueError(
+                    f'format mismatch {raw_image.fmt} != {fmt}'
+                )
 
             if fmt == UHDR_IMG_FMT_32bppRGBA1010102 and bpp == 8:
                 _uhdr_unpack_rgba1010102(
@@ -564,6 +545,72 @@ def ultrahdr_decode(
             uhdr_release_decoder(decoder)
 
     return dst
+
+
+def ultrahdr_info(
+    data,
+    /,
+    *,
+    dtype=None,
+    transfer=None,
+    boost=None,
+):
+    """Return information about ULTRAHDR image."""
+    return ultrahdr_decode(
+        data,
+        dtype=dtype,
+        transfer=transfer,
+        boost=boost,
+        _info=True
+    )
+
+
+cdef dict _ultrahdr_info(uhdr_codec_private_t* decoder, ssize_t width):
+    """Return ULTRAHDR metadata from probed decoder without decoding pixels."""
+    cdef:
+        uhdr_gainmap_metadata_t* metadata
+        uhdr_mem_block_t* icc
+        ssize_t gainmap_width, gainmap_height
+        bytes iccprofile = None
+
+    with nogil:
+        gainmap_width = uhdr_dec_get_gainmap_width(decoder)
+        gainmap_height = uhdr_dec_get_gainmap_height(decoder)
+        metadata = uhdr_dec_get_gainmap_metadata(decoder)
+        icc = uhdr_dec_get_icc(decoder)
+
+    if metadata == NULL:
+        raise UltrahdrError('uhdr_dec_get_gainmap_metadata')
+
+    if icc != NULL and icc.data != NULL and icc.data_sz > 0:
+        iccprofile = (<const char*> icc.data)[:icc.data_sz]
+        if iccprofile.startswith(b'ICC_PROFILE\x00'):
+            # strip JPEG APP2 marker, sequence number, and chunk count
+            iccprofile = iccprofile[14:]
+
+    return {
+        'codec': ULTRAHDR.CODEC.JPEG,
+        'scale': int(width // gainmap_width) if gainmap_width > 0 else None,
+        'gainmap_shape': (int(gainmap_height), int(gainmap_width)),
+        **_uhdr_gainmap_metadata(metadata),
+        # libultrahdr sets hdr_capacity_max = peak nits / 203
+        'nits': float(metadata.hdr_capacity_max) * 203.0,
+        'iccprofile': iccprofile,
+    }
+
+
+cdef dict _uhdr_gainmap_metadata(const uhdr_gainmap_metadata_t* metadata):
+    """Return gainmap metadata as ultrahdr_encode_jpeg keyword arguments."""
+    return {
+        'gainmap_gamma': _scalar3(metadata.gamma),
+        'boostmin': _scalar3(metadata.min_content_boost),
+        'boostmax': _scalar3(metadata.max_content_boost),
+        'offset_sdr': _scalar3(metadata.offset_sdr),
+        'offset_hdr': _scalar3(metadata.offset_hdr),
+        'hdr_capacity_min': float(metadata.hdr_capacity_min),
+        'hdr_capacity_max': float(metadata.hdr_capacity_max),
+        'use_base_cg': bool(metadata.use_base_cg),
+    }
 
 
 def ultrahdr_decode_jpeg(data, /):
@@ -602,15 +649,11 @@ def ultrahdr_decode_jpeg(data, /):
 
             error = uhdr_dec_set_image(decoder, &compressed_image)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_set_image', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_dec_set_image', error)
 
             error = uhdr_dec_probe(decoder)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_dec_probe', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_dec_probe', error)
 
             base_block = uhdr_dec_get_base_image(decoder)
             if base_block == NULL or base_block.data == NULL:
@@ -630,26 +673,7 @@ def ultrahdr_decode_jpeg(data, /):
         gainmap_jpeg = bytes(
             (<unsigned char*> gainmap_block.data)[:gainmap_block.data_sz]
         )
-        metadata = {
-            'gamma': tuple(
-                float(gainmap_metadata.gamma[i]) for i in range(3)
-            ),
-            'max_content_boost': tuple(
-                float(gainmap_metadata.max_content_boost[i]) for i in range(3)
-            ),
-            'min_content_boost': tuple(
-                float(gainmap_metadata.min_content_boost[i]) for i in range(3)
-            ),
-            'offset_sdr': tuple(
-                float(gainmap_metadata.offset_sdr[i]) for i in range(3)
-            ),
-            'offset_hdr': tuple(
-                float(gainmap_metadata.offset_hdr[i]) for i in range(3)
-            ),
-            'hdr_capacity_min': float(gainmap_metadata.hdr_capacity_min),
-            'hdr_capacity_max': float(gainmap_metadata.hdr_capacity_max),
-            'use_base_cg': bool(gainmap_metadata.use_base_cg),
-        }
+        metadata = _uhdr_gainmap_metadata(gainmap_metadata)
 
     finally:
         if decoder != NULL:
@@ -664,9 +688,9 @@ def ultrahdr_encode_jpeg(
     /,
     *,
     gamut=None,
-    gamma=None,
-    max_content_boost=None,
-    min_content_boost=None,
+    gainmap_gamma=None,
+    boostmin=None,
+    boostmax=None,
     offset_sdr=None,
     offset_hdr=None,
     hdr_capacity_min=None,
@@ -697,17 +721,17 @@ def ultrahdr_encode_jpeg(
     if gainmap_src.shape[0] < 2:
         raise ValueError('gainmap_jpeg is too small')
 
-    gamma = _float3(gamma, 1.0)
-    max_content_boost = _float3(max_content_boost, 2.0)
-    min_content_boost = _float3(min_content_boost, 1.0)
+    gainmap_gamma = _float3(gainmap_gamma, 1.0)
+    boostmax = _float3(boostmax, 2.0)
+    boostmin = _float3(boostmin, 1.0)
     offset_sdr = _float3(offset_sdr, 0.0)
     offset_hdr = _float3(offset_hdr, 0.0)
 
     memset(<void*> &gainmap_metadata, 0, sizeof(uhdr_gainmap_metadata_t))
     for i in range(3):
-        gainmap_metadata.gamma[i] = gamma[i]
-        gainmap_metadata.max_content_boost[i] = max_content_boost[i]
-        gainmap_metadata.min_content_boost[i] = min_content_boost[i]
+        gainmap_metadata.gamma[i] = gainmap_gamma[i]
+        gainmap_metadata.max_content_boost[i] = boostmax[i]
+        gainmap_metadata.min_content_boost[i] = boostmin[i]
         gainmap_metadata.offset_sdr[i] = offset_sdr[i]
         gainmap_metadata.offset_hdr[i] = offset_hdr[i]
     gainmap_metadata.hdr_capacity_min = <float> float(
@@ -716,7 +740,7 @@ def ultrahdr_encode_jpeg(
     gainmap_metadata.hdr_capacity_max = <float> float(
         hdr_capacity_max
         if hdr_capacity_max is not None
-        else max(max_content_boost)
+        else max(boostmax)
     )
     gainmap_metadata.use_base_cg = (
         1 if use_base_cg is None or use_base_cg else 0
@@ -748,27 +772,17 @@ def ultrahdr_encode_jpeg(
                 encoder, &base_image, UHDR_BASE_IMG
             )
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_enc_set_compressed_image',
-                    error.error_code,
-                    error.detail,
-                )
+                raise UltrahdrError('uhdr_enc_set_compressed_image', error)
 
             error = uhdr_enc_set_gainmap_image(
                 encoder, &gainmap_image, &gainmap_metadata
             )
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_enc_set_gainmap_image',
-                    error.error_code,
-                    error.detail,
-                )
+                raise UltrahdrError('uhdr_enc_set_gainmap_image', error)
 
             error = uhdr_encode(encoder)
             if error.error_code != UHDR_CODEC_OK:
-                raise UltrahdrError(
-                    'uhdr_encode', error.error_code, error.detail
-                )
+                raise UltrahdrError('uhdr_encode', error)
 
             out_stream = uhdr_get_encoded_stream(encoder)
             if out_stream == NULL:
@@ -789,11 +803,23 @@ def _float3(value, default):
     """Return tuple of three floats from scalar or sequence."""
     if value is None:
         return float(default), float(default), float(default)
+    if isinstance(value, (str, bytes)):
+        raise ValueError(f'invalid value {value!r}')
     try:
-        return float(value[0]), float(value[1]), float(value[2])
+        values = tuple(float(v) for v in value)
     except TypeError:
         value = float(value)
-    return value, value, value
+        return value, value, value
+    if len(values) != 3:
+        raise ValueError(f'expected 3 values, got {len(values)}')
+    return values
+
+
+cdef _scalar3(const float* values):
+    """Return float if all three values are equal, else tuple of floats."""
+    if values[0] == values[1] == values[2]:
+        return float(values[0])
+    return float(values[0]), float(values[1]), float(values[2])
 
 
 cdef inline void _uhdr_copy_image(
