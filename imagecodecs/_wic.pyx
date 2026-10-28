@@ -67,7 +67,7 @@ else:
 class WIC:
     """WIC codec constants."""
 
-    available = True
+    available = _wic_init_hr == 0
 
     class FORMAT(enum.IntEnum):
         """WIC container format."""
@@ -96,7 +96,7 @@ def wic_version():
     return 'wic ' + version.decode('ascii')
 
 
-def wic_check(const uint8_t[::1] data, /):
+def wic_check(const uint8_t[::1] data not None, /):
     """Return whether data is WIC-decodable, or None if unknown."""
     cdef:
         ssize_t srcsize = data.shape[0]
@@ -108,13 +108,17 @@ def wic_check(const uint8_t[::1] data, /):
     with nogil:
         ret = wic_check_impl(<const uint8_t*> data._data, <size_t> srcsize)
 
-    return bool(ret > 0)
+    if ret < 0:
+        return None
+    return ret > 0
 
 
 def wic_encode(data, /, level=None, *, format=None, out=None):
     """Return WIC encoded image."""
     cdef:
         numpy.ndarray src = _array_input(data, out)
+        const uint8_t[::1] outbuf  # must be const to write to bytes
+        ssize_t outsize
         uint8_t* dst = NULL
         size_t dstsize = 0
         uint32_t width, height, components, bpc
@@ -168,8 +172,21 @@ def wic_encode(data, /, level=None, *, format=None, out=None):
             raise WicError(
                 f'wic_encode failed (HRESULT 0x{<uint32_t> hr:08X})'
             )
-        out, _outsize, _outgiven, outtype = _parse_output(out)
-        out = _create_output(outtype, <ssize_t> dstsize, <const char*> dst)
+        out, outsize, outgiven, outtype = _parse_output(out)
+        if out is None:
+            if 0 <= outsize < <ssize_t> dstsize:
+                raise ValueError(f'output too small {outsize} < {dstsize}')
+            out = _create_output(
+                outtype, <ssize_t> dstsize, <const char*> dst
+            )
+        else:
+            outbuf = out
+            outsize = outbuf.shape[0]
+            if outsize < <ssize_t> dstsize:
+                raise ValueError(f'output too small {outsize} < {dstsize}')
+            memcpy(<void*> outbuf._data, <const void*> dst, dstsize)
+            del outbuf
+            out = _return_output(out, outsize, <ssize_t> dstsize, outgiven)
     finally:
         if dst != NULL:
             wic_encode_free(dst)
@@ -177,42 +194,45 @@ def wic_encode(data, /, level=None, *, format=None, out=None):
     return out
 
 
-def wic_decode(data, /, index=0, *, out=None):
+def wic_decode(data, /, index=0, *, out=None, bint _info=False):
     """Return decoded image from WIC-supported format."""
     cdef:
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        uint32_t width = 0
-        uint32_t height = 0
-        uint32_t components = 0
-        uint32_t bpc = 0
-        uint32_t frame_count = 0
-        uint32_t frame_idx = <uint32_t> index
-        uint32_t dst_stride
+        wic_info_t info
+        uint32_t width, height, components, bpc
+        uint32_t frame_idx
+        size_t dstsize
         int32_t hr
         numpy.ndarray dst
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
+    if not 0 <= index <= 0xFFFFFFFF:
+        raise IndexError(f'frame {index=} out of range')
+    frame_idx = <uint32_t> index
+
     with nogil:
         hr = wic_get_info(
             <const uint8_t*> src._data,
             <size_t> srcsize,
-            &width,
-            &height,
-            &components,
-            &bpc,
-            &frame_count,
+            frame_idx,
+            &info,
         )
 
     if hr != 0:
+        if 0 < info.frame_count <= frame_idx:
+            raise IndexError(
+                f'frame index={frame_idx} out of range '
+                f'[0, {info.frame_count})'
+            )
         raise WicError(f'wic_decode failed (HRESULT 0x{<uint32_t> hr:08X})')
 
-    if frame_idx >= frame_count:
-        raise WicError(
-            f'wic_decode: {frame_idx=} out of range ({frame_count=})'
-        )
+    width = info.width
+    height = info.height
+    components = info.components
+    bpc = info.bpc
 
     if bpc == 16:
         dtype = numpy.uint16
@@ -224,9 +244,20 @@ def wic_decode(data, /, index=0, *, out=None):
     else:
         shape = height, width, components
 
+    if _info:
+        return {
+            '_codec': 'wic',
+            'shape': shape,
+            'dtype': numpy.dtype(dtype),
+            'frames': int(info.frame_count),
+            'format': info.format.decode('ascii', errors='replace'),
+            'pixelformat': info.pixelformat.decode('utf-8', errors='replace'),
+            'bitspersample': int(info.bitspersample),
+        }
+
     out = _create_array(out, shape, dtype)
     dst = out
-    dst_stride = width * components * (bpc // 8)
+    dstsize = <size_t> width * components * (bpc // 8) * height
 
     with nogil:
         hr = wic_copy_pixels(
@@ -234,11 +265,16 @@ def wic_decode(data, /, index=0, *, out=None):
             <size_t> srcsize,
             frame_idx,
             <uint8_t*> dst.data,
-            dst_stride,
-            <size_t> dst_stride * height,
+            width * components * (bpc // 8),
+            dstsize,
         )
 
     if hr != 0:
         raise WicError(f'wic_decode failed (HRESULT 0x{<uint32_t> hr:08X})')
 
     return out
+
+
+def wic_info(data, /, index=0):
+    """Return information about WIC image."""
+    return wic_decode(data, index=index, _info=True)
