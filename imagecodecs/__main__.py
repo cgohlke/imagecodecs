@@ -1,10 +1,15 @@
 # imagecodecs/__main__.py
 
+# Copyright (c) Christoph Gohlke
+# SPDX-License-Identifier: BSD-3-Clause
+# See LICENSE file in the project root for details.
+
 """Imagecodecs package command line script."""
 
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 from matplotlib.pyplot import show
 from tifffile import Timer, askopenfilename, imshow
@@ -32,22 +37,35 @@ def main(argv: list[str] | None = None, *, verbose: bool = True) -> int:
     timer = Timer()
     try:
         timer.start('Reading image')
-        image, codec = imread(filename, return_codec=True, numthreads=0)
+        image, info = imread(filename, info=True, numthreads=0)
         print(timer)
     except ValueError as exception:
         print('failed')
         image = None
         message = str(exception)
 
-    if verbose:
-        print()
     if image is None:
-        print('Could not decode the file\n')
         if verbose:
             print(message)
         return -1
     if verbose:
-        print(f'{codec.__name__.upper()}: {image.shape} {image.dtype}')
+        import numpy
+
+        print_: Any
+        try:
+            from rich import print as print_
+        except ImportError:
+            from pprint import pprint as print_
+
+        for key, value in info.items():
+            if isinstance(value, bytes) and len(value) > 32:
+                info[key] = value[:28] + b' ...'
+            elif isinstance(value, str) and len(value) > 32:
+                info[key] = value[:28] + ' ...'
+            elif isinstance(value, numpy.ndarray):
+                info[key] = (value.shape, value.dtype)
+
+        print_(info)  # noqa: T203
 
     imshow(image, title=filename, interpolation='none')
     show()
