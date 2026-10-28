@@ -26,6 +26,17 @@ typedef struct {
     uint32_t frame_count; /* total frames in the image */
 } wic_decode_result_t;
 
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint32_t components;    /* decoded components: 1, 3, or 4 */
+    uint32_t bpc;           /* decoded bits per component: 8 or 16 */
+    uint32_t frame_count;   /* total frames in the image */
+    uint32_t bitspersample; /* source max bits per channel, 0 if unknown */
+    char format[16];        /* container format name, e.g. "png" */
+    char pixelformat[64];   /* source pixel format friendly name, UTF-8 */
+} wic_info_t;
+
 /* Initialize the module-level WIC factory singleton.
  * Must be called once before any other wic_* function.
  * Returns 0 on success, HRESULT on failure.
@@ -41,20 +52,17 @@ wic_factory_init(void);
 void
 wic_factory_destroy(void);
 
-/* Query image properties without decoding pixels.
+/* Query properties of frame_index without decoding pixels.
  *
- * Uses frame 0 for format detection. frame_count is optional (may be NULL).
+ * info->frame_count is set before frame_index is validated.
  * Returns 0 on success, HRESULT on failure.
  */
 int32_t
 wic_get_info(
     const uint8_t* src,
     size_t srcsize,
-    uint32_t* width,
-    uint32_t* height,
-    uint32_t* components,
-    uint32_t* bpc,
-    uint32_t* frame_count
+    uint32_t frame_index,
+    wic_info_t* info
 );
 
 /* Decode frame_index directly into a caller-supplied buffer.
