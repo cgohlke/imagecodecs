@@ -1,6 +1,6 @@
 # imagecodecs/lcms2.pxd
 
-# Cython declarations for the `Little 2.19` library.
+# Cython declarations for the `Little 2.20` library.
 # https://github.com/mm2/Little-CMS
 
 from libc.stddef cimport wchar_t
@@ -703,8 +703,10 @@ cdef extern from 'lcms2.h' nogil:
         FILE* f
     )
 
-    ctypedef struct cmsContext:
+    ctypedef struct _cmsContext_struct:
         pass
+
+    ctypedef _cmsContext_struct* cmsContext
 
     cmsContext cmsCreateContext(
         void* Plugin,
