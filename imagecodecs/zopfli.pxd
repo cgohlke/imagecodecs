@@ -31,6 +31,34 @@ cdef extern from 'zopfli.h' nogil:
         size_t* outsize
     )
 
+# deflate.h is not installed, but ZopfliDeflatePart is exported by the library
+cdef extern from * nogil:
+    """
+    void ZopfliDeflatePart(
+        const ZopfliOptions* options,
+        int btype,
+        int final,
+        const unsigned char* in,
+        size_t instart,
+        size_t inend,
+        unsigned char* bp,
+        unsigned char** out,
+        size_t* outsize
+    );
+    """
+
+    void ZopfliDeflatePart(
+        const ZopfliOptions* options,
+        int btype,
+        int final,
+        const unsigned char* src,
+        size_t instart,
+        size_t inend,
+        unsigned char* bp,
+        unsigned char** out,
+        size_t* outsize
+    )
+
 # zlib_container.h and gzip_container.h missing in Arch Linux
 #
 # cdef extern from 'zopfli/zlib_container.h' nogil:
