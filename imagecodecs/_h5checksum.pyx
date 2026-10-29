@@ -40,6 +40,9 @@
 include '_shared.pxi'
 
 from h5checksum cimport *
+from libc.string cimport memchr
+
+H5_checksum_init()
 
 
 class H5CHECKSUM:
@@ -58,11 +61,18 @@ def h5checksum_fletcher32(
     /,
     value=None,
 ):
-    """Return Fletcher-32 checksum of data (value is ignored)."""
+    """Return Fletcher-32 checksum of data.
+
+    The checksum cannot be continued; value must be None.
+
+    """
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.shape[0]
-        uint32_t val = 0  # if value is None else value
+        uint32_t val
+
+    if value is not None:
+        raise ValueError('fletcher32 checksum cannot be continued')
 
     with nogil:
         val = H5_checksum_fletcher32(<const void*> src._data, srcsize)
@@ -74,11 +84,15 @@ def h5checksum_lookup3(
     /,
     value=None,
 ):
-    """Return Jenkins lookup3 checksum of data."""
+    """Return Jenkins lookup3 checksum of data.
+
+    Only the lower 32 bits of the data size affect the checksum.
+
+    """
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.shape[0]
-        uint32_t val = 0 if value is None else value
+        uint32_t val = _uint32(value)
 
     with nogil:
         val = H5_checksum_lookup3(<const void*> src._data, srcsize, val)
@@ -90,14 +104,19 @@ def h5checksum_crc(
     /,
     value=None,
 ):
-    """Return CRC checksum of data (value is ignored)."""
+    """Return HDF5 CRC checksum of data.
+
+    The HDF5 variant differs from the standard CRC-32 used by zlib.
+    Pass a previous result as value to continue the checksum.
+
+    """
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.shape[0]
-        uint32_t val = 0  # if value is None else value
+        uint32_t val = _uint32(value)
 
     with nogil:
-        val = H5_checksum_crc(<const void*> src._data, srcsize)
+        val = H5_checksum_crc_value(<const void*> src._data, srcsize, val)
     return int(val)
 
 
@@ -106,11 +125,11 @@ def h5checksum_metadata(
     /,
     value=None,
 ):
-    """Return checksum of metadata."""
+    """Return checksum of metadata (same as lookup3)."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
         size_t srcsize = <size_t> src.shape[0]
-        uint32_t val = 0 if value is None else value
+        uint32_t val = _uint32(value)
 
     with nogil:
         val = H5_checksum_metadata(<const void*> src._data, srcsize, val)
@@ -122,11 +141,26 @@ def h5checksum_hash_string(
     /,
     value=None,
 ):
-    """Return hash of bytes string (value is ignored)."""
+    """Return djb2 hash of string, which must not contain NUL bytes.
+
+    Pass a previous result as value to continue the hash.
+
+    """
     cdef:
-        const char* str = data
-        uint32_t val = 0  # if value is None else value
+        const uint8_t[::1] src = _readable_input(data)
+        size_t srcsize = <size_t> src.shape[0]
+        size_t i
+        uint32_t val = 5381 if value is None else _uint32(value)
+
+    if srcsize > 0 and memchr(<const void*> src._data, 0, srcsize) != NULL:
+        raise ValueError('string contains NUL byte')
 
     with nogil:
-        val = H5_hash_string(str)
+        for i in range(srcsize):
+            # sign-extend like H5_hash_string on platforms with signed char
+            val = val * 33 + <uint32_t> <int> (<const char*> src._data)[i]
     return int(val)
+
+
+cdef uint32_t _uint32(value):
+    return 0 if value is None else <uint32_t> (int(value) & 0xFFFFFFFF)
