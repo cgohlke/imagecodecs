@@ -32,7 +32,8 @@ cdef extern from 'pixarlog.h' nogil:
         const ssize_t dstsize,
         const ssize_t width,
         const ssize_t stride,
-        const int datafmt
+        const int datafmt,
+        const int byteswap
     )
 
     ssize_t pixarlog_encode_ "pixarlog_encode" (
@@ -43,7 +44,8 @@ cdef extern from 'pixarlog.h' nogil:
         const ssize_t width,
         const ssize_t stride,
         const int datafmt,
-        const int level
+        const int level,
+        const int byteswap
     )
 
     ssize_t pixarlog_decode_raw_ "pixarlog_decode_raw" (
@@ -53,7 +55,8 @@ cdef extern from 'pixarlog.h' nogil:
         const ssize_t dstsize,
         const ssize_t width,
         const ssize_t stride,
-        const int datafmt
+        const int datafmt,
+        const int byteswap
     )
 
     ssize_t pixarlog_encode_raw_ "pixarlog_encode_raw" (
@@ -63,5 +66,6 @@ cdef extern from 'pixarlog.h' nogil:
         const ssize_t dstsize,
         const ssize_t width,
         const ssize_t stride,
-        const int datafmt
+        const int datafmt,
+        const int byteswap
     )
