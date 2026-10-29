@@ -18,8 +18,10 @@
 #define H5_VERS_MINOR 14
 #define H5_VERS_RELEASE 3
 
+void H5_checksum_init(void);
 uint32_t H5_checksum_fletcher32(const void *data, size_t len);
 uint32_t H5_checksum_crc(const void *data, size_t len);
+uint32_t H5_checksum_crc_value(const void *data, size_t len, uint32_t value);
 uint32_t H5_checksum_lookup3(const void *data, size_t len, uint32_t initval);
 uint32_t H5_checksum_metadata(const void *data, size_t len, uint32_t initval);
 uint32_t H5_hash_string(const char *str);
