@@ -11,6 +11,7 @@ cdef extern from 'blosc.h' nogil:
     int BLOSC_VERSION_RELEASE
 
     int BLOSC_MAX_OVERHEAD
+    int BLOSC_MIN_HEADER_LENGTH
     int BLOSC_NOSHUFFLE
     int BLOSC_SHUFFLE
     int BLOSC_BITSHUFFLE
