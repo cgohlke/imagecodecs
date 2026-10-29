@@ -186,16 +186,14 @@ def avif_version():
     )
 
 
-def avif_check(const uint8_t[::1] data, /):
+def avif_check(const uint8_t[::1] data not None, /):
     """Return whether data is AVIF encoded image or None if unknown."""
     cdef:
-        bytes sig = bytes(data[4:12])
+        avifROData rodata
 
-    if sig == b'ftypavif':
-        return True
-    if sig[:4] == b'ftyp':
-        return None
-    return False
+    rodata.data = <const uint8_t*> data._data
+    rodata.size = <size_t> data.shape[0]
+    return bool(avifPeekCompatibleFileType(&rodata))
 
 
 def avif_encode(
@@ -211,6 +209,7 @@ def avif_encode(
     primaries=None,
     transfer=None,
     matrix=None,
+    iccprofile=None,
     numthreads=None,
     out=None,
 ):
@@ -218,6 +217,7 @@ def avif_encode(
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
+        const uint8_t[::1] icc_
         ssize_t dstsize, size
         ssize_t itemsize = src.dtype.itemsize
         int quality = AVIF_QUALITY_LOSSLESS
@@ -230,6 +230,7 @@ def avif_encode(
         int maxthreads = _default_threads(numthreads)
         uint32_t depth
         size_t rawsize
+        size_t iccsize = 0
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
         # bint isfloat = 0
@@ -297,15 +298,15 @@ def avif_encode(
         depth = <uint32_t> layout.bitspersample
     else:
         depth = layout.bitspersample
-        if depth not in {8, 10, 12, 16} or (depth == 8 and itemsize == 2):
+        if depth not in {8, 10, 12, 16}:
             raise ValueError('invalid bitspersample')
 
     if tilelog2 is not None:
         tilecolslog2, tilerowslog2 = tilelog2
-        if not (0 <= tilerowslog2 <= 6):
-            raise ValueError('invalid tileRowsLog2')
-        if not (0 <= tilecolslog2 <= 6):
-            raise ValueError('invalid tileColsLog2')
+        if not (0 <= tilecolslog2 <= 6 and 0 <= tilerowslog2 <= 6):
+            raise ValueError(
+                f'invalid {tilelog2=}, expected (cols, rows) in range [0, 6]'
+            )
 
     quality = _default_value(
         level,
@@ -319,22 +320,31 @@ def avif_encode(
 
     codecchoice = _enum_value(codec, AVIF.CODEC_CHOICE, AVIF_CODEC_CHOICE_AUTO)
 
+    if pixelformat is not None:
+        yuvformat = _enum_value(pixelformat, AVIF.PIXEL_FORMAT)
+        if not (
+            yuvformat == AVIF_PIXEL_FORMAT_YUV444
+            or yuvformat == AVIF_PIXEL_FORMAT_YUV422
+            or yuvformat == AVIF_PIXEL_FORMAT_YUV420
+            or yuvformat == AVIF_PIXEL_FORMAT_YUV400
+        ):
+            raise ValueError(f'invalid {pixelformat=}')
     if monochrome:
         yuvformat = AVIF_PIXEL_FORMAT_YUV400
         # quality = AVIF_QUALITY_LOSSLESS
-    elif quality == AVIF_QUALITY_LOSSLESS:
-        yuvformat = AVIF_PIXEL_FORMAT_YUV444
-    elif pixelformat is not None:
-        yuvformat = _enum_value(pixelformat, AVIF.PIXEL_FORMAT)
+
+    if iccprofile is not None:
+        icc_ = iccprofile
+        iccsize = <size_t> icc_.shape[0]
+
+    raw.data = NULL
+    raw.size = 0
 
     try:
         with nogil:
-            raw.data = NULL
-            raw.size = 0
-
             encoder = avifEncoderCreate()
             if encoder == NULL:
-                raise AvifError('avifEncoderCreate', 'NULL')
+                raise AvifError('avifEncoderCreate', None)
 
             encoder.quality = quality
             encoder.qualityAlpha = AVIF_QUALITY_LOSSLESS
@@ -344,6 +354,8 @@ def avif_encode(
             encoder.speed = speed_
             encoder.keyframeInterval = keyframeinterval
             encoder.timescale = timescale
+            encoder.creationTime = 1700000000
+            encoder.modificationTime = 1700000000
 
             image = avifImageCreate(
                 <uint32_t> layout.width,
@@ -352,7 +364,7 @@ def avif_encode(
                 yuvformat
             )
             if image == NULL:
-                raise AvifError('avifImageCreate', 'NULL', encoder.diag.error)
+                raise AvifError('avifImageCreate', None, encoder.diag.error)
 
             if monochrome or quality == AVIF_QUALITY_LOSSLESS:
                 if codecchoice == AVIF_CODEC_CHOICE_AUTO:
@@ -363,6 +375,8 @@ def avif_encode(
                     image.matrixCoefficients = (
                         AVIF_MATRIX_COEFFICIENTS_IDENTITY
                     )
+                elif not monochrome:
+                    image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601
             else:
                 encoder.codecChoice = codecchoice
                 image.matrixCoefficients = AVIF_MATRIX_COEFFICIENTS_BT601
@@ -375,6 +389,15 @@ def avif_encode(
                 image.transferCharacteristics = transfer_
             if matrix_ != AVIF_MATRIX_COEFFICIENTS_UNSPECIFIED:
                 image.matrixCoefficients = matrix_
+
+            if iccsize > 0:
+                res = avifImageSetProfileICC(
+                    image, <const uint8_t*> icc_._data, iccsize
+                )
+                if res != AVIF_RESULT_OK:
+                    raise AvifError(
+                        'avifImageSetProfileICC', res, encoder.diag.error
+                    )
 
             avifRGBImageSetDefaults(&rgb, image)
 
@@ -419,32 +442,27 @@ def avif_encode(
             if res != AVIF_RESULT_OK:
                 raise AvifError('avifEncoderFinish', res, encoder.diag.error)
 
-    except Exception:
-        avifRWDataFree(&raw)
-        raise
+        out, dstsize, outgiven, outtype = _parse_output(out)
+        if out is None:
+            if dstsize < 0:
+                dstsize = <ssize_t> raw.size
+            elif <size_t> dstsize < raw.size:
+                raise ValueError('output too small')
+            out = _create_output(outtype, dstsize)
+
+        dst = out
+        dstsize = dst.shape[0]
+        if <size_t> dstsize < raw.size:
+            raise ValueError('output too small')
+        memcpy(<void*> dst._data, <const void*> raw.data, raw.size)
+        rawsize = raw.size
 
     finally:
+        avifRWDataFree(&raw)
         if encoder != NULL:
             avifEncoderDestroy(encoder)
         if image != NULL:
             avifImageDestroy(image)
-
-    out, dstsize, outgiven, outtype = _parse_output(out)
-    if out is None:
-        if dstsize < 0:
-            dstsize = <ssize_t> raw.size
-        elif <size_t> dstsize < raw.size:
-            raise ValueError('output too small')
-        out = _create_output(outtype, dstsize)
-
-    dst = out
-    dstsize = dst.shape[0]
-    if <size_t> dstsize < raw.size:
-        raise ValueError('output too small')
-    memcpy(<void*> dst._data, <const void*> raw.data, raw.size)
-
-    rawsize = raw.size
-    avifRWDataFree(&raw)
 
     del dst
     return _return_output(out, dstsize, rawsize, outgiven)
@@ -458,14 +476,16 @@ def avif_decode(
     codec=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded AVIF image."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        ssize_t frameindex = -1 if index is None else index
+        ssize_t frameindex = -1
         ssize_t samples, size, itemsize, i, imagecount
+        uint32_t width, height, depth
         bint monochrome = 0  # must be initialized
         bint hasalpha = 0
         int maxthreads = _default_threads(numthreads)
@@ -484,7 +504,7 @@ def avif_decode(
         with nogil:
             decoder = avifDecoderCreate()
             if decoder == NULL:
-                raise AvifError('avifDecoderCreate', 'NULL')
+                raise AvifError('avifDecoderCreate', None)
 
             # required to read AVIF files created by ImageMagick
             decoder.strictFlags = AVIF_STRICT_DISABLED
@@ -512,74 +532,105 @@ def avif_decode(
             if res != AVIF_RESULT_OK:
                 raise AvifError('avifDecoderParse', res, decoder.diag.error)
 
+            # decoder.image contains properties but no pixels after parse
             image = decoder.image
-
             imagecount = decoder.imageCount
+            width = image.width
+            height = image.height
+            depth = image.depth
+            hasalpha = decoder.alphaPresent != 0
+            monochrome = image.yuvFormat == AVIF_PIXEL_FORMAT_YUV400
+            samples = (1 if monochrome else 3) + (1 if hasalpha else 0)
 
-            if frameindex >= imagecount:
+        if index is None:
+            frameindex = 0 if imagecount == 1 else -1
+        else:
+            frameindex = index
+            if frameindex < 0:
+                frameindex += imagecount
+            if frameindex < 0 or frameindex >= imagecount:
                 raise IndexError(
-                    f'{frameindex=} out of range [0, {imagecount}]'
+                    f'frame {index=} out of range [0, {imagecount})'
                 )
 
-            if imagecount == 1:
-                frameindex = 0
+        dtype = numpy.dtype('uint8' if depth <= 8 else 'uint16')
+        itemsize = dtype.itemsize
 
+        shape = int(height), int(width)
+        if samples > 1:
+            shape = (*shape, int(samples))
+        if frameindex < 0:
+            shape = (int(imagecount), *shape)
+
+        if _info:
+            return {
+                '_codec': 'avif',
+                'shape': shape,
+                'dtype': dtype,
+                'frames': int(imagecount),
+                'bitspersample': int(depth),
+                'pixelformat': _enum_or_int(
+                    image.yuvFormat, AVIF.PIXEL_FORMAT
+                ),
+                'hasalpha': bool(hasalpha),
+                'primaries': _enum_or_int(
+                    image.colorPrimaries, AVIF.COLOR_PRIMARIES
+                ),
+                'transfer': _enum_or_int(
+                    image.transferCharacteristics,
+                    AVIF.TRANSFER_CHARACTERISTICS,
+                ),
+                'matrix': _enum_or_int(
+                    image.matrixCoefficients, AVIF.MATRIX_COEFFICIENTS
+                ),
+                'iccprofile': (
+                    (<const char*> image.icc.data)[: image.icc.size]
+                    if image.icc.data != NULL and image.icc.size > 0
+                    else None
+                ),
+            }
+
+        out = _create_array(out, shape, dtype)
+        dst = out
+
+        with nogil:
             res = avifDecoderNthImage(
                 decoder, <uint32_t> (frameindex if frameindex > 0 else 0)
             )
             if res != AVIF_RESULT_OK:
                 raise AvifError('avifDecoderNthImage', res, decoder.diag.error)
 
-            hasalpha = image.alphaPlane != NULL and image.alphaRowBytes > 0
-            monochrome = (
-                image.yuvFormat == AVIF_PIXEL_FORMAT_YUV400
-                and image.yuvPlanes[<ssize_t> AVIF_CHAN_U] == NULL
-                and image.yuvPlanes[<ssize_t> AVIF_CHAN_V] == NULL
-            )
-
-            avifRGBImageSetDefaults(&rgb, image)
-
+            avifRGBImageSetDefaults(&rgb, decoder.image)
             if monochrome:
                 if hasalpha:
                     rgb.format = AVIF_RGB_FORMAT_GRAYA
-                    samples = 2
                 else:
                     rgb.format = AVIF_RGB_FORMAT_GRAY
-                    samples = 1
             elif hasalpha:
-                samples = 4
                 rgb.format = AVIF_RGB_FORMAT_RGBA
             else:
-                samples = 3
                 rgb.format = AVIF_RGB_FORMAT_RGB
+            # output dtype is fixed by the first frame
+            rgb.depth = depth
+            rgb.pixels = <uint8_t*> dst.data
+            rgb.rowBytes = <uint32_t> (width * samples * itemsize)
+            size = <ssize_t> height * width * samples * itemsize
 
-        dtype = numpy.dtype('uint8' if image.depth <= 8 else 'uint16')
-        itemsize = dtype.itemsize
-
-        shape = int(image.height), int(image.width)
-        if samples > 1:
-            shape = (*shape, int(samples))
-        if imagecount > 1 and frameindex < 0:
-            shape = (int(imagecount), *shape)
-
-        out = _create_array(out, shape, dtype)
-        dst = out
-
-        rgb.pixels = <uint8_t*> dst.data
-        rgb.rowBytes = <uint32_t> (rgb.width * samples * itemsize)
-        size = image.height * image.width * samples * itemsize
-
-        with nogil:
             for i in range(1 if frameindex >= 0 else imagecount):
-                # TODO: verify that images have same shape and dtype
                 if i > 0:
                     res = avifDecoderNextImage(decoder)
-                    if res == AVIF_RESULT_NO_IMAGES_REMAINING:
-                        break
                     if res != AVIF_RESULT_OK:
                         raise AvifError(
                             'avifDecoderNextImage', res, decoder.diag.error
                         )
+
+                if (
+                    decoder.image.width != width
+                    or decoder.image.height != height
+                ):
+                    raise ValueError(
+                        f'frame {i} shape differs from first frame'
+                    )
 
                 res = avifImageYUVToRGB(decoder.image, &rgb)
                 if res != AVIF_RESULT_OK:
@@ -593,3 +644,19 @@ def avif_decode(
             avifDecoderDestroy(decoder)
 
     return out
+
+
+def avif_info(
+    data,
+    /,
+    index=None,
+    *,
+    codec=None,
+):
+    """Return information about AVIF image."""
+    return avif_decode(
+        data,
+        index=index,
+        codec=codec,
+        _info=True,
+    )
