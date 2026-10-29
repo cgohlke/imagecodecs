@@ -15,7 +15,7 @@ typedef SSIZE_T ssize_t;
 #  include <sys/types.h>
 #endif
 
-#define CCITT_VERSION "2026.3.6"
+#define CCITT_VERSION "2026.11.11"
 
 #define CCITT_OK 0
 #define CCITT_ERROR -1
