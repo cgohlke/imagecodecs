@@ -1,6 +1,6 @@
 # imagecodecs/lj92.pxd
 
-# Cython declarations for the `liblj92 2026.3.6` library.
+# Cython declarations for the `liblj92 2026.11.11` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/liblj92/
 
 from libc.stdint cimport uint8_t, uint16_t
@@ -17,9 +17,12 @@ cdef extern from 'lj92.h' nogil:
         LJ92_ERROR_BAD_HANDLE
         LJ92_ERROR_TOO_WIDE
         LJ92_ERROR_ENCODER
+        LJ92_ERROR_UNSUPPORTED
 
-    ctypedef struct lj92:
+    ctypedef struct _ljp:
         pass
+
+    ctypedef _ljp* lj92
 
     int lj92_open(
         lj92* lj,
