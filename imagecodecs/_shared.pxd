@@ -6,7 +6,9 @@ cimport numpy
 from libc.stdint cimport uint8_t, uint64_t
 
 
-cdef const uint8_t[::1] _readable_input(data, out=*)
+cdef const uint8_t[::1] _readable_input(
+    data, out=*, ssize_t* itemsize=*
+)
 
 cdef const uint8_t[::1] _writable_input(data)
 
@@ -21,11 +23,17 @@ cdef _create_output(out, ssize_t size, const char* string=*)
 cdef _return_output(out, ssize_t size, ssize_t used, bint outgiven)
 
 cdef numpy.ndarray _array_input(
-    data, out=*, dtype=*, bint contig=*, bint empty=*
+    data, out=*, dtype=*, bint contig=*, bint empty=*, bint native=*
 )
 
 cdef numpy.ndarray _create_array(
-    out, tuple shape, dtype, tuple strides=*, bint zero=*, bint contig=*
+    out,
+    tuple shape,
+    dtype,
+    tuple strides=*,
+    bint zero=*,
+    bint contig=*,
+    bint writable=*,
 )
 
 cdef tuple _squeeze_shape(tuple shape, ssize_t ndim)
@@ -33,6 +41,8 @@ cdef tuple _squeeze_shape(tuple shape, ssize_t ndim)
 cdef _default_value(value, default, smallest, largest)
 
 cdef _enum_value(value, enum_class, default=*)
+
+cdef _enum_or_int(value, enum_class)
 
 cdef uint8_t _default_threads(numthreads)
 
@@ -47,6 +57,7 @@ ctypedef struct imagelayout_t:
     ssize_t height  # image height (rows)
     ssize_t width  # image width (columns)
     ssize_t samples  # total samples per pixel (color + alpha + extra)
+    ssize_t extracount  # number of extra samples beyond photometric
     int sampleformat  # IC_SF_* value
     int bitspersample  # effective bits per sample
     int itemsize  # dtype size in bytes
@@ -54,7 +65,6 @@ ctypedef struct imagelayout_t:
     bint planar  # True if samples axis precedes spatial axes
     uint8_t extraindex  # 0-based sample index of first extra, 0 if none
     uint8_t extratype  # IC_EXTRA_* value
-    int extracount  # number of extra samples beyond photometric
 
 cdef int _photo_samples(int photometric) noexcept nogil
 
