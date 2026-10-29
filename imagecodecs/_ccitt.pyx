@@ -79,7 +79,7 @@ def ccitt_version():
     return f'ccitt {CCITT_VERSION.decode()}'
 
 
-def ccitt_check(const uint8_t[::1] data, /):
+def ccitt_check(const uint8_t[::1] data not None, /):
     """Return whether data is encoded or None if unknown."""
     return None if data.shape[0] >= 0 else False
 
@@ -113,50 +113,7 @@ def ccittrle_decode(
     out=None,
 ):
     """Return decoded CCITTRLE data."""
-    cdef:
-        numpy.ndarray dst
-        const uint8_t[::1] src = data
-        ssize_t srcsize = src.shape[0]
-        ssize_t dstsize
-        ssize_t ret = 0
-
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    if out is None:
-        if width <= 0:
-            raise ValueError('width required if out is not given')
-        if height <= 0:
-            with nogil:
-                dstsize = ccitt_rle_decode_size(
-                    <const uint8_t*> src._data, srcsize, width
-                )
-            if dstsize < 0:
-                raise CcittrleError('ccitt_rle_decode_size', dstsize)
-            height = dstsize // width
-    else:
-        if width <= 0:
-            width = out.shape[out.ndim - 1]
-        height = out.shape[0]
-
-    out = _create_array(
-        out, (height, width), numpy.uint8, strides=None, zero=True
-    )
-    dst = out
-    dstsize = dst.nbytes
-
-    with nogil:
-        ret = ccitt_rle_decode(
-            <const uint8_t*> src._data,
-            srcsize,
-            <uint8_t*> dst.data,
-            dstsize,
-            width
-        )
-    if ret < 0:
-        raise CcittrleError('ccitt_rle_decode', ret)
-
-    return out
+    return _ccitt_decode(data, height, width, 0, 2, out)
 
 
 # CCITTFAX3 ###################################################################
@@ -189,51 +146,7 @@ def ccittfax3_decode(
     out=None,
 ):
     """Return decoded CCITTFAX3 data."""
-    cdef:
-        numpy.ndarray dst
-        const uint8_t[::1] src = data
-        ssize_t srcsize = src.shape[0]
-        ssize_t dstsize
-        ssize_t ret = 0
-
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    if out is None:
-        if width <= 0:
-            raise ValueError('width required if out is not given')
-        if height <= 0:
-            with nogil:
-                dstsize = ccitt_fax3_decode_size(
-                    <const uint8_t*> src._data, srcsize, width, t4options
-                )
-            if dstsize < 0:
-                raise Ccittfax3Error('ccitt_fax3_decode_size', dstsize)
-            height = dstsize // width
-    else:
-        if width <= 0:
-            width = out.shape[out.ndim - 1]
-        height = out.shape[0]
-
-    out = _create_array(
-        out, (height, width), numpy.uint8, strides=None, zero=True
-    )
-    dst = out
-    dstsize = dst.nbytes
-
-    with nogil:
-        ret = ccitt_fax3_decode(
-            <const uint8_t*> src._data,
-            srcsize,
-            <uint8_t*> dst.data,
-            dstsize,
-            width,
-            t4options
-        )
-    if ret < 0:
-        raise Ccittfax3Error('ccitt_fax3_decode', ret)
-
-    return out
+    return _ccitt_decode(data, height, width, t4options, 3, out)
 
 
 # CCITTFAX4 ###################################################################
@@ -265,47 +178,109 @@ def ccittfax4_decode(
     out=None,
 ):
     """Return decoded CCITTFAX4 data."""
+    return _ccitt_decode(data, height, width, 0, 4, out)
+
+
+# Helper ######################################################################
+
+
+cdef _ccitt_decode(
+    data,
+    ssize_t height,
+    ssize_t width,
+    int t4options,
+    int compression,
+    out,
+):
+    """Return decoded CCITTRLE (2), CCITTFAX3 (3), or CCITTFAX4 (4) data."""
     cdef:
         numpy.ndarray dst
-        const uint8_t[::1] src = data
-        ssize_t srcsize = src.shape[0]
-        ssize_t dstsize
+        const uint8_t[::1] src
+        ssize_t srcsize
+        ssize_t dstsize = 0
         ssize_t ret = 0
+        str func = {2: 'ccitt_rle', 3: 'ccitt_fax3', 4: 'ccitt_fax4'}[
+            compression
+        ]
 
-    if data is out:
+    if data is None:
+        raise ValueError('input data is None')
+    if out is not None and data is out:
         raise ValueError('cannot transform in-place')
+
+    src = data
+    srcsize = src.shape[0]
 
     if out is None:
         if width <= 0:
             raise ValueError('width required if out is not given')
         if height <= 0:
             with nogil:
-                dstsize = ccitt_fax4_decode_size(
-                    <const uint8_t*> src._data, srcsize, width
-                )
+                if compression == 2:
+                    dstsize = ccitt_rle_decode_size(
+                        <const uint8_t*> src._data, srcsize, width
+                    )
+                elif compression == 3:
+                    dstsize = ccitt_fax3_decode_size(
+                        <const uint8_t*> src._data, srcsize, width, t4options
+                    )
+                else:
+                    dstsize = ccitt_fax4_decode_size(
+                        <const uint8_t*> src._data, srcsize, width
+                    )
             if dstsize < 0:
-                raise Ccittfax4Error('ccitt_fax4_decode_size', dstsize)
+                raise CcittError(f'{func}_decode_size', dstsize)
             height = dstsize // width
+        dst = _create_array(
+            None, (int(height), int(width)), numpy.uint8, None, True
+        )
     else:
+        if isinstance(out, numpy.ndarray):
+            if width <= 0 and out.ndim > 1:
+                width = out.shape[out.ndim - 1]
+            out = _create_array(out, out.shape, numpy.uint8, None, True)
+        else:
+            out = _create_array(
+                out, (memoryview(out).nbytes,), numpy.uint8, None, True
+            )
         if width <= 0:
-            width = out.shape[out.ndim - 1]
-        height = out.shape[0]
-
-    out = _create_array(
-        out, (height, width), numpy.uint8, strides=None, zero=True
-    )
-    dst = out
+            raise ValueError('width required for 1D or buffer output')
+        if height <= 0:
+            height = out.size // width
+        if out.size != height * width:
+            raise ValueError(
+                f'output size {out.size} != {height=} * {width=}'
+            )
+        dst = out.reshape((int(height), int(width)))
     dstsize = dst.nbytes
 
     with nogil:
-        ret = ccitt_fax4_decode(
-            <const uint8_t*> src._data,
-            srcsize,
-            <uint8_t*> dst.data,
-            dstsize,
-            width
-        )
+        if compression == 2:
+            ret = ccitt_rle_decode(
+                <const uint8_t*> src._data,
+                srcsize,
+                <uint8_t*> dst.data,
+                dstsize,
+                width
+            )
+        elif compression == 3:
+            ret = ccitt_fax3_decode(
+                <const uint8_t*> src._data,
+                srcsize,
+                <uint8_t*> dst.data,
+                dstsize,
+                width,
+                t4options
+            )
+        else:
+            ret = ccitt_fax4_decode(
+                <const uint8_t*> src._data,
+                srcsize,
+                <uint8_t*> dst.data,
+                dstsize,
+                width
+            )
     if ret < 0:
-        raise Ccittfax4Error('ccitt_fax4_decode', ret)
+        raise CcittError(f'{func}_decode', ret)
 
-    return out
+    return dst
