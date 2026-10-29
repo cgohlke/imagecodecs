@@ -102,7 +102,6 @@ H5_checksum_fletcher32(const void *_data, size_t _len)
 
     /* Sanity check */
     assert(_data);
-    assert(_len > 0);
 
     /* Compute checksum for pairs of bytes */
     /* (the magic "360" value is the largest number of sums that can be
@@ -218,13 +217,31 @@ H5_checksum_crc(const void *_data, size_t len)
 
     /* Sanity check */
     assert(_data);
-    assert(len > 0);
 
     FUNC_LEAVE_NOAPI(
         H5__checksum_crc_update(
             (uint32_t)0xffffffffL, (const uint8_t *)_data, len) ^
         0xffffffffL)
 } /* end H5_checksum_crc() */
+
+/* imagecodecs: build the CRC table before use from multiple threads */
+void
+H5_checksum_init(void)
+{
+    if (!H5_crc_table_computed)
+        H5__checksum_crc_make_table();
+}
+
+/* imagecodecs: continue a CRC returned by H5_checksum_crc */
+uint32_t
+H5_checksum_crc_value(const void *_data, size_t len, uint32_t value)
+{
+    assert(_data);
+
+    return H5__checksum_crc_update(
+               value ^ (uint32_t)0xffffffffL, (const uint8_t *)_data, len) ^
+           (uint32_t)0xffffffffL;
+}
 
 /*
 -------------------------------------------------------------------------------
@@ -373,7 +390,6 @@ H5_checksum_lookup3(const void *key, size_t length, uint32_t initval)
 
     /* Sanity check */
     assert(key);
-    assert(length > 0);
 
     /* Set up the internal state */
     a = b = c = 0xdeadbeef + ((uint32_t)length) + initval;
@@ -477,7 +493,6 @@ H5_checksum_metadata(const void *data, size_t len, uint32_t initval)
 
     /* Sanity check */
     assert(data);
-    assert(len > 0);
 
     /* Choose the appropriate checksum routine */
     /* (use Bob Jenkin's "lookup3" algorithm for all buffer sizes) */
