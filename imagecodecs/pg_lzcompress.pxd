@@ -3,7 +3,7 @@
 # Cython declarations for the `PostgreSQL 15.6 pg_lzcompress` library.
 # https://github.com/postgres/postgres/
 
-from libc.stdint cimport int16_t, int32_t
+from libc.stdint cimport int16_t, int32_t, int64_t
 
 
 cdef extern from 'pg_lzcompress.h' nogil:
@@ -12,6 +12,7 @@ cdef extern from 'pg_lzcompress.h' nogil:
 
     ctypedef int16_t int16
     ctypedef int32_t int32
+    ctypedef int64_t int64
     ctypedef bint bool_t
 
     int32 PGLZ_MAX_OUTPUT(int32)
@@ -46,4 +47,9 @@ cdef extern from 'pg_lzcompress.h' nogil:
     int32 pglz_maximum_compressed_size(
         int32 rawsize,
         int32 total_compressed_size
+    )
+
+    int64 pglz_decompressed_size(
+        const char* source,
+        int32 slen
     )
