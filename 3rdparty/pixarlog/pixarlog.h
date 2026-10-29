@@ -15,7 +15,7 @@ typedef SSIZE_T ssize_t;
 #include <sys/types.h>
 #endif
 
-#define PIXARLOG_VERSION "2026.3.2"
+#define PIXARLOG_VERSION "2026.11.11"
 
 #define PIXARLOG_FMT_8BIT 0
 #define PIXARLOG_FMT_8BITABGR 1
@@ -44,7 +44,8 @@ pixarlog_decode(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt
+    const int datafmt,
+    const int byteswap
 );
 
 ssize_t
@@ -56,7 +57,8 @@ pixarlog_encode(
     const ssize_t width,
     const ssize_t stride,
     const int datafmt,
-    const int level
+    const int level,
+    const int byteswap
 );
 
 ssize_t
@@ -67,7 +69,8 @@ pixarlog_decode_raw(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt
+    const int datafmt,
+    const int byteswap
 );
 
 ssize_t
@@ -78,7 +81,8 @@ pixarlog_encode_raw(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt
+    const int datafmt,
+    const int byteswap
 );
 
 #endif /* PIXARLOG_H */
