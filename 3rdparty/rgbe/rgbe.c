@@ -38,6 +38,7 @@ Modifications by Christoph Gohlke:
 - Use standard __cplusplus macro.
 - Add orientation field to rgbe_header_info.
 - Replace frexp and ldexp calls with bit manipulation.
+- Clamp negative, NaN, and too large values in float2rgbe.
 
 http://www.graphics.cornell.edu/online/formats/rgbe/
 
@@ -58,6 +59,12 @@ http://www.graphics.cornell.edu/online/formats/rgbe/
 #define RGBE_DATA_SIZE 3
 /* maximum line length in header */
 #define RGBE_HEADER_LINE_LENGTH 1024
+/* largest representable value: 255 * 2^119 */
+#define RGBE_MAX_VALUE 1.6947656946257677e38f
+
+/* map NaN and negative values to 0, clip large values and Inf */
+#define RGBE_CLAMP(x) \
+    (!((x) > 0.0f) ? 0.0f : ((x) > RGBE_MAX_VALUE ? RGBE_MAX_VALUE : (x)))
 
 /* standard conversion from float pixels to rgbe pixels */
 /* note: you can remove the "inline"s if your compiler complains about it */
@@ -71,6 +78,9 @@ float2rgbe(
     float v, scale;
     unsigned int bits, biased;
 
+    red = RGBE_CLAMP(red);
+    green = RGBE_CLAMP(green);
+    blue = RGBE_CLAMP(blue);
     v = red;
     if (green > v)
         v = green;
