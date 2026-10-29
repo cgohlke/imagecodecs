@@ -12,12 +12,18 @@ cdef extern from 'h5checksum.h' nogil:
     int H5_VERS_MINOR
     int H5_VERS_RELEASE
 
+    void H5_checksum_init()
+
     uint32_t H5_checksum_fletcher32(
         const void* data, size_t len
     )
 
     uint32_t H5_checksum_crc(
         const void* data, size_t len
+    )
+
+    uint32_t H5_checksum_crc_value(
+        const void* data, size_t len, uint32_t value
     )
 
     uint32_t H5_checksum_lookup3(
