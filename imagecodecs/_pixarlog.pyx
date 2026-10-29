@@ -63,13 +63,13 @@ class PixarlogError(RuntimeError):
     def __init__(self, func, err):
         msg = {
             PIXARLOG_OK: 'PIXARLOG_OK',
-            PIXARLOG_ERROR: 'PIXARLOG_ERROR',
-            PIXARLOG_MEMORY_ERROR: 'PIXARLOG_MEMORY_ERROR',
-            PIXARLOG_VALUE_ERROR: 'PIXARLOG_VALUE_ERROR',
-            PIXARLOG_OUTPUT_TOO_SMALL: 'PIXARLOG_OUTPUT_TOO_SMALL',
-            PIXARLOG_ZLIB_ERROR: 'PIXARLOG_ZLIB_ERROR',
+            PIXARLOG_ERROR: 'error',
+            PIXARLOG_MEMORY_ERROR: 'insufficient memory',
+            PIXARLOG_VALUE_ERROR: 'invalid value',
+            PIXARLOG_OUTPUT_TOO_SMALL: 'output too small',
+            PIXARLOG_ZLIB_ERROR: 'zlib error',
         }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg}'
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -78,7 +78,7 @@ def pixarlog_version():
     return 'pixarlog ' + PIXARLOG_VERSION.decode()
 
 
-def pixarlog_check(const uint8_t[::1] data, /):
+def pixarlog_check(const uint8_t[::1] data not None, /):
     """Return whether data is PixarLog encoded or None if unknown."""
     return None if data.shape[0] > 1 else False
 
@@ -89,15 +89,22 @@ def pixarlog_encode(
     level=None,
     *,
     deflate=True,
+    byteorder=None,
     out=None,
 ):
-    """Return PixarLog encoded image."""
+    """Return PixarLog encoded image.
+
+    The 11-bit log codes are stored as uint16 in `byteorder`
+    (default native).
+
+    """
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.nbytes
         ssize_t dstsize, width, stride, ret
         int datafmt
+        int byteswap = _byteswap(byteorder)
         int clevel = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
         )
@@ -112,7 +119,6 @@ def pixarlog_encode(
         width = <ssize_t> src.shape[1]
         stride = 1
 
-    # TODO: handle big-endian data
     if src.dtype == numpy.uint8:
         datafmt = PIXARLOG_FMT_8BIT
     elif src.dtype == numpy.uint16:
@@ -123,6 +129,9 @@ def pixarlog_encode(
         raise ValueError(
             f'dtype {src.dtype!r} not in {{uint8, uint16, float32}}'
         )
+
+    if not numpy.PyArray_ISALIGNED(src):
+        src = src.copy()
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -147,6 +156,7 @@ def pixarlog_encode(
                 stride,
                 datafmt,
                 clevel,
+                byteswap,
             )
     else:
         with nogil:
@@ -158,6 +168,7 @@ def pixarlog_encode(
                 width,
                 stride,
                 datafmt,
+                byteswap,
             )
 
     if ret < 0:
@@ -177,15 +188,21 @@ def pixarlog_decode(
     shape=None,
     dtype=None,
     deflate=True,
+    byteorder=None,
     out=None,
 ):
-    """Return decoded PixarLog image."""
+    """Return decoded PixarLog image.
+
+    Rows missing from the encoded data are zero-filled.
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize, width, stride, ret
         int datafmt
+        int byteswap = _byteswap(byteorder)
         numpy.dtype outdtype
 
     if data is out:
@@ -214,7 +231,7 @@ def pixarlog_decode(
         outdtype = numpy.dtype(numpy.uint16)
 
     if shape is None:
-        raise ValueError('shape must be provided when out is not given')
+        raise TypeError('shape is required')
     shape = tuple(shape)
     if len(shape) == 3:
         width = <ssize_t> shape[1]
@@ -229,6 +246,10 @@ def pixarlog_decode(
 
     out = _create_array(out, shape, outdtype)
     dst = out
+    if dst.dtype != outdtype:
+        raise ValueError(f'invalid output dtype {dst.dtype}')
+    if not numpy.PyArray_ISALIGNED(dst):
+        raise ValueError('output array is not aligned')
     dstsize = dst.nbytes
 
     if deflate:
@@ -241,6 +262,7 @@ def pixarlog_decode(
                 width,
                 stride,
                 datafmt,
+                byteswap,
             )
     else:
         with nogil:
@@ -252,6 +274,7 @@ def pixarlog_decode(
                 width,
                 stride,
                 datafmt,
+                byteswap,
             )
 
     if ret < 0:
@@ -260,7 +283,19 @@ def pixarlog_decode(
             <int> ret,
         )
 
+    if ret < dstsize:
+        memset(dst.data + ret, 0, dstsize - ret)
+
     return out
+
+
+cdef int _byteswap(byteorder) except -1:
+    # return whether uint16 codes must be byte-swapped
+    if byteorder is None or byteorder == '=':
+        return 0
+    if byteorder not in {'<', '>'}:
+        raise ValueError(f'invalid {byteorder=!r}')
+    return not numpy.dtype(byteorder + 'u2').isnative
 
 
 cdef ssize_t _compress_bound(const ssize_t srcsize) noexcept nogil:
