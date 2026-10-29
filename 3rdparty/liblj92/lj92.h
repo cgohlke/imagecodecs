@@ -30,7 +30,7 @@ SOFTWARE.
 extern "C" {
 #endif
 
-#define LJ92_VERSION "2026.3.6"
+#define LJ92_VERSION "2026.11.11"
 
 enum LJ92_ERRORS {
     LJ92_ERROR_NONE = 0,
@@ -38,7 +38,8 @@ enum LJ92_ERRORS {
     LJ92_ERROR_NO_MEMORY = -2,
     LJ92_ERROR_BAD_HANDLE = -3,
     LJ92_ERROR_TOO_WIDE = -4,
-    LJ92_ERROR_ENCODER = -5
+    LJ92_ERROR_ENCODER = -5,
+    LJ92_ERROR_UNSUPPORTED = -6
 };
 
 typedef struct _ljp *lj92;
