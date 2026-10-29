@@ -102,5 +102,6 @@ extern int32 pglz_decompress(const char *source, int32 slen, char *dest,
 							 int32 rawsize, bool check_complete);
 extern int32 pglz_maximum_compressed_size(int32 rawsize,
 										  int32 total_compressed_size);
+extern int64 pglz_decompressed_size(const char *source, int32 slen);
 
 #endif							/* _PG_LZCOMPRESS_H_ */
