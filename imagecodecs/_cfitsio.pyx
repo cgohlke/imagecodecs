@@ -59,6 +59,7 @@ Rcomp is an implementation of the Rice algorithm:
 include '_shared.pxi'
 
 from hcompress cimport *
+from libc.limits cimport LONG_MAX
 from pliocomp cimport *
 from ricecomp cimport *
 
@@ -89,7 +90,7 @@ def hcomp_version():
     return 'hcompress ' + HCOMP_VERSION.decode()
 
 
-def hcomp_check(const uint8_t[::1] data, /):
+def hcomp_check(const uint8_t[::1] data not None, /):
     """Return whether data is HCOMP encoded or None if unknown."""
     return data.shape[0] >= 25 and data[0] == 0xDD and data[1] == 0x99
 
@@ -101,7 +102,11 @@ def hcomp_encode(
     *,
     out=None,
 ):
-    """Return HCOMP encoded data."""
+    """Return HCOMP encoded data.
+
+    Decoded data are int32. View the result as uint32 for uint32 input.
+
+    """
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -145,7 +150,8 @@ def hcomp_encode(
 
     dst = out
     dstsize = dst.shape[0]
-    nbytes = <long> dstsize
+    # long is 32-bit on Windows
+    nbytes = <long> min(dstsize, <ssize_t> LONG_MAX)
 
     if src.dtype.itemsize == 4:
         with nogil:
@@ -211,6 +217,8 @@ def hcomp_decode(
 
     if srcsize < 25:
         raise ValueError('data too short')
+    if srcsize > INT32_MAX:
+        raise ValueError('input too large')
 
     # parse nx, ny from header (bytes 2-5 = nx, bytes 6-9 = ny)
     nx = (
@@ -235,6 +243,8 @@ def hcomp_decode(
     if safe32:
         # 32-bit path: decode directly into the output array (no extra copy)
         dst = _create_array(out, (nx, ny), numpy.int32)
+        if dst.dtype != numpy.int32:
+            raise ValueError(f'invalid output dtype {dst.dtype}')
 
         with nogil:
             ret = hcomp_decompress(
@@ -274,6 +284,8 @@ def hcomp_decode(
     else:
         out = _create_array(out, (nx, ny), numpy.int32)
         dst = out
+        if dst.dtype != numpy.int32:
+            raise ValueError(f'invalid output dtype {dst.dtype}')
         dst[:] = tmp
 
     return out
@@ -308,12 +320,15 @@ def plio_version():
     return 'pliocomp ' + PLIO_VERSION.decode()
 
 
-def plio_check(const uint8_t[::1] data, /):
+def plio_check(const uint8_t[::1] data not None, /):
     """Return whether data is PLIO encoded or None if unknown."""
     cdef:
-        const short* src = <const short*> data._data
+        int16_t value
 
-    return data.shape[0] >= PLIO_HEADER_SIZE * 2 and src[2] == -100
+    if data.shape[0] < PLIO_HEADER_SIZE * 2:
+        return False
+    memcpy(&value, &data[4], 2)  # may be unaligned
+    return value == -100
 
 
 def plio_encode(
@@ -322,9 +337,17 @@ def plio_encode(
     *,
     out=None,
 ):
-    """Return PLIO encoded data."""
+    """Return PLIO encoded data.
+
+    Data must be 1-dimensional integers less than 2**24.
+    Negative values are encoded as 0, like cfitsio.
+    Data are cast to int32 without range checks and 64-bit values outside
+    the int32 range wrap.
+    The encoded data are 16-bit integers in native byte order.
+
+    """
     cdef:
-        numpy.ndarray src = _array_input(data, out, dtype=numpy.int32)
+        numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
@@ -336,6 +359,11 @@ def plio_encode(
 
     if srcsize <= 0 or srcsize > INT32_MAX:
         raise ValueError('invalid data size')
+
+    if src.dtype.kind not in {'i', 'u'}:
+        raise ValueError(f'data must be integer, not {src.dtype}')
+
+    src = numpy.ascontiguousarray(src, dtype=numpy.int32)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -350,13 +378,15 @@ def plio_encode(
 
     dst = out
     dstsize = dst.shape[0]
+    if (<size_t> dst._data) % 2:
+        raise ValueError('output buffer is not 2-byte aligned')
 
     with nogil:
         ret = plio_encode_(
             <const int*> src.data,
             <int> srcsize,
             <short*> dst._data,
-            <int> (dstsize // 2),  # number of shorts that fit
+            <int> min(dstsize // 2, <ssize_t> INT32_MAX),
             &nout
         )
 
@@ -387,6 +417,11 @@ def plio_decode(
 
     if srcsize < PLIO_HEADER_SIZE * 2:
         raise ValueError('data too short')
+    if srcsize // 2 > INT32_MAX:
+        raise ValueError('input too large')
+
+    if (<size_t> src._data) % 2:
+        src = bytearray(src)
 
     if npix is not None:
         npix_ = npix
@@ -398,7 +433,15 @@ def plio_decode(
     if npix_ <= 0 or npix_ > INT32_MAX:
         raise ValueError(f'invalid npix={npix_}')
 
-    dst = _create_array(out, (npix_,), numpy.int32)
+    if isinstance(out, numpy.ndarray):
+        out = _create_array(out, out.shape, numpy.int32)
+        if out.size != npix_:
+            raise ValueError(f'output size {out.size} != {npix_=}')
+        dst = out.reshape(-1)
+    else:
+        dst = _create_array(out, (npix_,), numpy.int32)
+    if dst.dtype != numpy.int32:
+        raise ValueError(f'invalid output dtype {dst.dtype}')
 
     with nogil:
         ret = plio_decode_(
@@ -411,6 +454,8 @@ def plio_decode(
     if ret != PLIO_OK:
         raise PlioError('plio_decode', ret)
 
+    if isinstance(out, numpy.ndarray):
+        return out
     return dst
 
 
@@ -443,7 +488,7 @@ def rcomp_version():
     return 'ricecomp ' + RCOMP_VERSION.decode()
 
 
-def rcomp_check(const uint8_t[::1] data, /):
+def rcomp_check(const uint8_t[::1] data not None, /):
     """Return whether data is RCOMP encoded or None if unknown."""
     return None if data.shape[0] > 2 else False
 
@@ -462,27 +507,31 @@ def rcomp_encode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.size
         ssize_t dstsize
+        ssize_t nblocks
         int nblock_ = 32 if nblock is None else nblock
         int ret = 0
+
+    if nblock_ < 1:
+        raise ValueError(f'invalid {nblock=}')
 
     if not (
         srcsize <= INT32_MAX
         and dtype.kind in {'i', 'u'}
         and dtype.itemsize in {1, 2, 4}
-        and dtype.byteorder != '>'
     ):
-        raise ValueError(
-            'data is not a big-endian integer array of size < 2**31'
-        )
+        raise ValueError('data is not an integer array of size < 2**31')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            # worst case: ~11% larger than input
-            dstsize = _align_ssize_t(
-                max(1024, (<ssize_t> src.nbytes * 111) // 100)
+            # worst case: first value, and per block a FS code (3, 4, or 5
+            # bits) followed by nblock uncompressed values
+            nblocks = (srcsize + nblock_ - 1) // nblock_
+            dstsize = nblocks * (
+                dtype.itemsize + 2 + <ssize_t> nblock_ * dtype.itemsize * 8
             )
+            dstsize = _align_ssize_t(dtype.itemsize + (dstsize + 7) // 8 + 16)
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -524,10 +573,7 @@ def rcomp_encode(
                 nblock_
             )
         if ret < 0:
-            raise RcompError('rcomp', ret)
-
-    else:
-        raise RuntimeError
+            raise RcompError('rcomp_int', ret)
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
@@ -554,6 +600,9 @@ def rcomp_decode(
     if data is out:
         raise ValueError('cannot transform in-place')
 
+    if nblock_ < 1:
+        raise ValueError(f'invalid {nblock=}')
+
     if srcsize > INT32_MAX:
         raise ValueError('input buffer too large')
 
@@ -578,6 +627,8 @@ def rcomp_decode(
 
     out = _create_array(out, shape, dtype)
     dst = out
+    if dst.dtype.kind not in 'iu':
+        raise ValueError(f'invalid output dtype {dst.dtype}')
     dstsize = dst.size
     if dstsize > INT32_MAX:
         raise ValueError('output array too large')
@@ -617,9 +668,6 @@ def rcomp_decode(
             )
         if ret != RCOMP_OK and ret != RCOMP_WARN_UNUSED:
             raise RcompError('rdecomp_int', ret)
-
-    else:
-        raise RuntimeError
 
     del dst
     return out
