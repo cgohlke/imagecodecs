@@ -39,7 +39,7 @@
 
 include '_shared.pxi'
 
-from libc.math cimport ceil, floor, log2, log10, pow, round
+from libc.math cimport NAN, ceil, fabs, log2, pow, round
 from nc4var cimport *
 
 
@@ -68,9 +68,9 @@ def quantize_version():
     return f'nc4var {NC_VERSION_MAJOR}.{NC_VERSION_MINOR}.{NC_VERSION_PATCH}'
 
 
-def quantize_check(const uint8_t[::1] data, /):
+def quantize_check(const uint8_t[::1] data not None, /):
     """Return whether data is QUANTIZE encoded or None if unknown."""
-    return None if data.shape[0] > 0 else False
+    return None
 
 
 def quantize_encode(
@@ -86,9 +86,11 @@ def quantize_encode(
     ``nsd`` ("number of significant digits") is interpreted differently
     by the modes:
 
-    - BitGroom and Scale: number of significant decimal digits
+    - BitGroom, Granular BitRound, and Scale: number of significant
+      decimal digits.
     - BitRound: number of significant binary digits (bits).
-    - Granular BitRound: ?
+
+    Non-finite values are not quantized.
 
     """
     cdef:
@@ -99,9 +101,13 @@ def quantize_encode(
         int ret = 0
         int range_error = 0
         int quantize_mode = NC_NOQUANTIZE
-        # uint64_t fill_value = 0
+        int nsd_min = 1
+        int nsd_max = 0
+        float fill_flt = NAN
+        double fill_dbl = NAN
+        const void* fill_value
 
-    data = _array_input(data, out)
+    data = _array_input(data, out, None, True, True)
     src = data
     src_size = <size_t> src.size
 
@@ -110,13 +116,29 @@ def quantize_encode(
 
     if src.itemsize == 4:
         src_type = NC_FLOAT
+        # NaN fill value disables fill value masking
+        fill_value = <const void*> &fill_flt
     else:
         src_type = NC_DOUBLE
+        fill_value = <const void*> &fill_dbl
 
     quantize_mode = _enum_value(mode, QUANTIZE.MODE)
 
-    if not 0 <= nsd < src.itemsize * 8:
-        raise ValueError(f'invalid number of significant digits {nsd!r}')
+    # largest nsd that does not exceed the significand bits
+    if quantize_mode == NC_QUANTIZE_BITGROOM:
+        nsd_max = 6 if src_type == NC_FLOAT else 15
+    elif quantize_mode == NC_QUANTIZE_GRANULARBR:
+        nsd_max = 7 if src_type == NC_FLOAT else 15
+    elif quantize_mode == NC_QUANTIZE_BITROUND:
+        nsd_max = 23 if src_type == NC_FLOAT else 52
+    elif quantize_mode == 100:
+        nsd_min = 0
+        nsd_max = 7 if src_type == NC_FLOAT else 15
+    if quantize_mode != NC_NOQUANTIZE and not nsd_min <= nsd <= nsd_max:
+        raise ValueError(
+            f'number of significant digits {nsd} out of range '
+            f'[{nsd_min}, {nsd_max}] for {mode=} and {src.dtype}'
+        )
 
     out = _create_array(out, data.shape, data.dtype)
     dst = out
@@ -139,7 +161,7 @@ def quantize_encode(
                 src_type,
                 src_size,
                 &range_error,
-                NULL,  # fill_value
+                fill_value,
                 1,  # strict_nc3
                 quantize_mode,
                 nsd
@@ -158,8 +180,12 @@ def quantize_decode(
     *,
     out=None,
 ):
-    """Return de-quantized data. Raise QuantizeError if lossy."""
-    if mode != NC_NOQUANTIZE:
+    """Return de-quantized data. Raise QuantizeError if lossy.
+
+    Out is not used.
+
+    """
+    if _enum_value(mode, QUANTIZE.MODE) != NC_NOQUANTIZE:
         raise QuantizeError(f'Quantize {mode=} is lossy.')
     return data
 
@@ -181,11 +207,14 @@ cdef void _quantize_scale(
     const int nsd,
 ) noexcept nogil:
     cdef:
-        double scale
+        double scale = pow(2.0, ceil(log2(pow(10.0, nsd))))
+        double value
         ssize_t i
 
-    scale = log10(pow(10.0, -nsd))  # exp
-    scale = floor(scale) if scale < 0.0 else ceil(scale)  # exp
-    scale = pow(2.0, ceil(log2(pow(10.0, -scale))))
     for i in range(size):
-        dst[i] = <data_t> (round(src[i] * scale) / scale)
+        value = src[i] * scale
+        # skip Inf, NaN, and values without fractional bits at this scale
+        if fabs(value) < 4503599627370496.0:  # 2**52
+            dst[i] = <data_t> (round(value) / scale)
+        else:
+            dst[i] = src[i]
