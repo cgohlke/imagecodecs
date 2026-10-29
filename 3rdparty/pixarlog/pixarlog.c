@@ -58,6 +58,7 @@
 
 #include "pixarlog.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,10 +81,6 @@
 /* Scale and clamp for 12-bit Picio format */
 #define SCALE12 2048.0f
 #define CLAMP12(t) (((t) < 3071) ? (uint16_t)(t) : 3071)
-
-/* Maximum stride for stack-allocated accumulators.
- * Strides larger than this use heap allocation. */
-#define MAX_STACK_STRIDE 64
 
 
 /*****************************************************************************/
@@ -270,31 +267,16 @@ pixarlog_accumulate_float(
         }
     }
     else {
-        /* Generic stride path using stack or heap accumulators */
-        unsigned int acc_stack[MAX_STACK_STRIDE];
-        unsigned int* acc = acc_stack;
         int c;
-
-        if (stride > MAX_STACK_STRIDE) {
-            acc = (unsigned int *)malloc(stride * sizeof(unsigned int));
-            if (acc == NULL) {
-                return;
-            }
-        }
+        unsigned int acc;
 
         for (c = 0; c < stride; c++) {
-            acc[c] = wp[c] & mask;
-            op[c] = pixarlog_ToLinearF[acc[c]];
-        }
-        for (i = stride; i < n; i += stride) {
-            for (c = 0; c < stride; c++) {
-                acc[c] = (acc[c] + wp[i + c]) & mask;
-                op[i + c] = pixarlog_ToLinearF[acc[c]];
+            acc = wp[c] & mask;
+            op[c] = pixarlog_ToLinearF[acc];
+            for (i = stride + c; i < n; i += stride) {
+                acc = (acc + wp[i]) & mask;
+                op[i] = pixarlog_ToLinearF[acc];
             }
-        }
-
-        if (acc != acc_stack) {
-            free(acc);
         }
     }
 }
@@ -352,30 +334,16 @@ pixarlog_accumulate_16(
         }
     }
     else {
-        unsigned int acc_stack[MAX_STACK_STRIDE];
-        unsigned int* acc = acc_stack;
         int c;
-
-        if (stride > MAX_STACK_STRIDE) {
-            acc = (unsigned int *)malloc(stride * sizeof(unsigned int));
-            if (acc == NULL) {
-                return;
-            }
-        }
+        unsigned int acc;
 
         for (c = 0; c < stride; c++) {
-            acc[c] = wp[c] & mask;
-            op[c] = pixarlog_ToLinear16[acc[c]];
-        }
-        for (i = stride; i < n; i += stride) {
-            for (c = 0; c < stride; c++) {
-                acc[c] = (acc[c] + wp[i + c]) & mask;
-                op[i + c] = pixarlog_ToLinear16[acc[c]];
+            acc = wp[c] & mask;
+            op[c] = pixarlog_ToLinear16[acc];
+            for (i = stride + c; i < n; i += stride) {
+                acc = (acc + wp[i]) & mask;
+                op[i] = pixarlog_ToLinear16[acc];
             }
-        }
-
-        if (acc != acc_stack) {
-            free(acc);
         }
     }
 }
@@ -448,32 +416,18 @@ pixarlog_accumulate_12(
         }
     }
     else {
-        unsigned int acc_stack[MAX_STACK_STRIDE];
-        unsigned int* acc = acc_stack;
         int c;
-
-        if (stride > MAX_STACK_STRIDE) {
-            acc = (unsigned int *)malloc(stride * sizeof(unsigned int));
-            if (acc == NULL) {
-                return;
-            }
-        }
+        unsigned int acc;
 
         for (c = 0; c < stride; c++) {
-            acc[c] = wp[c] & mask;
-            t = pixarlog_ToLinearF[acc[c]] * SCALE12;
+            acc = wp[c] & mask;
+            t = pixarlog_ToLinearF[acc] * SCALE12;
             op[c] = (int16_t)CLAMP12(t);
-        }
-        for (i = stride; i < n; i += stride) {
-            for (c = 0; c < stride; c++) {
-                acc[c] = (acc[c] + wp[i + c]) & mask;
-                t = pixarlog_ToLinearF[acc[c]] * SCALE12;
-                op[i + c] = (int16_t)CLAMP12(t);
+            for (i = stride + c; i < n; i += stride) {
+                acc = (acc + wp[i]) & mask;
+                t = pixarlog_ToLinearF[acc] * SCALE12;
+                op[i] = (int16_t)CLAMP12(t);
             }
-        }
-
-        if (acc != acc_stack) {
-            free(acc);
         }
     }
 }
@@ -532,30 +486,16 @@ pixarlog_accumulate_11(
         }
     }
     else {
-        unsigned int acc_stack[MAX_STACK_STRIDE];
-        unsigned int* acc = acc_stack;
         int c;
-
-        if (stride > MAX_STACK_STRIDE) {
-            acc = (unsigned int *)malloc(stride * sizeof(unsigned int));
-            if (acc == NULL) {
-                return;
-            }
-        }
+        unsigned int acc;
 
         for (c = 0; c < stride; c++) {
-            acc[c] = wp[c] & mask;
-            op[c] = (uint16_t)acc[c];
-        }
-        for (i = stride; i < n; i += stride) {
-            for (c = 0; c < stride; c++) {
-                acc[c] = (acc[c] + wp[i + c]) & mask;
-                op[i + c] = (uint16_t)acc[c];
+            acc = wp[c] & mask;
+            op[c] = (uint16_t)acc;
+            for (i = stride + c; i < n; i += stride) {
+                acc = (acc + wp[i]) & mask;
+                op[i] = (uint16_t)acc;
             }
-        }
-
-        if (acc != acc_stack) {
-            free(acc);
         }
     }
 }
@@ -613,30 +553,16 @@ pixarlog_accumulate_8(
         }
     }
     else {
-        unsigned int acc_stack[MAX_STACK_STRIDE];
-        unsigned int* acc = acc_stack;
         int c;
-
-        if (stride > MAX_STACK_STRIDE) {
-            acc = (unsigned int *)malloc(stride * sizeof(unsigned int));
-            if (acc == NULL) {
-                return;
-            }
-        }
+        unsigned int acc;
 
         for (c = 0; c < stride; c++) {
-            acc[c] = wp[c] & mask;
-            op[c] = pixarlog_ToLinear8[acc[c]];
-        }
-        for (i = stride; i < n; i += stride) {
-            for (c = 0; c < stride; c++) {
-                acc[c] = (acc[c] + wp[i + c]) & mask;
-                op[i + c] = pixarlog_ToLinear8[acc[c]];
+            acc = wp[c] & mask;
+            op[c] = pixarlog_ToLinear8[acc];
+            for (i = stride + c; i < n; i += stride) {
+                acc = (acc + wp[i]) & mask;
+                op[i] = pixarlog_ToLinear8[acc];
             }
-        }
-
-        if (acc != acc_stack) {
-            free(acc);
         }
     }
 }
@@ -719,7 +645,8 @@ pixarlog_float_to_code(
     float v,
     const uint16_t* FromLT2)
 {
-    if (v < 0.0f) {
+    if (!(v >= 0.0f)) {
+        /* negative or NaN */
         return 0;
     }
     if (v < 2.0f) {
@@ -741,43 +668,17 @@ pixarlog_difference_float(
 {
     int mask = CODE_MASK;
     int i, c;
-    int32_t prev_stack[MAX_STACK_STRIDE];
-    int32_t* prev = prev_stack;
+    int32_t prev, cur;
 
-    if (n < stride) {
-        return;
-    }
-
-    if (stride > MAX_STACK_STRIDE) {
-        prev = (int32_t *)malloc(stride * sizeof(int32_t));
-        if (prev == NULL) {
-            return;
+    /* first pixel stores codes, subsequent pixels differences */
+    for (c = 0; c < stride && c < n; c++) {
+        prev = (int32_t)pixarlog_float_to_code(ip[c], pixarlog_FromLT2);
+        wp[c] = (uint16_t)prev;
+        for (i = stride + c; i < n; i += stride) {
+            cur = (int32_t)pixarlog_float_to_code(ip[i], pixarlog_FromLT2);
+            wp[i] = (uint16_t)((cur - prev) & mask);
+            prev = cur;
         }
-    }
-
-    /* First pixel: store codes as-is */
-    for (c = 0; c < stride; c++) {
-        prev[c] = (int32_t)pixarlog_float_to_code(
-            ip[c],
-            pixarlog_FromLT2
-        );
-        wp[c] = (uint16_t)prev[c];
-    }
-
-    /* Subsequent pixels: store difference from previous */
-    for (i = stride; i < n; i += stride) {
-        for (c = 0; c < stride; c++) {
-            int32_t cur = (int32_t)pixarlog_float_to_code(
-                ip[i + c],
-                pixarlog_FromLT2
-            );
-            wp[i + c] = (uint16_t)((cur - prev[c]) & mask);
-            prev[c] = cur;
-        }
-    }
-
-    if (prev != prev_stack) {
-        free(prev);
     }
 }
 
@@ -791,37 +692,16 @@ pixarlog_difference_16(
 {
     int mask = CODE_MASK;
     int i, c;
-    int32_t prev_stack[MAX_STACK_STRIDE];
-    int32_t* prev = prev_stack;
+    int32_t prev, cur;
 
-    if (n < stride) {
-        return;
-    }
-
-    if (stride > MAX_STACK_STRIDE) {
-        prev = (int32_t *)malloc(stride * sizeof(int32_t));
-        if (prev == NULL) {
-            return;
+    for (c = 0; c < stride && c < n; c++) {
+        prev = (int32_t)pixarlog_From14[ip[c] >> 2];
+        wp[c] = (uint16_t)prev;
+        for (i = stride + c; i < n; i += stride) {
+            cur = (int32_t)pixarlog_From14[ip[i] >> 2];
+            wp[i] = (uint16_t)((cur - prev) & mask);
+            prev = cur;
         }
-    }
-
-    /* First pixel */
-    for (c = 0; c < stride; c++) {
-        prev[c] = (int32_t)pixarlog_From14[ip[c] >> 2];
-        wp[c] = (uint16_t)prev[c];
-    }
-
-    /* Subsequent pixels */
-    for (i = stride; i < n; i += stride) {
-        for (c = 0; c < stride; c++) {
-            int32_t cur = (int32_t)pixarlog_From14[ip[i + c] >> 2];
-            wp[i + c] = (uint16_t)((cur - prev[c]) & mask);
-            prev[c] = cur;
-        }
-    }
-
-    if (prev != prev_stack) {
-        free(prev);
     }
 }
 
@@ -835,37 +715,16 @@ pixarlog_difference_8(
 {
     int mask = CODE_MASK;
     int i, c;
-    int32_t prev_stack[MAX_STACK_STRIDE];
-    int32_t* prev = prev_stack;
+    int32_t prev, cur;
 
-    if (n < stride) {
-        return;
-    }
-
-    if (stride > MAX_STACK_STRIDE) {
-        prev = (int32_t *)malloc(stride * sizeof(int32_t));
-        if (prev == NULL) {
-            return;
+    for (c = 0; c < stride && c < n; c++) {
+        prev = (int32_t)pixarlog_From8[ip[c]];
+        wp[c] = (uint16_t)prev;
+        for (i = stride + c; i < n; i += stride) {
+            cur = (int32_t)pixarlog_From8[ip[i]];
+            wp[i] = (uint16_t)((cur - prev) & mask);
+            prev = cur;
         }
-    }
-
-    /* First pixel */
-    for (c = 0; c < stride; c++) {
-        prev[c] = (int32_t)pixarlog_From8[ip[c]];
-        wp[c] = (uint16_t)prev[c];
-    }
-
-    /* Subsequent pixels */
-    for (i = stride; i < n; i += stride) {
-        for (c = 0; c < stride; c++) {
-            int32_t cur = (int32_t)pixarlog_From8[ip[i + c]];
-            wp[i + c] = (uint16_t)((cur - prev[c]) & mask);
-            prev[c] = cur;
-        }
-    }
-
-    if (prev != prev_stack) {
-        free(prev);
     }
 }
 
@@ -895,6 +754,33 @@ pixarlog_sample_size(
 }
 
 
+/* Swap bytes of uint16 values in place. */
+static void
+pixarlog_swab16(
+    uint16_t* data,
+    ssize_t size)
+{
+    ssize_t i;
+
+    for (i = 0; i < size; i++) {
+        data[i] = (uint16_t)((data[i] >> 8) | (data[i] << 8));
+    }
+}
+
+
+/* Return number of samples per scanline or PIXARLOG_VALUE_ERROR. */
+static ssize_t
+pixarlog_line_length(
+    const ssize_t width,
+    const ssize_t stride)
+{
+    if (width <= 0 || stride <= 0 || stride > INT_MAX / width) {
+        return PIXARLOG_VALUE_ERROR;
+    }
+    return stride * width;
+}
+
+
 ssize_t
 pixarlog_decode_raw(
     const uint8_t* src,
@@ -903,7 +789,8 @@ pixarlog_decode_raw(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt)
+    const int datafmt,
+    const int byteswap)
 {
     ssize_t nsamples;
     ssize_t llen;
@@ -912,6 +799,7 @@ pixarlog_decode_raw(
     ssize_t out_sample_size;
     ssize_t out_row_bytes;
     ssize_t required_dstsize;
+    uint16_t* tbuf = NULL;
     const uint16_t* wp;
     uint8_t* op;
 
@@ -919,9 +807,6 @@ pixarlog_decode_raw(
         return PIXARLOG_VALUE_ERROR;
     }
     if (srcsize <= 0 || dstsize <= 0) {
-        return PIXARLOG_VALUE_ERROR;
-    }
-    if (width <= 0 || stride <= 0) {
         return PIXARLOG_VALUE_ERROR;
     }
     if (srcsize % (ssize_t)sizeof(uint16_t) != 0) {
@@ -934,7 +819,7 @@ pixarlog_decode_raw(
     }
 
     nsamples = srcsize / (ssize_t)sizeof(uint16_t);
-    llen = stride * width;
+    llen = pixarlog_line_length(width, stride);
 
     if (llen <= 0) {
         return PIXARLOG_VALUE_ERROR;
@@ -956,13 +841,30 @@ pixarlog_decode_raw(
     else {
         out_row_bytes = llen * out_sample_size;
     }
+    /* decode only as many scanlines as fit in the output */
+    if (nrows > dstsize / out_row_bytes) {
+        nrows = dstsize / out_row_bytes;
+        if (nrows <= 0) {
+            return PIXARLOG_OUTPUT_TOO_SMALL;
+        }
+        nsamples = nrows * llen;
+    }
     required_dstsize = nrows * out_row_bytes;
 
-    if (dstsize < required_dstsize) {
-        return PIXARLOG_OUTPUT_TOO_SMALL;
+    if (byteswap || ((uintptr_t)src % sizeof(uint16_t)) != 0) {
+        tbuf = (uint16_t *)malloc((size_t)nsamples * sizeof(uint16_t));
+        if (tbuf == NULL) {
+            return PIXARLOG_MEMORY_ERROR;
+        }
+        memcpy(tbuf, src, (size_t)nsamples * sizeof(uint16_t));
+        if (byteswap) {
+            pixarlog_swab16(tbuf, nsamples);
+        }
+        wp = tbuf;
     }
-
-    wp = (const uint16_t *)src;
+    else {
+        wp = (const uint16_t *)src;
+    }
     op = dst;
 
     for (row = 0; row < nrows; row++) {
@@ -1007,12 +909,14 @@ pixarlog_decode_raw(
                 pixarlog_accumulate_8abgr(wp, (int)llen, (int)stride, op);
                 break;
             default:
-                return PIXARLOG_VALUE_ERROR;
+                /* unreachable: datafmt validated by sample size */
+                break;
         }
         wp += llen;
         op += out_row_bytes;
     }
 
+    free(tbuf);
     return required_dstsize;
 }
 
@@ -1025,7 +929,8 @@ pixarlog_encode_raw(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt)
+    const int datafmt,
+    const int byteswap)
 {
     ssize_t nsamples;
     ssize_t llen;
@@ -1035,6 +940,7 @@ pixarlog_encode_raw(
     ssize_t out_bytes;
     const uint8_t* ip;
     uint16_t* wp;
+    uint16_t* wp0;
 
     if (src == NULL || dst == NULL) {
         return PIXARLOG_VALUE_ERROR;
@@ -1042,16 +948,17 @@ pixarlog_encode_raw(
     if (srcsize <= 0 || dstsize <= 0) {
         return PIXARLOG_VALUE_ERROR;
     }
-    if (width <= 0 || stride <= 0) {
+    if (
+        datafmt != PIXARLOG_FMT_FLOAT
+        && datafmt != PIXARLOG_FMT_16BIT
+        && datafmt != PIXARLOG_FMT_8BIT
+    ) {
         return PIXARLOG_VALUE_ERROR;
     }
 
     in_sample_size = pixarlog_sample_size(datafmt);
-    if (in_sample_size == 0) {
-        return PIXARLOG_VALUE_ERROR;
-    }
 
-    llen = stride * width;
+    llen = pixarlog_line_length(width, stride);
     if (llen <= 0) {
         return PIXARLOG_VALUE_ERROR;
     }
@@ -1072,7 +979,16 @@ pixarlog_encode_raw(
     }
 
     ip = src;
-    wp = (uint16_t *)dst;
+    if (((uintptr_t)dst % sizeof(uint16_t)) != 0) {
+        wp0 = (uint16_t *)malloc((size_t)out_bytes);
+        if (wp0 == NULL) {
+            return PIXARLOG_MEMORY_ERROR;
+        }
+    }
+    else {
+        wp0 = (uint16_t *)dst;
+    }
+    wp = wp0;
 
     for (row = 0; row < nrows; row++) {
         switch (datafmt)
@@ -1100,10 +1016,18 @@ pixarlog_encode_raw(
                 ip += llen * sizeof(uint8_t);
                 break;
             default:
-                /* Encoding not supported for 11BITLOG, 12BITPICIO, 8BITABGR */
-                return PIXARLOG_VALUE_ERROR;
+                /* unreachable: datafmt validated above */
+                break;
         }
         wp += llen;
+    }
+
+    if (byteswap) {
+        pixarlog_swab16(wp0, nsamples);
+    }
+    if (wp0 != (uint16_t *)dst) {
+        memcpy(dst, wp0, (size_t)out_bytes);
+        free(wp0);
     }
 
     return out_bytes;
@@ -1114,6 +1038,113 @@ pixarlog_encode_raw(
 /* Full-pipeline functions with zlib inflate/deflate. */
 
 
+/* Inflate src into dst until dst is full or the stream ends.
+ * Truncated streams are not an error.
+ * Return number of bytes written or PIXARLOG_ZLIB_ERROR. */
+static ssize_t
+pixarlog_inflate(
+    const uint8_t* src,
+    ssize_t srcsize,
+    uint8_t* dst,
+    ssize_t dstsize)
+{
+    z_stream strm;
+    ssize_t chunk;
+    int zret;
+
+    memset(&strm, 0, sizeof(strm));
+    if (inflateInit(&strm) != Z_OK) {
+        return PIXARLOG_ZLIB_ERROR;
+    }
+    strm.next_in = (Bytef *)src;
+    strm.next_out = (Bytef *)dst;
+
+    do {
+        /* avail_in and avail_out are 32-bit */
+        if (strm.avail_in == 0 && srcsize > 0) {
+            chunk = ((size_t)srcsize > (size_t)UINT_MAX)
+                ? (ssize_t)UINT_MAX : srcsize;
+            strm.avail_in = (uInt)chunk;
+            srcsize -= chunk;
+        }
+        if (strm.avail_out == 0 && dstsize > 0) {
+            chunk = ((size_t)dstsize > (size_t)UINT_MAX)
+                ? (ssize_t)UINT_MAX : dstsize;
+            strm.avail_out = (uInt)chunk;
+            dstsize -= chunk;
+        }
+        zret = inflate(&strm, Z_NO_FLUSH);
+    } while (
+        zret == Z_OK
+        && (strm.avail_in > 0 || srcsize > 0)
+        && (strm.avail_out > 0 || dstsize > 0)
+    );
+
+    inflateEnd(&strm);
+
+    if (zret != Z_OK && zret != Z_STREAM_END && zret != Z_BUF_ERROR) {
+        return PIXARLOG_ZLIB_ERROR;
+    }
+    return (ssize_t)((uint8_t *)strm.next_out - dst);
+}
+
+
+/* Deflate src into dst.
+ * Return number of bytes written or negative error code. */
+static ssize_t
+pixarlog_deflate(
+    const uint8_t* src,
+    ssize_t srcsize,
+    uint8_t* dst,
+    ssize_t dstsize,
+    const int level)
+{
+    z_stream strm;
+    ssize_t chunk;
+    int zret;
+
+    memset(&strm, 0, sizeof(strm));
+    if (deflateInit(&strm, level) != Z_OK) {
+        return PIXARLOG_ZLIB_ERROR;
+    }
+    strm.next_in = (Bytef *)src;
+    strm.next_out = (Bytef *)dst;
+
+    do {
+        if (strm.avail_in == 0 && srcsize > 0) {
+            chunk = ((size_t)srcsize > (size_t)UINT_MAX)
+                ? (ssize_t)UINT_MAX : srcsize;
+            strm.avail_in = (uInt)chunk;
+            srcsize -= chunk;
+        }
+        if (strm.avail_out == 0 && dstsize > 0) {
+            chunk = ((size_t)dstsize > (size_t)UINT_MAX)
+                ? (ssize_t)UINT_MAX : dstsize;
+            strm.avail_out = (uInt)chunk;
+            dstsize -= chunk;
+        }
+        zret = deflate(&strm, (srcsize > 0) ? Z_NO_FLUSH : Z_FINISH);
+        if (zret == Z_STREAM_ERROR) {
+            break;
+        }
+        if (zret != Z_STREAM_END && strm.avail_out == 0 && dstsize == 0) {
+            zret = Z_BUF_ERROR;
+            break;
+        }
+    } while (zret != Z_STREAM_END);
+
+    deflateEnd(&strm);
+
+    if (zret == Z_BUF_ERROR) {
+        return PIXARLOG_OUTPUT_TOO_SMALL;
+    }
+    if (zret != Z_STREAM_END) {
+        return PIXARLOG_ZLIB_ERROR;
+    }
+    return (ssize_t)((uint8_t *)strm.next_out - dst);
+}
+
+
 ssize_t
 pixarlog_decode(
     const uint8_t* src,
@@ -1122,23 +1153,26 @@ pixarlog_decode(
     const ssize_t dstsize,
     const ssize_t width,
     const ssize_t stride,
-    const int datafmt)
+    const int datafmt,
+    const int byteswap)
 {
     ssize_t out_sample_size;
     ssize_t nsamples;
     ssize_t llen;
     ssize_t tbuf_bytes;
     uint8_t* tbuf = NULL;
-    uLongf tbuf_len;
-    int zret;
     ssize_t result;
+
+    if (src == NULL || dst == NULL || srcsize <= 0 || dstsize <= 0) {
+        return PIXARLOG_VALUE_ERROR;
+    }
 
     out_sample_size = pixarlog_sample_size(datafmt);
     if (out_sample_size == 0) {
         return PIXARLOG_VALUE_ERROR;
     }
 
-    llen = stride * width;
+    llen = pixarlog_line_length(width, stride);
     if (llen <= 0) {
         return PIXARLOG_VALUE_ERROR;
     }
@@ -1170,23 +1204,21 @@ pixarlog_decode(
         return PIXARLOG_MEMORY_ERROR;
     }
 
-    /* zlib uncompress */
-    tbuf_len = (uLongf)tbuf_bytes;
-    zret = uncompress(
-        (Bytef *)tbuf,
-        &tbuf_len,
-        (const Bytef *)src,
-        (uLong)srcsize
-    );
-    if (zret != Z_OK) {
+    /* inflate as many scanlines as fit in the output */
+    tbuf_bytes = pixarlog_inflate(src, srcsize, tbuf, tbuf_bytes);
+    if (tbuf_bytes < 0) {
         free(tbuf);
-        return PIXARLOG_ZLIB_ERROR;
+        return tbuf_bytes;
+    }
+    tbuf_bytes -= tbuf_bytes % (ssize_t)sizeof(uint16_t);
+    if (byteswap) {
+        pixarlog_swab16(
+            (uint16_t *)tbuf,
+            tbuf_bytes / (ssize_t)sizeof(uint16_t)
+        );
     }
 
-    tbuf_bytes = (ssize_t)tbuf_len;
-
-    /* Decode the inflated uint16 data to output pixels.
-     * pixarlog_decode_raw validates remaining parameters. */
+    /* pixarlog_decode_raw validates remaining parameters */
     result = pixarlog_decode_raw(
         tbuf,
         tbuf_bytes,
@@ -1194,7 +1226,8 @@ pixarlog_decode(
         dstsize,
         width,
         stride,
-        datafmt
+        datafmt,
+        0
     );
 
     free(tbuf);
@@ -1211,14 +1244,18 @@ pixarlog_encode(
     const ssize_t width,
     const ssize_t stride,
     const int datafmt,
-    const int level)
+    const int level,
+    const int byteswap)
 {
     ssize_t in_sample_size;
     ssize_t tbuf_bytes;
     uint8_t* tbuf = NULL;
     ssize_t raw_bytes;
-    uLongf dst_len;
-    int zret;
+    ssize_t result;
+
+    if (dst == NULL || dstsize <= 0) {
+        return PIXARLOG_VALUE_ERROR;
+    }
 
     in_sample_size = pixarlog_sample_size(datafmt);
     if (in_sample_size == 0) {
@@ -1244,30 +1281,15 @@ pixarlog_encode(
         tbuf_bytes,
         width,
         stride,
-        datafmt
+        datafmt,
+        byteswap
     );
     if (raw_bytes < 0) {
         free(tbuf);
         return raw_bytes;  /* propagate error */
     }
 
-    /* zlib compress */
-    dst_len = (uLongf)dstsize;
-    zret = compress2(
-        (Bytef *)dst,
-        &dst_len,
-        (const Bytef *)tbuf,
-        (uLong)raw_bytes,
-        level
-    );
+    result = pixarlog_deflate(tbuf, raw_bytes, dst, dstsize, level);
     free(tbuf);
-
-    if (zret != Z_OK) {
-        if (zret == Z_BUF_ERROR) {
-            return PIXARLOG_OUTPUT_TOO_SMALL;
-        }
-        return PIXARLOG_ZLIB_ERROR;
-    }
-
-    return (ssize_t)dst_len;
+    return result;
 }
