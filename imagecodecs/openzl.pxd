@@ -12,7 +12,8 @@ cdef extern from 'openzl/openzl.h' nogil:
     int ZL_LIBRARY_VERSION_MINOR
     int ZL_LIBRARY_VERSION_PATCH
 
-    ctypedef size_t ZL_Report
+    ctypedef struct ZL_Report:
+        pass
 
     ctypedef enum ZL_ErrorCode:
         ZL_ErrorCode_no_error
@@ -36,11 +37,6 @@ cdef extern from 'openzl/openzl.h' nogil:
     ZL_Report ZL_getDecompressedSize(
         const void* compressed,
         size_t cSize
-    )
-
-    ZL_Report ZL_getCompressedSize(
-        const void* compressed,
-        size_t testedSize
     )
 
     ZL_Report ZL_decompress(
