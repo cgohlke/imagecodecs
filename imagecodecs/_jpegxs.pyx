@@ -112,14 +112,12 @@ def jpegxs_version():
     return f'libjxs {version.decode()}'
 
 
-def jpegxs_check(const uint8_t[::1] data, /):
+def jpegxs_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEGXS encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:12])
-
     return (
-        sig == b'\x00\x00\x00\x0C\x4A\x58\x53\x20\x0D\x0A\x87\x0A'  # image
-        or sig[:4] == b'\xFF\x10\xFF\x50'  # codestream or video
+        # image
+        _startswith(data, b'\x00\x00\x00\x0C\x4A\x58\x53\x20\x0D\x0A\x87\x0A')
+        or _startswith(data, b'\xFF\x10\xFF\x50')  # codestream or video
     )
 
 
@@ -132,12 +130,17 @@ def jpegxs_encode(
     verbose=None,
     out=None,
 ):
-    """Return JPEGXS encoded data."""
+    """Return JPEGXS encoded data.
+
+    Sample values must fit in `bitspersample` bits.
+    Larger values are silently clipped by the encoder.
+
+    """
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize = 0
-        ssize_t s, i, j
+        ssize_t s, i, j, npixels
         ssize_t config_str_max_len = 0
         size_t bitstream_buf_size = 0
         char* config_str = NULL
@@ -164,6 +167,16 @@ def jpegxs_encode(
         &layout,
     )
 
+    if src.ndim < 2:
+        raise ValueError(f'{src.ndim=} < 2 not supported')
+    # JPEG XS frame dimensions are 16-bit
+    if layout.height > 65535 or layout.width > 65535:
+        raise ValueError(
+            f'image size {layout.height}x{layout.width} > 65535 not supported'
+        )
+    if layout.bitspersample < 8:
+        raise ValueError(f'{layout.bitspersample=} < 8 not supported')
+
     memset(<void*> &xs_image, 0, sizeof(xs_image))
     memset(<void*> &xs_config, 0, sizeof(xs_config))
 
@@ -172,15 +185,15 @@ def jpegxs_encode(
     xs_image.height = <int> layout.height
     xs_image.width = <int> layout.width
     xs_image.ncomps = <int8_t> layout.samples
-
-    if bitspersample is None:
-        xs_image.depth = <int8_t> layout.bitspersample
-    elif 8 <= bitspersample <= 16:
-        xs_image.depth = <int8_t> bitspersample
-    else:
-        raise ValueError(f'{bitspersample=} not supported')
+    xs_image.depth = <int8_t> layout.bitspersample
+    npixels = layout.height * layout.width
 
     if config is None:
+        # MLS.12 silently corrupts lossless data deeper than 14 bits
+        if xs_image.depth > 14:
+            raise ValueError(
+                f'{xs_image.depth=} > 14 not supported without config'
+            )
         config = b'p=MLS.12'
         if xs_image.width < 32:
             config += b';nlx=2;nly=2'
@@ -195,8 +208,10 @@ def jpegxs_encode(
                 f'{xs_image.height=} or {xs_image.width=} < 4 '
                 'not supported without config'
             )
-    else:
+    elif isinstance(config, str):
         config = config.encode()
+    else:
+        config = bytes(config)
     config += b'\0'
     config_str = config
     config_str_max_len = len(config)
@@ -218,12 +233,12 @@ def jpegxs_encode(
                 j = 0
                 if layout.itemsize == 1:
                     src8 = <uint8_t*> &src.data[s * layout.itemsize]
-                    for i in range(xs_image.height * xs_image.width):
+                    for i in range(npixels):
                         comptr[i] = <xs_data_in_t> src8[j]
                         j += xs_image.ncomps
                 else:
                     src16 = <uint16_t*> &src.data[s * layout.itemsize]
-                    for i in range(xs_image.height * xs_image.width):
+                    for i in range(npixels):
                         comptr[i] = <xs_data_in_t> src16[j]
                         j += xs_image.ncomps
 
@@ -246,8 +261,8 @@ def jpegxs_encode(
         if out is None:
             if dstsize < 0:
                 if xs_config.bitstream_size_in_bytes == <size_t> (-1):
-                    dstsize = <ssize_t> (
-                        xs_image.width * xs_image.height * xs_image.ncomps
+                    dstsize = (
+                        npixels * xs_image.ncomps
                         * ((xs_image.depth + 7) >> 3) + 1024 * 1024
                     )
                 else:
@@ -270,6 +285,11 @@ def jpegxs_encode(
             )
         if not ret:
             raise JpegxsError('xs_enc_image failed')
+        # xs_enc_image succeeds and truncates if output is too small
+        if bitstream_buf_size > <size_t> dstsize:
+            raise ValueError(
+                f'output too small {dstsize} < {bitstream_buf_size}'
+            )
 
     finally:
         # if xs_image.comps_array[0] != NULL:
@@ -287,13 +307,14 @@ def jpegxs_decode(
     *,
     verbose=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded JPEGXS data."""
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         size_t srcsize = src.shape[0]
-        ssize_t s, i, j, itemsize
+        ssize_t s, i, j, itemsize, npixels
         uint8_t* dst8 = NULL
         uint16_t* dst16 = NULL
         xs_data_in_t* comptr = NULL
@@ -312,12 +333,57 @@ def jpegxs_decode(
 
     try:
         with nogil:
+            if (
+                not _info
+                and srcsize >= 2
+                and src[0] == 0xFF
+                and src[1] == 0x10
+            ):
+                # libjxs may hang on truncated codestreams
+                i = <ssize_t> srcsize
+                while i > 2 and src[i - 1] == 0:
+                    i -= 1
+                if i < 4 or src[i - 2] != 0xFF or src[i - 1] != 0x11:
+                    raise JpegxsError('codestream truncated or missing EOC')
+
             ret = xs_dec_probe(
                 <uint8_t*> src._data, srcsize, &xs_config, &xs_image
             )
             if not ret:
                 raise JpegxsError('xs_dec_probe failed')
 
+        if xs_image.ncomps > 1:
+            shape = (xs_image.height, xs_image.width, xs_image.ncomps)
+        else:
+            shape = (xs_image.height, xs_image.width)
+        if 0 < xs_image.depth <= 8:
+            dtype = numpy.uint8
+        elif 8 < xs_image.depth <= 16:
+            dtype = numpy.uint16
+        else:
+            raise ValueError(f'invalid {xs_image.depth=}')
+
+        if _info:
+            return {
+                '_codec': 'jpegxs',
+                'shape': shape,
+                'dtype': numpy.dtype(dtype),
+                'bitspersample': int(xs_image.depth),
+            }
+
+        # TODO: handle subsampled components
+        for s in range(xs_image.ncomps):
+            if xs_image.sx[s] != 1 or xs_image.sy[s] != 1:
+                raise ValueError(
+                    f'cannot handle {xs_image.sx[s]=} or {xs_image.sy[s]=}'
+                )
+
+        out = _create_array(out, shape, dtype)
+        dst = out
+        itemsize = out.dtype.itemsize
+        npixels = <ssize_t> xs_image.height * xs_image.width
+
+        with nogil:
             ret = xs_allocate_image(&xs_image, 0)
             if not ret:
                 raise JpegxsError('xs_allocate_image failed')
@@ -336,39 +402,19 @@ def jpegxs_decode(
             if not ret:
                 raise JpegxsError('xs_dec_postprocess_image failed')
 
-        if xs_image.ncomps > 1:
-            shape = (xs_image.height, xs_image.width, xs_image.ncomps)
-        else:
-            shape = (xs_image.height, xs_image.width)
-        if 0 < xs_image.depth <= 8:
-            dtype = numpy.uint8
-        elif 8 < xs_image.depth <= 16:
-            dtype = numpy.uint16
-        else:
-            raise ValueError(f'invalid {xs_image.depth=}')
-
-        out = _create_array(out, shape, dtype)
-        dst = out
-        itemsize = out.dtype.itemsize
-
-        with nogil:
             # copy data
             # TODO: handle planar output
             for s in range(xs_image.ncomps):
-                if xs_image.sx[s] != 1 or xs_image.sy[s] != 1:
-                    raise ValueError(
-                        f'cannot handle {xs_image.sx[s]=} or {xs_image.sy[s]=}'
-                    )
                 comptr = xs_image.comps_array[s]
                 j = 0
                 if itemsize == 1:
                     dst8 = <uint8_t*> &dst.data[s * itemsize]
-                    for i in range(xs_image.height * xs_image.width):
+                    for i in range(npixels):
                         dst8[j] = <uint8_t> comptr[i]
                         j += xs_image.ncomps
                 else:
                     dst16 = <uint16_t*> &dst.data[s * itemsize]
-                    for i in range(xs_image.height * xs_image.width):
+                    for i in range(npixels):
                         dst16[j] = <uint16_t> comptr[i]
                         j += xs_image.ncomps
 
@@ -379,3 +425,8 @@ def jpegxs_decode(
             xs_dec_close(ctx)
 
     return out
+
+
+def jpegxs_info(data, /):
+    """Return information about JPEGXS image."""
+    return jpegxs_decode(data, _info=True)
