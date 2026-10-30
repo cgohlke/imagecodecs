@@ -62,13 +62,13 @@ class RgbeError(RuntimeError):
 
     def __init__(self, func, err=None):
         msg = {
-            RGBE_RETURN_SUCCESS: 'SUCCESS',
-            RGBE_RETURN_FAILURE: 'FAILURE',
-            RGBE_READ_ERROR: 'READ_ERROR',
-            RGBE_WRITE_ERROR: 'WRITE_ERROR',
-            RGBE_FORMAT_ERROR: 'FORMAT_ERROR',
-            RGBE_MEMORY_ERROR: 'MEMORY_ERROR',
-        }.get(err, repr(err))
+            RGBE_RETURN_SUCCESS: 'RGBE_RETURN_SUCCESS',
+            RGBE_RETURN_FAILURE: 'RGBE_RETURN_FAILURE',
+            RGBE_READ_ERROR: 'RGBE_READ_ERROR',
+            RGBE_WRITE_ERROR: 'RGBE_WRITE_ERROR',
+            RGBE_FORMAT_ERROR: 'RGBE_FORMAT_ERROR',
+            RGBE_MEMORY_ERROR: 'RGBE_MEMORY_ERROR',
+        }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
 
@@ -78,53 +78,9 @@ def rgbe_version():
     return 'rgbe ' + RGBE_VERSION.decode()
 
 
-def rgbe_check(const uint8_t[::1] data, /):
-    """Return whether data is RGBE encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:2])
-
-    return sig == b'#?'
-
-
-def rgbe_info(data, /):
-    """Return information about RGBE encoded data."""
-    cdef:
-        const uint8_t[::1] src = data
-        ssize_t srcsize = src.shape[0]
-        rgbe_stream_t* stream
-        rgbe_header_info info
-        int width = 0
-        int height = 0
-        int ret
-
-    if srcsize > INT32_MAX:
-        raise ValueError('input too large')
-
-    with nogil:
-        stream = rgbe_stream_new(srcsize, <char*> src._data)
-        if stream == NULL:
-            raise MemoryError('rgbe_stream_new failed')
-        ret = RGBE_ReadHeader(stream, &width, &height, &info)
-        rgbe_stream_del(stream)
-        if ret != RGBE_RETURN_SUCCESS:
-            raise RgbeError('RGBE_ReadHeader', ret)
-
-    result = {
-        'shape': (int(height), int(width), 3),
-        'dtype': numpy.dtype(numpy.float32),
-        'width': width,
-        'height': height,
-        'orientation': RGBE.ORIENT(info.orientation),
-    }
-    if info.valid & RGBE_VALID_PROGRAMTYPE:
-        result['programtype'] = (
-            bytes(info.programtype).split(b'\x00', 1)[0].decode()
-        )
-    if info.valid & RGBE_VALID_GAMMA:
-        result['gamma'] = float(info.gamma)
-    if info.valid & RGBE_VALID_EXPOSURE:
-        result['exposure'] = float(info.exposure)
-    return result
+def rgbe_check(const uint8_t[::1] data not None, /):
+    """Return whether data is RGBE encoded image with header."""
+    return _rgbe_has_header(data)
 
 
 def rgbe_encode(
@@ -160,15 +116,14 @@ def rgbe_encode(
         raise ValueError('invalid data shape, strides, or dtype')
 
     if (
-        out is not None
-        and not header
+        not header
         and not rle
         and isinstance(out, numpy.ndarray)
         and out.dtype.char == 'B'
-        and out.nbytes // 4 == srcsize // 12
+        and out.nbytes == srcsize // 3
     ):
         # write to compatible numpy array
-        arr = out
+        arr = _create_array(out, out.shape, numpy.uint8)
         size = arr.nbytes
         with nogil:
             stream = rgbe_stream_new(size, arr.data)
@@ -198,10 +153,13 @@ def rgbe_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
         if dstsize < 0:
-            dstsize = width * height * 4
+            dstsize = <ssize_t> width * height * 4
+            if dorle and 8 <= width <= 0x7FFF:
+                # worst case: scanline marker and count byte per 128 bytes
+                dstsize += <ssize_t> height * (4 + 4 * ((width + 127) // 128))
             if dohdr:
                 dstsize += 256
-        elif not dorle and dstsize < width * height * 4:
+        elif not dorle and dstsize < <ssize_t> width * height * 4:
             raise ValueError('output too small')
         out = _create_output(outtype, dstsize)
     dst = out
@@ -244,8 +202,14 @@ def rgbe_decode(
     header=None,
     rle=None,
     out=None,
+    bint _info=False,
 ):
-    """Return decoded RGBE image."""
+    """Return decoded RGBE image.
+
+    Pixels are returned in stored scanline order. Use the 'orientation'
+    returned by `rgbe_info` to reorient the image.
+
+    """
     cdef:
         numpy.ndarray dst
         numpy.ndarray arr
@@ -256,7 +220,7 @@ def rgbe_decode(
         int width, height
         int ret = RGBE_RETURN_SUCCESS
         rgbe_stream_t* stream
-        # rgbe_header_info info
+        rgbe_header_info info
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -264,88 +228,106 @@ def rgbe_decode(
     try:
         # bytes
         src = data
-        srcsize = src.shape[0]
     except ValueError as exc:
-        # decode uint8 array of shape (..., 4)
-        # no header, no rle
         try:
             arr = numpy.asarray(data, order='C')
         except Exception:
             raise exc
-        if not (
-            arr.ndim > 0
-            and arr.shape[arr.ndim - 1] == 4
-            and arr.dtype.char == 'B'
-            and arr.nbytes <= INT32_MAX
-        ):
-            raise ValueError('data must be a uint8 RGBE image array')
-        out = _create_array(
-            out, (*data.shape[:arr.ndim - 1], 3), numpy.float32
-        )
-        size = out.size // 3
-        dst = out
+        if arr.ndim == 1 and arr.dtype.char == 'B':
+            # non-contiguous bytes
+            src = arr
+        elif _info:
+            raise ValueError('no rgbe header found')
+        else:
+            # decode uint8 array of shape (..., 4)
+            # no header, no rle
+            if not (
+                arr.ndim > 0
+                and arr.shape[arr.ndim - 1] == 4
+                and arr.dtype.char == 'B'
+                and arr.nbytes <= INT32_MAX
+            ):
+                raise ValueError('data must be a uint8 RGBE image array')
+            out = _create_array(
+                out, (*(<object> arr).shape[:arr.ndim - 1], 3), numpy.float32
+            )
+            if out.dtype != numpy.float32:
+                raise ValueError(f'invalid output dtype {out.dtype}')
+            size = out.size // 3
+            dst = out
 
-        stream = rgbe_stream_new(arr.nbytes, <char*> arr.data)
-        if stream == NULL:
-            raise MemoryError('rgbe_stream_new failed')
-        with nogil:
-            ret = RGBE_ReadPixels(stream, <float*> dst.data, <int> size)
-            rgbe_stream_del(stream)
-            if ret != RGBE_RETURN_SUCCESS:
-                raise RgbeError('RGBE_ReadPixels', ret)
+            stream = rgbe_stream_new(arr.nbytes, <char*> arr.data)
+            if stream == NULL:
+                raise MemoryError('rgbe_stream_new failed')
+            with nogil:
+                ret = RGBE_ReadPixels(stream, <float*> dst.data, <int> size)
+                rgbe_stream_del(stream)
+                if ret != RGBE_RETURN_SUCCESS:
+                    raise RgbeError('RGBE_ReadPixels', ret)
 
-        del dst
-        return out
+            del dst
+            return out
 
+    srcsize = src.shape[0]
     if srcsize > INT32_MAX:
         raise ValueError('input too large')
+
+    if header is None:
+        header = _rgbe_has_header(src)
+    if _info and not header:
+        raise ValueError('no rgbe header found')
 
     stream = rgbe_stream_new(srcsize, <char*> src._data)
     if stream == NULL:
         raise MemoryError('rgbe_stream_new failed')
 
     try:
-        if header is None:
-            if srcsize >= 2 and src[0] == 35 and src[1] == 63:
-                header = True
-            elif imcd_strsearch(
-                <const char*> src._data,
-                <ssize_t> min(srcsize, 8192),
-                "FORMAT=32-bit_rle_",
-                18
-            ) >= 0:
-                header = True
         if header:
-            ret = RGBE_ReadHeader(
-                stream,
-                &width,
-                &height,
-                NULL  # &info
-            )
+            ret = RGBE_ReadHeader(stream, &width, &height, &info)
             if ret != RGBE_RETURN_SUCCESS:
                 raise RgbeError('RGBE_ReadHeader', ret)
-            dorle = 1
+            if _info:
+                result = {
+                    '_codec': 'rgbe',
+                    'shape': (int(height), int(width), 3),
+                    'dtype': numpy.dtype(numpy.float32),
+                    'width': width,
+                    'height': height,
+                    'orientation': RGBE.ORIENT(info.orientation),
+                }
+                if info.valid & RGBE_VALID_PROGRAMTYPE:
+                    result['programtype'] = (
+                        bytes(info.programtype).split(b'\x00', 1)[0].decode()
+                    )
+                if info.valid & RGBE_VALID_GAMMA:
+                    result['gamma'] = float(info.gamma)
+                if info.valid & RGBE_VALID_EXPOSURE:
+                    result['exposure'] = float(info.exposure)
+                return result
+            if dorle == -1:
+                dorle = 1
             out = _create_array(
                 out, (int(height), int(width), 3), numpy.float32
             )
+            dst = out
         elif isinstance(out, numpy.ndarray):
             shape = _squeeze_shape(out.shape, 3)
             if not (
                 len(shape) == 3
                 and shape[2] == 3
                 and out.nbytes <= INT32_MAX
-                and out.dtype.char == 'f'
-                and out.flags['C_CONTIGUOUS']
             ):
                 raise ValueError(
                     f'no rgbe header found {out.shape=} {out.dtype=}'
                 )
             height = <int> shape[0]
             width = <int> shape[1]
+            dst = _create_array(out, shape, numpy.float32)
         else:
             raise ValueError('no rgbe header found')
 
-        dst = out
+        if dst.dtype != numpy.float32:
+            raise ValueError(f'invalid output dtype {dst.dtype}')
 
         with nogil:
             size = <ssize_t> width * <ssize_t> height * 4
@@ -379,3 +361,18 @@ def rgbe_decode(
 
     del dst
     return out
+
+
+def rgbe_info(data, /, *, header=None, rle=None):
+    """Return information about RGBE image."""
+    return rgbe_decode(data, header=header, rle=rle, _info=True)
+
+
+cdef bint _rgbe_has_header(const uint8_t[::1] src) noexcept:
+    """Return whether data starts with magic or contains FORMAT line."""
+    return _startswith(src, b'#?') or imcd_strsearch(
+        <const char*> src._data,
+        <ssize_t> min(src.shape[0], 8192),
+        'FORMAT=32-bit_rle_',
+        18
+    ) >= 0
