@@ -10,6 +10,9 @@ cdef extern from 'libaec.h' nogil:
     int AEC_VERSION_PATCH
     char* AEC_VERSION_STR
 
+    int AEC_STREAM_ERROR
+    int AEC_DATA_ERROR
+
 cdef extern from 'szlib.h' nogil:
 
     int SZ_ALLOW_K13_OPTION_MASK
