@@ -1838,3 +1838,11 @@ cdef extern from 'libheif/heif.h' nogil:
         const heif_image* image,
         heif_encoder* encoder
     )
+
+
+cdef extern from 'libheif/heif_items.h' nogil:
+
+    uint32_t heif_item_get_item_type(
+        const heif_context* ctx,
+        heif_item_id item_id
+    )
