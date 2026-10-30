@@ -39,7 +39,6 @@
 
 include '_shared.pxi'
 
-from libc.string cimport strcmp
 from openexr cimport *
 
 
@@ -74,7 +73,7 @@ class ExrError(RuntimeError):
         if err is None:
             msg = 'NULL'
         elif isinstance(err, str):
-            msg = err
+            msg = repr(err)
         else:
             errstr = exr_get_default_error_message(err).decode()
             msg = f'{errstr!r} ({err})'
@@ -92,7 +91,7 @@ def exr_version():
     return f'openexr {major}.{minor}.{patch}'
 
 
-def exr_check(const uint8_t[::1] data, /):
+def exr_check(const uint8_t[::1] data not None, /):
     """Return whether data is EXR encoded."""
     return (
         data.shape[0] >= 4
@@ -123,7 +122,6 @@ def exr_encode(
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         const uint8_t* src_ptr
-        const uint8_t* base_ptr
         ssize_t dstsize
         ssize_t pixel_stride, line_stride, frame_stride, ch_stride
         ssize_t i, c, y
@@ -204,9 +202,10 @@ def exr_encode(
     elif layout.samples == 4:
         channel_names = [b'A', b'B', b'G', b'R']
     else:
-        channel_names = sorted(
-            [f'ch{i:02d}'.encode() for i in range(layout.samples)]
-        )
+        ndigits = max(2, len(str(layout.samples - 1)))
+        channel_names = [
+            f'ch{j:0{ndigits}d}'.encode() for j in range(layout.samples)
+        ]
 
     # compression type
     ctype = <exr_compression_t> <int> _enum_value(
@@ -221,13 +220,13 @@ def exr_encode(
             clevel = <int> _default_value(level, -1, -1, 9)
             set_zip_level = 1
         elif ctype == EXR_COMPRESSION_DWAA or ctype == EXR_COMPRESSION_DWAB:
-            flevel = <float> level
+            flevel = <float> _default_value(level, 45.0, 0.0, None)
             set_dwa_level = 1
         elif ctype == EXR_COMPRESSION_ZSTD:
             clevel = <int> _default_value(level, 5, 1, 22)
             set_zstd_level = 1
         elif ctype == EXR_COMPRESSION_LJ2K:
-            flevel = <float> _default_value(level, 0.0, 1.0, 150.0)
+            flevel = <float> _default_value(level, 1.0, 1.0, 150.0)
             set_lj2k_level = 1
 
     # build c-level channel-to-data-index mapping
@@ -290,6 +289,9 @@ def exr_encode(
                     layout.height * layout.width * layout.samples * bpe
                 )
                 ch_stride = bpe
+
+            if line_stride > 2147483647:
+                raise ValueError('image row size exceeds 2 GB')
 
             wstream.capacity = 1048576
             wstream.size = 0
@@ -411,6 +413,9 @@ def exr_encode(
                         raise ExrError('exr_write_scanline_chunk_info', ret)
 
                     if not encoder_initialized:
+                        # OpenEXR only zeroes pipe_size bytes of the struct
+                        memset(&encoder, 0, sizeof(encoder))
+                        encoder.pipe_size = sizeof(encoder)
                         ret = exr_encoding_initialize(
                             <exr_const_context_t> context,
                             part_index,
@@ -419,39 +424,7 @@ def exr_encode(
                         )
                         if ret != EXR_ERR_SUCCESS:
                             raise ExrError('exr_encoding_initialize', ret)
-                        encoder_initialized = 1
-
-                        # set per-channel source pointers for this chunk
-                        for c in range(encoder.channel_count):
-                            base_ptr = (
-                                src_ptr
-                                + i * frame_stride
-                                + ch_idx[c] * ch_stride
-                                + y * line_stride
-                            )
-                            encoder.channels[c].encode_from_ptr = base_ptr
-                            encoder.channels[c].user_pixel_stride = (
-                                <int32_t> pixel_stride
-                            )
-                            encoder.channels[c].user_line_stride = (
-                                <int32_t> line_stride
-                            )
-                            encoder.channels[c].user_bytes_per_element = (
-                                <int16_t> bpe
-                            )
-                            encoder.channels[c].user_data_type = (
-                                <uint16_t> encoder.channels[c].data_type
-                            )
-
-                        ret = exr_encoding_choose_default_routines(
-                            <exr_const_context_t> context,
-                            part_index,
-                            &encoder
-                        )
-                        if ret != EXR_ERR_SUCCESS:
-                            raise ExrError(
-                                'exr_encoding_choose_default_routines', ret
-                            )
+                        encoder_initialized = 2
                     else:
                         ret = exr_encoding_update(
                             <exr_const_context_t> context,
@@ -462,15 +435,14 @@ def exr_encode(
                         if ret != EXR_ERR_SUCCESS:
                             raise ExrError('exr_encoding_update', ret)
 
-                        # set per-channel source pointers for this chunk
-                        for c in range(encoder.channel_count):
-                            base_ptr = (
-                                src_ptr
-                                + i * frame_stride
-                                + ch_idx[c] * ch_stride
-                                + y * line_stride
-                            )
-                            encoder.channels[c].encode_from_ptr = base_ptr
+                    for c in range(encoder.channel_count):
+                        encoder.channels[c].encode_from_ptr = (
+                            src_ptr
+                            + i * frame_stride
+                            + ch_idx[c] * ch_stride
+                            + y * line_stride
+                        )
+                        if encoder_initialized == 2:
                             encoder.channels[c].user_pixel_stride = (
                                 <int32_t> pixel_stride
                             )
@@ -482,6 +454,18 @@ def exr_encode(
                             )
                             encoder.channels[c].user_data_type = (
                                 <uint16_t> encoder.channels[c].data_type
+                            )
+
+                    if encoder_initialized == 2:
+                        encoder_initialized = 1
+                        ret = exr_encoding_choose_default_routines(
+                            <exr_const_context_t> context,
+                            part_index,
+                            &encoder
+                        )
+                        if ret != EXR_ERR_SUCCESS:
+                            raise ExrError(
+                                'exr_encoding_choose_default_routines', ret
                             )
 
                     ret = exr_encoding_run(
@@ -538,6 +522,7 @@ def exr_decode(
     index=0,
     planar=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded EXR image.
 
@@ -622,10 +607,14 @@ def exr_decode(
             if part_end == 0:
                 part_end = part_count
 
-            if part_start < 0 or part_start >= part_count:
+            if part_start < -part_count or part_start >= part_count:
                 raise IndexError(
-                    f'part index {part_start} out of range [0, {part_count})'
+                    f'part index={part_start} out of range '
+                    f'[{-part_count}, {part_count})'
                 )
+            if part_start < 0:
+                part_start += part_count
+                part_end = part_start + 1
 
             ret = exr_get_data_window(
                 <exr_const_context_t> context, part_start, &datawin
@@ -771,24 +760,24 @@ def exr_decode(
         # External files with other names (RG, XA, layers, etc.) are
         # left in the on-disk alphabetical order instead.
         if channels == 1:
-            do_reverse = chlist.entries[0].name.str == b'Y'
+            do_reverse = strcmp(chlist.entries[0].name.str, b'Y') == 0
         elif channels == 2:
             do_reverse = (
-                chlist.entries[0].name.str == b'A'
-                and chlist.entries[1].name.str == b'Y'
+                strcmp(chlist.entries[0].name.str, b'A') == 0
+                and strcmp(chlist.entries[1].name.str, b'Y') == 0
             )
         elif channels == 3:
             do_reverse = (
-                chlist.entries[0].name.str == b'B'
-                and chlist.entries[1].name.str == b'G'
-                and chlist.entries[2].name.str == b'R'
+                strcmp(chlist.entries[0].name.str, b'B') == 0
+                and strcmp(chlist.entries[1].name.str, b'G') == 0
+                and strcmp(chlist.entries[2].name.str, b'R') == 0
             )
         elif channels == 4:
             do_reverse = (
-                chlist.entries[0].name.str == b'A'
-                and chlist.entries[1].name.str == b'B'
-                and chlist.entries[2].name.str == b'G'
-                and chlist.entries[3].name.str == b'R'
+                strcmp(chlist.entries[0].name.str, b'A') == 0
+                and strcmp(chlist.entries[1].name.str, b'B') == 0
+                and strcmp(chlist.entries[2].name.str, b'G') == 0
+                and strcmp(chlist.entries[3].name.str, b'R') == 0
             )
         else:
             do_reverse = False
@@ -815,6 +804,18 @@ def exr_decode(
             else:
                 shape = (nframes, height, width, channels)
 
+        if _info:
+            return {
+                '_codec': 'exr',
+                'shape': shape,
+                'dtype': numpy.dtype(dtype),
+                'frames': nframes,
+                'planar': None if channels == 1 else is_planar,
+                **_exr_info(
+                    <exr_const_context_t> context, part_start, storage, chlist
+                )
+            }
+
         out = _create_array(out, shape, dtype)
         dst = out
         dst_ptr = <uint8_t*> dst.data
@@ -834,6 +835,9 @@ def exr_decode(
             line_stride = width * channels * bpe
             frame_stride = height * width * channels * bpe
             ch_stride = bpe
+
+        if line_stride > 2147483647:
+            raise ValueError('image row size exceeds 2 GB')
 
         # decode all parts
         with nogil:
@@ -898,6 +902,81 @@ def exr_decode(
     return out
 
 
+def exr_info(
+    data,
+    /,
+    *,
+    index=0,
+    planar=None,
+):
+    """Return information about EXR image."""
+    return exr_decode(
+        data,
+        index=index,
+        planar=planar,
+        _info=True,
+    )
+
+
+cdef dict _exr_info(
+    exr_const_context_t context,
+    int part_index,
+    exr_storage_t storage,
+    const exr_attr_chlist_t* chlist,
+):
+    """Return extra info dict for part."""
+    cdef:
+        exr_result_t ret
+        exr_compression_t ctype
+        const char* cstr = NULL
+        int32_t length = 0
+        uint32_t tile_xsize, tile_ysize
+        int c
+
+    ret = exr_get_compression(context, part_index, &ctype)
+    if ret != EXR_ERR_SUCCESS:
+        raise ExrError('exr_get_compression', ret)
+
+    ret = exr_attr_get_string(
+        context, part_index, b'colorInteropID', &length, &cstr
+    )
+    if ret == EXR_ERR_SUCCESS:
+        colorinteropid = cstr[:length].decode(errors='replace')
+    elif ret == EXR_ERR_NO_ATTR_BY_NAME:
+        colorinteropid = None
+    else:
+        raise ExrError('exr_attr_get_string', ret)
+
+    cstr = NULL
+    ret = exr_get_name(context, part_index, &cstr)
+    if ret == EXR_ERR_NO_ATTR_BY_NAME:
+        cstr = NULL
+    elif ret != EXR_ERR_SUCCESS:
+        raise ExrError('exr_get_name', ret)
+    name = None if cstr == NULL else cstr.decode(errors='replace')
+
+    if storage == EXR_STORAGE_TILED:
+        ret = exr_get_tile_descriptor(
+            context, part_index, &tile_xsize, &tile_ysize, NULL, NULL
+        )
+        if ret != EXR_ERR_SUCCESS:
+            raise ExrError('exr_get_tile_descriptor', ret)
+        tile = (int(tile_ysize), int(tile_xsize))
+    else:
+        tile = None
+
+    return {
+        'compression': _enum_or_int(<int> ctype, EXR.COMPRESSION),
+        'colorinteropid': colorinteropid,
+        'channels': tuple([
+            chlist.entries[c].name.str.decode(errors='replace')
+            for c in range(chlist.num_channels)
+        ]),
+        'name': name,
+        'tile': tile,
+    }
+
+
 cdef int _exr_decode_tiled(
     exr_const_context_t context,
     int part_index,
@@ -954,6 +1033,9 @@ cdef int _exr_decode_tiled(
                     raise ExrError('exr_read_tile_chunk_info', ret)
 
                 if not decoder_initialized:
+                    # OpenEXR only zeroes pipe_size bytes of the struct
+                    memset(&decoder, 0, sizeof(decoder))
+                    decoder.pipe_size = sizeof(decoder)
                     ret = exr_decoding_initialize(
                         context, part_index, &cinfo, &decoder
                     )
@@ -1063,6 +1145,9 @@ cdef int _exr_decode_scanline(
                 raise ExrError('exr_read_scanline_chunk_info', ret)
 
             if not decoder_initialized:
+                # OpenEXR only zeroes pipe_size bytes of the struct
+                memset(&decoder, 0, sizeof(decoder))
+                decoder.pipe_size = sizeof(decoder)
                 ret = exr_decoding_initialize(
                     context, part_index, &cinfo, &decoder
                 )
