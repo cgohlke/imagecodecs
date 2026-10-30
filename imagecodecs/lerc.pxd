@@ -1,6 +1,6 @@
 # imagecodecs/lerc.pxd
 
-# Cython declarations for the `LERC 4.2.0` library.
+# Cython declarations for the `LERC 4.3.0` library.
 # https://github.com/Esri/lerc
 
 cdef extern from 'Lerc_c_api.h' nogil:
@@ -185,6 +185,7 @@ ctypedef enum ErrCode:
     BufferTooSmall
     NaN
     HasNoData
+    DimensionsTooLarge
 
 ctypedef enum DataType:
     dt_char
