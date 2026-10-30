@@ -1,6 +1,6 @@
 # imagecodecs/pliocomp.pxd
 
-# Cython declarations for the `pliocomp 2026.5.10` library.
+# Cython declarations for the `pliocomp 2026.11.11` library.
 # Forked from `cfitsio 4.6.3`
 # https://heasarc.gsfc.nasa.gov/fitsio/
 
