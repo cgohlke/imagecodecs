@@ -62,7 +62,7 @@ typedef SSIZE_T ssize_t;
 #endif
 #endif
 
-#define JPEGSOF3_VERSION "2026.3.6"
+#define JPEGSOF3_VERSION "2026.11.11"
 
 #define JPEGSOF3_OK 0
 #define JPEGSOF3_INVALID_OUTPUT -1
@@ -75,6 +75,8 @@ typedef SSIZE_T ssize_t;
 #define JPEGSOF3_TABLE_SIZE_CORRUPTED -8
 #define JPEGSOF3_INVALID_RESTART_SEGMENTS -9
 #define JPEGSOF3_NO_TABLE -10
+#define JPEGSOF3_INVALID_DIMENSIONS -11
+#define JPEGSOF3_INVALID_POINT_TRANSFORM -12
 
 #ifdef __cplusplus
 extern "C" {
