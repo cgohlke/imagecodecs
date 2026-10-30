@@ -37,7 +37,7 @@
 
 """JPEGSOF3 codec for the imagecodecs package.
 
-The "JPEG Lossless, Nonhierarchical, First Order Prediction" format is
+The "JPEG Lossless, Nonhierarchical" format (predictors 1 to 7) is
 described at <http://www.w3.org/Graphics/JPEG/itu-t81.pdf>.
 The format is identified by a Start of Frame (SOF) code 0xC3.
 
@@ -79,6 +79,10 @@ class Jpegsof3Error(RuntimeError):
                 'unsupported Restart Segments',
             JPEGSOF3_NO_TABLE:
                 'no Huffman tables',
+            JPEGSOF3_INVALID_DIMENSIONS:
+                'image dimensions must be positive',
+            JPEGSOF3_INVALID_POINT_TRANSFORM:
+                'point transform must be less than precision',
         }.get(err, f'unknown error {err!r}')
         msg = f'decode_jpegsof3 returned {msg!r}'
         super().__init__(msg)
@@ -89,9 +93,16 @@ def jpegsof3_version():
     return 'jpegsof3 ' + JPEGSOF3_VERSION.decode()
 
 
-def jpegsof3_check(const uint8_t[::1] data, /):
+def jpegsof3_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEGSOF3 encoded image or None if unknown."""
-    return None if data.shape[0] > 10 else False
+    if (
+        data.shape[0] <= 10
+        or data[0] != 0xFF
+        or data[1] != 0xD8
+        or data[2] != 0xFF
+    ):
+        return False
+    return None
 
 
 def jpegsof3_encode(*args, **kwargs):
@@ -119,7 +130,10 @@ def jpegsof3_decode(
         numpy.ndarray dst
         ssize_t srcsize
         ssize_t dstsize
-        int dimX, dimY, bits, frames
+        int dimX = 0
+        int dimY = 0
+        int bits = 0
+        int frames = 0
         int ret = JPEGSOF3_OK
 
     if data is out:
@@ -143,6 +157,8 @@ def jpegsof3_decode(
         )
     if ret != JPEGSOF3_OK:
         raise Jpegsof3Error(ret)
+    if dimX < 1 or dimY < 1 or frames < 1 or bits < 1:
+        raise Jpegsof3Error(JPEGSOF3_INVALID_DIMENSIONS)
 
     if frames > 1:
         shape = frames, dimY, dimX
