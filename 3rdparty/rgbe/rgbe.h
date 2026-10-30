@@ -10,7 +10,7 @@
 
 #include <stddef.h>
 
-#define RGBE_VERSION "2026.3.6"
+#define RGBE_VERSION "2026.11.11"
 
 #ifndef HAVE_SSIZE_T
 #if defined(_MSC_VER)
