@@ -57,6 +57,8 @@ This file contains the following changes, mostly to the
 - Fix inverted output buffer size checks.
 - Fix integer overflow in pixel count calculation.
 - Fix point transform bitmask extraction.
+- Apply point transform to output samples.
+- Reject zero image dimensions and invalid point transform.
 
 The changes are released under the BSD 3-Clause License:
 
@@ -124,10 +126,11 @@ int
 readBit(
     unsigned char *lRawRA,
     ssize_t *lRawPos,
-    int *lCurrentBitPos)
+    int *lCurrentBitPos,
+    ssize_t lRawSz)
 {
-    // TODO: no bounds check; lRawPos may exceed unpadded data length
-    // Read the next single bit
+    if (*lRawPos >= lRawSz)
+        return 0;
     int result = (lRawRA[*lRawPos] >> (7 - *lCurrentBitPos)) & 1;
     (*lCurrentBitPos)++;
     if (*lCurrentBitPos == 8) {
@@ -149,13 +152,16 @@ readBits(
     unsigned char *lRawRA,
     ssize_t *lRawPos,
     int *lCurrentBitPos,
-    int lNum)
+    int lNum,
+    ssize_t lRawSz)
 {
-    // TODO: no bounds check; reads 3 bytes without validating lRawPos
     // lNum: bits to read, not to exceed 16
-    int result = lRawRA[*lRawPos];
-    result = (result << 8) + lRawRA[(*lRawPos) + 1];
-    result = (result << 8) + lRawRA[(*lRawPos) + 2];
+    int b0 = (*lRawPos < lRawSz) ? lRawRA[*lRawPos] : 0;
+    int b1 = (*lRawPos + 1 < lRawSz) ? lRawRA[(*lRawPos) + 1] : 0;
+    int b2 = (*lRawPos + 2 < lRawSz) ? lRawRA[(*lRawPos) + 2] : 0;
+    int result = b0;
+    result = (result << 8) + b1;
+    result = (result << 8) + b2;
     // lCurrentBitPos is incremented from 1, so -1
     result = (result >> (24 - *lCurrentBitPos - lNum)) & bitMask(lNum);
     *lCurrentBitPos = *lCurrentBitPos + lNum;
@@ -183,9 +189,11 @@ decodePixelDifference(
     unsigned char *lRawRA,
     ssize_t *lRawPos,
     int *lCurrentBitPos,
-    const struct HufTables &l)
+    const struct HufTables &l,
+    ssize_t lRawSz)
 {
-    // TODO: no bounds check; reads 2 bytes without validating lRawPos
+    if (*lRawPos + 1 >= lRawSz)
+        return 0;
     int lByte = (lRawRA[*lRawPos] << *lCurrentBitPos) +
         (lRawRA[*lRawPos + 1] >> (8 - *lCurrentBitPos));
     lByte = lByte & 255;
@@ -203,7 +211,12 @@ decodePixelDifference(
         (*lRawPos)++;  // forward 8 bits = precisely 1 byte
         do {
             lInputBits++;
-            lInput = (lInput << 1) + readBit(lRawRA, lRawPos, lCurrentBitPos);
+            lInput = (lInput << 1) + readBit(
+                lRawRA,
+                lRawPos,
+                lCurrentBitPos,
+                lRawSz
+            );
             if (l.DHTliRA[lInputBits] != 0) {
                 // if any entries with this length
                 for (
@@ -230,7 +243,7 @@ decodePixelDifference(
         return 0;
     }
     if (lHufValSSSS == 1) {
-        if (readBit(lRawRA, lRawPos, lCurrentBitPos) == 0) {
+        if (readBit(lRawRA, lRawPos, lCurrentBitPos, lRawSz) == 0) {
             return -1;
         }
         else {
@@ -244,7 +257,7 @@ decodePixelDifference(
         return 32768;
     }
     // to get here - there is a 2..15 bit difference
-    int lDiff = readBits(lRawRA, lRawPos, lCurrentBitPos, lHufValSSSS);
+    int lDiff = readBits(lRawRA, lRawPos, lCurrentBitPos, lHufValSSSS, lRawSz);
     if (lDiff <= bitMask(lHufValSSSS - 1)) {
         // add
         lDiff = lDiff - bitMask(lHufValSSSS);
@@ -344,6 +357,9 @@ decode_jpegsof3(
                 // Data must be 2..16 bit, 1..4 frames
                 return JPEGSOF3_INVALID_BIT_DEPTH;
             }
+            if ((SOFxdim < 1) || (SOFydim < 1)) {
+                return JPEGSOF3_INVALID_DIMENSIONS;
+            }
             if (lImgRA8 == NULL) {
                 return JPEGSOF3_OK;
             }
@@ -355,7 +371,7 @@ decode_jpegsof3(
                     return JPEGSOF3_TABLE_CORRUPTED;
                 }
                 // we read but ignore DHTtcth.
-                uint8_t DHTnLi = readByte(lRawRA, &lRawPos, lRawSz);
+                int DHTnLi = readByte(lRawRA, &lRawPos, lRawSz);
                 UNUSED(DHTnLi);
                 // we need to increment the input file position,
                 // but we do not care what the value is
@@ -364,7 +380,7 @@ decode_jpegsof3(
                 for (int lInc = 1; lInc <= 16; lInc++) {
                     l[lFrameCount].DHTliRA[lInc] =
                         readByte(lRawRA, &lRawPos, lRawSz);
-                    DHTnLi = DHTnLi + l[lFrameCount].DHTliRA[lInc];
+                    DHTnLi += l[lFrameCount].DHTliRA[lInc];
                     if (l[lFrameCount].DHTliRA[lInc] != 0) {
                         l[lFrameCount].MaxHufSi = lInc;
                     }
@@ -458,6 +474,9 @@ decode_jpegsof3(
             // lower 4bits= pointtransform
             SOSahal = readByte(lRawRA, &lRawPos, lRawSz);
             SOSpttrans = SOSahal & 0x0F;
+            if (SOSpttrans >= SOFprecision) {
+                return JPEGSOF3_INVALID_POINT_TRANSFORM;
+            }
             lRawPos = lSegmentEnd;
         }
         else {
@@ -624,7 +643,8 @@ decode_jpegsof3(
                 lRawRA,
                 &lRawPos,
                 &lCurrentBitPos,
-                l[1]
+                l[1],
+                lRawSz
             );
             lImgRA16[lPx] = lPredicted + lDiff;
         }
@@ -636,7 +656,8 @@ decode_jpegsof3(
                 lRawRA,
                 &lRawPos,
                 &lCurrentBitPos,
-                l[1]
+                l[1],
+                lRawSz
             );
             lImgRA16[lPx] = lPredicted + lDiff;
             if (SOSss == 4) {
@@ -649,7 +670,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA16[lPx] = lPredicted + lDiff;
                 }
@@ -665,7 +687,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA16[lPx] = lPredicted + lDiff;
                 }
@@ -679,7 +702,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA16[lPx] = lPredicted + lDiff;
                 }
@@ -693,7 +717,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA16[lPx] = lPredicted + lDiff;
                 }
@@ -728,7 +753,8 @@ decode_jpegsof3(
                     lRawRA,
                     &lRawPos,
                     &lCurrentBitPos,
-                    l[f]
+                    l[f],
+                    lRawSz
                 );
                 lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
             }
@@ -742,7 +768,8 @@ decode_jpegsof3(
                     lRawRA,
                     &lRawPos,
                     &lCurrentBitPos,
-                    l[f]
+                    l[f],
+                    lRawSz
                 );
                 lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
             }
@@ -757,7 +784,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -775,7 +803,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -792,7 +821,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -808,7 +838,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA16[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -843,7 +874,8 @@ decode_jpegsof3(
                     lRawRA,
                     &lRawPos,
                     &lCurrentBitPos,
-                    l[f]
+                    l[f],
+                    lRawSz
                 );
                 lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
             }
@@ -857,7 +889,8 @@ decode_jpegsof3(
                     lRawRA,
                     &lRawPos,
                     &lCurrentBitPos,
-                    l[f]
+                    l[f],
+                    lRawSz
                 );
                 lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
             }
@@ -872,7 +905,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -890,7 +924,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -907,7 +942,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -923,7 +959,8 @@ decode_jpegsof3(
                             lRawRA,
                             &lRawPos,
                             &lCurrentBitPos,
-                            l[f]
+                            l[f],
+                            lRawSz
                         );
                         lImgRA8[lPx[f]] = lPredicted[f] + lDiff;
                     }
@@ -953,7 +990,8 @@ decode_jpegsof3(
                 lRawRA,
                 &lRawPos,
                 &lCurrentBitPos,
-                l[1]
+                l[1],
+                lRawSz
             );
             lImgRA8[lPx] = lPredicted + lDiff;
         }
@@ -965,7 +1003,8 @@ decode_jpegsof3(
                 lRawRA,
                 &lRawPos,
                 &lCurrentBitPos,
-                l[1]
+                l[1],
+                lRawSz
             );
             lImgRA8[lPx] = lPredicted + lDiff;
             if (SOSss == 4) {
@@ -977,7 +1016,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA8[lPx] = lPredicted + lDiff;
                 }
@@ -992,7 +1032,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA8[lPx] = lPredicted + lDiff;
                 }
@@ -1006,7 +1047,8 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA8[lPx] = lPredicted + lDiff;
                 }
@@ -1020,10 +1062,24 @@ decode_jpegsof3(
                         lRawRA,
                         &lRawPos,
                         &lCurrentBitPos,
-                        l[1]
+                        l[1],
+                        lRawSz
                     );
                     lImgRA8[lPx] = lPredicted + lDiff;
                 }
+            }
+        }
+    }
+    if (SOSpttrans > 0) {
+        if (SOFprecision > 8) {
+            uint16_t *lImgRA16 = (uint16_t *)lImgRA8;
+            for (ssize_t i = 0; i < lItems; i++) {
+                lImgRA16[i] = (uint16_t)(lImgRA16[i] << SOSpttrans);
+            }
+        }
+        else {
+            for (ssize_t i = 0; i < lItems; i++) {
+                lImgRA8[i] = (uint8_t)(lImgRA8[i] << SOSpttrans);
             }
         }
     }
