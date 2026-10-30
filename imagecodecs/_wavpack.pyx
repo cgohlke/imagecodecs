@@ -39,17 +39,6 @@
 
 include '_shared.pxi'
 
-from libc.stdint cimport (
-    int8_t,
-    int16_t,
-    int32_t,
-    int64_t,
-    uint8_t,
-    uint16_t,
-    uint32_t,
-)
-from libc.stdlib cimport free, malloc, realloc
-from libc.string cimport memcpy, memset
 from wavpack cimport *
 
 
@@ -80,12 +69,9 @@ def wavpack_version():
     return 'libwavpack ' + WavpackGetLibraryVersionString().decode()
 
 
-def wavpack_check(const uint8_t[::1] data, /):
+def wavpack_check(const uint8_t[::1] data not None, /):
     """Return whether data is WavPack encoded, or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'wvpk'
+    return _startswith(data, b'wvpk')
 
 
 def wavpack_encode(
@@ -94,6 +80,7 @@ def wavpack_encode(
     level=None,
     *,
     bitrate=None,
+    correction=False,
     numthreads=None,
     out=None,
 ):
@@ -103,9 +90,17 @@ def wavpack_encode(
     with dtypes int8, uint8, int16, uint16, int32, or float32.
     WavPack supports up to 4096 channels.
 
+    A non-zero `bitrate` enables lossy hybrid mode. The value is in bits
+    per sample.
+    If `correction` is True, return a tuple of encoded data and correction
+    data (content of a .wvc file), which enables lossless decoding of
+    hybrid-mode streams.
+
     """
     cdef:
-        numpy.ndarray src = _array_input(data, out)
+        numpy.ndarray src = _array_input(
+            data, out, dtype=None, contig=True, empty=False, native=True
+        )
         const uint8_t[::1] dst  # must be const to write to bytes
         const void* srcptr = <const void*> src.data
         ssize_t srcsize = <ssize_t> src.size
@@ -113,19 +108,27 @@ def wavpack_encode(
         int itemsize = <int> src.itemsize
         char dtype_char = <char> ord(src.dtype.char)
         WavpackContext* wpc = NULL
-        WavpackWriteContext wctx
+        WavpackWriteContext wctx, wctx_c
         WavpackConfig config
         int32_t* ibuf = NULL
-        int64_t nsamples
+        int64_t nsamples, offset
+        uint32_t count
         int32_t block_samples, config_flags_val
         float config_bitrate = <float> (0.0 if bitrate is None else bitrate)
         ssize_t initcap, i
         int nchannels, ret, config_float_norm_exp, config_qmode
         int clevel = _default_value(level, 2, 1, 4)
         uint8_t nthreads = _default_threads(numthreads)
+        bint create_wvc = bool(correction)
 
     if dtype_char not in b'bBhHilf' or itemsize > 4:
         raise ValueError(f'invalid data {src.dtype=!r}')
+
+    if not config_bitrate >= 0.0:
+        raise ValueError(f'invalid {bitrate=!r}')
+
+    if create_wvc and config_bitrate == 0.0:
+        raise ValueError('correction requires hybrid mode (bitrate > 0)')
 
     if src.ndim == 1:
         nsamples = src.shape[0]
@@ -136,39 +139,44 @@ def wavpack_encode(
     else:
         raise ValueError(f'invalid data {src.ndim=}D')
 
-    if nsamples == 0:
-        raise ValueError('data contains no samples')
-
     out, dstsize, outgiven, outtype = _parse_output(out)
+
+    wctx.data = NULL
+    wctx.size = 0
+    wctx.capacity = 0
+    wctx.overflow = False
+    wctx_c.data = NULL
+    wctx_c.size = 0
+    wctx_c.capacity = 0
+    wctx_c.overflow = False
 
     try:
         with nogil:
-            wctx.data = NULL
             initcap = srcsize * itemsize + 65536
             wctx.data = <uint8_t*> malloc(initcap)
             if wctx.data == NULL:
                 raise MemoryError('wavpack_encode')
-            wctx.size = 0
             wctx.capacity = initcap
-            wctx.overflow = False
 
             ibuf = <int32_t*> malloc(srcsize * sizeof(int32_t))
             if ibuf == NULL:
                 raise MemoryError('wavpack_encode')
 
-            # widen source samples to int32 (required by WavPack API)
+            # widen source samples to signed int32 (required by WavPack API)
             if dtype_char == b'b':
                 for i in range(srcsize):
                     ibuf[i] = <int32_t> (<const int8_t*> srcptr)[i]
             elif dtype_char == b'B':
                 for i in range(srcsize):
-                    ibuf[i] = <int32_t> (<const uint8_t*> srcptr)[i]
+                    ibuf[i] = <int32_t> (<const uint8_t*> srcptr)[i] - 128
             elif dtype_char == b'h':
                 for i in range(srcsize):
                     ibuf[i] = <int32_t> (<const int16_t*> srcptr)[i]
             elif dtype_char == b'H':
                 for i in range(srcsize):
-                    ibuf[i] = <int32_t> (<const uint16_t*> srcptr)[i]
+                    ibuf[i] = (
+                        <int32_t> (<const uint16_t*> srcptr)[i] - 32768
+                    )
             elif dtype_char == b'f':
                 memcpy(ibuf, srcptr, srcsize * sizeof(float))
             else:
@@ -197,6 +205,8 @@ def wavpack_encode(
                 config_flags_val |= CONFIG_HIGH_FLAG | CONFIG_VERY_HIGH_FLAG
             if config_bitrate != 0.0:
                 config_flags_val |= CONFIG_HYBRID_FLAG
+            if create_wvc:
+                config_flags_val |= CONFIG_CREATE_WVC
 
             memset(&config, 0, sizeof(WavpackConfig))
             config.num_channels = nchannels
@@ -211,10 +221,16 @@ def wavpack_encode(
             config.worker_threads = <int32_t> nthreads - 1
             if config.worker_threads < 0:
                 config.worker_threads = 0
+            elif config.worker_threads > 15:
+                config.worker_threads = 15
 
-            wpc = WavpackOpenFileOutput(wavpack_block_output, &wctx, NULL)
+            wpc = WavpackOpenFileOutput(
+                wavpack_block_output,
+                &wctx,
+                <void*> &wctx_c if create_wvc else NULL
+            )
             if wpc == NULL:
-                raise WavpackError('WavpackOpenFileOutput', 'returned NULL')
+                raise WavpackError('WavpackOpenFileOutput', 'NULL')
 
             ret = WavpackSetConfiguration64(wpc, &config, nsamples, NULL)
             if ret == 0:
@@ -230,12 +246,18 @@ def wavpack_encode(
                     WavpackGetErrorMessage(wpc).decode()
                 )
 
-            ret = WavpackPackSamples(wpc, ibuf, <uint32_t> nsamples)
-            if ret == 0:
-                raise WavpackError(
-                    'WavpackPackSamples',
-                    WavpackGetErrorMessage(wpc).decode()
-                )
+            offset = 0
+            while offset < nsamples:
+                count = 1048576
+                if nsamples - offset < count:
+                    count = <uint32_t> (nsamples - offset)
+                ret = WavpackPackSamples(wpc, ibuf + offset * nchannels, count)
+                if ret == 0:
+                    raise WavpackError(
+                        'WavpackPackSamples',
+                        WavpackGetErrorMessage(wpc).decode()
+                    )
+                offset += count
 
             ret = WavpackFlushSamples(wpc)
             if ret == 0:
@@ -244,10 +266,20 @@ def wavpack_encode(
                     WavpackGetErrorMessage(wpc).decode()
                 )
 
-        if wctx.overflow:
+        if wctx.overflow or wctx_c.overflow:
             raise WavpackError('wavpack_encode', 'output buffer overflow')
 
+        if create_wvc:
+            wvc = _create_output(
+                None, wctx_c.size, <const char*> wctx_c.data
+            )
+
         if out is None:
+            if 0 <= dstsize < <ssize_t> wctx.size:
+                raise WavpackError(
+                    'wavpack_encode',
+                    f'output buffer too small: {dstsize} < {wctx.size}'
+                )
             out = _create_output(outtype, wctx.size)
         dst = out
         dstsize = dst.shape[0]
@@ -268,8 +300,14 @@ def wavpack_encode(
         if wctx.data != NULL:
             free(wctx.data)
             wctx.data = NULL
+        if wctx_c.data != NULL:
+            free(wctx_c.data)
+            wctx_c.data = NULL
 
-    return _return_output(out, dstsize, wctx.size, outgiven)
+    out = _return_output(out, dstsize, wctx.size, outgiven)
+    if create_wvc:
+        return out, wvc
+    return out
 
 
 def wavpack_decode(
@@ -279,6 +317,7 @@ def wavpack_decode(
     correction=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded WavPack data as numpy array.
 
@@ -297,10 +336,10 @@ def wavpack_decode(
         WavpackStreamReader64 reader
         char[256] errbuf
         ssize_t dstsize, i
-        int open_flags, nchannels, bps, float_norm, qmode
+        int open_flags, nchannels, bps, mode, qmode, nworkers
         char dtype_char
-        int64_t nsamples
-        uint32_t unpacked
+        int64_t nsamples, offset
+        uint32_t count, unpacked
         int32_t* ibuf = NULL
         uint8_t nthreads = _default_threads(numthreads)
 
@@ -333,7 +372,13 @@ def wavpack_decode(
             reader.truncate_here = wavpack_truncate_here
             reader.close = wavpack_close_reader
 
-            open_flags = OPEN_ALT_TYPES | (<int> nthreads << OPEN_THREADS_SHFT)
+            # OPEN_THREADS field holds 0-15 additional worker threads
+            nworkers = <int> nthreads - 1
+            if nworkers < 0:
+                nworkers = 0
+            elif nworkers > 15:
+                nworkers = 15
+            open_flags = OPEN_ALT_TYPES | (nworkers << OPEN_THREADS_SHFT)
             memset(errbuf, 0, 256)
 
             wpc = WavpackOpenFileInputEx64(
@@ -345,38 +390,13 @@ def wavpack_decode(
                 )
 
             nsamples = WavpackGetNumSamples64(wpc)
-            if nsamples <= 0:
-                raise WavpackError(
-                    'WavpackGetNumSamples64', 'cannot determine sample count'
-                )
-
             nchannels = WavpackGetNumChannels(wpc)
             bps = WavpackGetBytesPerSample(wpc)
-            float_norm = WavpackGetFloatNormExp(wpc)
+            mode = WavpackGetMode(wpc)
             qmode = WavpackGetQualifyMode(wpc)
 
-            dstsize = <ssize_t> nsamples * nchannels
-            if (
-                dstsize <= 0
-                or dstsize // nchannels != <ssize_t> nsamples
-                or dstsize > <ssize_t> ((<size_t> -1) // sizeof(int32_t))
-            ):
-                raise WavpackError(
-                    'wavpack_decode', 'sample count too large'
-                )
-            ibuf = <int32_t*> malloc(dstsize * sizeof(int32_t))
-            if ibuf == NULL:
-                raise MemoryError('failed to allocate sample buffer')
-
-            unpacked = WavpackUnpackSamples(wpc, ibuf, <uint32_t> nsamples)
-            if unpacked != <uint32_t> nsamples:
-                raise WavpackError(
-                    'WavpackUnpackSamples',
-                    f'expected {nsamples} samples, got {unpacked}'
-                )
-
         # determine numpy dtype from bitstream metadata
-        if float_norm == 127 and bps == 4:
+        if mode & MODE_FLOAT and bps == 4:
             dtype = numpy.dtype(numpy.float32)
         elif bps == 1:
             if qmode & QMODE_SIGNED_BYTES:
@@ -392,29 +412,83 @@ def wavpack_decode(
             dtype = numpy.dtype(numpy.int32)
         dtype_char = <char> ord(dtype.char)
 
-        if nchannels == 1:
+        if nsamples < 0:
+            shape = None  # sample count unknown
+        elif nchannels == 1:
             shape = (int(nsamples),)
         else:
             shape = (int(nsamples), int(nchannels))
+
+        if _info:
+            channel_identities = numpy.empty(nchannels + 1, dtype=numpy.uint8)
+            WavpackGetChannelIdentities(
+                wpc,
+                <unsigned char*> (<numpy.ndarray> channel_identities).data
+            )
+            return {
+                '_codec': 'wavpack',
+                'shape': shape,
+                'dtype': dtype,
+                'version': int(WavpackGetVersion(wpc)),
+                'samplerate': int(WavpackGetSampleRate(wpc)),
+                'bitspersample': int(WavpackGetBitsPerSample(wpc)),
+                'channel_identities': channel_identities[:nchannels].copy(),
+                'lossless': bool(mode & MODE_LOSSLESS),
+            }
+
+        if nsamples <= 0:
+            raise WavpackError(
+                'WavpackGetNumSamples64', 'cannot determine sample count'
+            )
+
+        with nogil:
+            dstsize = <ssize_t> nsamples * nchannels
+            if (
+                dstsize <= 0
+                or dstsize // nchannels != <ssize_t> nsamples
+                or dstsize > <ssize_t> ((<size_t> -1) // sizeof(int32_t))
+            ):
+                raise WavpackError(
+                    'wavpack_decode', 'sample count too large'
+                )
+            ibuf = <int32_t*> malloc(dstsize * sizeof(int32_t))
+            if ibuf == NULL:
+                raise MemoryError('failed to allocate sample buffer')
+
+            offset = 0
+            while offset < nsamples:
+                count = 1048576
+                if nsamples - offset < count:
+                    count = <uint32_t> (nsamples - offset)
+                unpacked = WavpackUnpackSamples(
+                    wpc, ibuf + offset * nchannels, count
+                )
+                if unpacked != count:
+                    raise WavpackError(
+                        'WavpackUnpackSamples',
+                        f'expected {nsamples} samples, '
+                        f'got {offset + unpacked}'
+                    )
+                offset += count
 
         out = _create_array(out, shape, dtype)
         dst = out
         dstptr = dst.data
 
         with nogil:
-            # narrow int32 -> target dtype
+            # narrow signed int32 -> target dtype
             if dtype_char == b'b':
                 for i in range(dstsize):
                     (<int8_t*> dstptr)[i] = <int8_t> ibuf[i]
             elif dtype_char == b'B':
                 for i in range(dstsize):
-                    (<uint8_t*> dstptr)[i] = <uint8_t> ibuf[i]
+                    (<uint8_t*> dstptr)[i] = <uint8_t> (ibuf[i] + 128)
             elif dtype_char == b'h':
                 for i in range(dstsize):
                     (<int16_t*> dstptr)[i] = <int16_t> ibuf[i]
             elif dtype_char == b'H':
                 for i in range(dstsize):
-                    (<uint16_t*> dstptr)[i] = <uint16_t> ibuf[i]
+                    (<uint16_t*> dstptr)[i] = <uint16_t> (ibuf[i] + 32768)
             else:
                 memcpy(dstptr, ibuf, dstsize * sizeof(int32_t))
 
@@ -428,85 +502,11 @@ def wavpack_decode(
     return out
 
 
-def wavpack_info(data, /):
-    """Return information about WavPack encoded data."""
-    cdef:
-        const uint8_t[::1] src = data
-        WavpackContext* wpc = NULL
-        WavpackReadContext rctx
-        WavpackStreamReader64 reader
-        char[256] errbuf
-        int version, nchannels, bps, bits, sample_rate, mode, float_norm, qmode
-
-    try:
-        with nogil:
-            rctx.src = <const uint8_t*> src._data
-            rctx.pos = 0
-            rctx.size = <int64_t> src.shape[0]
-            rctx.unget = -1
-
-            reader.read_bytes = wavpack_read_bytes
-            reader.write_bytes = NULL
-            reader.get_pos = wavpack_get_pos
-            reader.set_pos_abs = wavpack_set_pos_abs
-            reader.set_pos_rel = wavpack_set_pos_rel
-            reader.push_back_byte = wavpack_push_back_byte
-            reader.get_length = wavpack_get_length
-            reader.can_seek = wavpack_can_seek
-            reader.truncate_here = wavpack_truncate_here
-            reader.close = wavpack_close_reader
-
-            memset(errbuf, 0, 256)
-            wpc = WavpackOpenFileInputEx64(
-                &reader, &rctx, NULL, errbuf, OPEN_ALT_TYPES, 0
-            )
-            if wpc == NULL:
-                raise WavpackError('WavpackOpenFileInputEx64', errbuf.decode())
-
-            version = WavpackGetVersion(wpc)
-            nchannels = WavpackGetNumChannels(wpc)
-            bps = WavpackGetBytesPerSample(wpc)
-            bits = WavpackGetBitsPerSample(wpc)
-            sample_rate = <int> WavpackGetSampleRate(wpc)
-            mode = WavpackGetMode(wpc)
-            float_norm = WavpackGetFloatNormExp(wpc)
-            qmode = WavpackGetQualifyMode(wpc)
-
-        nsamples = int(WavpackGetNumSamples64(wpc))
-        channel_identities = numpy.empty(nchannels + 1, dtype=numpy.uint8)
-        WavpackGetChannelIdentities(
-            wpc, <unsigned char*> (<numpy.ndarray> channel_identities).data
-        )
-    finally:
-        if wpc != NULL:
-            WavpackCloseFile(wpc)
-
-    if float_norm == 127 and bps == 4:
-        dtype = numpy.dtype(numpy.float32)
-    elif bps == 1:
-        if qmode & QMODE_SIGNED_BYTES:
-            dtype = numpy.dtype(numpy.int8)
-        else:
-            dtype = numpy.dtype(numpy.uint8)
-    elif bps == 2:
-        if qmode & QMODE_UNSIGNED_WORDS:
-            dtype = numpy.dtype(numpy.uint16)
-        else:
-            dtype = numpy.dtype(numpy.int16)
-    else:
-        dtype = numpy.dtype(numpy.int32)
-
-    shape = (nsamples,) if nchannels == 1 else (nsamples, nchannels)
-
-    return {
-        'shape': shape,
-        'dtype': dtype,
-        'version': version,
-        'samplerate': sample_rate,
-        'bitspersample': bits,
-        'channel_identities': channel_identities[:nchannels].copy(),
-        'lossless': bool(mode & MODE_LOSSLESS),
-    }
+def wavpack_info(data, /, *, correction=None):
+    """Return information about WavPack data."""
+    return wavpack_decode(
+        data, correction=correction, numthreads=1, _info=True
+    )
 
 
 cdef struct WavpackWriteContext:
@@ -591,6 +591,8 @@ cdef int wavpack_set_pos_abs(void* id, int64_t pos) noexcept nogil:
     cdef:
         WavpackReadContext* ctx = <WavpackReadContext *> id
 
+    if pos < 0:
+        return -1
     ctx.pos = pos
     ctx.unget = -1
     return 0
@@ -601,14 +603,20 @@ cdef int wavpack_set_pos_rel(
 ) noexcept nogil:
     cdef:
         WavpackReadContext* ctx = <WavpackReadContext *> id
+        int64_t pos
 
     # mode: 0=SEEK_SET, 1=SEEK_CUR, 2=SEEK_END
     if mode == 0:
-        ctx.pos = delta
+        pos = delta
     elif mode == 1:
-        ctx.pos += delta
+        pos = ctx.pos + delta
+    elif mode == 2:
+        pos = ctx.size + delta
     else:
-        ctx.pos = ctx.size + delta
+        return -1
+    if pos < 0:
+        return -1
+    ctx.pos = pos
     ctx.unget = -1
     return 0
 
@@ -617,9 +625,10 @@ cdef int wavpack_push_back_byte(void* id, int c) noexcept nogil:
     cdef:
         WavpackReadContext* ctx = <WavpackReadContext *> id
 
+    if c < 0 or ctx.pos <= 0 or ctx.unget >= 0:
+        return -1  # EOF
     ctx.unget = c
-    if c >= 0:
-        ctx.pos -= 1
+    ctx.pos -= 1
     return c
 
 
