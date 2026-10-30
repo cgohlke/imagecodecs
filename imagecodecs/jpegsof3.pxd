@@ -1,6 +1,6 @@
 # imagecodecs/jpegsof3.pxd
 
-# Cython declarations for the `jpegsof3 2026.3.6` library.
+# Cython declarations for the `jpegsof3 2026.11.11` library.
 # https://github.com/cgohlke/imagecodecs/tree/master/3rdparty/jpegsof3/
 
 cdef extern from 'jpegsof3.h' nogil:
@@ -18,6 +18,8 @@ cdef extern from 'jpegsof3.h' nogil:
     int JPEGSOF3_TABLE_SIZE_CORRUPTED
     int JPEGSOF3_INVALID_RESTART_SEGMENTS
     int JPEGSOF3_NO_TABLE
+    int JPEGSOF3_INVALID_DIMENSIONS
+    int JPEGSOF3_INVALID_POINT_TRANSFORM
 
     int decode_jpegsof3(
         unsigned char* lRawRA,
