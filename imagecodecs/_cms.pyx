@@ -41,12 +41,7 @@ include '_shared.pxi'
 
 import cython
 
-from cpython.bytes cimport (
-    PyBytes_AsString,
-    PyBytes_Check,
-    PyBytes_FromStringAndSize,
-    PyBytes_Size,
-)
+from cpython.bytes cimport PyBytes_AsString, PyBytes_FromStringAndSize
 from lcms2 cimport *
 
 
@@ -130,15 +125,11 @@ def cms_version():
     )
 
 
-def cms_check(const uint8_t[::1] data, /):
+def cms_check(const uint8_t[::1] data not None, /):
     """Return whether data is ICC profile or None if unknown."""
-    cdef:
-        bytes sig
-
     if data.shape[0] < 40:
         return False
-    sig = bytes(data[36:40])
-    if sig == b'acsp':
+    if _startswith(data, b'acsp', 36):
         return True
     return None
 
@@ -147,22 +138,21 @@ def cms_info(
     profile,
     /,
 ):
-    """Return information about ICC profile as dict."""
+    """Return information about ICC profile."""
     cdef:
         cmsHPROFILE hProfile = NULL
-        cmsUInt32Number size
-        char[512] buffer
         cmsInt32Number nchannels
-        tm t
         cmsBool has_datetime
+        cmsFloat64Number* chad
         cmsCIEXYZ* wp_xyz
         cmsCIEXYZ* r_xyz
         cmsCIEXYZ* g_xyz
         cmsCIEXYZ* b_xyz
         cmsCIEXYZ adapted
-        cmsCIExyY xyY
         cmsToneCurve* curve
         cmsFloat64Number gamma_val
+        tm t
+        int i
 
     hProfile = _cms_open_profile(profile)
     if hProfile == NULL:
@@ -196,34 +186,49 @@ def cms_info(
         else:
             datetime = None
 
-        # whitepoint from media white point tag (XYZ -> xyY)
+        # chromatic adaptation tag maps the adopted white to D50 (v4)
+        chad = <cmsFloat64Number*> cmsReadTag(
+            hProfile, cmsSigChromaticAdaptationTag
+        )
+        if chad != NULL:
+            unadapt = numpy.linalg.inv(
+                numpy.array([chad[i] for i in range(9)]).reshape(3, 3)
+            )
+        else:
+            unadapt = None
+
         wp_xyz = <cmsCIEXYZ*> cmsReadTag(hProfile, cmsSigMediaWhitePointTag)
-        if wp_xyz != NULL:
-            cmsXYZ2xyY(&xyY, wp_xyz)
-            whitepoint = (round(xyY.x, 6), round(xyY.y, 6), round(xyY.Y, 6))
+        if unadapt is not None:
+            whitepoint = _cms_xyy(
+                unadapt @ (cmsD50_XYZ().X, cmsD50_XYZ().Y, cmsD50_XYZ().Z)
+            )
+        elif wp_xyz != NULL:
+            whitepoint = _cms_xyy((wp_xyz.X, wp_xyz.Y, wp_xyz.Z))
         else:
             whitepoint = None
 
-        # primaries: unadapt colorant tags from D50 tomedia whitepoint
-        if colorspace == 'rgb' and wp_xyz != NULL:
+        # primaries: unadapt colorant tags from D50 to adopted white
+        primaries = None
+        if colorspace == 'rgb':
             r_xyz = <cmsCIEXYZ*> cmsReadTag(hProfile, cmsSigRedColorantTag)
             g_xyz = <cmsCIEXYZ*> cmsReadTag(hProfile, cmsSigGreenColorantTag)
             b_xyz = <cmsCIEXYZ*> cmsReadTag(hProfile, cmsSigBlueColorantTag)
-            if r_xyz != NULL and g_xyz != NULL and b_xyz != NULL:
+            if r_xyz == NULL or g_xyz == NULL or b_xyz == NULL:
+                pass
+            elif unadapt is not None:
+                primaries = (
+                    _cms_xyy(unadapt @ (r_xyz.X, r_xyz.Y, r_xyz.Z)),
+                    _cms_xyy(unadapt @ (g_xyz.X, g_xyz.Y, g_xyz.Z)),
+                    _cms_xyy(unadapt @ (b_xyz.X, b_xyz.Y, b_xyz.Z)),
+                )
+            elif wp_xyz != NULL:
                 cmsAdaptToIlluminant(&adapted, cmsD50_XYZ(), wp_xyz, r_xyz)
-                cmsXYZ2xyY(&xyY, &adapted)
-                red = (round(xyY.x, 6), round(xyY.y, 6), round(xyY.Y, 6))
+                red = _cms_xyy((adapted.X, adapted.Y, adapted.Z))
                 cmsAdaptToIlluminant(&adapted, cmsD50_XYZ(), wp_xyz, g_xyz)
-                cmsXYZ2xyY(&xyY, &adapted)
-                green = (round(xyY.x, 6), round(xyY.y, 6), round(xyY.Y, 6))
+                green = _cms_xyy((adapted.X, adapted.Y, adapted.Z))
                 cmsAdaptToIlluminant(&adapted, cmsD50_XYZ(), wp_xyz, b_xyz)
-                cmsXYZ2xyY(&xyY, &adapted)
-                blue = (round(xyY.x, 6), round(xyY.y, 6), round(xyY.Y, 6))
+                blue = _cms_xyy((adapted.X, adapted.Y, adapted.Z))
                 primaries = (red, green, blue)
-            else:
-                primaries = None
-        else:
-            primaries = None
 
         # gamma from TRC tag; None if curve is not a pure power law
         if colorspace == 'gray':
@@ -238,82 +243,16 @@ def cms_info(
         else:
             gamma = None
 
-        size = cmsGetProfileInfoASCII(
-            hProfile, cmsInfoDescription,
-            cmsNoLanguage, cmsNoLanguage, NULL, 0
-        )
-        if 0 < size <= 512:
-            cmsGetProfileInfoASCII(
-                hProfile, cmsInfoDescription,
-                cmsNoLanguage, cmsNoLanguage, buffer, size
-            )
-            description = (
-                (<bytes> buffer[:size])
-                .decode('ascii', errors='replace')
-                .rstrip('\x00')
-                .strip()
-            ) or None
-        else:
-            description = None
-
-        size = cmsGetProfileInfoASCII(
-            hProfile, cmsInfoManufacturer,
-            cmsNoLanguage, cmsNoLanguage, NULL, 0
-        )
-        if 0 < size <= 512:
-            cmsGetProfileInfoASCII(
-                hProfile, cmsInfoManufacturer,
-                cmsNoLanguage, cmsNoLanguage, buffer, size
-            )
-            manufacturer = (
-                (<bytes> buffer[:size])
-                .decode('ascii', errors='replace')
-                .rstrip('\x00')
-                .strip()
-            ) or None
-        else:
-            manufacturer = None
-
-        size = cmsGetProfileInfoASCII(
-            hProfile, cmsInfoModel,
-            cmsNoLanguage, cmsNoLanguage, NULL, 0
-        )
-        if 0 < size <= 512:
-            cmsGetProfileInfoASCII(
-                hProfile, cmsInfoModel,
-                cmsNoLanguage, cmsNoLanguage, buffer, size
-            )
-            model = (
-                (<bytes> buffer[:size])
-                .decode('ascii', errors='replace')
-                .rstrip('\x00')
-                .strip()
-            ) or None
-        else:
-            model = None
-
-        size = cmsGetProfileInfoASCII(
-            hProfile, cmsInfoCopyright,
-            cmsNoLanguage, cmsNoLanguage, NULL, 0
-        )
-        if 0 < size <= 512:
-            cmsGetProfileInfoASCII(
-                hProfile, cmsInfoCopyright,
-                cmsNoLanguage, cmsNoLanguage, buffer, size
-            )
-            copyright = (
-                (<bytes> buffer[:size])
-                .decode('ascii', errors='replace')
-                .rstrip('\x00')
-                .strip()
-            ) or None
-        else:
-            copyright = None
+        description = _cms_info_ascii(hProfile, cmsInfoDescription)
+        manufacturer = _cms_info_ascii(hProfile, cmsInfoManufacturer)
+        model = _cms_info_ascii(hProfile, cmsInfoModel)
+        copyright = _cms_info_ascii(hProfile, cmsInfoCopyright)
 
     finally:
         cmsCloseProfile(hProfile)
 
     return {
+        '_codec': 'cms',
         'version': version,
         'deviceclass': deviceclass,
         'colorspace': colorspace,
@@ -348,7 +287,58 @@ def cms_transform(
     verbose=None,
     out=None,
 ):
-    """Return color-transformed array."""
+    """Return color-transformed array.
+
+    Parameters:
+        data:
+            Image data to transform.
+            Data type must be uint8, uint16, float16, float32, or float64.
+            Samples are stored in the last axis (contiguous) or, if planar,
+            in the third-to-last axis. 2D arrays are gray.
+        profile:
+            ICC profile of `data`, for example, returned by `cms_profile`.
+            If None, use a NULL profile.
+        outprofile:
+            ICC profile of output.
+            If None, use a NULL profile.
+        colorspace:
+            Color space and sample order of `data`, for example,
+            ``'gray'``, ``'graya'``, ``'rgb'``, ``'rgba'``, ``'bgr'``,
+            ``'cmyk'``, ``'lab'``, ``'xyz'``, or ``'miniswhite'``.
+            By default, derived from color space of `profile`.
+        planar:
+            Samples of `data` are stored in third-to-last axis.
+            By default, determined from shape of `data` and `colorspace`.
+        outcolorspace:
+            Color space and sample order of output.
+            By default, derived from color space of `outprofile`, else
+            `colorspace`.
+        outplanar:
+            Store output samples in third-to-last axis.
+            By default, same as `planar`.
+        outdtype:
+            Data type of output.
+            By default, same as `data`. Ignored if `out` is an array.
+        intent:
+            Rendering intent. By default, ``CMS.INTENT.PERCEPTUAL``.
+        flags:
+            Combination of ``CMS.FLAGS`` passed to ``cmsCreateTransform``.
+        verbose:
+            Log Little-CMS error messages.
+        out:
+            Writable, C-contiguous output array.
+            Its shape must contain the same number of pixels as `data`.
+
+    Returns:
+        Color-transformed image.
+
+    Raises:
+        ValueError:
+            Invalid data type, shape, color space, or output array.
+        CmsError:
+            Little-CMS failed to open profiles or create transform.
+
+    """
     cdef:
         numpy.ndarray src
         numpy.ndarray dst
@@ -358,32 +348,39 @@ def cms_transform(
         cmsUInt32Number dwFlags = 0 if flags is None else flags
         cmsUInt32Number InputFormat = 0
         cmsUInt32Number OutputFormat = 0
+        cmsContext ctx = NULL
         cmsHPROFILE hInProfile = NULL
         cmsHPROFILE hOutProfile = NULL
         cmsHTRANSFORM hTransform = NULL
         cmsUInt32Number numpixels
+        ssize_t npixels, framepixels
         ssize_t nframes, src_frame_stride, dst_frame_stride
         char* src_ptr
         char* dst_ptr
 
-    data = _array_input(data, out)
+    # lcms only byte-swaps 16-bit integers
+    data = _array_input(data, out, None, True, False, True)
     src = data
 
-    if verbose:
-        cmsSetLogErrorHandler(_cms_log_error_handler)
-
     try:
+        if verbose:
+            ctx = _cms_verbose_context()
+
         if profile is None:
-            hInProfile = cmsCreateNULLProfile()
+            hInProfile = cmsCreateNULLProfileTHR(ctx)
+            if hInProfile == NULL:
+                raise CmsError('cmsCreateNULLProfile returned NULL')
         else:
-            hInProfile = _cms_open_profile(profile)
+            hInProfile = _cms_open_profile(profile, ctx)
             if hInProfile == NULL:
                 raise CmsError('cmsOpenProfileFromMem returned NULL')
 
         if outprofile is None:
-            hOutProfile = cmsCreateNULLProfile()
+            hOutProfile = cmsCreateNULLProfileTHR(ctx)
+            if hOutProfile == NULL:
+                raise CmsError('cmsCreateNULLProfile returned NULL')
         else:
-            hOutProfile = _cms_open_profile(outprofile)
+            hOutProfile = _cms_open_profile(outprofile, ctx)
             if hOutProfile == NULL:
                 raise CmsError('cmsOpenProfileFromMem returned NULL')
 
@@ -400,9 +397,7 @@ def cms_transform(
         InputFormat = _cms_format(data.shape, data.dtype, colorspace, planar)
 
         planar = T_PLANAR(InputFormat)
-        numpixels = <cmsUInt32Number> (
-            data.size // (T_CHANNELS(InputFormat) + T_EXTRA(InputFormat))
-        )
+        npixels = src.size // (T_CHANNELS(InputFormat) + T_EXTRA(InputFormat))
 
         if out is not None and isinstance(out, numpy.ndarray):
             # assert outdtype is None
@@ -429,33 +424,51 @@ def cms_transform(
 
         outplanar = T_PLANAR(OutputFormat)
 
-        if not out.data.contiguous:
-            raise ValueError('output array not contiguous')
-
         dst = out
+        if not dst.flags.c_contiguous:
+            raise ValueError('output array not C-contiguous')
+        if not dst.flags.writeable:
+            raise ValueError('output array not writable')
+        if dst.dtype.kind == 'f' and not dst.dtype.isnative:
+            raise ValueError(f'non-native output {dst.dtype=} not supported')
+        if (
+            dst.size // (T_CHANNELS(OutputFormat) + T_EXTRA(OutputFormat))
+            != npixels
+        ):
+            raise ValueError(
+                f'output shape {out.shape!r} does not match {npixels} pixels'
+            )
 
-        # compute per-frame loop parameters before releasing the GIL
-        if (planar or outplanar) and (src.ndim > 3 or dst.ndim > 3):
-            # pixels per (H, W) frame: for planar (..., samples, H, W) the
-            # spatial axes are last two; for contig (..., H, W, samples) they
-            # are the 3rd- and 2nd-to-last
+        if planar or outplanar:
+            # planes are contiguous per frame of the last two axes
             if planar:
-                nframes = numpixels // (
+                framepixels = (
                     <ssize_t> src.shape[src.ndim - 2]
                     * src.shape[src.ndim - 1]
                 )
             else:
-                nframes = numpixels // (
-                    <ssize_t> src.shape[src.ndim - 3]
-                    * src.shape[src.ndim - 2]
+                framepixels = (
+                    <ssize_t> dst.shape[dst.ndim - 2]
+                    * dst.shape[dst.ndim - 1]
                 )
-            numpixels = numpixels // <cmsUInt32Number> nframes
-            src_frame_stride = src.nbytes // nframes
-            dst_frame_stride = dst.nbytes // nframes
+            if (
+                outplanar
+                and framepixels
+                != <ssize_t> dst.shape[dst.ndim - 2] * dst.shape[dst.ndim - 1]
+            ) or npixels % framepixels != 0:
+                raise ValueError(
+                    f'input shape {data.shape!r} and output shape '
+                    f'{out.shape!r} frames do not match'
+                )
+            nframes = npixels // framepixels
         else:
-            nframes = 0
-            src_frame_stride = 0
-            dst_frame_stride = 0
+            framepixels = npixels
+            nframes = 1
+        if <size_t> framepixels > <size_t> UINT32_MAX:
+            raise ValueError(f'too many pixels per frame {framepixels}')
+        numpixels = <cmsUInt32Number> framepixels
+        src_frame_stride = src.nbytes // nframes
+        dst_frame_stride = dst.nbytes // nframes
 
         with nogil:
             hTransform = cmsCreateTransform(
@@ -474,26 +487,17 @@ def cms_transform(
             cmsCloseProfile(hOutProfile)
             hOutProfile = NULL
 
-            if nframes > 0:
-                # iterate over leading dimensions one frame (H x W) at a time
-                src_ptr = src.data
-                dst_ptr = dst.data
-                for _i in range(nframes):
-                    cmsDoTransform(
-                        hTransform,
-                        <const void*> src_ptr,
-                        <void*> dst_ptr,
-                        numpixels
-                    )
-                    src_ptr += src_frame_stride
-                    dst_ptr += dst_frame_stride
-            else:
+            src_ptr = src.data
+            dst_ptr = dst.data
+            for _i in range(nframes):
                 cmsDoTransform(
                     hTransform,
-                    <const void*> src.data,
-                    <void*> dst.data,
+                    <const void*> src_ptr,
+                    <void*> dst_ptr,
                     numpixels
                 )
+                src_ptr += src_frame_stride
+                dst_ptr += dst_frame_stride
 
             cmsDeleteTransform(hTransform)
             hTransform = NULL
@@ -505,13 +509,13 @@ def cms_transform(
             cmsCloseProfile(hOutProfile)
         if hTransform != NULL:
             cmsDeleteTransform(hTransform)
-        if verbose:
-            cmsSetLogErrorHandler(NULL)
+        if ctx != NULL:
+            cmsDeleteContext(ctx)
 
     return out
 
 
-@cython.boundscheck(True)
+# @cython.boundscheck(True)
 def cms_profile(
     profile,
     /,
@@ -521,7 +525,53 @@ def cms_profile(
     transferfunction=None,  # gray and rgb
     gamma=None,
 ):
-    """Return ICC profile."""
+    """Return ICC profile.
+
+    Parameters:
+        profile:
+            Name of profile, case-insensitive:
+
+            - ``'gray'``, ``'rgb'``: custom profile defined by `whitepoint`,
+              `primaries`, and `transferfunction` or `gamma`.
+            - ``'srgb'``: sRGB IEC61966-2.1.
+            - ``'adobergb'``: Adobe RGB (1998) compatible, ICC v2.
+            - ``'linearrgb'``: Rec. 709 primaries, D65, linear.
+            - ``'displayp3'``: Display P3, D65, sRGB transfer function.
+            - ``'rec2020'``: Rec. 2020, D65, Rec. 709 transfer function.
+            - ``'sgray'``: gray, D65, sRGB transfer function.
+            - ``'xyz'``: CIE XYZ.
+            - ``'lab2'``, ``'lab4'``: CIE L*a*b* v2 or v4.
+              White point defaults to D50.
+            - ``'null'`` or None: output all zeros.
+
+        whitepoint:
+            White point of `'gray'`, `'rgb'`, `'lab2'`, or `'lab4'` profile.
+            As CIE xyY (3 values), xy (2 values), or xy rationals (4 values).
+            Defaults to D50.
+        primaries:
+            Red, green, and blue primaries of `'rgb'` profile.
+            As CIE xyY (9 values), xy (6 values), or xy rationals (12 values).
+            Requires `whitepoint`.
+        transferfunction:
+            Transfer function of `'gray'` or `'rgb'` profile.
+            Either a named parametric curve, ``'srgb'`` or ``'rec709'``,
+            or a uint16 or float32 lookup table of shape ``(entries,)``
+            or, for `'rgb'`, ``(3, entries)``.
+            Mutually exclusive with `gamma`.
+        gamma:
+            Gamma of `'gray'` or `'rgb'` profile transfer function.
+            Mutually exclusive with `transferfunction`.
+
+    Returns:
+        ICC profile.
+
+    Raises:
+        ValueError:
+            Invalid profile name or combination of parameters.
+        CmsError:
+            Little-CMS failed to create or serialize profile.
+
+    """
     cdef:
         cmsHPROFILE hProfile = NULL
         cmsCIExyY WhitePoint
@@ -532,11 +582,35 @@ def cms_profile(
         (cmsToneCurve*)[3] ppTransferFunction
         cmsUInt32Number BytesNeeded
         cmsBool ret
+        cmsInt32Number curvetype
+        cmsFloat64Number[10] curveparams
         ssize_t tfcount = 0
         ssize_t tfentries = 0
         ssize_t i, j
         numpy.ndarray tf
+        bytes description = None
         object out
+
+    if profile is not None:
+        profile = profile.lower()
+        if profile in _CMS_NAMED_PROFILES:
+            if (
+                whitepoint is not None
+                or primaries is not None
+                or transferfunction is not None
+                or gamma is not None
+            ):
+                raise ValueError(
+                    f'{profile=!r} does not support whitepoint, primaries, '
+                    'transferfunction, or gamma'
+                )
+            (
+                profile,
+                whitepoint,
+                primaries,
+                transferfunction,
+                description,
+            ) = _CMS_NAMED_PROFILES[profile]
 
     if whitepoint is not None:
         if len(whitepoint) == 3:
@@ -599,12 +673,21 @@ def cms_profile(
     ppTransferFunction[1] = NULL
     ppTransferFunction[2] = NULL
 
-    if profile is not None:
-        profile = profile.lower()
-        if profile == 'gray':
-            tfcount = 1
-        elif profile == 'rgb':
-            tfcount = 3
+    if profile == 'gray':
+        tfcount = 1
+    elif profile == 'rgb':
+        tfcount = 3
+
+    if whitepoint is not None and profile not in {
+        'gray', 'rgb', 'lab2', 'lab4'
+    }:
+        raise ValueError(f'whitepoint not supported for {profile=!r}')
+
+    if primaries is not None:
+        if profile != 'rgb':
+            raise ValueError(f'primaries not supported for {profile=!r}')
+        if whitepoint is None:
+            raise ValueError('primaries require whitepoint')
 
     if gamma is not None and transferfunction is not None:
         raise ValueError('gamma and transferfunction are mutually exclusive')
@@ -625,6 +708,21 @@ def cms_profile(
                 )
                 if ppTransferFunction[i] == NULL:
                     raise CmsError('cmsBuildGamma returned NULL')
+        elif (
+            transferfunction is not None and isinstance(transferfunction, str)
+        ):
+            try:
+                curvetype, params = _CMS_CURVES[transferfunction.lower()]
+            except KeyError as exc:
+                raise ValueError(f'invalid {transferfunction=!r}') from exc
+            for i in range(10):
+                curveparams[i] = params[i] if i < len(params) else 0.0
+            for i in range(tfcount):
+                ppTransferFunction[i] = cmsBuildParametricToneCurve(
+                    <cmsContext> NULL, curvetype, curveparams
+                )
+                if ppTransferFunction[i] == NULL:
+                    raise CmsError('cmsBuildParametricToneCurve returned NULL')
         elif transferfunction is not None:
             tf = numpy.asarray(transferfunction, order='C')
             if (
@@ -633,7 +731,13 @@ def cms_profile(
                 or (tf.ndim == 2 and tf.shape[0] != tfcount)
             ):
                 raise ValueError('invalid transferfunction shape or dtype')
+            if not tf.dtype.isnative:
+                tf = tf.astype(tf.dtype.newbyteorder('='))
             tfentries = tf.shape[tf.ndim - 1]
+            if tfentries < 2:
+                raise ValueError(
+                    f'transferfunction has {tfentries} < 2 entries'
+                )
 
             for i in range(tfcount):
                 j = 0 if tf.ndim == 1 else i
@@ -704,6 +808,11 @@ def cms_profile(
         if hProfile == NULL:
             raise ValueError(f'failed to create CMS {profile=!r}')
 
+        if description is not None and not _cms_write_mlu(
+            hProfile, cmsSigProfileDescriptionTag, description
+        ):
+            raise CmsError('failed to write profile description')
+
         ret = cmsSaveProfileToMem(hProfile, NULL, &BytesNeeded)
         if ret == 0:
             raise CmsError(f'cmsSaveProfileToMem returned {ret!r}')
@@ -717,6 +826,14 @@ def cms_profile(
         )
         if ret == 0:
             raise CmsError(f'cmsSaveProfileToMem returned {ret!r}')
+
+        # constant creation date 2023-11-14 22:13:20 for reproducible output
+        if BytesNeeded >= 36:
+            memcpy(
+                PyBytes_AsString(out) + 24,
+                b'\x07\xe7\x00\x0b\x00\x0e\x00\x16\x00\x0d\x00\x14',
+                12
+            )
 
     finally:
         if hProfile != NULL:
@@ -736,16 +853,19 @@ def cms_profile_validate(
 ):
     """Raise CmsError if ICC profile is invalid."""
     cdef:
+        cmsContext ctx = NULL
         cmsHPROFILE hProfile = NULL
 
-    if verbose:
-        cmsSetLogErrorHandler(_cms_log_error_handler)
-    hProfile = _cms_open_profile(profile)
-    if verbose:
-        cmsSetLogErrorHandler(NULL)
-    if hProfile == NULL:
-        raise CmsError('cmsOpenProfileFromMem returned NULL')
-    cmsCloseProfile(hProfile)
+    try:
+        if verbose:
+            ctx = _cms_verbose_context()
+        hProfile = _cms_open_profile(profile, ctx)
+        if hProfile == NULL:
+            raise CmsError('cmsOpenProfileFromMem returned NULL')
+        cmsCloseProfile(hProfile)
+    finally:
+        if ctx != NULL:
+            cmsDeleteContext(ctx)
 
 
 @cython.wraparound(True)
@@ -903,6 +1023,12 @@ def _cms_format(
     if dtype.char not in 'BHdfe':
         raise ValueError(f'{dtype=!r} not supported')
 
+    if colorspace is not None:
+        try:
+            colorspace = colorspace.lower()
+        except AttributeError as exc:
+            raise ValueError(f'invalid {colorspace=!r}') from exc
+
     if itemsize == 8:
         itemsize = 0  # 8 would overflow the bitfield
 
@@ -921,6 +1047,8 @@ def _cms_format(
             raise ValueError('planar not supported with 2D')
         if colorspace not in {None, 'gray', 'miniswhite', 'minisblack'}:
             raise ValueError('invalid colorspace for 2D')
+        if colorspace == 'miniswhite':
+            flavor = 1
 
     elif colorspace is None:
 
@@ -1128,6 +1256,31 @@ _CMS_FORMATS = {
     'luvk': (PT_YUVK, 4, 0, 0, 0),
 }
 
+_CMS_CURVES = {
+    # name: lcms parametric curve type, parameters (g, a, b, c, d)
+    'srgb': (4, (2.4, 1.0 / 1.055, 0.055 / 1.055, 1.0 / 12.92, 0.04045)),
+    'rec709': (4, (1.0 / 0.45, 1.0 / 1.099, 0.099 / 1.099, 1.0 / 4.5, 0.081)),
+}
+
+_CMS_NAMED_PROFILES = {
+    # name: profile, whitepoint, primaries, transferfunction, description
+    'displayp3': (
+        'rgb',
+        (0.3127, 0.3290),
+        (0.680, 0.320, 0.265, 0.690, 0.150, 0.060),
+        'srgb',
+        b'Display P3',
+    ),
+    'rec2020': (
+        'rgb',
+        (0.3127, 0.3290),
+        (0.708, 0.292, 0.170, 0.797, 0.131, 0.046),
+        'rec709',
+        b'Rec. 2020',
+    ),
+    'sgray': ('gray', (0.3127, 0.3290), None, 'srgb', b'sGray'),
+}
+
 _CMS_DEVICE_CLASSES = {
     # cmsProfileClassSignature -> deviceclass string
     cmsSigInputClass: 'input',
@@ -1148,18 +1301,88 @@ _CMS_RENDERING_INTENTS = {
 }
 
 
-cdef cmsHPROFILE _cms_open_profile(object profile):
+cdef cmsHPROFILE _cms_open_profile(
+    object profile,
+    cmsContext ctx=NULL,
+) except *:
     """Return handle from CMS profile bytes."""
     cdef:
-        cmsHPROFILE hProfile = NULL
+        const uint8_t[::1] src = profile
 
-    if not PyBytes_Check(profile):
+    if src.shape[0] == 0 or <size_t> src.shape[0] > UINT32_MAX:
         return NULL
-    hProfile = cmsOpenProfileFromMem(
-        <const void*> PyBytes_AsString(profile),
-        <cmsUInt32Number> PyBytes_Size(profile)
+    return cmsOpenProfileFromMemTHR(
+        ctx, <const void*> &src[0], <cmsUInt32Number> src.shape[0]
     )
-    return hProfile
+
+
+cdef cmsContext _cms_verbose_context() except *:
+    """Return new CMS context that logs errors."""
+    cdef:
+        cmsContext ctx = cmsCreateContext(NULL, NULL)
+
+    if ctx == NULL:
+        raise CmsError('cmsCreateContext returned NULL')
+    cmsSetLogErrorHandlerTHR(ctx, _cms_log_error_handler)
+    return ctx
+
+
+cdef tuple _cms_xyy(XYZ):
+    """Return rounded CIE xyY from XYZ."""
+    cdef:
+        cmsCIEXYZ xyz
+        cmsCIExyY xyy
+
+    xyz.X = XYZ[0]
+    xyz.Y = XYZ[1]
+    xyz.Z = XYZ[2]
+    cmsXYZ2xyY(&xyy, &xyz)
+    return (round(xyy.x, 6), round(xyy.y, 6), round(xyy.Y, 6))
+
+
+cdef _cms_info_ascii(cmsHPROFILE hProfile, cmsInfoType info):
+    """Return ASCII profile info string or None."""
+    cdef:
+        cmsUInt32Number size
+        bytes buffer
+
+    size = cmsGetProfileInfoASCII(
+        hProfile, info, cmsNoLanguage, cmsNoLanguage, NULL, 0
+    )
+    if size == 0:
+        return None
+    buffer = PyBytes_FromStringAndSize(NULL, size)
+    size = cmsGetProfileInfoASCII(
+        hProfile,
+        info,
+        cmsNoLanguage,
+        cmsNoLanguage,
+        PyBytes_AsString(buffer),
+        size,
+    )
+    return (
+        buffer[:size].decode('ascii', errors='replace').rstrip('\x00').strip()
+    ) or None
+
+
+cdef cmsBool _cms_write_mlu(
+    cmsHPROFILE hProfile,
+    cmsTagSignature sig,
+    const char* text,
+) noexcept nogil:
+    """Write en-US ASCII text tag to profile."""
+    cdef:
+        cmsMLU* mlu = cmsMLUalloc(<cmsContext> NULL, 1)
+        cmsBool ret
+
+    if mlu == NULL:
+        return 0
+    ret = (
+        cmsMLUsetASCII(mlu, b'en', b'US', text)
+        and cmsWriteTag(hProfile, sig, mlu)
+    )
+    cmsMLUfree(mlu)
+    return ret
 
 
 cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
@@ -1169,7 +1392,6 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
         cmsCIEXYZTRIPLE color
         cmsCIEXYZ black, d65
         cmsToneCurve* transferfunction = NULL
-        cmsMLU* mlu = NULL
         cmsBool ret
 
     color.Red.X = 0.609741
@@ -1196,48 +1418,38 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
 
     cmsSetProfileVersion(hProfile, 2.1)
 
-    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
-    if mlu == NULL:
-        cmsCloseProfile(hProfile)
-        return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US', 'Public Domain')
-    ret = cmsWriteTag(hProfile, cmsSigCopyrightTag, mlu)
-    cmsMLUfree(mlu)
-
-    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
-    if mlu == NULL:
-        cmsCloseProfile(hProfile)
-        return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US', 'Adobe RGB (compatible)')
-    ret = cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
-    cmsMLUfree(mlu)
-
-    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
-    if mlu == NULL:
-        cmsCloseProfile(hProfile)
-        return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US', 'Imagecodecs')
-    ret = cmsWriteTag(hProfile, cmsSigDeviceMfgDescTag, mlu)
-    cmsMLUfree(mlu)
-
-    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
-    if mlu == NULL:
-        cmsCloseProfile(hProfile)
-        return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US', 'Adobe RGB (compatible)')
-    ret = cmsWriteTag(hProfile, cmsSigDeviceModelDescTag, mlu)
-    cmsMLUfree(mlu)
+    ret = (
+        _cms_write_mlu(hProfile, cmsSigCopyrightTag, 'Public Domain')
+        and _cms_write_mlu(
+            hProfile, cmsSigProfileDescriptionTag, 'Adobe RGB (compatible)'
+        )
+        and _cms_write_mlu(hProfile, cmsSigDeviceMfgDescTag, 'Imagecodecs')
+        and _cms_write_mlu(
+            hProfile, cmsSigDeviceModelDescTag, 'Adobe RGB (compatible)'
+        )
+    )
 
     cmsSetDeviceClass(hProfile, cmsSigDisplayClass)
     cmsSetColorSpace(hProfile, cmsSigRgbData)
     cmsSetPCS(hProfile, cmsSigXYZData)
 
-    ret = cmsWriteTag(hProfile, cmsSigMediaWhitePointTag, &d65)
-    ret = cmsWriteTag(hProfile, cmsSigMediaBlackPointTag, &black)
-
-    ret = cmsWriteTag(hProfile, cmsSigRedColorantTag, <void*> &color.Red)
-    ret = cmsWriteTag(hProfile, cmsSigGreenColorantTag, <void*> &color.Green)
-    ret = cmsWriteTag(hProfile, cmsSigBlueColorantTag, <void*> &color.Blue)
+    ret = (
+        ret
+        and cmsWriteTag(hProfile, cmsSigMediaWhitePointTag, &d65)
+        and cmsWriteTag(hProfile, cmsSigMediaBlackPointTag, &black)
+        and cmsWriteTag(
+            hProfile, cmsSigRedColorantTag, <void*> &color.Red
+        )
+        and cmsWriteTag(
+            hProfile, cmsSigGreenColorantTag, <void*> &color.Green
+        )
+        and cmsWriteTag(
+            hProfile, cmsSigBlueColorantTag, <void*> &color.Blue
+        )
+    )
+    if not ret:
+        cmsCloseProfile(hProfile)
+        return NULL
 
     transferfunction = cmsBuildGamma(<cmsContext> NULL, 2.19921875)
     if transferfunction == NULL:
@@ -1246,8 +1458,14 @@ cdef cmsHPROFILE _cms_adobe_rgb_compatible() noexcept nogil:
     ret = cmsWriteTag(hProfile, cmsSigRedTRCTag, <void*> transferfunction)
     cmsFreeToneCurve(transferfunction)
 
-    cmsLinkTag(hProfile, cmsSigGreenTRCTag, cmsSigRedTRCTag)
-    cmsLinkTag(hProfile, cmsSigBlueTRCTag, cmsSigRedTRCTag)
+    ret = (
+        ret
+        and cmsLinkTag(hProfile, cmsSigGreenTRCTag, cmsSigRedTRCTag)
+        and cmsLinkTag(hProfile, cmsSigBlueTRCTag, cmsSigRedTRCTag)
+    )
+    if not ret:
+        cmsCloseProfile(hProfile)
+        return NULL
 
     return hProfile
 
@@ -1259,7 +1477,6 @@ cdef cmsHPROFILE _cms_linear_rgb() noexcept nogil:
         cmsCIExyY whitepoint
         cmsCIExyYTRIPLE primaries
         (cmsToneCurve*)[3] transferfunction
-        cmsMLU* mlu = NULL
 
     # ITU-R Recommendation 709 Primaries
     primaries.Red.x = 0.6400
@@ -1289,13 +1506,11 @@ cdef cmsHPROFILE _cms_linear_rgb() noexcept nogil:
     if hProfile == NULL:
         return NULL
 
-    mlu = cmsMLUalloc(<cmsContext> NULL, 1)
-    if mlu == NULL:
+    if not _cms_write_mlu(
+        hProfile, cmsSigProfileDescriptionTag, 'Linear RGB'
+    ):
         cmsCloseProfile(hProfile)
         return NULL
-    cmsMLUsetASCII(mlu, b'en', b'US', 'Linear RGB')
-    cmsWriteTag(hProfile, cmsSigProfileDescriptionTag, mlu)
-    cmsMLUfree(mlu)
 
     return hProfile
 
