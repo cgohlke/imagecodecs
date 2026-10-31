@@ -213,7 +213,7 @@ int64_t bshuf_trans_bit_byte_remainder(const void* in, void* out, const size_t s
 
     uint64_t e=1;
     const int little_endian = *(uint8_t *) &e == 1;
-    const size_t bit_row_skip = little_endian ? nbyte_bitrow : -nbyte_bitrow;
+    const size_t bit_row_skip = little_endian ? nbyte_bitrow : (size_t)0 - nbyte_bitrow;
     const int64_t bit_row_offset = little_endian ? 0 : 7 * nbyte_bitrow;
 
     CHECK_MULT_EIGHT(nbyte);
@@ -336,8 +336,8 @@ int64_t bshuf_shuffle_bit_eightelem_scal(const void* in, void* out,
 
     uint64_t e=1;
     const int little_endian = *(uint8_t *) &e == 1;
-    const size_t elem_skip = little_endian ? elem_size : -elem_size;
-    const uint64_t elem_offset = little_endian ? 0 : 7 * elem_size;
+    const size_t elem_skip = little_endian ? elem_size : (size_t)0 - elem_size;
+    const size_t elem_offset = little_endian ? 0 : 7 * elem_size;
 
     CHECK_MULT_EIGHT(size);
 
