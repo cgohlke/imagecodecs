@@ -58,6 +58,7 @@ class MOZJPEG:
         YCbCr = JCS_YCbCr
         CMYK = JCS_CMYK
         YCCK = JCS_YCCK
+        # libjpeg-turbo constants
         EXT_RGB = JCS_EXT_RGB
         EXT_RGBX = JCS_EXT_RGBX
         EXT_BGR = JCS_EXT_BGR
@@ -68,7 +69,7 @@ class MOZJPEG:
         EXT_BGRA = JCS_EXT_BGRA
         EXT_ABGR = JCS_EXT_ABGR
         EXT_ARGB = JCS_EXT_ARGB
-        RGB565 = JCS_RGB565
+        # RGB565 = JCS_RGB565
 
 
 class MozjpegError(RuntimeError):
@@ -84,7 +85,7 @@ def mozjpeg_version():
     )
 
 
-def mozjpeg_check(const uint8_t[::1] data, /):
+def mozjpeg_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEG encoded image or None if unknown."""
     return bool(data.shape[0] > 4 and data[0] == 0xFF and data[1] == 0xD8)
 
@@ -102,9 +103,15 @@ def mozjpeg_encode(
     notrellis=None,
     quanttable=None,
     progressive=None,
+    iccprofile=None,
     out=None,
 ):
-    """Return JPEG encoded image."""
+    """Return JPEG encoded image.
+
+    If the encoded image does not fit into a provided `out` buffer, a new
+    bytes object is returned and the content of `out` is undefined.
+
+    """
     cdef:
         numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -117,6 +124,7 @@ def mozjpeg_encode(
         J_COLOR_SPACE jpeg_color_space = JCS_UNKNOWN
         unsigned long outsize = 0
         unsigned char* outbuffer = NULL
+        unsigned char* dstbuffer = NULL
         char[200] msg  # JMSG_LENGTH_MAX
         int h_samp_factor = 0
         int v_samp_factor = 0
@@ -125,6 +133,8 @@ def mozjpeg_encode(
         int quant_table = _default_value(quanttable, -1, 0, 5)
         bint no_trellis = bool(notrellis)
         bint optimize_scans = progressive is None or progressive
+        const uint8_t[::1] icc_
+        unsigned int iccsize = 0
         imagelayout_t layout
 
     _image_layout(
@@ -151,7 +161,7 @@ def mozjpeg_encode(
     rowstride = src.strides[0]
 
     if colorspace is not None:
-        in_color_space = _jcs_colorspace(colorspace)
+        in_color_space = _jcs_colorspace(colorspace, True)
         if not (
             _JCS_COLORSPACE_SAMPLES[in_color_space]
             & (1 << <int> layout.samples)
@@ -172,15 +182,18 @@ def mozjpeg_encode(
     if in_color_space == JCS_GRAYSCALE:
         jpeg_color_space = JCS_GRAYSCALE
     elif outcolorspace is not None:
-        jpeg_color_space = _jcs_colorspace(outcolorspace)
-    elif in_color_space == JCS_RGB or in_color_space == JCS_YCbCr:
+        jpeg_color_space = _jcs_colorspace(outcolorspace, True)
+    elif in_color_space == JCS_CMYK or in_color_space == JCS_YCCK:
+        jpeg_color_space = in_color_space
+    elif in_color_space != JCS_UNKNOWN:
+        # same as jpeg_default_colorspace
         jpeg_color_space = JCS_YCbCr
     else:
         jpeg_color_space = JCS_UNKNOWN
 
-    if subsampling is not None and (
-        jpeg_color_space == JCS_YCbCr or jpeg_color_space == JCS_YCCK
-    ):
+    if subsampling is not None:
+        if not isinstance(subsampling, str):
+            subsampling = tuple(subsampling)
         if subsampling in {'444', (1, 1)}:
             h_samp_factor = 1
             v_samp_factor = 1
@@ -197,7 +210,17 @@ def mozjpeg_encode(
             h_samp_factor = 1
             v_samp_factor = 2
         else:
-            raise ValueError('invalid subsampling')
+            raise ValueError(f'invalid {subsampling=!r}')
+        if jpeg_color_space != JCS_YCbCr and jpeg_color_space != JCS_YCCK:
+            # only chroma components can be subsampled
+            h_samp_factor = 0
+            v_samp_factor = 0
+
+    if iccprofile is not None:
+        icc_ = iccprofile
+        if <size_t> icc_.shape[0] > UINT32_MAX:
+            raise ValueError('iccprofile too large')
+        iccsize = <unsigned int> icc_.shape[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -209,9 +232,11 @@ def mozjpeg_encode(
         dstsize = dst.shape[0]
         outsize = <unsigned long> dst.nbytes  # validates overflow
         outbuffer = <unsigned char*> dst._data
+        dstbuffer = outbuffer
 
     with nogil:
         cinfo.err = jpeg_std_error(&err.pub)
+        cinfo.dest = NULL
         err.pub.error_exit = my_error_exit
         err.pub.output_message = my_output_message
 
@@ -219,7 +244,12 @@ def mozjpeg_encode(
             # msg = err.pub.jpeg_message_table[err.pub.msg_code]
             msg[0] = b'\x00'
             err.pub.format_message(<jpeg_common_struct*> &cinfo, &msg[0])
+            if cinfo.dest != NULL:
+                # set outbuffer to the buffer currently used by jpeg_mem_dest
+                cinfo.dest.term_destination(&cinfo)
             jpeg_destroy_compress(&cinfo)
+            if outbuffer != dstbuffer:
+                free(outbuffer)
             raise MozjpegError(msg.decode())
 
         jpeg_create_compress(&cinfo)
@@ -234,9 +264,13 @@ def mozjpeg_encode(
         jpeg_set_defaults(&cinfo)
         jpeg_set_colorspace(&cinfo, jpeg_color_space)
         if not optimize_scans:
+            jpeg_c_set_bool_param(&cinfo, JBOOLEAN_OPTIMIZE_SCANS, 0)
             cinfo.scan_info = NULL
             cinfo.num_scans = 0
-            # cinfo.optimize_scans = FALSE
+
+        if quant_table >= 0:
+            # must be set before jpeg_set_quality
+            jpeg_c_set_int_param(&cinfo, JINT_BASE_QUANT_TBL_IDX, quant_table)
 
         jpeg_mem_dest(&cinfo, &outbuffer, &outsize)  # must call after defaults
         jpeg_set_quality(&cinfo, quality, 1)
@@ -256,15 +290,17 @@ def mozjpeg_encode(
                 cinfo.comp_info[3].h_samp_factor = 1
                 cinfo.comp_info[3].v_samp_factor = 1
 
-        if quant_table >= 0:
-            jpeg_c_set_int_param(&cinfo, JINT_BASE_QUANT_TBL_IDX, quant_table)
-
         if no_trellis:
             jpeg_c_set_bool_param(&cinfo, JBOOLEAN_TRELLIS_QUANT, 0)
 
         # TODO: add option to use or return JPEG tables
 
         jpeg_start_compress(&cinfo, 1)
+
+        if iccsize > 0:
+            jpeg_write_icc_profile(
+                &cinfo, <const JOCTET*> icc_._data, iccsize
+            )
 
         while cinfo.next_scanline < cinfo.image_height:
             rowpointer8 = <JSAMPROW> (
@@ -278,6 +314,8 @@ def mozjpeg_encode(
     if out is None or outbuffer != <unsigned char*> dst._data:
         # outbuffer was allocated in jpeg_mem_dest
         try:
+            if out is not None and not outgiven:
+                raise ValueError(f'output too small {dstsize} < {outsize}')
             out = _create_output(
                 outtype, <ssize_t> outsize, <const char*> outbuffer
             )
@@ -287,132 +325,6 @@ def mozjpeg_encode(
 
     del dst
     return _return_output(out, dstsize, outsize, outgiven)
-
-
-def mozjpeg_decode(
-    data,
-    /,
-    *,
-    tables=None,
-    colorspace=None,
-    outcolorspace=None,
-    fancyupsampling=None,
-    shape=None,
-    out=None,
-):
-    """Return decoded JPEG image."""
-    cdef:
-        numpy.ndarray dst
-        const uint8_t[::1] src = data
-        const uint8_t[::1] tables_
-        unsigned long tablesize = 0
-        size_t srcsize = <size_t> src.shape[0]
-        ssize_t rowstride
-        my_error_mgr err
-        jpeg_decompress_struct cinfo
-        JSAMPROW rowpointer8
-        J_COLOR_SPACE jpeg_color_space
-        J_COLOR_SPACE out_color_space
-        JDIMENSION width = 0
-        JDIMENSION height = 0
-        int do_fancy_upsampling = 1
-        char[200] msg  # JMSG_LENGTH_MAX
-
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    if srcsize > ULONG_MAX:
-        raise ValueError(f'{srcsize=} > {ULONG_MAX}')
-
-    if colorspace is None:
-        jpeg_color_space = JCS_UNKNOWN
-    else:
-        jpeg_color_space = _jcs_colorspace(colorspace)
-
-    if outcolorspace is None:
-        out_color_space = jpeg_color_space
-    else:
-        out_color_space = _jcs_colorspace(outcolorspace)
-
-    if fancyupsampling is not None:
-        do_fancy_upsampling = 1 if fancyupsampling else 0
-
-    if tables is not None:
-        tables_ = tables
-        tablesize = <unsigned long> tables_.shape[0]
-        if tables_.shape[0] > INT32_MAX:
-            raise ValueError(f'table size > {INT32_MAX}')
-
-    if shape is not None and (shape[0] >= 65500 or shape[1] >= 65500):
-        # enable decoding of large (JPEG_MAX_DIMENSION <= 2^20) JPEG
-        # when using a patched jibjpeg-turbo
-        height = <JDIMENSION> shape[0]
-        width = <JDIMENSION> shape[1]
-
-    with nogil:
-        cinfo.err = jpeg_std_error(&err.pub)
-        err.pub.error_exit = my_error_exit
-        err.pub.output_message = my_output_message
-        if setjmp(err.setjmp_buffer):
-            # msg = err.pub.jpeg_message_table[err.pub.msg_code]
-            msg[0] = b'\x00'
-            err.pub.format_message(<jpeg_common_struct*> &cinfo, &msg[0])
-            jpeg_destroy_decompress(&cinfo)
-            raise MozjpegError(msg.decode())
-
-        jpeg_create_decompress(&cinfo)
-        if width > 0:
-            cinfo.image_width = width
-            cinfo.image_height = height
-
-        if tablesize > 0:
-            jpeg_mem_src(
-                &cinfo, <const unsigned char*> tables_._data, tablesize
-            )
-            jpeg_read_header(&cinfo, 0)  # == JPEG_HEADER_TABLES_ONLY
-
-        jpeg_mem_src(
-            &cinfo, <const unsigned char*> src._data, <unsigned long> srcsize
-        )
-        jpeg_read_header(&cinfo, 1)
-
-        cinfo.do_fancy_upsampling = do_fancy_upsampling
-
-        if jpeg_color_space != JCS_UNKNOWN:
-            cinfo.jpeg_color_space = jpeg_color_space
-        if out_color_space != JCS_UNKNOWN:
-            cinfo.out_color_space = out_color_space
-
-        jpeg_start_decompress(&cinfo)
-
-        with gil:
-            # if (cinfo.output_components not in
-            #     _jcs_colorspace_samples(out_color_space)):
-            #     raise ValueError('invalid output shape')
-
-            if cinfo.output_components > 1:
-                shape = (
-                    cinfo.output_height,
-                    cinfo.output_width,
-                    cinfo.output_components
-                )
-            else:
-                shape = cinfo.output_height, cinfo.output_width
-
-            # TODO: allow strides
-            out = _create_array(out, shape, numpy.uint8)
-            dst = out
-            rowstride = dst.strides[0]
-
-        rowpointer8 = <JSAMPROW> dst.data
-        while cinfo.output_scanline < cinfo.output_height:
-            jpeg_read_scanlines(&cinfo, &rowpointer8, 1)
-            rowpointer8 += rowstride
-
-        jpeg_finish_decompress(&cinfo)
-        jpeg_destroy_decompress(&cinfo)
-
-    return out
 
 
 ctypedef struct my_error_mgr:
@@ -449,7 +361,6 @@ cdef dict _JCS_COLORSPACE_SAMPLES = {
     JCS_EXT_BGRA: 0b10000,  # 4
     JCS_EXT_ABGR: 0b10000,  # 4
     JCS_EXT_ARGB: 0b10000,  # 4
-    JCS_RGB565: 0b01000,  # 3
 }
 
 cdef dict _JCS_COLORSPACE_MAP = {
@@ -473,7 +384,7 @@ cdef dict _JCS_COLORSPACE_MAP = {
     'BGRX': JCS_EXT_BGRX,
     'XBGR': JCS_EXT_XBGR,
     'XRGB': JCS_EXT_XRGB,
-    'RGB565': JCS_RGB565,
+    # 'RGB565': JCS_RGB565,
     JCS_UNKNOWN: JCS_UNKNOWN,
     JCS_GRAYSCALE: JCS_GRAYSCALE,
     JCS_RGB: JCS_RGB,
@@ -490,11 +401,14 @@ cdef dict _JCS_COLORSPACE_MAP = {
     JCS_EXT_BGRA: JCS_EXT_BGRA,
     JCS_EXT_ABGR: JCS_EXT_ABGR,
     JCS_EXT_ARGB: JCS_EXT_ARGB,
-    JCS_RGB565: JCS_RGB565,
+    # JCS_RGB565: JCS_RGB565,
 }
 
-cdef J_COLOR_SPACE _jcs_colorspace(colorspace):
+
+cdef J_COLOR_SPACE _jcs_colorspace(colorspace, bint strict=False):
     """Return JCS colorspace value from user input."""
     if isinstance(colorspace, str):
         colorspace = colorspace.upper()
+    if strict and colorspace not in _JCS_COLORSPACE_MAP:
+        raise ValueError(f'invalid {colorspace=!r}')
     return _JCS_COLORSPACE_MAP.get(colorspace, JCS_UNKNOWN)
