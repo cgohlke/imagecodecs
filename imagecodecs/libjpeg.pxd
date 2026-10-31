@@ -42,7 +42,11 @@ cdef extern from 'jpeglib.h' nogil:
         pass
 
     struct jpeg_destination_mgr:
-        pass
+        JOCTET* next_output_byte
+        size_t free_in_buffer
+        void init_destination(jpeg_compress_struct*) nogil
+        boolean empty_output_buffer(jpeg_compress_struct*) nogil
+        void term_destination(jpeg_compress_struct*) nogil
 
     int JMSG_LENGTH_MAX
 
@@ -61,6 +65,15 @@ cdef extern from 'jpeglib.h' nogil:
         int component_index
         int h_samp_factor
         int v_samp_factor
+
+    struct jpeg_marker_struct:
+        jpeg_marker_struct* next
+        unsigned int marker
+        unsigned int original_length
+        unsigned int data_length
+        JOCTET* data
+
+    ctypedef jpeg_marker_struct* jpeg_saved_marker_ptr
 
     struct jpeg_decompress_struct:
         jpeg_error_mgr* err
@@ -91,6 +104,11 @@ cdef extern from 'jpeglib.h' nogil:
         int actual_number_of_colors
         int data_precision
         double output_gamma
+        jpeg_saved_marker_ptr marker_list
+        jpeg_component_info* comp_info
+        boolean progressive_mode
+        boolean arith_code
+        unsigned int restart_interval
 
     struct jpeg_compress_struct:
         jpeg_error_mgr* err
@@ -198,15 +216,6 @@ cdef extern from 'jpeglib.h' nogil:
     )
 
     ctypedef JSAMPARRAY* JSAMPIMAGE
-
-    ctypedef jpeg_marker_struct* jpeg_saved_marker_ptr
-
-    ctypedef struct jpeg_marker_struct:
-        jpeg_marker_struct* next
-        unsigned int marker
-        unsigned int original_length
-        unsigned int data_length
-        JOCTET* data
 
     ctypedef struct jvirt_sarray_control:
         pass
