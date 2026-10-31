@@ -180,5 +180,5 @@ lzf_decompress (const void *const in_data,  unsigned int in_len,
     }
   while (ip < in_end);
 
-  return op - (u8 *)out_data;
+  return (unsigned int)(op - (u8 *)out_data);
 }
