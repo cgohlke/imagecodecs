@@ -152,6 +152,18 @@ class _TIFF:
         INCH = RESUNIT_INCH
         CENTIMETER = RESUNIT_CENTIMETER
 
+    class ORIENTATION(enum.IntEnum):
+        """TIFF codec image orientations."""
+
+        TOPLEFT = ORIENTATION_TOPLEFT
+        TOPRIGHT = ORIENTATION_TOPRIGHT
+        BOTRIGHT = ORIENTATION_BOTRIGHT
+        BOTLEFT = ORIENTATION_BOTLEFT
+        LEFTTOP = ORIENTATION_LEFTTOP
+        RIGHTTOP = ORIENTATION_RIGHTTOP
+        RIGHTBOT = ORIENTATION_RIGHTBOT
+        LEFTBOT = ORIENTATION_LEFTBOT
+
     class SUBCODEC(enum.IntEnum):
         """TIFF codec LERC additional compression schemes."""
 
@@ -187,21 +199,18 @@ def tiff_version():
     return 'libtiff ' + ver.decode().split('\n')[0].split()[-1]
 
 
-def tiff_check(const uint8_t[::1] data, /):
+def tiff_check(const uint8_t[::1] data not None, /):
     """Return whether data is TIFF encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
     return (
         # Classic
-        sig == b'II\x2A\x00'
-        or sig == b'MM\x00\x2A'
+        _startswith(data, b'II\x2A\x00')
+        or _startswith(data, b'MM\x00\x2A')
         # BigTiff
-        or sig == b'II\x2B\x00'
-        or sig == b'MM\x00\x2B'
+        or _startswith(data, b'II\x2B\x00')
+        or _startswith(data, b'MM\x00\x2B')
         # MDI
-        or sig == b'EP\x2A\x00'
-        or sig == b'PE\x00\x2A'
+        or _startswith(data, b'EP\x2A\x00')
+        or _startswith(data, b'PE\x00\x2A')
     )
 
 
@@ -234,11 +243,19 @@ def tiff_encode(
     appendto=None,
     out=None,
 ):
-    """Return TIFF encoded image."""
+    """Return TIFF encoded image.
+
+    PixarLog compressed files store BitsPerSample 8 regardless of input
+    dtype (libtiff behavior), so 16-bit and float data read back as uint8.
+
+    """
     cdef:
-        numpy.ndarray src = _array_input(data, out)
+        numpy.ndarray src = _array_input(
+            data, out, dtype=None, contig=True, empty=False, native=False
+        )
         numpy.ndarray pal
         const uint8_t[::1] buf  # must be const to write to bytes
+        const uint8_t[::1] icc_
         uint8_t* srcptr = <uint8_t*> src.data
         uint8_t* tile_ = NULL
         uint8_t* tile_packed_ = NULL
@@ -276,7 +293,7 @@ def tiff_encode(
         ssize_t photometric_samples = 1
         ssize_t palsize = 0
         ssize_t append_size = 0
-        uint32_t iccprofile_size = 0
+        uint32_t iccsize = 0
         uint32_t tile_width = 0
         uint32_t tile_length = 0
         double maxzerror = 0.0
@@ -287,7 +304,6 @@ def tiff_encode(
         char* description_ = NULL
         char* software_ = NULL
         char* datetime_ = NULL
-        char* iccprofile_ = NULL
         int ret
         bint bigendian = False
         imagelayout_t layout
@@ -416,8 +432,10 @@ def tiff_encode(
         palsize = 2**bitspersample_
 
     if iccprofile is not None:
-        iccprofile_ = iccprofile
-        iccprofile_size = <uint32_t> len(iccprofile)
+        icc_ = iccprofile
+        if <size_t> icc_.shape[0] > UINT32_MAX:
+            raise ValueError('iccprofile too large')
+        iccsize = <uint32_t> icc_.shape[0]
 
     if description is not None:
         if not isinstance(description, bytes):
@@ -442,7 +460,11 @@ def tiff_encode(
     # _image_layout handles string/int mapping for explicit photometric,
     # but TIFF's RGB auto-detect is stricter (uint + bps<=16 only)
     if photometric is not None:
-        photo_for_layout = photometric
+        if photometric_ == PHOTOMETRIC_MINISWHITE:
+            # TIFF photometric values match IC_PHOTO_* except MINISWHITE
+            photo_for_layout = IC_PHOTO_GRAY
+        else:
+            photo_for_layout = photometric_
     elif colormap is not None:
         photo_for_layout = IC_PHOTO_PALETTE
     elif (
@@ -849,9 +871,12 @@ def tiff_encode(
                 if ret == 0:
                     raise TiffError(memtifobj)
 
-                if iccprofile_ != NULL:
+                if iccsize > 0:
                     ret = TIFFSetField(
-                        tif, TIFFTAG_ICCPROFILE, iccprofile_size, iccprofile_
+                        tif,
+                        TIFFTAG_ICCPROFILE,
+                        iccsize,
+                        <const void*> icc_._data
                     )
                     if ret == 0:
                         raise TiffError(memtifobj)
@@ -987,6 +1012,7 @@ def tiff_decode(
     asrgb=False,
     verbose=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded TIFF image.
 
@@ -1035,11 +1061,11 @@ def tiff_decode(
         dirstep = 1
         dirlist = dirlist_new(64)
         dirlist_append(dirlist, dirstart)
-    elif index == 0 or isinstance(index, (int, numpy.integer)):
+    elif index == 0 or isinstance(index, int | numpy.integer):
         dirnum = index
         dirlist = dirlist_new(1)
         dirlist_append(dirlist, dirnum)
-    elif isinstance(index, (list, tuple, numpy.ndarray)):
+    elif isinstance(index, tuple | list | numpy.ndarray):
         if not 0 < len(index) < <ssize_t> TIFF_MAX_DIR_COUNT:
             raise ValueError('invalid index')
         try:
@@ -1109,7 +1135,7 @@ def tiff_decode(
             dirnum = dirlist.data[0]
             ret = _tiff_set_directory(tif, dirnum)
             if ret == 0:
-                raise IndexError('directory out of range')
+                raise IndexError(f'directory index={dirnum} out of range')
 
             page.asrgb = rgb
             ret = _tiff_decode_ifd(tif, &page)
@@ -1200,11 +1226,17 @@ def tiff_decode(
         shapeout = tuple(
             s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
         )
+        dtype = numpy.dtype(f'{page.dtype.decode()}{int(page.itemsize)}')
 
-        out = _create_array(
-            out, shapeout, f'{page.dtype.decode()}{int(page.itemsize)}'
-        )
-        out = out.reshape(shape)
+        if _info:
+            if not rgb and page.asrgb and page.truesamples > 0:
+                shape = shape[:5] + (int(page.truesamples),)
+                shapeout = tuple(
+                    s for i, s in enumerate(shape) if s > 1 or i in {3, 4}
+                )
+            return _tiff_info(tif, &page, shapeout, dtype, shape[5], images)
+
+        out = _create_array(out, shapeout, dtype).reshape(shape)
         outptr = <uint8_t*> numpy.PyArray_DATA(out)
         strides = numpy.PyArray_STRIDES(out)
         # out[:] = 0
@@ -1326,6 +1358,10 @@ def tiff_decode(
                         sizeleft -= size
                         if sizeleft <= 0:
                             break
+                    if sizeleft > 0:
+                        raise TiffError(
+                            f'incomplete strip data: {sizeleft} bytes missing'
+                        )
 
             else:
                 # read striped packed integers
@@ -1395,6 +1431,240 @@ def tiff_decode(
         out = out.reshape(shapeout)
 
     return out
+
+
+def tiff_info(
+    data,
+    /,
+    index=0,
+    *,
+    asrgb=False,
+    verbose=None,
+):
+    """Return information about TIFF image."""
+    return tiff_decode(
+        data,
+        index=index,
+        asrgb=asrgb,
+        verbose=verbose,
+        _info=True,
+    )
+
+
+cdef dict _tiff_info(
+    TIFF* tif,
+    page_t* page,
+    tuple shape,
+    dtype,
+    ssize_t samples,
+    ssize_t pages,
+):
+    """Return metadata of current IFD matching decoded array."""
+    cdef:
+        uint32_t value32 = 0
+        uint32_t tilewidth = 0
+        uint32_t tilelength = 0
+        uint32_t tiledepth = 0
+        uint32_t imagedepth = 1
+        uint32_t iccsize = 0
+        uint32_t jpegtablessize = 0
+        uint16_t value16 = 0
+        uint16_t subsampling_h = 0
+        uint16_t subsampling_v = 0
+        uint16_t nsubifds = 0
+        uint16_t compression = COMPRESSION_NONE
+        uint16_t photometric = PHOTOMETRIC_MINISWHITE
+        uint16_t extracount = 0
+        uint16_t* extravalues = NULL
+        uint16_t* red = NULL
+        uint16_t* green = NULL
+        uint16_t* blue = NULL
+        uint64_t* subifds = NULL
+        void* jpegtablesdata = NULL
+        void* iccdata = NULL
+        int subcodec = 0
+        float xresolution = 0.0
+        float yresolution = 0.0
+        ssize_t ncolors
+
+    TIFFGetFieldDefaulted(tif, TIFFTAG_COMPRESSION, &compression)
+    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photometric)
+
+    TIFFGetFieldDefaulted(tif, TIFFTAG_SUBFILETYPE, &value32)
+    subfiletype = _TIFF.FILETYPE(value32)
+
+    TIFFGetFieldDefaulted(tif, TIFFTAG_IMAGEDEPTH, &imagedepth)
+
+    extrasamples = ()
+    colormap = None
+    if page.asrgb:
+        # TIFFReadRGBAImage returns RGB(A) with associated alpha
+        photometric_ = _TIFF.PHOTOMETRIC.RGB
+        orientation = _TIFF.ORIENTATION.TOPLEFT
+        if samples > 3:
+            extrasamples = (_TIFF.EXTRASAMPLE.ASSOCALPHA,)
+        bitspersample = 8
+    else:
+        photometric_ = _enum_or_int(photometric, _TIFF.PHOTOMETRIC)
+        value16 = ORIENTATION_TOPLEFT
+        TIFFGetFieldDefaulted(tif, TIFFTAG_ORIENTATION, &value16)
+        orientation = _enum_or_int(value16, _TIFF.ORIENTATION)
+        if (
+            TIFFGetField(
+                tif, TIFFTAG_EXTRASAMPLES, &extracount, &extravalues
+            ) != 0
+            and extravalues != NULL
+        ):
+            extrasamples = tuple([
+                _enum_or_int(extravalues[i], _TIFF.EXTRASAMPLE)
+                for i in range(extracount)
+            ])
+        if page.dtype[0] == b'f' or page.dtype[0] == b'c':
+            # tiff_encode does not accept bitspersample for float data
+            bitspersample = None
+        elif page.bitspersample != 0:
+            bitspersample = int(page.bitspersample)
+        else:
+            bitspersample = int(page.itemsize * 8)
+        if (
+            photometric == PHOTOMETRIC_PALETTE
+            and bitspersample is not None
+            and bitspersample <= 16
+            and TIFFGetField(
+                tif, TIFFTAG_COLORMAP, &red, &green, &blue
+            ) != 0
+            and red != NULL
+            and green != NULL
+            and blue != NULL
+        ):
+            ncolors = 1 << bitspersample
+            colormap = numpy.empty((3, ncolors), numpy.uint16)
+            colormap[0] = <uint16_t[:ncolors]> red
+            colormap[1] = <uint16_t[:ncolors]> green
+            colormap[2] = <uint16_t[:ncolors]> blue
+
+    if page.planes > 1:
+        planarconfig = _TIFF.PLANARCONFIG.SEPARATE
+    else:
+        planarconfig = _TIFF.PLANARCONFIG.CONTIG
+
+    tile = None
+    rowsperstrip = None
+    if TIFFIsTiled(tif):
+        TIFFGetFieldDefaulted(tif, TIFFTAG_TILELENGTH, &tilelength)
+        TIFFGetFieldDefaulted(tif, TIFFTAG_TILEWIDTH, &tilewidth)
+        if (
+            TIFFGetField(tif, TIFFTAG_TILEDEPTH, &tiledepth) != 0
+            and (tiledepth > 1 or imagedepth > 1)
+        ):
+            tile = (int(tiledepth), int(tilelength), int(tilewidth))
+        else:
+            tile = (int(tilelength), int(tilewidth))
+    else:
+        TIFFGetFieldDefaulted(tif, TIFFTAG_ROWSPERSTRIP, &value32)
+        rowsperstrip = int(min(<ssize_t> value32, max(page.length, 1)))
+
+    subcodec_ = None
+    if compression == COMPRESSION_LERC:
+        if TIFFGetField(tif, TIFFTAG_LERC_ADD_COMPRESSION, &subcodec) != 0:
+            subcodec_ = _enum_or_int(subcodec, _TIFF.SUBCODEC)
+
+    predictor = None
+    if (
+        compression == COMPRESSION_LZW
+        or compression == COMPRESSION_ADOBE_DEFLATE
+        or compression == COMPRESSION_DEFLATE
+        or compression == COMPRESSION_ZSTD
+        or compression == COMPRESSION_LZMA
+    ):
+        # only query predictor for codecs using TIFFPredictorState
+        value16 = PREDICTOR_NONE
+        TIFFGetFieldDefaulted(tif, TIFFTAG_PREDICTOR, &value16)
+        predictor = _enum_or_int(value16, _TIFF.PREDICTOR)
+
+    iccprofile = None
+    if (
+        TIFFGetField(tif, TIFFTAG_ICCPROFILE, &iccsize, &iccdata) != 0
+        and iccdata != NULL
+        and iccsize > 0
+    ):
+        iccprofile = (<char*> iccdata)[:iccsize]
+
+    resolution = None
+    resolutionunit = None
+    if (
+        TIFFGetField(tif, TIFFTAG_XRESOLUTION, &xresolution) != 0
+        and TIFFGetField(tif, TIFFTAG_YRESOLUTION, &yresolution) != 0
+    ):
+        resolution = (float(xresolution), float(yresolution))
+        value16 = RESUNIT_INCH
+        TIFFGetFieldDefaulted(tif, TIFFTAG_RESOLUTIONUNIT, &value16)
+        resolutionunit = _enum_or_int(value16, _TIFF.RESUNIT)
+
+    subsampling = None
+    if photometric == PHOTOMETRIC_YCBCR and TIFFGetFieldDefaulted(
+        tif, TIFFTAG_YCBCRSUBSAMPLING, &subsampling_h, &subsampling_v
+    ):
+        subsampling = (int(subsampling_h), int(subsampling_v))
+
+    jpegtables = None
+    if (
+        compression == COMPRESSION_JPEG
+        and TIFFGetField(
+            tif, TIFFTAG_JPEGTABLES, &jpegtablessize, &jpegtablesdata
+        ) != 0
+        and jpegtablesdata != NULL
+        and jpegtablessize > 0
+    ):
+        jpegtables = (<char*> jpegtablesdata)[:jpegtablessize]
+
+    if TIFFGetField(tif, TIFFTAG_SUBIFD, &nsubifds, &subifds) == 0:
+        nsubifds = 0
+
+    return {
+        '_codec': 'tiff',
+        'shape': shape,
+        'dtype': dtype,
+        'pages': int(pages),
+        'imagewidth': int(page.width),
+        'imagelength': int(page.length),
+        'imagedepth': int(imagedepth),
+        'bigtiff': bool(TIFFIsBigTIFF(tif)),
+        'byteorder': '>' if TIFFIsBigEndian(tif) else '<',
+        'subfiletype': subfiletype,
+        'photometric': photometric_,
+        'planarconfig': planarconfig,
+        'extrasample': extrasamples[0] if extrasamples else None,
+        'extrasamples': extrasamples,
+        'orientation': orientation,
+        'subsampling': subsampling,
+        'volumetric': page.depth > 1,
+        'tile': tile,
+        'rowsperstrip': rowsperstrip,
+        'bitspersample': bitspersample,
+        'compression': _enum_or_int(compression, _TIFF.COMPRESSION),
+        'subcodec': subcodec_,
+        'predictor': predictor,
+        'jpegtables': jpegtables,
+        'subifds': int(nsubifds),
+        'colormap': colormap,
+        'iccprofile': iccprofile,
+        'resolution': resolution,
+        'resolutionunit': resolutionunit,
+        'description': _tiff_ascii(tif, TIFFTAG_IMAGEDESCRIPTION),
+        'datetime': _tiff_ascii(tif, TIFFTAG_DATETIME),
+        'software': _tiff_ascii(tif, TIFFTAG_SOFTWARE),
+    }
+
+
+cdef _tiff_ascii(TIFF* tif, uint32_t tag):
+    """Return ASCII tag value as str, or None if not set."""
+    cdef:
+        char* value = NULL
+
+    if TIFFGetField(tif, tag, &value) == 0 or value == NULL:
+        return None
+    return value.decode('utf-8', errors='replace')
 
 
 cdef inline int _tiff_set_directory(
@@ -1929,6 +2199,8 @@ cdef int _tiff_decode_tiled_packints(
         )
         if size < 0:
             return 0
+        if size != tile_packed_size:
+            return -2
         tp = tileindex // (tiledwidth * tiledlength * tileddepth)
         td = (tileindex // (tiledwidth * tiledlength)) % tileddepth * tiledepth
         tl = (tileindex // tiledwidth) % tiledlength * tilelength
@@ -2002,6 +2274,8 @@ cdef int _tiff_decode_strips_packints(
                 return <int> ret
             dst += items_per_row * page.itemsize
         rows_remaining -= actual_rows
+    if rows_remaining > 0:
+        return -2
     return 1
 
 
@@ -2240,6 +2514,12 @@ cdef toff_t memtif_TIFFSeekProc(
         memtif.fpos = memtif.flen + off
 
     if memtif.fpos > memtif.flen:
+        # zero gap bytes to ensure deterministic output
+        memset(
+            <void*> &memtif.data[memtif.flen],
+            0,
+            <size_t> (memtif.fpos - memtif.flen)
+        )
         memtif.flen = memtif.fpos
 
     return memtif.fpos
