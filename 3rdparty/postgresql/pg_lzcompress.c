@@ -298,7 +298,7 @@ do {									\
 			PGLZ_HistEntry *__myhe = &(_he)[_hn];							\
 			if (_recycle) {													\
 				if (__myhe->prev == NULL)									\
-					(_hs)[__myhe->hindex] = __myhe->next - (_he);			\
+					(_hs)[__myhe->hindex] = (int16) (__myhe->next - (_he));	\
 				else														\
 					__myhe->prev->next = __myhe->next;						\
 				if (__myhe->next != NULL)									\
@@ -725,6 +725,11 @@ pglz_decompress(const char *source, int32 slen, char *dest,
 				int32		len;
 				int32		off;
 
+				/* imagecodecs: do not read tag bytes past the end of source */
+				if (srcend - sp < 2 ||
+					((sp[0] & 0x0f) == 0x0f && srcend - sp < 3))
+					return -1;
+
 				len = (sp[0] & 0x0f) + 3;
 				off = ((sp[0] & 0xf0) << 4) | sp[1];
 				sp += 2;
@@ -823,6 +828,56 @@ pglz_decompress(const char *source, int32 slen, char *dest,
 	 * That's it.
 	 */
 	return (int32)((char *) dp - dest);
+}
+
+
+/* ----------
+ * pglz_decompressed_size -
+ *
+ *		imagecodecs: return the number of bytes pglz_decompress would produce
+ *		from the complete source, or -1 if the source is corrupted.
+ * ----------
+ */
+int64
+pglz_decompressed_size(const char *source, int32 slen)
+{
+	const unsigned char *sp = (const unsigned char *) source;
+	const unsigned char *srcend = sp + slen;
+	int64		size = 0;
+
+	while (sp < srcend)
+	{
+		unsigned char ctrl = *sp++;
+		int			ctrlc;
+
+		for (ctrlc = 0; ctrlc < 8 && sp < srcend; ctrlc++)
+		{
+			if (ctrl & 1)
+			{
+				int32		len;
+				int32		off;
+
+				if (srcend - sp < 2 ||
+					((sp[0] & 0x0f) == 0x0f && srcend - sp < 3))
+					return -1;
+				len = (sp[0] & 0x0f) + 3;
+				off = ((sp[0] & 0xf0) << 4) | sp[1];
+				sp += 2;
+				if (len == 18)
+					len += *sp++;
+				if (off == 0 || off > size)
+					return -1;
+				size += len;
+			}
+			else
+			{
+				sp++;
+				size++;
+			}
+			ctrl >>= 1;
+		}
+	}
+	return size;
 }
 
 
