@@ -59,6 +59,7 @@ class LjpegError(RuntimeError):
             LJ92_ERROR_BAD_HANDLE: 'LJ92_ERROR_BAD_HANDLE',
             LJ92_ERROR_TOO_WIDE: 'LJ92_ERROR_TOO_WIDE',
             LJ92_ERROR_ENCODER: 'LJ92_ERROR_ENCODER',
+            LJ92_ERROR_UNSUPPORTED: 'LJ92_ERROR_UNSUPPORTED',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -69,9 +70,11 @@ def ljpeg_version():
     return 'liblj92 ' + LJ92_VERSION.decode()
 
 
-def ljpeg_check(const uint8_t[::1] data, /):
+def ljpeg_check(const uint8_t[::1] data not None, /):
     """Return whether data is LJPEG encoded image or None if unknown."""
-    return None if data.shape[0] > 10 else False
+    if data.shape[0] <= 10 or not _startswith(data, b'\xff\xd8'):
+        return False
+    return None
 
 
 def ljpeg_encode(
@@ -101,12 +104,10 @@ def ljpeg_encode(
 
     if not (
         src.dtype in {numpy.uint8, numpy.uint16}
-        and src.dtype.byteorder != '>'
-        and src.size > 0
         and src.ndim in {2, 3}
         and samples == 1  # {1, 3, 4}  RGB does not work correctly
-        and src.shape[0] * src.shape[1] <= INT32_MAX
-        # and numpy.PyArray_ISCONTIGUOUS(src)  # TODO: support strides
+        and src.shape[0] <= INT32_MAX
+        and src.shape[1] <= INT32_MAX
     ):
         raise ValueError('invalid data shape or dtype')
 
@@ -118,19 +119,23 @@ def ljpeg_encode(
     height = <int> src.shape[0]
     width = <int> src.shape[1]
 
-    if bitspersample is None or src_dtype == numpy.uint8:
+    if bitspersample is None:
         bitdepth = src_dtype.itemsize * 8
-    elif 8 <= bitspersample <= 16:
+    elif 8 <= bitspersample <= src_dtype.itemsize * 8:
         bitdepth = bitspersample
     else:
-        raise ValueError('invalid bitspersample')
+        raise ValueError(f'invalid {bitspersample=}')
 
     if delinearize is not None:
         table = numpy.asarray(delinearize, order='C')
-        if table.ndim != 1 or table.dtype != numpy.uint16:
+        if (
+            table.ndim != 1
+            or table.dtype != numpy.uint16
+            or table.size == 0
+        ):
             raise ValueError('invalid delinearize shape or dtype')
         delinearize_table = <uint16_t*> table.data
-        delinearize_length = <int> table.size
+        delinearize_length = <int> min(table.size, 65536)
 
     with nogil:
         ret = lj92_encode(
@@ -139,7 +144,7 @@ def ljpeg_encode(
             height,
             bitdepth,
             samples,
-            height * width * samples,
+            width * samples,
             0,
             delinearize_table,
             delinearize_length,
@@ -160,12 +165,12 @@ def ljpeg_encode(
 
         dst = out
         dstsize = dst.shape[0]
+        if dstsize < <ssize_t> encoded_length:
+            raise ValueError(
+                f'output too small {dstsize} < {encoded_length}'
+            )
 
-        memcpy(
-            <void*> dst._data,
-            <const void*> encoded,
-            min(dstsize, encoded_length)
-        )
+        memcpy(<void*> dst._data, <const void*> encoded, encoded_length)
     finally:
         free(encoded)
 
@@ -194,7 +199,8 @@ def ljpeg_decode(
         int bitdepth = 0
         int components = 0
         int ret = LJ92_ERROR_NONE
-        lj92 lj
+        bint uint8_output
+        lj92 lj = NULL
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -204,10 +210,14 @@ def ljpeg_decode(
 
     if linearize is not None:
         table = numpy.asarray(linearize, order='C')
-        if table.ndim != 1 or table.dtype != numpy.uint16:
+        if (
+            table.ndim != 1
+            or table.dtype != numpy.uint16
+            or table.size == 0
+        ):
             raise ValueError('invalid linearize shape or dtype')
         linearize_table = <uint16_t*> table.data
-        linearize_length = <int> table.size
+        linearize_length = <int> min(table.size, 65536)
 
     with nogil:
         ret = lj92_open(
@@ -228,7 +238,12 @@ def ljpeg_decode(
         else:
             shape = int(height), int(width)
 
-        if bitdepth > 8:
+        uint8_output = bitdepth <= 8 and (
+            linearize_table == NULL
+            or table[: (<ssize_t> 1) << bitdepth].max() <= 255
+        )
+
+        if not uint8_output:
             dst = _create_array(out, shape, numpy.uint16)
         else:
             dst = numpy.empty(shape, numpy.uint16)
@@ -239,7 +254,7 @@ def ljpeg_decode(
             ret = lj92_decode(
                 lj,
                 target,
-                width * height * components,
+                width * components,
                 0,
                 linearize_table,
                 linearize_length,
@@ -249,7 +264,7 @@ def ljpeg_decode(
     finally:
         lj92_close(lj)
 
-    if bitdepth > 8:
+    if not uint8_output:
         return dst
     if out is None:
         return dst.astype(numpy.uint8)
