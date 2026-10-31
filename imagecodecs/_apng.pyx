@@ -57,6 +57,7 @@ class APNG:
         GRAY_ALPHA = PNG_COLOR_TYPE_GRAY_ALPHA
         RGB = PNG_COLOR_TYPE_RGB
         RGB_ALPHA = PNG_COLOR_TYPE_RGB_ALPHA
+        PALETTE = PNG_COLOR_TYPE_PALETTE
 
     class COMPRESSION(enum.IntEnum):
         """APNG codec compression levels."""
@@ -75,7 +76,7 @@ class APNG:
         RLE = Z_RLE
         FIXED = Z_FIXED
 
-    class FILTER(enum.IntEnum):  # IntFlag
+    class FILTER(enum.IntFlag):
         """APNG codec filters."""
 
         NO = PNG_NO_FILTERS
@@ -157,7 +158,7 @@ def apng_version():
     return 'libpng_apng ' + PNG_LIBPNG_VER_STRING.decode()
 
 
-def apng_check(const uint8_t[::1] data, /):
+def apng_check(const uint8_t[::1] data not None, /):
     """Return whether data is APNG encoded image or None if unknown."""
     return (
         data.shape[0] >= 8
@@ -181,8 +182,8 @@ def apng_encode(
 ):
     """Return APNG encoded image.
 
-    The delay parameter specifies the frame delay in milliseconds
-    (numerator with a fixed denominator of 1000).
+    The delay parameter specifies the frame delay in milliseconds.
+    Delays above 65535 ms are stored with reduced precision.
 
     For fast encoding, matching OpenCV settings, set:
 
@@ -197,7 +198,6 @@ def apng_encode(
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
         ssize_t row, rowstride
-        png_bytep rowptr = NULL
         int color_type = PNG_COLOR_TYPE_GRAY
         int level_ = _default_value(
             level, Z_DEFAULT_COMPRESSION, -1, Z_BEST_COMPRESSION
@@ -209,15 +209,32 @@ def apng_encode(
             Z_FIXED
         )
         int filter_ = _enum_value(filter, APNG.FILTER, -1)
-        png_uint_16 delay_num = _default_value(delay, 1000, 1, 3600000)
+        int delay_ = _default_value(delay, 1000, 0, 3600000)
         int primaries_ = -1
         int transfer_ = -1
         int matrix_ = -1
+        png_uint_16 delay_num
+        png_uint_16 delay_den
+        png_bytep rowptr = NULL
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
         png_bytepp rowpointers = NULL
         mempng_t mempng
         imagelayout_t layout
+
+    hasalpha = None
+    if photometric is not None:
+        photometric = _enum_value(photometric, APNG.COLOR_TYPE)
+        if photometric == APNG.COLOR_TYPE.GRAY:
+            photometric, hasalpha = 'GRAY', False
+        elif photometric == APNG.COLOR_TYPE.GRAY_ALPHA:
+            photometric, hasalpha = 'GRAY', True
+        elif photometric == APNG.COLOR_TYPE.RGB:
+            photometric, hasalpha = 'RGB', False
+        elif photometric == APNG.COLOR_TYPE.RGB_ALPHA:
+            photometric, hasalpha = 'RGB', True
+        else:
+            raise ValueError(f'{photometric=!r} not supported')
 
     _image_layout(
         IC_UINT | IC_SZ1 | IC_SZ2 | IC_GRAY | IC_RGB | IC_ALPHA | IC_FRAMES,
@@ -229,9 +246,12 @@ def apng_encode(
         None,  # planar
         None,  # frames
         None,  # volumetric
-        None,  # extrasample
+        'UNASSALPHA' if hasalpha else None,
         &layout,
     )
+
+    if hasalpha is not None and hasalpha != (layout.extracount > 0):
+        raise ValueError('photometric color type does not match data shape')
 
     if not (
         layout.height > 0
@@ -245,11 +265,9 @@ def apng_encode(
     if out is None:
         if dstsize < 0:
             # TODO: use dynamic mempng
-            dstsize = _apng_size_max(srcsize, layout.frames)
+            dstsize = _apng_size_max(srcsize, layout.frames, layout.height)
         out = _create_output(outtype, dstsize)
-        mempng.owner = 0
-    else:
-        mempng.owner = 0
+    mempng.owner = 0
 
     dst = out
     dstsize = dst.shape[0]
@@ -260,6 +278,19 @@ def apng_encode(
     primaries_ = _enum_value(primaries, APNG.COLOR_PRIMARIES, -1)
     transfer_ = _enum_value(transfer, APNG.TRANSFER_CHARACTERISTICS, -1)
     matrix_ = _enum_value(matrix, APNG.MATRIX_COEFFICIENTS, -1)
+    if matrix_ > 0:
+        # PNG only supports RGB (identity) cICP matrix coefficients
+        raise ValueError(f'{matrix=!r} not supported')
+
+    if delay_ <= 65535:
+        delay_num = <png_uint_16> delay_
+        delay_den = 1000
+    elif delay_ <= 655350:
+        delay_num = <png_uint_16> ((delay_ + 5) // 10)
+        delay_den = 100
+    else:
+        delay_num = <png_uint_16> ((delay_ + 50) // 100)
+        delay_den = 10
 
     try:
         with nogil:
@@ -276,6 +307,11 @@ def apng_encode(
                 color_type = PNG_COLOR_TYPE_RGB
             elif layout.samples == 4:
                 color_type = PNG_COLOR_TYPE_RGB_ALPHA
+
+            # allocate before setjmp. locals modified after it are clobbered
+            rowpointers = <png_bytepp> calloc(layout.height, sizeof(png_bytep))
+            if rowpointers == NULL:
+                raise MemoryError('failed to allocate row pointers')
 
             png_ptr = png_create_write_struct(
                 PNG_LIBPNG_VER_STRING,
@@ -323,9 +359,10 @@ def apng_encode(
                     info_ptr,
                     <png_byte> (primaries_ if primaries_ >= 0 else 2),
                     <png_byte> (transfer_ if transfer_ >= 0 else 2),
-                    <png_byte> (matrix_ if matrix_ >= 0 else 2),
+                    0,
                     1
                 )
+
             png_write_info(png_ptr, info_ptr)
             png_set_compression_level(png_ptr, level_)
             png_set_compression_strategy(png_ptr, strategy_)
@@ -333,10 +370,6 @@ def apng_encode(
                 png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, filter_)
             if layout.bitspersample > 8:
                 png_set_swap(png_ptr)
-
-            rowpointers = <png_bytepp> calloc(layout.height, sizeof(png_bytep))
-            if rowpointers == NULL:
-                raise MemoryError('failed to allocate row pointers')
 
             for _frame in range(layout.frames):
                 for row in range(layout.height):
@@ -352,7 +385,7 @@ def apng_encode(
                         0,
                         0,
                         delay_num,
-                        1000,
+                        delay_den,
                         PNG_DISPOSE_OP_NONE,
                         PNG_BLEND_OP_SOURCE
                     )
@@ -380,20 +413,21 @@ def apng_decode(
     index=None,
     *,
     out=None,
+    bint _info=False,
 ):
     """Return decoded APNG image.
 
     By default, all images in the file are returned in one array, including
     hidden frames and those not part of the animation.
-    If an image index >= 0 is specified, ignore the disposal and blending
+    If an image index is specified, ignore the disposal and blending
     modes and return the frame data on black background.
+    Negative indices count from the last frame.
 
     """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        int samples = 0
         mempng_t mempng
         png_structp png_ptr = NULL
         png_infop info_ptr = NULL
@@ -410,17 +444,24 @@ def apng_decode(
         png_uint_16 frame_delay_den = 0
         png_byte frame_dispose_op = 0
         png_byte frame_blend_op = 0
-        int bit_depth = 0
-        int color_type = -1
         png_bytepp rowpointers = NULL
         png_bytep rowptr
         png_bytep dataptr
         png_bytep framebuffer = NULL
+        png_bytep prevbuffer = NULL
+        png_bytep bufptr
+        int samples = 0
+        int bit_depth = 0
+        int color_type = -1
         ssize_t rowstride
+        ssize_t regionstride
         ssize_t itemsize
         ssize_t frameindex = -1 if index is None else index
         ssize_t frame = 0
         ssize_t framesize = 0
+        ssize_t first = 0
+        bint allframes = index is None
+        bint hidden = False
         bint isapng
 
     if data is out:
@@ -505,18 +546,31 @@ def apng_decode(
                     isapng = False
                 else:
                     isapng = True
+                    # libpng counts the hidden default image in num_frames
+                    hidden = png_get_first_frame_is_hidden(
+                        png_ptr, info_ptr
+                    ) != 0
+                    first = 1 if hidden else 0
             else:
                 numframes = 1
                 isapng = False
 
-            if frameindex >= 0 and frameindex >= <ssize_t> numframes:
-                raise IndexError(
-                    f'{frameindex=} out of range [0, {numframes}]'
-                )
+            if not allframes:
+                if (
+                    frameindex < -<ssize_t> numframes
+                    or frameindex >= <ssize_t> numframes
+                ):
+                    raise IndexError(
+                        f'frame index={frameindex} out of range '
+                        f'[-{numframes}, {numframes})'
+                    )
+                if frameindex < 0:
+                    frameindex += <ssize_t> numframes
 
             if png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS):
                 png_set_tRNS_to_alpha(png_ptr)
 
+            png_set_interlace_handling(png_ptr)
             png_read_update_info(png_ptr, info_ptr)
 
             samples = <int> (
@@ -534,6 +588,15 @@ def apng_decode(
         else:
             shape = int(numframes), int(height), int(width)
 
+        if _info:
+            return {
+                '_codec': 'apng',
+                'shape': shape,
+                'dtype': dtype,
+                'photometric': 'gray' if samples <= 2 else 'rgb',
+                **_apng_info(png_ptr, info_ptr, color_type, bit_depth),
+            }
+
         out = _create_array(out, shape, dtype, strides=None, zero=True)
         dst = out
         dataptr = <png_bytep> dst.data
@@ -546,9 +609,24 @@ def apng_decode(
             frame_x_offset = 0
             frame_y_offset = 0
 
+            # allocate before setjmp; locals modified after it are clobbered
             rowpointers = <png_bytepp> calloc(height, sizeof(png_bytep))
             if rowpointers == NULL:
                 raise MemoryError('failed to allocate row pointers')
+            if frameindex > 0 or (frameindex < 0 and numframes > 1):
+                framebuffer = <png_bytep> malloc(framesize)
+                if framebuffer == NULL:
+                    raise MemoryError('failed to allocate framebuffer')
+            if frameindex < 0 and numframes > 2:
+                prevbuffer = <png_bytep> malloc(framesize)
+                if prevbuffer == NULL:
+                    raise MemoryError('failed to allocate prevbuffer')
+
+            # re-arm error handler for this block
+            if setjmp(png_jmpbuf(png_ptr)):
+                if mempng.error != NULL:
+                    raise ApngError(mempng.error.decode().strip())
+                raise ApngError('unknown error')
 
             for frame in range(<ssize_t> numframes):
                 # TODO: add option to skip hidden frames
@@ -570,21 +648,17 @@ def apng_decode(
                         &frame_blend_op
                     )
                 elif frame != 0:
-                    raise RuntimeError(f'{frame=} has no PNG_INFO_fcTL')
-                # elif not apng:
-                # TODO: skip default image, which is not part of the animation
+                    raise ApngError(f'{frame=} has no fcTL chunk')
+
+                regionstride = frame_width * samples * itemsize
 
                 if frame < frameindex:
                     # skip image
                     # TODO: do not decode image
-                    if framebuffer == NULL:
-                        framebuffer = <png_bytep> malloc(framesize)
-                        if framebuffer == NULL:
-                            raise MemoryError('failed to allocate framebuffer')
-                        rowptr = framebuffer
-                        for row in range(height):
-                            rowpointers[row] = rowptr
-                            rowptr += rowstride
+                    rowptr = framebuffer
+                    for row in range(frame_height):
+                        rowpointers[row] = rowptr
+                        rowptr += rowstride
                     png_read_image(png_ptr, rowpointers)
                     continue
 
@@ -602,10 +676,32 @@ def apng_decode(
                     break
 
                 if (
+                    frame_dispose_op == PNG_DISPOSE_OP_PREVIOUS
+                    and frame > first
+                    and frame < <ssize_t> numframes - 1
+                ):
+                    # save canvas region before it is drawn over
+                    rowptr = (
+                        dataptr
+                        + frame * framesize
+                        + frame_y_offset * rowstride
+                        + frame_x_offset * samples * itemsize
+                    )
+                    bufptr = prevbuffer
+                    for _row in range(frame_height):
+                        memcpy(
+                            <void*> bufptr,
+                            <const void*> rowptr,
+                            <size_t> regionstride
+                        )
+                        rowptr += rowstride
+                        bufptr += regionstride
+
+                if (
                     frame_blend_op == PNG_BLEND_OP_SOURCE
                     or samples == 1
                     or samples == 3
-                    or frame == 0
+                    or frame <= first
                 ):
                     # overwrite output buffer with frame content
                     rowptr = (
@@ -622,14 +718,10 @@ def apng_decode(
                 elif frame_blend_op == PNG_BLEND_OP_OVER:
                     # composite frame onto output buffer based on its alpha
                     # read frame into buffer
-                    if framebuffer == NULL:
-                        framebuffer = <png_bytep> malloc(framesize)
-                        if framebuffer == NULL:
-                            raise MemoryError('failed to allocate framebuffer')
                     rowptr = framebuffer
                     for row in range(frame_height):
                         rowpointers[row] = rowptr
-                        rowptr += frame_width * samples * itemsize
+                        rowptr += regionstride
                     png_read_image(png_ptr, rowpointers)
                     # composition
                     rowptr = (
@@ -658,9 +750,13 @@ def apng_decode(
                             <const ssize_t> samples
                         )
                 else:
-                    raise ValueError(f'invalid {frame_blend_op=}')
+                    raise ApngError(f'invalid {frame_blend_op=}')
 
                 if frame == numframes - 1:
+                    continue
+
+                if frame < first:
+                    # hidden default image is not part of the animation
                     continue
 
                 # TODO: do not dispose if next frame is covering this frame
@@ -674,7 +770,7 @@ def apng_decode(
 
                 elif (
                     frame_dispose_op == PNG_DISPOSE_OP_BACKGROUND
-                    or frame == 0
+                    or frame == first
                 ):
                     memcpy(
                         <void*> (dataptr + (frame + 1) * framesize),
@@ -685,20 +781,41 @@ def apng_decode(
                         memset(
                             <void*> (rowpointers[row] + framesize),
                             0,
-                            <size_t> (frame_width * samples * itemsize),
+                            <size_t> regionstride,
                         )
 
                 elif frame_dispose_op == PNG_DISPOSE_OP_PREVIOUS:
                     memcpy(
                         <void*> (dataptr + (frame + 1) * framesize),
-                        <const void*> (dataptr + (frame - 1) * framesize),
+                        <const void*> (dataptr + frame * framesize),
                         framesize
                     )
+                    rowptr = (
+                        dataptr
+                        + (frame + 1) * framesize
+                        + frame_y_offset * rowstride
+                        + frame_x_offset * samples * itemsize
+                    )
+                    bufptr = prevbuffer
+                    for _row in range(frame_height):
+                        memcpy(
+                            <void*> rowptr,
+                            <const void*> bufptr,
+                            <size_t> regionstride
+                        )
+                        rowptr += rowstride
+                        bufptr += regionstride
 
                 else:
-                    raise ValueError(f'invalid {frame_dispose_op=}')
+                    raise ApngError(f'invalid {frame_dispose_op=}')
+
+            # frames remain unread if decoding stopped at an earlier frame
+            if frameindex < 0 or frameindex == <ssize_t> numframes - 1:
+                png_read_end(png_ptr, NULL)
 
     finally:
+        if prevbuffer != NULL:
+            free(prevbuffer)
         if framebuffer != NULL:
             free(framebuffer)
         if rowpointers != NULL:
@@ -711,6 +828,121 @@ def apng_decode(
     return out
 
 
+def apng_info(data, /, index=0):
+    """Return information about APNG image."""
+    return apng_decode(data, index=index, _info=True)
+
+
+cdef dict _apng_info(
+    png_structp png_ptr,
+    png_infop info_ptr,
+    int color_type,
+    int bit_depth,
+):
+    """Return metadata from PNG chunks preceding IDAT."""
+    cdef:
+        png_color_8p sig_bit = NULL
+        png_charp iccname = NULL
+        png_bytep iccdata = NULL
+        png_uint_32 icclen = 0
+        png_uint_32 res_x = 0
+        png_uint_32 res_y = 0
+        png_byte primaries = 0
+        png_byte transfer = 0
+        png_byte matrix = 0
+        png_byte fullrange = 0
+        png_uint_32 numframes = 0
+        png_uint_16 delay_num = 0
+        png_uint_16 delay_den = 0
+        int icccomp = 0
+        int unit_type = 0
+        bint has_cicp
+        bint isapng = False
+
+    has_cicp = png_get_cICP(
+        png_ptr, info_ptr, &primaries, &transfer, &matrix, &fullrange
+    ) != 0
+
+    if png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL):
+        numframes = png_get_num_frames(png_ptr, info_ptr)
+        isapng = numframes > 0
+
+    delay = None
+    # fcTL of default image precedes IDAT
+    if png_get_valid(png_ptr, info_ptr, PNG_INFO_fcTL):
+        delay_num = png_get_next_frame_delay_num(png_ptr, info_ptr)
+        delay_den = png_get_next_frame_delay_den(png_ptr, info_ptr)
+        if delay_den == 0:
+            delay_den = 100
+        delay = (delay_num * 1000 + delay_den // 2) // delay_den
+
+    if png_get_sBIT(png_ptr, info_ptr, &sig_bit) and sig_bit != NULL:
+        if color_type in {
+            PNG_COLOR_TYPE_RGB,
+            PNG_COLOR_TYPE_RGB_ALPHA,
+            PNG_COLOR_TYPE_PALETTE,
+        }:
+            bitspersample = int(
+                max(sig_bit.red, sig_bit.green, sig_bit.blue)
+            )
+        else:
+            bitspersample = int(sig_bit.gray)
+    elif color_type == PNG_COLOR_TYPE_PALETTE:
+        bitspersample = 8
+    else:
+        bitspersample = bit_depth
+
+    iccprofile = None
+    if (
+        png_get_iCCP(
+            png_ptr, info_ptr, &iccname, &icccomp, &iccdata, &icclen
+        )
+        and iccdata != NULL
+    ):
+        iccprofile = iccdata[:icclen]
+
+    resolution = None
+    resolutionunit = None
+    if png_get_pHYs(png_ptr, info_ptr, &res_x, &res_y, &unit_type):
+        resolution = (int(res_x), int(res_y))
+        if unit_type == PNG_RESOLUTION_METER:
+            resolutionunit = 'meter'
+
+    return {
+        'frames': int(numframes) if isapng else 1,
+        'bitspersample': bitspersample,
+        'bit_depth': bit_depth,
+        'color_type': _enum_or_int(color_type, APNG.COLOR_TYPE),
+        'interlace': (
+            png_get_interlace_type(png_ptr, info_ptr) == PNG_INTERLACE_ADAM7
+        ),
+        'resolution': resolution,
+        'resolutionunit': resolutionunit,
+        'primaries': (
+            _enum_or_int(primaries, APNG.COLOR_PRIMARIES) if has_cicp else None
+        ),
+        'transfer': (
+            _enum_or_int(transfer, APNG.TRANSFER_CHARACTERISTICS)
+            if has_cicp
+            else None
+        ),
+        'matrix': (
+            _enum_or_int(matrix, APNG.MATRIX_COEFFICIENTS)
+            if has_cicp
+            else None
+        ),
+        'fullrange': bool(fullrange) if has_cicp else None,
+        'iccprofile': iccprofile,
+        'delay': delay,
+        'num_plays': (
+            int(png_get_num_plays(png_ptr, info_ptr)) if isapng else None
+        ),
+        'first_frame_hidden': (
+            isapng and png_get_first_frame_is_hidden(png_ptr, info_ptr) != 0
+        ),
+    }
+
+
 cdef void png_composite_uint8(
     png_bytepp background_rowpointers,
     const png_bytep foreground,
@@ -721,7 +953,7 @@ cdef void png_composite_uint8(
     """Composite foreground image against background image."""
     cdef:
         png_bytep background
-        png_byte alpha
+        uint32_t alpha, u, v, al
         ssize_t row, _col, i, j, _s
 
     i = 0
@@ -734,21 +966,25 @@ cdef void png_composite_uint8(
                 i += samples
                 j += samples
                 continue
-            if alpha == 255:
+            if alpha == 255 or background[j + samples - 1] == 0:
                 for _s in range(samples):
                     background[j] = foreground[i]
                     i += 1
                     j += 1
                 continue
-            for _s in range(samples):
-                png_composite(
-                    background[j],
-                    foreground[i],
-                    alpha,
-                    background[j]
+            # non-premultiplied OVER per APNG specification
+            u = alpha * 255
+            v = (255 - alpha) * background[j + samples - 1]
+            al = u + v
+            for _s in range(samples - 1):
+                background[j] = <png_byte> (
+                    (foreground[i] * u + background[j] * v) // al
                 )
                 i += 1
                 j += 1
+            background[j] = <png_byte> (al // 255)
+            i += 1
+            j += 1
 
 
 cdef void png_composite_uint16(
@@ -761,7 +997,7 @@ cdef void png_composite_uint16(
     """Composite foreground image against background image."""
     cdef:
         png_uint_16p background
-        png_uint_16 alpha
+        uint64_t alpha, u, v, al
         ssize_t row, _col, i, j, _s
 
     i = 0
@@ -774,21 +1010,25 @@ cdef void png_composite_uint16(
                 i += samples
                 j += samples
                 continue
-            if alpha == 65535:
+            if alpha == 65535 or background[j + samples - 1] == 0:
                 for _s in range(samples):
                     background[j] = foreground[i]
                     i += 1
                     j += 1
                 continue
-            for _s in range(samples):
-                png_composite_16(
-                    background[j],
-                    foreground[i],
-                    alpha,
-                    background[j]
+            # non-premultiplied OVER per APNG specification
+            u = alpha * 65535
+            v = (65535 - alpha) * background[j + samples - 1]
+            al = u + v
+            for _s in range(samples - 1):
+                background[j] = <png_uint_16> (
+                    (foreground[i] * u + background[j] * v) // al
                 )
                 i += 1
                 j += 1
+            background[j] = <png_uint_16> (al // 65535)
+            i += 1
+            j += 1
 
 
 cdef void png_error_callback(
@@ -832,11 +1072,12 @@ cdef void png_read_data_fn(
         mempng_t* mempng = <mempng_t*> png_get_io_ptr(png_ptr)
 
     if mempng == NULL:
+        png_error(png_ptr, b'png_read_data_fn invalid io pointer')
         return
-    if mempng.offset >= mempng.size:
-        return
-    if size > mempng.size - mempng.offset:
-        # size = mempng.size - mempng.offset
+    if (
+        mempng.offset > mempng.size
+        or size > mempng.size - mempng.offset
+    ):
         png_error(png_ptr, b'png_read_data_fn input stream too small')
         return
     memcpy(
@@ -859,8 +1100,6 @@ cdef void png_write_data_fn(
         png_bytep tmp
 
     if mempng == NULL:
-        return
-    if mempng.offset >= mempng.size:
         return
     if size > mempng.size - mempng.offset:
         if not mempng.owner:
@@ -888,10 +1127,13 @@ cdef void png_output_flush_fn(png_structp png_ptr) noexcept nogil:
     """APNG flush callback function."""
 
 
-cdef ssize_t _apng_size_max(ssize_t size, ssize_t frames) noexcept nogil:
+cdef ssize_t _apng_size_max(
+    ssize_t size, ssize_t frames, ssize_t height
+) noexcept nogil:
     """Return upper bound size of APNG stream from uncompressed image size."""
     # TODO: review this
     size = (size + frames - 1) / frames  # ceiling division per frame
+    size += height  # filter type byte per row
     size += ((size + 7) >> 3) + ((size + 63) >> 6) + 11  # ZLIB compression
     size += 12 * (size / PNG_ZBUF_SIZE + 1)  # IDAT
     size += 8 + 25 + 16 + 44 + 12 + 64  # sig IHDR gAMA cHRM IEND
