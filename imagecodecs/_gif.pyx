@@ -73,12 +73,9 @@ def gif_version():
     return f'giflib {GIFLIB_MAJOR}.{GIFLIB_MINOR}.{GIFLIB_RELEASE}'
 
 
-def gif_check(const uint8_t[::1] data, /):
+def gif_check(const uint8_t[::1] data not None, /):
     """Return whether data is GIF encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:6])
-
-    return sig == b'GIF87a' or sig == b'GIF89a'
+    return _startswith(data, b'GIF87a') or _startswith(data, b'GIF89a')
 
 
 def gif_encode(
@@ -92,17 +89,18 @@ def gif_encode(
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
+        const uint8_t[:, ::1] cmap
         ssize_t dstsize
         ssize_t srcsize = src.nbytes
         memgif_t memgif
         GifFileType* gif = NULL
         ColorMapObject* colormapobj = NULL
         GifWord width, height
-        uint8_t[:, ::1] cmap
         uint8_t* srcptr = <uint8_t*> src.data
         ssize_t i, j, imagesize
         int imagecount = 1
         int ret, err = 0
+        bint success = False
         imagelayout_t layout
 
     _image_layout(
@@ -121,6 +119,7 @@ def gif_encode(
 
     if not (
         layout.height > 0
+        and layout.width > 0
         and layout.height < 65536
         and layout.width < 65536
     ):
@@ -135,38 +134,40 @@ def gif_encode(
 
     if out is None:
         if dstsize < 0:
-            # TODO: use dynamic memgif?
-            dstsize = 2048 + srcsize + 256 * imagecount
+            # LZW worst case: 12-bit code per pixel plus sub-block overhead
+            dstsize = (
+                2048 + 256 * imagecount + srcsize + srcsize // 2
+                + (srcsize // 64)
+            )
         out = _create_output(outtype, dstsize)
-        memgif.owner = 0
-    else:
-        memgif.owner = 0
 
     dst = out
     dstsize = dst.shape[0]
 
-    cmap = _create_array(colormap, (256, 3), numpy.uint8)
     if colormap is None:
-        for i in range(256):
-            cmap[i, 0] = <uint8_t> i
-            cmap[i, 1] = <uint8_t> i
-            cmap[i, 2] = <uint8_t> i
+        colormap = numpy.repeat(
+            numpy.arange(256, dtype=numpy.uint8).reshape(256, 1), 3, axis=1
+        )
+    cmap = numpy.ascontiguousarray(colormap, numpy.uint8).reshape(256, 3)
 
     try:
         with nogil:
             memgif.data = <GifByteType*> dst._data
             memgif.size = dstsize
             memgif.offset = 0
+            memgif.owner = 0
 
             gif = EGifOpen(<void*> &memgif, gif_output_func, &err)
             if gif == NULL:
                 raise GifError('EGifOpen', err)
 
-            colormapobj = GifMakeMapObject(256, <GifColorType*> &cmap[0, 0])
+            colormapobj = GifMakeMapObject(
+                256, <const GifColorType*> &cmap[0, 0]
+            )
             if colormapobj == NULL:
                 raise MemoryError('failed to allocate ColorMapObject')
 
-            ret = EGifPutScreenDesc(gif, width, height, 256, 0, colormapobj)
+            ret = EGifPutScreenDesc(gif, width, height, 8, 0, colormapobj)
             if ret != GIF_OK:
                 raise GifError('EGifPutScreenDesc', gif.Error)
 
@@ -189,11 +190,13 @@ def gif_encode(
                     )
                     if ret != GIF_OK:
                         raise GifError('EGifPutLine', gif.Error)
+        success = True
     finally:
-        free(colormapobj)
-        ret = EGifCloseFile(gif, &err)
-        if ret != GIF_OK:
-            raise GifError('EGifCloseFile', err)  # gif.Error ?
+        GifFreeMapObject(colormapobj)
+        if gif != NULL:
+            ret = EGifCloseFile(gif, &err)
+            if ret != GIF_OK and success:
+                raise GifError('EGifCloseFile', err)
 
     del dst
     return _return_output(out, dstsize, memgif.offset, outgiven)
@@ -206,19 +209,23 @@ def gif_decode(
     *,
     asrgb=True,
     out=None,
+    bint _info=False,
 ):
     """Return decoded GIF image.
 
     By default, all images in the file are returned in one array.
     If an image index is specified, ignore the disposal mode and return the
-    image data on black background.
+    image data on background.
+    An alpha channel is added only if the first image has transparent pixels.
+    Otherwise, transparent and disposed areas are filled with the opaque
+    background color.
 
     """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        GifFileType* gif
+        GifFileType* gif = NULL
         SavedImage* image
         GifImageDesc* descr
         ColorMapObject* colormap
@@ -227,22 +234,23 @@ def gif_decode(
         memgif_t memgif
         int ret, err = 0
         int colorcount, transparent, disposal
-        ssize_t i, j, k, m, h, previous
+        ssize_t i, j, k, m, h, imageindex, istart
         ssize_t imagesize, rowsize, imagecount, width, height, samples
         uint8_t[4] background
         uint8_t* palptr
         uint8_t* srcptr
         uint8_t* dstptr
+        uint8_t* saved = NULL  # canvas to restore for DISPOSE_PREVIOUS
         uint8_t color
         bint rgb = asrgb
-        bint previous_is_background = False
+        bint success = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
-            # open image and determie size
+            # open image and determine size
             memgif.data = <GifByteType*> src._data
             memgif.size = srcsize
             memgif.offset = 0
@@ -260,7 +268,6 @@ def gif_decode(
             height = <ssize_t> gif.SHeight
             imagecount = <ssize_t> gif.ImageCount
             image = &gif.SavedImages[0]
-            previous = 0
 
             for i in range(imagecount):
                 descr = &gif.SavedImages[i].ImageDesc
@@ -277,7 +284,7 @@ def gif_decode(
                     extblock = &image.ExtensionBlocks[j]
                     if (
                         extblock.Function == 0xf9
-                        and extblock.ByteCount > 3
+                        and extblock.ByteCount == 4
                         and extblock.Bytes[0] & 0x01
                     ):
                         transparent = <int> extblock.Bytes[3]
@@ -300,8 +307,13 @@ def gif_decode(
         # create output array
 
         if index is not None:
+            imageindex = index
+            if imageindex < 0 or imageindex >= imagecount:
+                raise IndexError(
+                    f'frame index={imageindex} out of range [0, {imagecount})'
+                )
             imagesize = 0
-            imagecount = index + 1
+            imagecount = imageindex + 1
 
         if imagecount == 1 or imagesize == 0:
             if samples > 1:
@@ -314,6 +326,25 @@ def gif_decode(
             else:
                 shape = int(imagecount), int(height), int(width)
 
+        if _info:
+            colormap_array = None
+            if gif.SColorMap != NULL and gif.SColorMap.ColorCount > 0:
+                # slicing copies to bytes; Colors is freed by DGifCloseFile
+                colormap_array = numpy.frombuffer(
+                    (<char*> gif.SColorMap.Colors)[
+                        :gif.SColorMap.ColorCount * 3
+                    ],
+                    numpy.uint8,
+                ).reshape(-1, 3).copy()
+            success = True
+            return {
+                '_codec': 'gif',
+                'shape': shape,
+                'dtype': numpy.dtype(numpy.uint8),
+                'frames': imagecount,
+                'colormap': colormap_array,
+            }
+
         out = _create_array(out, shape, numpy.uint8, strides=None, zero=rgb==0)
         dst = out
         dstptr = <uint8_t*> dst.data
@@ -321,7 +352,6 @@ def gif_decode(
         with nogil:
             if rgb:
                 # compose image sequence
-                previous = 0
                 disposal = DISPOSAL_UNSPECIFIED
 
                 if (
@@ -339,9 +369,11 @@ def gif_decode(
                     background[2] = 0
                     background[3] = 0 if samples == 4 else 255
 
-                for i in range(imagecount):
+                # with index, only the selected image is drawn on background
+                istart = imagecount - 1 if imagesize == 0 else 0
+                for i in range(istart, imagecount):
 
-                    if i == 0 or imagesize == 0 or previous_is_background:
+                    if i == 0 or imagesize == 0:
                         # initialize frame to background
                         k = i * imagesize
                         for _j in range(height * width):
@@ -354,12 +386,9 @@ def gif_decode(
                             if samples == 4:
                                 dstptr[k] = background[3]
                                 k += 1
-                        if disposal == DISPOSAL_UNSPECIFIED:
-                            previous = i
 
                     elif disposal == DISPOSE_BACKGROUND:
                         # restore area of previous frame to background
-                        previous = i
                         memcpy(
                             <void*> &dstptr[imagesize * i],
                             <const void*> &dstptr[imagesize * (i - 1)],
@@ -387,18 +416,17 @@ def gif_decode(
                         disposal == DISPOSAL_UNSPECIFIED
                     ):
                         # use previous frame as background
-                        previous = i - 1
                         memcpy(
                             <void*> &dstptr[imagesize * i],
-                            <const void*> &dstptr[imagesize * previous],
+                            <const void*> &dstptr[imagesize * (i - 1)],
                             imagesize
                         )
 
                     elif disposal == DISPOSE_PREVIOUS:
-                        # restore to previous, undisposed frame
+                        # restore canvas from before previous frame was drawn
                         memcpy(
                             <void*> &dstptr[imagesize * i],
-                            <const void*> &dstptr[imagesize * previous],
+                            <const void*> saved,
                             imagesize
                         )
 
@@ -414,7 +442,7 @@ def gif_decode(
                     if colormap == NULL:
                         colormap = gif.SColorMap
                         if colormap == NULL:
-                            raise RuntimeError('no colormap')
+                            raise GifError('gif.SColorMap', None)
                     colorcount = colormap.ColorCount
                     palptr = <uint8_t*> colormap.Colors
 
@@ -432,11 +460,16 @@ def gif_decode(
                             if extblock.Bytes[0] & 0x01:
                                 transparent = <int> extblock.Bytes[3]
                             disposal = <int> ((extblock.Bytes[0] >> 2) & 0x07)
-                    if disposal == DISPOSE_PREVIOUS:
-                        if i == 0:
-                            previous_is_background = True
-                    else:
-                        previous_is_background = False
+                    if disposal == DISPOSE_PREVIOUS and imagesize > 0:
+                        if saved == NULL:
+                            saved = <uint8_t*> malloc(imagesize)
+                            if saved == NULL:
+                                raise MemoryError('failed to allocate buffer')
+                        memcpy(
+                            <void*> saved,
+                            <const void*> &dstptr[imagesize * i],
+                            imagesize
+                        )
 
                     # paste new image
                     j = 0
@@ -495,20 +528,33 @@ def gif_decode(
                             dstptr[k] = srcptr[j]
                             k += 1
                             j += 1
-
+        success = True
     finally:
-        ret = DGifCloseFile(gif, &err)
-        if ret != GIF_OK:
-            raise GifError('DGifCloseFile', err)  # gif.Error?
+        free(saved)
+        if gif != NULL:
+            ret = DGifCloseFile(gif, &err)
+            if ret != GIF_OK and success:
+                raise GifError('DGifCloseFile', err)
 
     return out
+
+
+def gif_info(
+    data,
+    /,
+    index=None,
+    *,
+    asrgb=True,
+):
+    """Return information about GIF image."""
+    return gif_decode(data, index=index, asrgb=asrgb, _info=True)
 
 
 ctypedef struct memgif_t:
     GifByteType* data
     ssize_t size
     ssize_t offset
-    int owner
+    int owner  # data was allocated with malloc and may be reallocated
 
 
 cdef int gif_input_func(
@@ -544,23 +590,19 @@ cdef int gif_output_func(
     """GIF write callback function."""
     cdef:
         memgif_t* memgif = <memgif_t*> gif.UserData
+        GifByteType* tmp
         ssize_t newsize
-        uint8_t* tmp
 
-    if memgif == NULL:
-        return 0
-    if memgif.offset >= memgif.size:
+    if memgif == NULL or size < 0:
         return 0
     if <ssize_t> size > memgif.size - memgif.offset:
-        # output stream too small; realloc if owner
         if not memgif.owner:
             # raise GifError('OutputFunc', E_GIF_ERR_WRITE_FAILED)
             return 0
-        # always over-allocate to avoid repeated reallocations
-        newsize = _align_ssize_t(
-            memgif.offset + size + (memgif.offset + size) // 4
-        )
-        tmp = <uint8_t*> realloc(<void*> memgif.data, newsize)
+        # over-allocate to avoid repeated reallocations
+        newsize = memgif.offset + size
+        newsize = _align_ssize_t(newsize + newsize // 4)
+        tmp = <GifByteType*> realloc(<void*> memgif.data, newsize)
         if tmp == NULL:
             # raise MemoryError('OutputFunc realloc failed')
             return 0
