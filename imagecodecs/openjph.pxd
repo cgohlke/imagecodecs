@@ -1,7 +1,7 @@
 # imagecodecs/openjph.pxd
 # distutils: language = c++
 
-# Cython declarations for the `openjph 0.32.0` library.
+# Cython declarations for the `openjph 0.33.0` library.
 # https://github.com/aous72/OpenJPH
 
 from libc.stdint cimport (
@@ -251,7 +251,18 @@ cdef extern from 'openjph/ojph_params.h' nogil:
         comp_type ui8_2_comp_type(ui8 c)
 
         void set_irrev_quant(float delta) except +
+        void set_irrev_quant(
+            float delta,
+            size_t num_weights,
+            const float* weights
+        ) except +
         void set_qfactor(float qfactor) except +
+        void set_irrev_quant(
+            ui32 comp_idx,
+            float delta,
+            size_t num_weights,
+            const float* weights
+        ) except +
         void set_irrev_quant(ui32 comp_idx, float delta) except +
         void set_qfactor(
             ui32 comp_idx,
@@ -268,6 +279,7 @@ cdef extern from 'openjph/ojph_params.h' nogil:
             OJPH_NLT_GAMMA_STYLE_NLT
             OJPH_NLT_LUT_STYLE_NLT
             OJPH_NLT_BINARY_COMPLEMENT_NLT
+            OJPH_NLT_BINARY_COMPLEMENT_PLUS_LUT
             OJPH_NLT_UNDEFINED
 
         # ui16 special_comp_num
@@ -287,6 +299,19 @@ cdef extern from 'openjph/ojph_params.h' nogil:
             ui16 num_points,
             void* points,
             ui8 nl_type
+        ) except +
+        void set_nonlinear_transform(
+            ui32 comp_num,
+            ui8 decoded_bit_depth,
+            bool decoded_signedness,
+            ui32 d_min,
+            ui32 d_max,
+            ui8 pt_val,
+            ui16 num_points,
+            void* points,
+            ui8 nl_type,
+            bool approx_encoding_nlt,
+            ui32 num_enc_points
         ) except +
         bool get_nonlinear_transform(
             ui32 comp_num,
