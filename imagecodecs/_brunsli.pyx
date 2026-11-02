@@ -47,7 +47,7 @@ include '_shared.pxi'
 
 from brunsli cimport *
 
-from . import jpeg8_decode, jpeg8_encode
+from . import jpeg_decode, jpeg_encode, jpeg_info
 
 
 class BRUNSLI:
@@ -59,18 +59,9 @@ class BRUNSLI:
 class BrunsliError(RuntimeError):
     """BRUNSLI codec exceptions."""
 
-    def __init__(self, func, err):
-        # msg = {
-        #     BRUNSLI_OK: 'BRUNSLI_OK',
-        #     BRUNSLI_NON_REPRESENTABLE: 'BRUNSLI_NON_REPRESENTABLE',
-        #     BRUNSLI_MEMORY_ERROR: 'BRUNSLI_MEMORY_ERROR',
-        #     BRUNSLI_INVALID_PARAM: 'BRUNSLI_INVALID_PARAM',
-        #     BRUNSLI_COMPRESSION_ERROR: 'BRUNSLI_COMPRESSION_ERROR',
-        #     BRUNSLI_INVALID_BRN: 'BRUNSLI_INVALID_BRN',
-        #     BRUNSLI_DECOMPRESSION_ERROR: 'BRUNSLI_DECOMPRESSION_ERROR',
-        #     BRUNSLI_NOT_ENOUGH_DATA: 'BRUNSLI_NOT_ENOUGH_DATA',
-        # }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {err}'
+    def __init__(self, func, err=None):
+        # the Brunsli C API only reports success or failure
+        msg = f'{func} failed' if err is None else f'{func} returned {err!r}'
         super().__init__(msg)
 
 
@@ -80,20 +71,9 @@ def brunsli_version():
     return 'brunsli 0.1'
 
 
-def brunsli_check(const uint8_t[::1] data, /):
-    """Return whether data is BRUNSLI/JPEG encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:10])
-
-    return (
-        sig[:6] == b'\x0A\x04\x42\xD2\xD5\x4E'
-        or sig[:4] == b'\xFF\xD8\xFF\xDB'
-        or sig[:4] == b'\xFF\xD8\xFF\xEE'
-        or sig[:4] == b'\xFF\xD8\xFF\xC3'
-        or sig[:4] == b'\xFF\xD8\xFF\xC4'
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'JFIF')
-        or (sig[:3] == b'\xFF\xD8\xFF' and sig[6:10] == b'Exif')
-    )
+def brunsli_check(const uint8_t[::1] data not None, /):
+    """Return whether data is BRUNSLI encoded."""
+    return _startswith(data, b'\x0A\x04\x42\xD2\xD5\x4E')
 
 
 def brunsli_encode(
@@ -109,75 +89,18 @@ def brunsli_encode(
     predictor=None,
     out=None,
 ):
-    """Return BRUNSLI/JPEG encoded image."""
-    cdef:
-        const uint8_t[::1] dst  # must be const to write to bytes
-        const uint8_t[::1] src
-        char* dstptr = NULL
-        ssize_t dstsize
-        size_t srcsize
-        brunsli_sink_t* sink = NULL
-        int ret
-
-    if data is out:
-        raise ValueError('cannot transform in-place')
-
-    if isinstance(data, numpy.ndarray):
-        src = jpeg8_encode(
-            data,
-            level=level,
-            colorspace=colorspace,
-            outcolorspace=outcolorspace,
-            subsampling=subsampling,
-            optimize=optimize,
-            smoothing=smoothing,
-            predictor=predictor,
-        )
-    else:
-        # existing JPEG stream
-        try:
-            src = _readable_input(data)
-        except Exception as exc:
-            raise ValueError('invalid input data') from exc
-        if src.shape[0] < 4:
-            raise ValueError('invalid input data too short')
-
-    srcsize = src.shape[0]
-
-    out, dstsize, outgiven, outtype = _parse_output(out)
-
-    sink = brunsli_sink_new(_align_size_t(srcsize // 2))
-    if sink == NULL:
-        raise MemoryError('brunsli_sink_new failed')
-
-    try:
-        with nogil:
-            ret = EncodeBrunsli(
-                srcsize,
-                <const unsigned char *> src._data,
-                sink,
-                brunsli_sink_write
-            )
-        if ret != 1:
-            raise BrunsliError('EncodeBrunsli', ret)
-        if out is None:
-            if dstsize < 0:
-                dstsize = sink.byteswritten
-                dstptr = <char*> sink.data
-            out = _create_output(outtype, dstsize, dstptr)
-        if dstptr == NULL:
-            dst = out
-            dstsize = dst.shape[0]
-            if <size_t> dstsize < sink.byteswritten:
-                raise ValueError('output too small')
-            memcpy(
-                <void*> dst._data, <const void*> sink.data, sink.byteswritten
-            )
-            del dst
-            out = _return_output(out, dstsize, sink.byteswritten, outgiven)
-    finally:
-        brunsli_sink_del(sink)
-    return out
+    """Return BRUNSLI encoded image."""
+    jpeg = jpeg_encode(
+        data,
+        level=level,
+        colorspace=colorspace,
+        outcolorspace=outcolorspace,
+        subsampling=subsampling,
+        optimize=optimize,
+        smoothing=smoothing,
+        predictor=predictor,
+    )
+    return brunsli_encode_jpeg(jpeg, out=out)
 
 
 def brunsli_decode(
@@ -186,10 +109,38 @@ def brunsli_decode(
     *,
     colorspace=None,
     outcolorspace=None,
-    asjpeg=False,
     out=None,
 ):
-    """Return decoded BRUNSLI/JPEG image."""
+    """Return decoded BRUNSLI image."""
+    if data is out:
+        raise ValueError('cannot transform in-place')
+    return jpeg_decode(
+        brunsli_decode_jpeg(data),
+        colorspace=colorspace,
+        outcolorspace=outcolorspace,
+        out=out,
+    )
+
+
+def brunsli_info(
+    data,
+    /,
+    *,
+    colorspace=None,
+    outcolorspace=None,
+):
+    """Return information about BRUNSLI image."""
+    info = jpeg_info(
+        brunsli_decode_jpeg(data),
+        colorspace=colorspace,
+        outcolorspace=outcolorspace,
+    )
+    info['_codec'] = 'brunsli'
+    return info
+
+
+def brunsli_encode_jpeg(data, /, *, out=None):
+    """Return BRUNSLI encoded image from JPEG stream."""
     cdef:
         const uint8_t[::1] src = data
         size_t srcsize = <size_t> src.shape[0]
@@ -199,26 +150,72 @@ def brunsli_decode(
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    sink = brunsli_sink_new(_align_size_t(srcsize * 2))
-    if sink == NULL:
-        raise MemoryError('brunsli_sink_new failed')
+    try:
+        with nogil:
+            sink = brunsli_sink_new(_align_size_t(srcsize // 2))
+            if sink == NULL:
+                raise MemoryError('brunsli_sink_new failed')
+            ret = EncodeBrunsli(
+                srcsize,
+                <const unsigned char*> src._data,
+                sink,
+                brunsli_sink_write
+            )
+        if ret != 1 or sink.byteswritten == 0:
+            raise BrunsliError('EncodeBrunsli')
+        return _brunsli_output(sink, out)
+    finally:
+        brunsli_sink_del(sink)
+
+
+def brunsli_decode_jpeg(data, /, *, out=None):
+    """Return JPEG stream from BRUNSLI encoded image."""
+    cdef:
+        const uint8_t[::1] src = data
+        size_t srcsize = <size_t> src.shape[0]
+        brunsli_sink_t* sink = NULL
+        int ret
+
+    if data is out:
+        raise ValueError('cannot transform in-place')
 
     try:
         with nogil:
+            sink = brunsli_sink_new(_align_size_t(srcsize * 2))
+            if sink == NULL:
+                raise MemoryError('brunsli_sink_new failed')
             ret = DecodeBrunsli(
-                srcsize, <const uint8_t *> src._data, sink, brunsli_sink_write
+                srcsize,
+                <const uint8_t*> src._data,
+                sink,
+                brunsli_sink_write
             )
-        if ret != 1:
-            raise BrunsliError('DecodeBrunsli', ret)
-        out = jpeg8_decode(
-            <uint8_t[:sink.byteswritten]> sink.data,
-            colorspace=colorspace,
-            outcolorspace=outcolorspace,
-            out=out
-        )
+        if ret != 1 or sink.byteswritten == 0:
+            raise BrunsliError('DecodeBrunsli')
+        return _brunsli_output(sink, out)
     finally:
         brunsli_sink_del(sink)
-    return out
+
+
+cdef _brunsli_output(brunsli_sink_t* sink, out):
+    """Return content of Brunsli sink as new or provided output."""
+    cdef:
+        const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t dstsize
+        size_t size = sink.byteswritten
+
+    out, dstsize, outgiven, outtype = _parse_output(out)
+    if out is None and dstsize < 0:
+        return _create_output(outtype, size, <const char*> sink.data)
+    if out is None:
+        out = _create_output(outtype, dstsize)
+    dst = out
+    dstsize = dst.shape[0]
+    if <size_t> dstsize < size:
+        raise ValueError('output too small')
+    memcpy(<void*> dst._data, <const void*> sink.data, size)
+    del dst
+    return _return_output(out, dstsize, size, outgiven)
 
 
 ctypedef struct brunsli_sink_t:
@@ -264,10 +261,12 @@ cdef size_t brunsli_sink_write(
         size_t newsize
         brunsli_sink_t* sink = <brunsli_sink_t*> brunsli_sink_ptr
 
-    if sink == NULL or size == 0 or sink.offset > sink.size:
+    if sink == NULL or size == 0:
         return 0
-    if sink.offset + size > sink.size:
+    if size > sink.size - sink.offset:
         # output stream too small; realloc
+        if sink.offset > SIZE_MAX // 4 or size > SIZE_MAX // 4:
+            return 0
         # always over-allocate to avoid repeated reallocations
         newsize = _align_size_t(sink.offset + size + (sink.offset + size) // 4)
         tmp = <uint8_t*> realloc(<void*> sink.data, newsize)
