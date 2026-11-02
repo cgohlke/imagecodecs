@@ -73,12 +73,9 @@ def sz3_version():
     return 'sz3 3.4.0'
 
 
-def sz3_check(const uint8_t[::1] data, /):
+def sz3_check(const uint8_t[::1] data not None, /):
     """Return whether data is SZ3 encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'\x10\xf3\x42\xf3'
+    return _startswith(data, b'\x10\xf3\x42\xf3')
 
 
 def sz3_encode(
@@ -104,9 +101,6 @@ def sz3_encode(
         int errBoundMode, dataType
 
     errBoundMode = _enum_value(mode, SZ3.MODE, SZ3.MODE.ABS)
-
-    if src.dtype.byteorder == '>':
-        raise ValueError('big-endian data not supported')
 
     if src.dtype == numpy.float32:
         dataType = SZ_FLOAT
@@ -177,6 +171,8 @@ def sz3_encode(
     try:
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < <ssize_t> outSize:
+                raise ValueError('output too small')
             out = _create_output(outtype, outSize)
 
         dst = out
@@ -186,7 +182,7 @@ def sz3_encode(
 
         memcpy(<void*> dst._data, <const void*> buffer, <size_t> outSize)
     finally:
-        free(buffer)
+        free_buf(buffer)
 
     del dst
     return _return_output(out, dstsize, outSize, outgiven)
@@ -207,17 +203,27 @@ def sz3_decode(
         void* buffer = NULL
         size_t r1, r2, r3, r4, r5
         size_t byteLength = <size_t> src.shape[0]
-        ssize_t ndim = len(shape)
+        size_t dstlen, pos, ndims, bitwidth
+        uint64_t payloadsize
+        size_t num
+        ssize_t ndim
         int dataType
 
-    if data is out:
+    if data is None:
+        raise ValueError('input data is None')
+
+    if out is not None and data is out:
         raise ValueError('cannot transform in-place')
 
     if dtype is None:
         raise ValueError(f'{dtype=!r} not supported')
     dtype = numpy.dtype(dtype)
-    if dtype.byteorder == '>':
-        raise ValueError('big-endian data not supported')
+    if isinstance(out, numpy.ndarray) and (
+        out.dtype.newbyteorder('=') != dtype.newbyteorder('=')
+    ):
+        raise ValueError(f'invalid {out.dtype=}, {dtype=}')
+    dstdtype = dtype
+    dtype = dtype.newbyteorder('=')
     if dtype == numpy.float32:
         dataType = SZ_FLOAT
     elif dtype == numpy.float64:
@@ -240,6 +246,36 @@ def sz3_decode(
     #     dataType = SZ_INT64
     else:
         raise ValueError(f'{dtype=!r} not supported')
+
+    if isinstance(shape, int | numpy.integer):
+        shape = (int(shape),)
+    else:
+        shape = tuple(shape)
+    ndim = len(shape)
+    size = 1
+    for i in shape:
+        if i <= 0:
+            raise ValueError(f'invalid {shape=}')
+        size *= i
+
+    # library allocates output from shape but writes the encoded count
+    if byteLength < 27 or not _startswith(src, b'\x10\xf3\x42\xf3'):
+        raise Sz3Error('invalid SZ3 header')
+    memcpy(&payloadsize, &src[8], 8)
+    if payloadsize > byteLength - 27:
+        raise Sz3Error('invalid SZ3 payload size')
+    pos = 16 + <size_t> payloadsize
+    ndims = src[pos + 1]
+    bitwidth = src[pos + 2]
+    if ndims < 1 or ndims > 4 or bitwidth > 64:
+        raise Sz3Error('invalid SZ3 configuration')
+    pos += 3 + (ndims * bitwidth + 7) // 8
+    if pos + sizeof(size_t) > byteLength:
+        raise Sz3Error('invalid SZ3 configuration')
+    # SZ3 serializes num as platform size_t
+    memcpy(&num, &src[pos], sizeof(size_t))
+    if num != size:
+        raise ValueError(f'{shape=} does not match {num} encoded elements')
 
     r1 = r2 = r3 = r4 = r5 = 0
     if ndim == 1:
@@ -281,11 +317,16 @@ def sz3_decode(
         raise Sz3Error('SZ_decompress returned NULL')
 
     try:
-        out = _create_array(out, shape, dtype)
+        out = _create_array(out, shape, dstdtype)
         dst = out
-
-        memcpy(<void*> dst.data, <const void*> buffer, dst.nbytes)
+        dstlen = <size_t> dst.nbytes
+        with nogil:
+            memcpy(<void*> dst.data, <const void*> buffer, dstlen)
     finally:
-        free(buffer)
+        free_buf(buffer)
+
+    if not dst.dtype.isnative:
+        # library writes native byte order
+        dst.byteswap(inplace=True)
 
     return out
