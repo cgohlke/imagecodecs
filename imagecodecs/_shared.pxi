@@ -10,7 +10,8 @@ cimport numpy
 
 from ._shared import _log_warning
 
-from libc.limits cimport ULONG_MAX
+from cpython.pyport cimport PY_SSIZE_T_MAX
+from libc.limits cimport INT_MAX, ULONG_MAX
 from libc.stdint cimport (
     INT16_MAX,
     INT32_MAX,
@@ -29,7 +30,7 @@ from libc.stdint cimport (
     uint64_t,
 )
 from libc.stdlib cimport calloc, free, malloc, realloc
-from libc.string cimport memcpy, memmove, memset
+from libc.string cimport memcmp, memcpy, memmove, memset, strcmp, strncpy
 
 from ._shared cimport (
     IC_ALPHA,
@@ -78,6 +79,7 @@ from ._shared cimport (
     _create_output,
     _default_threads,
     _default_value,
+    _enum_or_int,
     _enum_value,
     _image_layout,
     _inplace_input,
@@ -101,3 +103,17 @@ cdef inline size_t _align_size_t(size_t size) noexcept nogil:
 cdef inline size_t _align_ssize_t(ssize_t size) noexcept nogil:
     """Return ssize_t increased to next multiple of 64KB."""
     return max((size + 65536 - 1) // 65536 * 65536, <ssize_t> 65536)
+
+
+cdef inline bint _startswith(
+    const uint8_t[::1] data, bytes prefix, ssize_t start=0
+) noexcept:
+    """Return whether data[start:] starts with prefix."""
+    cdef:
+        ssize_t size = len(prefix)
+
+    return (
+        start >= 0
+        and data.shape[0] >= start + size
+        and memcmp(&data[start], <const char*> prefix, size) == 0
+    )
