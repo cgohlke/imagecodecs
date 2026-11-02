@@ -39,9 +39,9 @@
 
 include '_shared.pxi'
 
-from bmptypes cimport *
+from bmp cimport *
 
-from . import jpeg8_decode, png_decode
+from . import jpeg_decode, jpeg_info, png_decode, png_info
 
 
 class BMP:
@@ -53,15 +53,32 @@ class BMP:
 class BmpError(RuntimeError):
     """BMP codec exceptions."""
 
+    def __init__(self, func, err, bitcount=None, compression=None):
+        msg = {
+            BMP_OK: 'BMP_OK',
+            BMP_ERROR: 'BMP_ERROR',
+            BMP_VALUE_ERROR: 'BMP_VALUE_ERROR',
+            BMP_OUTPUT_TOO_SMALL: 'BMP_OUTPUT_TOO_SMALL',
+            BMP_INVALID_HEADER: 'BMP_INVALID_HEADER',
+            BMP_UNSUPPORTED_FORMAT: 'BMP_UNSUPPORTED_FORMAT',
+            BMP_DATA_TRUNCATED: 'BMP_DATA_TRUNCATED',
+            BMP_IMAGE_TOO_LARGE: 'BMP_IMAGE_TOO_LARGE',
+            BMP_INDEX_ERROR: 'BMP_INDEX_ERROR',
+        }.get(err, f'unknown error {err!r}')
+        msg = f'{func} returned {msg}'
+        if bitcount is not None:
+            msg += f' ({bitcount=}, {compression=})'
+        super().__init__(msg)
+
 
 def bmp_version():
     """Return bmp codec version string."""
-    return 'bmp 2026.10.10'
+    return 'bmp ' + BMP_VERSION.decode()
 
 
-def bmp_check(const uint8_t[::1] data, /):
+def bmp_check(const uint8_t[::1] data not None, /):
     """Return whether data is BMP encoded or None if unknown."""
-    return data.shape[0] > 54 and data[0] == 66 and data[1] == 77  # b'BM'
+    return bool(bmp_check_(&data[0], data.shape[0]))
 
 
 def bmp_encode(
@@ -84,7 +101,7 @@ def bmp_encode(
     Not supported:
 
     - 1 and 4-bit paletted
-    - 16-bit direct-color
+    - 16 and 64-bit direct-color
     - Any compression (BI_RLE8, BI_RLE4)
     - OS/2 file types (BA, CI, CP, IC, PT)
 
@@ -92,14 +109,10 @@ def bmp_encode(
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
-        uint8_t* srcptr = <uint8_t*> src.data
+        const uint8_t* srcptr = <const uint8_t*> src.data
         uint8_t* dstptr = NULL
-        uint8_t* srcrow = NULL
-        uint8_t* dstrow = NULL
-        ssize_t dstsize, rowpad, dstindex, i
+        ssize_t dstsize, size, ret
         int32_t ppm_ = 3780 if ppm is None else max(1, ppm)  # 96 DPI
-        bmp_fileheader_t fileheader
-        bmp_infoheader_t infoheader
         imagelayout_t layout
 
     _image_layout(
@@ -116,129 +129,36 @@ def bmp_encode(
         &layout,
     )
 
-    if not (
-        layout.height > 0
-        and layout.height <= INT32_MAX
-        and layout.width <= INT32_MAX
-    ):
+    size = bmp_encode_size(layout.width, layout.height, layout.samples)
+    if size < 0:
         raise ValueError('invalid data shape or dtype')
 
-    # infoheader
-    memset(<void*> &infoheader, 0, sizeof(bmp_infoheader_t))
-    infoheader.size = 108 if layout.samples == 4 else 40
-    infoheader.width = <int32_t> layout.width
-    infoheader.height = <int32_t> layout.height
-    infoheader.planes = 1
-    infoheader.bitcount = (
-        8 if layout.samples == 1 else (24 if layout.samples == 3 else 32)
-    )
-    infoheader.compression_type = (
-        BI_BITFIELDS if layout.samples == 4 else BI_RGB
-    )
-    infoheader.x_ppm = ppm_
-    infoheader.y_ppm = ppm_
-    infoheader.clr_used = 0
-    infoheader.clr_important = 0
-    if layout.samples == 4:
-        infoheader.red_mask = 0x00FF0000
-        infoheader.green_mask = 0x0000FF00
-        infoheader.blue_mask = 0x000000FF
-        infoheader.alpha_mask = 0xFF000000
-
-    rowpad = (
-        ((<ssize_t> infoheader.width * <ssize_t> infoheader.bitcount) // 8) % 4
-    )
-    rowpad = 0 if rowpad == 0 else 4 - rowpad
-
-    infoheader.size_image = <uint32_t> (
-        infoheader.height * (infoheader.width * layout.samples + rowpad)
-    )
-
-    # fileheader
-    memset(<void*> &fileheader, 0, sizeof(bmp_fileheader_t))
-    fileheader.type = 0x4d42  # b'BM'
-    fileheader.offbits = (
-        1078 if layout.samples == 1 else (122 if layout.samples == 4 else 54)
-    )  # 14 + infoheader.size, no palette
-    fileheader.size = fileheader.offbits + infoheader.size_image
-
-    # create output
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
-        out = _create_output(outtype, fileheader.size)
+        if 0 <= dstsize < size:
+            raise ValueError(f'output too small {dstsize} < {size}')
+        out = _create_output(outtype, size)
     dst = out
     dstptr = <uint8_t*> dst._data
     dstsize = dst.shape[0]
-    if dstsize < <ssize_t> fileheader.size:
-        raise ValueError(f'output too small {dstsize} < {fileheader.size}')
+    if dstsize < size:
+        raise ValueError(f'output too small {dstsize} < {size}')
 
-    # copy to output
     with nogil:
-        memcpy(<void*> dstptr, <const void*> &fileheader, 14)
-        memcpy(
-            <void*> (dstptr + 14), <const void*> &infoheader, infoheader.size
+        ret = bmp_encode_(
+            srcptr,
+            layout.width,
+            layout.height,
+            layout.samples,
+            ppm_,
+            dstptr,
+            dstsize,
         )
-
-        if layout.samples == 1:
-            # write palette
-            dstindex = 54
-            for i in range(256):
-                dstptr[dstindex] = <uint8_t> i
-                dstindex += 1
-                dstptr[dstindex] = <uint8_t> i
-                dstindex += 1
-                dstptr[dstindex] = <uint8_t> i
-                dstindex += 1
-                dstptr[dstindex] = 255
-                dstindex += 1
-            # write pixel rows via memcpy, bottom-up
-            srcrow = (
-                srcptr + (<ssize_t> infoheader.height - 1) * infoheader.width
-            )
-            dstrow = dstptr + fileheader.offbits
-            for _j in range(<ssize_t> infoheader.height):
-                memcpy(dstrow, srcrow, infoheader.width)
-                if rowpad:
-                    memset(dstrow + infoheader.width, 0, rowpad)
-                srcrow -= infoheader.width
-                dstrow += infoheader.width + rowpad
-
-        elif layout.samples == 3:
-            # write BGR
-            # srcrow advances forward, dstrow goes backward (BMP bottom-up)
-            srcrow = srcptr
-            for i in range(<ssize_t> infoheader.height):
-                dstrow = (
-                    dstptr + fileheader.offbits + (infoheader.height - 1 - i)
-                    * (infoheader.width * 3 + rowpad)
-                )
-                for _j in range(<ssize_t> infoheader.width):
-                    dstrow[0] = srcrow[2]
-                    dstrow[1] = srcrow[1]
-                    dstrow[2] = srcrow[0]
-                    srcrow += 3
-                    dstrow += 3
-                if rowpad:
-                    memset(dstrow, 0, rowpad)
-
-        elif layout.samples == 4:
-            # write BGRA (32-bit rows are always DWORD-aligned, no rowpad)
-            srcrow = srcptr
-            for i in range(<ssize_t> infoheader.height):
-                dstrow = (
-                    dstptr + fileheader.offbits + (infoheader.height - 1 - i)
-                    * infoheader.width * 4
-                )
-                for _j in range(<ssize_t> infoheader.width):
-                    dstrow[0] = srcrow[2]  # B
-                    dstrow[1] = srcrow[1]  # G
-                    dstrow[2] = srcrow[0]  # R
-                    dstrow[3] = srcrow[3]  # A
-                    srcrow += 4
-                    dstrow += 4
+    if ret < 0:
+        raise BmpError('bmp_encode', ret)
 
     del dst
-    return _return_output(out, dstsize, fileheader.size, outgiven)
+    return _return_output(out, dstsize, ret, outgiven)
 
 
 def bmp_decode(
@@ -260,642 +180,156 @@ def bmp_decode(
     - 24-bit direct-color (BI_RGB BGR)
     - 32-bit direct-color (BI_RGB BGRX treated as RGB, BI_BITFIELDS with
       optional alpha if alpha mask is present)
-    - Embedded JPEG (BI_JPEG) and PNG (BI_PNG): delegated to jpeg8/png decoders
+    - Embedded JPEG (BI_JPEG) and PNG (BI_PNG): delegated to jpeg/png decoders
     - Bottom-up (positive height) and top-down (negative height) layouts
+    - OS/2 BITMAPCOREHEADER with three-byte palette entries
 
     Not supported:
 
+    - 64-bit direct-color (undocumented s2.13 fixed-point BGRA)
     - OS/2 file types (BA, CI, CP, IC, PT)
 
     """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
-        uint8_t* dstptr = NULL
+        const uint8_t* srcptr = &src[0]
         ssize_t srcsize = src.shape[0]
-        ssize_t height, width, samples, rowpad, rowstride, i, j
-        ssize_t x, y, row, k, srclimit, nbytes
-        ssize_t offset, palindex, dstindex, srcindex
-        bmp_fileheader_t fileheader
-        bmp_infoheader_t infoheader
-        uint32_t infoheader_size
-        uint32_t rmask, gmask, bmask, amask
-        int rshift, gshift, bshift, ashift
-        int rbits, gbits, bbits, abits
-        uint64_t size64
-        uint32_t pixel32, m, rv, gv, bv, av
-        uint16_t pixel16
-        uint8_t count, code, palval
-        bint has_alpha
+        ssize_t dstsize, ret
+        bmp_info_t info
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    if <uint64_t> srcsize > UINT32_MAX:
-        raise ValueError('input too large')
-    if srcsize < 54:
-        raise BmpError(f'invalid BMP size {srcsize} < 54')
+    shape = _bmp_shape(srcptr, srcsize, asrgb, &info)
 
-    # read file header
-    memcpy(
-        <void*> &fileheader, <const void*> src._data, sizeof(bmp_fileheader_t)
-    )
-    if fileheader.type != 0x4d42:  # b'BM'
-        raise BmpError(f'invalid file header {bytes(src[:2])}')
-    if fileheader.size > <uint32_t> srcsize:
-        raise BmpError(f'invalid file size {fileheader.size} > {srcsize}')
-    if fileheader.offbits >= <uint32_t> srcsize:
-        raise BmpError(f'invalid file size {fileheader.offbits} > {srcsize}')
-    # if fileheader.reserved1 != 0 or fileheader.reserved2 != 0:
-    #     raise BmpError('invalid file header')
+    if info.compression == BMP_BI_JPEG:
+        return jpeg_decode(src[info.offbits:], out=out)
+    if info.compression == BMP_BI_PNG:
+        return png_decode(src[info.offbits:], out=out)
 
-    # read info header
-    offset = sizeof(bmp_fileheader_t)
-    memcpy(
-        <void*> &infoheader_size, <const void*> &src[offset], sizeof(uint32_t)
-    )
-    if (
-        infoheader_size < 16
-        or infoheader_size > sizeof(bmp_infoheader_t)
-        or <ssize_t> infoheader_size + offset > srcsize
-    ):
-        raise BmpError(f'invalid {infoheader_size=}')
-    memset(<void*> &infoheader, 0, sizeof(bmp_infoheader_t))
-    memcpy(<void*> &infoheader, <const void*> &src[offset], infoheader_size)
-    offset += infoheader_size  # offset to palette
-    if infoheader.compression_type == BI_JPEG:
-        return jpeg8_decode(src[fileheader.offbits:], out=out)
-    if infoheader.compression_type == BI_PNG:
-        return png_decode(src[fileheader.offbits:], out=out)
-    if infoheader.compression_type == BI_BITFIELDS:
-        if infoheader.bitcount not in (16, 32):
-            raise BmpError(
-                f'BI_BITFIELDS requires 16 or 32-bit, '
-                f'got {infoheader.bitcount=}'
-            )
-    elif infoheader.compression_type not in (BI_RGB, BI_RLE8, BI_RLE4):
-        raise BmpError(f'{infoheader.compression_type=} not implemented')
-    if infoheader.compression_type == BI_RLE8 and infoheader.bitcount != 8:
-        raise BmpError(
-            f'BI_RLE8 requires bitcount 8, got {infoheader.bitcount=}'
-        )
-    if infoheader.compression_type == BI_RLE4 and infoheader.bitcount != 4:
-        raise BmpError(
-            f'BI_RLE4 requires bitcount 4, got {infoheader.bitcount=}'
-        )
-    if infoheader.bitcount not in (1, 4, 8, 16, 24, 32):
-        raise BmpError(f'{infoheader.bitcount=} not implemented')
-    if infoheader.clr_used == 0 and infoheader.bitcount < 16:
-        infoheader.clr_used = 2 ** infoheader.bitcount
-    if infoheader.clr_used > 256:
-        raise BmpError(f'{infoheader.clr_used=} not implemented')
-    if infoheader.clr_used * 4 + offset > fileheader.offbits:
-        raise BmpError('invalid palette')
-    if infoheader.size_image == 0:
-        if infoheader.compression_type not in (BI_RGB, BI_BITFIELDS):
-            raise BmpError(f'invalid {infoheader.size_image=}')
-        rowpad = (<ssize_t> infoheader.width * infoheader.bitcount // 8) % 4
-        rowpad = 0 if rowpad == 0 else 4 - rowpad
-        size64 = (
-            <uint64_t> abs(infoheader.height)
-            * (<uint64_t> infoheader.width * infoheader.bitcount // 8 + rowpad)
-        )
-        if size64 > UINT32_MAX:
-            raise BmpError(
-                f'invalid image dimensions '
-                f'{infoheader.height=} {infoheader.width=}'
-            )
-        infoheader.size_image = <uint32_t> size64
-    if (
-        <uint64_t> infoheader.size_image + <uint64_t> fileheader.offbits
-        > <uint64_t> srcsize
-    ):
-        raise BmpError(
-            f'invalid {infoheader.size_image=} + {fileheader.offbits=}'
-            f' > {srcsize=}'
-        )
-
-    samples = 3
-    has_alpha = False
-    rmask = 0
-    gmask = 0
-    bmask = 0
-    amask = 0
-    rshift = 0
-    gshift = 0
-    bshift = 0
-    ashift = 0
-    rbits = 8
-    gbits = 8
-    bbits = 8
-    abits = 0
-    if infoheader.bitcount <= 8:
-        if asrgb is None:
-            # detect grayscale palette
-            samples = 1
-            palindex = offset
-            for i in range(<ssize_t> infoheader.clr_used):
-                if src[palindex] != i:
-                    samples = 3
-                    break
-                palindex += 1
-                if src[palindex] != i:
-                    samples = 3
-                    break
-                palindex += 1
-                if src[palindex] != i:
-                    samples = 3
-                    break
-                palindex += 2
-        elif not asrgb:
-            samples = 1
-    elif infoheader.bitcount == 16:
-        if infoheader.compression_type == BI_BITFIELDS:
-            if infoheader_size >= 52:
-                rmask = infoheader.red_mask
-                gmask = infoheader.green_mask
-                bmask = infoheader.blue_mask
-                amask = infoheader.alpha_mask
-            elif offset + 12 <= srcsize:
-                memcpy(<void*> &rmask, <const void*> &src[offset], 4)
-                memcpy(<void*> &gmask, <const void*> &src[offset + 4], 4)
-                memcpy(<void*> &bmask, <const void*> &src[offset + 8], 4)
-        else:
-            # RGB555
-            rmask = 0x7C00
-            gmask = 0x03E0
-            bmask = 0x001F
-        # compute shifts and bit depths from masks
-        m = rmask
-        rshift = 0
-        while m != 0 and (m & 1) == 0:
-            rshift += 1
-            m >>= 1
-        m = gmask
-        gshift = 0
-        while m != 0 and (m & 1) == 0:
-            gshift += 1
-            m >>= 1
-        m = bmask
-        bshift = 0
-        while m != 0 and (m & 1) == 0:
-            bshift += 1
-            m >>= 1
-        m = amask
-        ashift = 0
-        while m != 0 and (m & 1) == 0:
-            ashift += 1
-            m >>= 1
-        m = rmask >> rshift
-        rbits = 0
-        while m:
-            rbits += m & 1
-            m >>= 1
-        m = gmask >> gshift
-        gbits = 0
-        while m:
-            gbits += m & 1
-            m >>= 1
-        m = bmask >> bshift
-        bbits = 0
-        while m:
-            bbits += m & 1
-            m >>= 1
-        m = amask >> ashift
-        abits = 0
-        while m:
-            abits += m & 1
-            m >>= 1
-        has_alpha = amask != 0
-        samples = 4 if has_alpha else 3
-    elif infoheader.bitcount == 32:
-        if infoheader.compression_type == BI_BITFIELDS:
-            if infoheader_size >= 52:
-                rmask = infoheader.red_mask
-                gmask = infoheader.green_mask
-                bmask = infoheader.blue_mask
-                amask = infoheader.alpha_mask
-            elif offset + 12 <= srcsize:
-                memcpy(<void*> &rmask, <const void*> &src[offset], 4)
-                memcpy(<void*> &gmask, <const void*> &src[offset + 4], 4)
-                memcpy(<void*> &bmask, <const void*> &src[offset + 8], 4)
-                if offset + 16 <= srcsize:
-                    memcpy(<void*> &amask, <const void*> &src[offset + 12], 4)
-        else:
-            # BI_RGB 32-bit: BGRX layout, high byte is reserved padding
-            rmask = 0x00FF0000
-            gmask = 0x0000FF00
-            bmask = 0x000000FF
-            amask = 0  # X byte is not alpha
-        # compute shifts and bit depths from masks
-        m = rmask
-        rshift = 0
-        while m != 0 and (m & 1) == 0:
-            rshift += 1
-            m >>= 1
-        m = gmask
-        gshift = 0
-        while m != 0 and (m & 1) == 0:
-            gshift += 1
-            m >>= 1
-        m = bmask
-        bshift = 0
-        while m != 0 and (m & 1) == 0:
-            bshift += 1
-            m >>= 1
-        m = amask
-        ashift = 0
-        while m != 0 and (m & 1) == 0:
-            ashift += 1
-            m >>= 1
-        m = rmask >> rshift
-        rbits = 0
-        while m:
-            rbits += m & 1
-            m >>= 1
-        m = gmask >> gshift
-        gbits = 0
-        while m:
-            gbits += m & 1
-            m >>= 1
-        m = bmask >> bshift
-        bbits = 0
-        while m:
-            bbits += m & 1
-            m >>= 1
-        m = amask >> ashift
-        abits = 0
-        while m:
-            abits += m & 1
-            m >>= 1
-        has_alpha = amask != 0
-        samples = 4 if has_alpha else 3
-
-    # create output array
-    height = <ssize_t> abs(infoheader.height)
-    width = <ssize_t> infoheader.width
-    rowpad = <ssize_t> ((width * infoheader.bitcount) // 8) % 4
-    rowpad = 0 if rowpad == 0 else 4 - rowpad
-    rowstride = <ssize_t> (
-        ((width * <ssize_t> infoheader.bitcount + 31) // 32) * 4
-    )
-    # for non-RLE formats, the actual required data must fit in the source
-    if infoheader.compression_type not in {BI_RLE8, BI_RLE4}:
-        if (
-            <uint64_t> height * <uint64_t> rowstride
-            + <uint64_t> fileheader.offbits
-            > <uint64_t> srcsize
-        ):
-            raise BmpError(f'invalid image dimensions {height=} {width=}')
-
-    if samples > 1:
-        shape = (int(height), int(width), samples)
-    else:
-        shape = (int(height), int(width))
-        samples = 1
     out = _create_array(out, shape, numpy.uint8)
     dst = out
-    dstptr = <uint8_t*> dst.data
+    dstsize = dst.nbytes
 
-    # copy image
     with nogil:
-        srcindex = fileheader.offbits
-        dstindex = 0
-
-        if infoheader.bitcount == 8 and infoheader.compression_type == 0:
-            if samples == 3:
-                # apply palette
-                for i in range(height):
-                    if infoheader.height > 0:
-                        dstindex = (height - 1 - i) * width * 3
-                    for _j in range(width):
-                        palindex = src[srcindex]
-                        if palindex >= <ssize_t> infoheader.clr_used:
-                            raise IndexError(
-                                f'{palindex=} >= {infoheader.clr_used=}'
-                            )
-                        palindex = offset + palindex * 4
-                        dstptr[dstindex] = src[palindex + 2]  # R
-                        dstindex += 1
-                        dstptr[dstindex] = src[palindex + 1]  # G
-                        dstindex += 1
-                        dstptr[dstindex] = src[palindex]  # B
-                        dstindex += 1
-                        srcindex += 1
-                    srcindex += rowpad
-
-            elif samples == 1:
-                # copy palette index
-                for i in range(height):
-                    if infoheader.height > 0:
-                        dstindex = (height - 1 - i) * width
-                    for _j in range(width):
-                        dstptr[dstindex] = src[srcindex]
-                        dstindex += 1
-                        srcindex += 1
-                    srcindex += rowpad
-
-        elif infoheader.bitcount == 24 and infoheader.compression_type == 0:
-            for i in range(height):
-                if infoheader.height > 0:
-                    dstindex = (height - 1 - i) * width * 3
-                for _j in range(width):
-                    dstptr[dstindex] = src[srcindex + 2]  # R
-                    dstindex += 1
-                    dstptr[dstindex] = src[srcindex + 1]  # G
-                    dstindex += 1
-                    dstptr[dstindex] = src[srcindex]  # B
-                    dstindex += 1
-                    srcindex += 3
-                srcindex += rowpad
-
-        elif (
-            infoheader.bitcount == 1 and infoheader.compression_type == BI_RGB
-        ):
-            for i in range(height):
-                if infoheader.height > 0:
-                    dstindex = (height - 1 - i) * width * samples
-                else:
-                    dstindex = i * width * samples
-                srcindex = <ssize_t> fileheader.offbits + i * rowstride
-                for j in range(width):
-                    palindex = (src[srcindex + j // 8] >> (7 - (j % 8))) & 1
-                    if palindex >= <ssize_t> infoheader.clr_used:
-                        raise IndexError(
-                            f'{palindex=} >= {infoheader.clr_used=}'
-                        )
-                    palindex = offset + palindex * 4
-                    if samples == 3:
-                        dstptr[dstindex] = src[palindex + 2]  # R
-                        dstptr[dstindex + 1] = src[palindex + 1]  # G
-                        dstptr[dstindex + 2] = src[palindex]  # B
-                        dstindex += 3
-                    else:
-                        dstptr[dstindex] = src[palindex + 2]
-                        dstindex += 1
-
-        elif (
-            infoheader.bitcount == 4 and infoheader.compression_type == BI_RGB
-        ):
-            for i in range(height):
-                if infoheader.height > 0:
-                    dstindex = (height - 1 - i) * width * samples
-                else:
-                    dstindex = i * width * samples
-                srcindex = <ssize_t> fileheader.offbits + i * rowstride
-                for j in range(width):
-                    if j % 2 == 0:
-                        palindex = (src[srcindex + j // 2] >> 4) & 0xF
-                    else:
-                        palindex = src[srcindex + j // 2] & 0xF
-                    if palindex >= <ssize_t> infoheader.clr_used:
-                        raise IndexError(
-                            f'{palindex=} >= {infoheader.clr_used=}'
-                        )
-                    palindex = offset + palindex * 4
-                    if samples == 3:
-                        dstptr[dstindex] = src[palindex + 2]  # R
-                        dstptr[dstindex + 1] = src[palindex + 1]  # G
-                        dstptr[dstindex + 2] = src[palindex]  # B
-                        dstindex += 3
-                    else:
-                        dstptr[dstindex] = src[palindex + 2]
-                        dstindex += 1
-
-        elif infoheader.bitcount == 16:
-            for i in range(height):
-                if infoheader.height > 0:
-                    dstindex = (height - 1 - i) * width * samples
-                else:
-                    dstindex = i * width * samples
-                srcindex = <ssize_t> fileheader.offbits + i * rowstride
-                for j in range(width):
-                    memcpy(
-                        <void*> &pixel16,
-                        <const void*> &src[srcindex + j * 2],
-                        2
-                    )
-                    pixel32 = <uint32_t> pixel16
-                    rv = (pixel32 & rmask) >> rshift
-                    gv = (pixel32 & gmask) >> gshift
-                    bv = (pixel32 & bmask) >> bshift
-                    dstptr[dstindex] = (
-                        <uint8_t> (rv * 255 / ((1 << rbits) - 1))
-                        if rbits < 8 else <uint8_t> rv
-                    )
-                    dstptr[dstindex + 1] = (
-                        <uint8_t> (gv * 255 / ((1 << gbits) - 1))
-                        if gbits < 8 else <uint8_t> gv
-                    )
-                    dstptr[dstindex + 2] = (
-                        <uint8_t> (bv * 255 / ((1 << bbits) - 1))
-                        if bbits < 8 else <uint8_t> bv
-                    )
-                    if samples == 4:
-                        av = (pixel32 & amask) >> ashift
-                        dstptr[dstindex + 3] = (
-                            <uint8_t> (av * 255 / ((1 << abits) - 1))
-                            if abits > 0 and abits < 8 else <uint8_t> av
-                        )
-                    dstindex += samples
-
-        elif infoheader.bitcount == 32:
-            for i in range(height):
-                if infoheader.height > 0:
-                    dstindex = (height - 1 - i) * width * samples
-                else:
-                    dstindex = i * width * samples
-                srcindex = <ssize_t> fileheader.offbits + i * rowstride
-                for j in range(width):
-                    memcpy(
-                        <void*> &pixel32,
-                        <const void*> &src[srcindex + j * 4],
-                        4
-                    )
-                    rv = (pixel32 & rmask) >> rshift
-                    gv = (pixel32 & gmask) >> gshift
-                    bv = (pixel32 & bmask) >> bshift
-                    dstptr[dstindex] = <uint8_t> rv
-                    dstptr[dstindex + 1] = <uint8_t> gv
-                    dstptr[dstindex + 2] = <uint8_t> bv
-                    if samples == 4:
-                        av = (pixel32 & amask) >> ashift
-                        dstptr[dstindex + 3] = <uint8_t> av
-                    dstindex += samples
-
-        elif (
-            infoheader.bitcount == 8 and infoheader.compression_type == BI_RLE8
-        ):
-            # BI_RLE8: run-length encoded 8-bit paletted image.
-            # Data is a sequence of 2-byte packets:
-            #   count > 0:             Run mode - repeat index 'code' N times
-            #   count == 0, code == 0: End of Line
-            #   count == 0, code == 1: End of Bitmap
-            #   count == 0, code == 2: Delta: right src[+0], down src[+1]
-            #   count == 0, code >= 3: Absolute: N indices, word-padded
-
-            # unset pixels default to index 0
-            memset(dstptr, 0, height * width * samples)
-            srcindex = <ssize_t> fileheader.offbits
-            srclimit = srcindex + <ssize_t> infoheader.size_image
-            if srclimit > srcsize:
-                srclimit = srcsize
-            x = 0
-            y = 0
-            while srcindex + 1 < srclimit:
-                count = src[srcindex]
-                code = src[srcindex + 1]
-                srcindex += 2
-                if count > 0:
-                    # encoded run: repeat palette index 'code' count times
-                    for _k in range(count):
-                        if x >= width or y >= height:
-                            break
-                        if infoheader.height > 0:
-                            row = height - 1 - y
-                        else:
-                            row = y
-                        if samples == 3:
-                            palindex = offset + <ssize_t> code * 4
-                            dstindex = (row * width + x) * 3
-                            dstptr[dstindex] = src[palindex + 2]  # R
-                            dstptr[dstindex + 1] = src[palindex + 1]  # G
-                            dstptr[dstindex + 2] = src[palindex]  # B
-                        else:
-                            dstptr[row * width + x] = code
-                        x += 1
-                elif code == 0:
-                    # end of line
-                    x = 0
-                    y += 1
-                elif code == 1:
-                    # end of bitmap
-                    break
-                elif code == 2:
-                    # delta: advance position by (dx, dy)
-                    if srcindex + 1 >= srclimit:
-                        break
-                    x += <ssize_t> src[srcindex]
-                    y += <ssize_t> src[srcindex + 1]
-                    srcindex += 2
-                else:
-                    # absolute mode: next 'code' literal palette indices
-                    for _k in range(code):
-                        if srcindex >= srclimit:
-                            break
-                        if x < width and y < height:
-                            if infoheader.height > 0:
-                                row = height - 1 - y
-                            else:
-                                row = y
-                            palval = src[srcindex]
-                            if samples == 3:
-                                palindex = offset + <ssize_t> palval * 4
-                                dstindex = (row * width + x) * 3
-                                dstptr[dstindex] = src[palindex + 2]  # R
-                                dstptr[dstindex + 1] = src[palindex + 1]  # G
-                                dstptr[dstindex + 2] = src[palindex]  # B
-                            else:
-                                dstptr[row * width + x] = palval
-                            x += 1
-                        srcindex += 1
-                    # absolute runs are padded to word (2-byte) boundary
-                    if code % 2 != 0:
-                        srcindex += 1
-
-        elif (
-            infoheader.bitcount == 4 and infoheader.compression_type == BI_RLE4
-        ):
-            # BI_RLE4: run-length encoded 4-bit paletted image.
-            # Same packet structure as BI_RLE8 but nibble-oriented:
-            #   count > 0:             Run mode - alternate high/low nibbles
-            #                          of 'code' across count pixels
-            #   count == 0, code == 0: End of Line
-            #   count == 0, code == 1: End of Bitmap
-            #   count == 0, code == 2: Delta: right src[+0], down src[+1]
-            #   count == 0, code >= 3: Absolute: N nibbles, word-padded
-
-            # unset pixels default to index 0
-            memset(dstptr, 0, height * width * samples)
-            srcindex = <ssize_t> fileheader.offbits
-            srclimit = srcindex + <ssize_t> infoheader.size_image
-            if srclimit > srcsize:
-                srclimit = srcsize
-            x = 0
-            y = 0
-            while srcindex + 1 < srclimit:
-                count = src[srcindex]
-                code = src[srcindex + 1]
-                srcindex += 2
-                if count > 0:
-                    # run: alternate high nibble then low nibble of code
-                    for k in range(count):
-                        if x >= width or y >= height:
-                            break
-                        if infoheader.height > 0:
-                            row = height - 1 - y
-                        else:
-                            row = y
-                        if k % 2 == 0:
-                            palval = (code >> 4) & 0xF
-                        else:
-                            palval = code & 0xF
-                        if samples == 3:
-                            palindex = offset + <ssize_t> palval * 4
-                            dstindex = (row * width + x) * 3
-                            dstptr[dstindex] = src[palindex + 2]  # R
-                            dstptr[dstindex + 1] = src[palindex + 1]  # G
-                            dstptr[dstindex + 2] = src[palindex]  # B
-                        else:
-                            dstptr[row * width + x] = palval
-                        x += 1
-                elif code == 0:
-                    # end of line
-                    x = 0
-                    y += 1
-                elif code == 1:
-                    # end of bitmap
-                    break
-                elif code == 2:
-                    # delta: advance position by (dx, dy)
-                    if srcindex + 1 >= srclimit:
-                        break
-                    x += <ssize_t> src[srcindex]
-                    y += <ssize_t> src[srcindex + 1]
-                    srcindex += 2
-                else:
-                    # absolute mode: 'code' nibbles packed 2 per byte,
-                    # word-padded. Index by offset to avoid in-loop mutation.
-                    nbytes = (<ssize_t> code + 1) // 2
-                    for k in range(code):
-                        if srcindex + k // 2 >= srclimit:
-                            break
-                        if k % 2 == 0:
-                            palval = (src[srcindex + k // 2] >> 4) & 0xF
-                        else:
-                            palval = src[srcindex + k // 2] & 0xF
-                        if x < width and y < height:
-                            if infoheader.height > 0:
-                                row = height - 1 - y
-                            else:
-                                row = y
-                            if samples == 3:
-                                palindex = offset + <ssize_t> palval * 4
-                                dstindex = (row * width + x) * 3
-                                dstptr[dstindex] = src[palindex + 2]  # R
-                                dstptr[dstindex + 1] = src[palindex + 1]  # G
-                                dstptr[dstindex + 2] = src[palindex]  # B
-                            else:
-                                dstptr[row * width + x] = palval
-                            x += 1
-                    srcindex += nbytes
-                    # absolute runs are padded to word (2-byte) boundary
-                    if nbytes % 2 != 0:
-                        srcindex += 1
-
-        else:
-            raise NotImplementedError(
-                f'{infoheader.bitcount=} and {infoheader.compression_type=}'
-            )
+        ret = bmp_decode_(
+            srcptr, srcsize, &info, <uint8_t*> dst.data, dstsize
+        )
+    if ret == BMP_INDEX_ERROR:
+        raise IndexError(f'palette index >= {info.clr_used}')
+    if ret < 0:
+        raise BmpError('bmp_decode', ret, info.bitcount, info.compression)
 
     return out
+
+
+def bmp_info(
+    const uint8_t[::1] data not None,
+    /,
+    asrgb=None,
+):
+    """Return information about BMP image."""
+    cdef:
+        numpy.ndarray palette = None
+        bmp_info_t info
+        bint isjpeg
+
+    shape = _bmp_shape(&data[0], data.shape[0], asrgb, &info)
+
+    if (
+        info.compression == BMP_BI_JPEG
+        or info.compression == BMP_BI_PNG
+    ):
+        embedded = data[info.offbits:]
+        isjpeg = info.compression == BMP_BI_JPEG
+        embedded_info = jpeg_info(embedded) if isjpeg else png_info(embedded)
+        shape = embedded_info['shape']
+        samples = shape[2] if len(shape) > 2 else 1
+        return _bmp_info(
+            &info,
+            shape,
+            embedded_info['dtype'],
+            'gray' if samples <= 2 else (
+                'cmyk' if isjpeg and samples == 4 else 'rgb'
+            ),
+            not isjpeg and samples in {2, 4},
+            None,
+            None,
+        )
+
+    if info.bitcount <= 8:
+        palette = numpy.empty((int(info.clr_used), 3), dtype=numpy.uint8)
+        memcpy(
+            <void*> palette.data,
+            <const void*> info.palette,
+            info.clr_used * 3,
+        )
+    return _bmp_info(
+        &info,
+        shape,
+        numpy.dtype(numpy.uint8),
+        'gray' if info.samples == 1 else 'rgb',
+        bool(info.has_alpha),
+        (
+            (
+                int(info.masks[0]),
+                int(info.masks[1]),
+                int(info.masks[2]),
+                int(info.masks[3]),
+            )
+            if info.compression == BMP_BI_BITFIELDS
+            else None
+        ),
+        palette,
+    )
+
+
+cdef tuple _bmp_shape(
+    const uint8_t* src, ssize_t srcsize, asrgb, bmp_info_t* info
+):
+    """Parse BMP headers into info and return decoded shape."""
+    cdef:
+        int asrgb_ = -1 if asrgb is None else (1 if asrgb else 0)
+        ssize_t ret
+
+    with nogil:
+        ret = bmp_info_(src, srcsize, asrgb_, info)
+    if ret < 0:
+        raise BmpError('bmp_info', ret, info.bitcount, info.compression)
+    if info.samples > 1:
+        return (int(info.height), int(info.width), int(info.samples))
+    return (int(info.height), int(info.width))
+
+
+cdef dict _bmp_info(
+    const bmp_info_t* info,
+    shape,
+    dtype,
+    colorspace,
+    alpha,
+    masks,
+    palette,
+):
+    """Return BMP info dict."""
+    return {
+        '_codec': 'bmp',
+        'shape': shape,
+        'dtype': dtype,
+        'bitcount': int(info.bitcount),
+        'compression': {
+            BMP_BI_RGB: 'BI_RGB',
+            BMP_BI_RLE8: 'BI_RLE8',
+            BMP_BI_RLE4: 'BI_RLE4',
+            BMP_BI_BITFIELDS: 'BI_BITFIELDS',
+            BMP_BI_JPEG: 'BI_JPEG',
+            BMP_BI_PNG: 'BI_PNG',
+        }.get(info.compression, int(info.compression)),
+        'top_down': bool(info.topdown),
+        'x_ppm': int(info.x_ppm),
+        'y_ppm': int(info.y_ppm),
+        'colorspace': colorspace,
+        'alpha': alpha,
+        'masks': masks,
+        'palette': palette,
+    }
