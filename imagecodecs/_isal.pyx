@@ -51,36 +51,49 @@ class ISAL:
         """ISAL codec compression levels."""
 
         DEFAULT = 1
-        NO = 0  # store, ISAL_DEF_MIN_LEVEL
+        NO = 0  # ISA-L has no store mode; same as SPEED
         BEST = 3  # ISAL_DEF_MAX_LEVEL
-        SPEED = 1  # fast
+        SPEED = 0  # ISAL_DEF_MIN_LEVEL
 
 
 class IsalError(RuntimeError):
     """ISAL codec exceptions."""
 
     def __init__(self, func, err):
-        msg = {
-            ISAL_DECOMP_OK: 'ISAL_DECOMP_OK',
-            ISAL_END_INPUT: 'ISAL_END_INPUT',
-            ISAL_OUT_OVERFLOW: 'ISAL_OUT_OVERFLOW',
-            ISAL_NAME_OVERFLOW: 'ISAL_NAME_OVERFLOW',
-            ISAL_COMMENT_OVERFLOW: 'ISAL_COMMENT_OVERFLOW',
-            ISAL_EXTRA_OVERFLOW: 'ISAL_EXTRA_OVERFLOW',
-            ISAL_NEED_DICT: 'ISAL_NEED_DICT',
-            ISAL_INVALID_BLOCK: 'ISAL_INVALID_BLOCK',
-            ISAL_INVALID_SYMBOL: 'ISAL_INVALID_SYMBOL',
-            ISAL_INVALID_LOOKBACK: 'ISAL_INVALID_LOOKBACK',
-            ISAL_INVALID_WRAPPER: 'ISAL_INVALID_WRAPPER',
-            ISAL_UNSUPPORTED_METHOD: 'ISAL_UNSUPPORTED_METHOD',
-            ISAL_INCORRECT_CHECKSUM: 'ISAL_INCORRECT_CHECKSUM',
-            COMP_OK: 'COMP_OK',
-            STATELESS_OVERFLOW: 'STATELESS_OVERFLOW',
-            ISAL_INVALID_STATE: 'ISAL_INVALID_STATE',
-            ISAL_INVALID_LEVEL: 'ISAL_INVALID_LEVEL',
-            ISAL_INVALID_LEVEL_BUF: 'ISAL_INVALID_LEVEL_BUF',
-        }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg!r}'
+        if isinstance(err, str):
+            super().__init__(f'{func} returned {err!r}')
+            return
+        # inflate and deflate return codes overlap
+        if 'deflate' in func:
+            msg = {
+                COMP_OK: 'COMP_OK',
+                STATELESS_OVERFLOW: 'STATELESS_OVERFLOW',
+                ISAL_INVALID_STATE: 'ISAL_INVALID_STATE',
+                ISAL_INVALID_LEVEL: 'ISAL_INVALID_LEVEL',
+                ISAL_INVALID_LEVEL_BUF: 'ISAL_INVALID_LEVEL_BUF',
+            }.get(err, f'unknown error {err!r}')
+        else:
+            msg = {
+                ISAL_DECOMP_OK: 'ISAL_DECOMP_OK',
+                ISAL_END_INPUT: 'ISAL_END_INPUT',
+                ISAL_OUT_OVERFLOW: 'ISAL_OUT_OVERFLOW',
+                ISAL_NAME_OVERFLOW: 'ISAL_NAME_OVERFLOW',
+                ISAL_COMMENT_OVERFLOW: 'ISAL_COMMENT_OVERFLOW',
+                ISAL_EXTRA_OVERFLOW: 'ISAL_EXTRA_OVERFLOW',
+                ISAL_NEED_DICT: 'ISAL_NEED_DICT',
+                ISAL_INVALID_BLOCK: 'ISAL_INVALID_BLOCK',
+                ISAL_INVALID_SYMBOL: 'ISAL_INVALID_SYMBOL',
+                ISAL_INVALID_LOOKBACK: 'ISAL_INVALID_LOOKBACK',
+                ISAL_INVALID_WRAPPER: 'ISAL_INVALID_WRAPPER',
+                ISAL_UNSUPPORTED_METHOD: 'ISAL_UNSUPPORTED_METHOD',
+                ISAL_INCORRECT_CHECKSUM: 'ISAL_INCORRECT_CHECKSUM',
+            }.get(err, f'unknown error {err!r}')
+        msg = f'{func} returned {msg}'
+        if (
+            err == STATELESS_OVERFLOW if 'deflate' in func
+            else err == ISAL_OUT_OVERFLOW
+        ):
+            msg += ' (output too small)'
         super().__init__(msg)
 
 
@@ -92,18 +105,23 @@ def isal_version():
     )
 
 
-def isal_check(const uint8_t[::1] data, /):
+def isal_check(const uint8_t[::1] data not None, /):
     """Return whether data is ZLIB or GZIP encoded or None if unknown."""
     cdef:
-        bytes sig = bytes(data[:2])
+        unsigned int cmf, flg
 
+    if data.shape[0] < 2:
+        return False
+    cmf = data[0]
+    flg = data[1]
+    if cmf == 0x1F and flg == 0x8B:
+        return True
+    # ZLIB header: CM=8, CINFO<=7, no preset dictionary, valid FCHECK
     if (
-        sig == b'\x1f\x8b'  # GZIP magic bytes
-        # most common ZLIB headers
-        or sig == b'\x78\x9C'
-        or sig == b'\x78\x5E'
-        or sig == b'\x78\x01'
-        or sig == b'\x78\xDA'
+        (cmf & 0x0F) == 8
+        and (cmf >> 4) <= 7
+        and (flg & 0x20) == 0
+        and ((cmf << 8) | flg) % 31 == 0
     ):
         return True
     return None
@@ -152,6 +170,9 @@ def isal_encode(
     dst = out
     dstsize = dst.shape[0]
 
+    if <size_t> srcsize > <size_t> UINT32_MAX:
+        raise ValueError('ISA-L cannot compress more than 4 GiB at once')
+
     try:
         with nogil:
             if compresslevel == 1:
@@ -170,7 +191,9 @@ def isal_encode(
             stream.next_in = <uint8_t*> src._data
             stream.avail_in = <uint32_t> srcsize
             stream.next_out = <uint8_t*> dst._data
-            stream.avail_out = <uint32_t> dstsize
+            stream.avail_out = <uint32_t> min(
+                <size_t> dstsize, <size_t> UINT32_MAX
+            )
             stream.end_of_stream = 1
             stream.flush = NO_FLUSH
             stream.gzip_flag = gzip_flag
@@ -200,6 +223,7 @@ def isal_decode(
     """Return decoded DEFLATE, ZLIB, or GZIP data.
 
     The format is auto-detected unless raw=True.
+    Concatenated GZIP members and zero padding are supported.
 
     """
     cdef:
@@ -207,9 +231,13 @@ def isal_decode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
+        size_t srcpos = 0
+        size_t dstpos = 0
         inflate_state state
         int crc_flag = ISAL_ZLIB
-        int ret
+        int ret = ISAL_DECOMP_OK
+        bint sizegiven
+        bint fallback = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -221,40 +249,80 @@ def isal_decode(
         crc_flag = ISAL_GZIP
 
     out, dstsize, outgiven, outtype = _parse_output(out)
+    sizegiven = out is not None or dstsize >= 0
 
     if out is None:
         if dstsize < 0:
-            if crc_flag == ISAL_GZIP and srcsize >= 18:
-                # use trailing 4-byte size field (little-endian, mod 2^32)
-                dstsize = (
-                    (src[srcsize - 4] << 0) |
-                    (src[srcsize - 3] << 8) |
-                    (src[srcsize - 2] << 16) |
-                    (src[srcsize - 1] << 24)
-                )
-                if dstsize <= 0:
-                    return _isal_decode(src, outtype, crc_flag)
-            else:
+            if crc_flag != ISAL_GZIP or srcsize < 20:
                 return _isal_decode(src, outtype, crc_flag)
+            # use trailing 4-byte size field (little-endian, mod 2^32)
+            dstsize = <ssize_t> (
+                (<uint32_t> src[srcsize - 4])
+                | (<uint32_t> src[srcsize - 3] << 8)
+                | (<uint32_t> src[srcsize - 2] << 16)
+                | (<uint32_t> src[srcsize - 1] << 24)
+            )
+            # DEFLATE cannot expand data by more than ~1032:1
+            if dstsize <= 0 or dstsize // 1032 > srcsize:
+                return _isal_decode(src, outtype, crc_flag)
+        if (
+            <size_t> srcsize > <size_t> UINT32_MAX
+            or <size_t> dstsize > <size_t> UINT32_MAX
+        ):
+            return _isal_decode(src, outtype, crc_flag)
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
-    with nogil:
-        isal_inflate_init(&state)
-        state.crc_flag = crc_flag
-        state.next_in = <uint8_t*> src._data
-        state.avail_in = <uint32_t> srcsize
-        state.next_out = <uint8_t*> dst._data
-        state.avail_out = <uint32_t> dstsize
-        ret = isal_inflate_stateless(&state)
+    if (
+        <size_t> srcsize > <size_t> UINT32_MAX
+        or <size_t> dstsize > <size_t> UINT32_MAX
+    ):
+        raise ValueError(
+            'ISA-L cannot decode more than 4 GiB to output buffer'
+        )
 
-    if state.block_state != ISAL_BLOCK_FINISH:
+    with nogil:
+        while True:
+            isal_inflate_init(&state)
+            state.crc_flag = crc_flag
+            state.next_in = <uint8_t*> (src._data + srcpos)
+            state.avail_in = <uint32_t> (<size_t> srcsize - srcpos)
+            state.next_out = <uint8_t*> (dst._data + dstpos)
+            state.avail_out = <uint32_t> (<size_t> dstsize - dstpos)
+            ret = isal_inflate_stateless(&state)
+            if (
+                ret != ISAL_DECOMP_OK
+                or state.block_state != ISAL_BLOCK_FINISH
+            ):
+                if ret == ISAL_OUT_OVERFLOW and not sizegiven:
+                    fallback = True
+                break
+            srcpos = <size_t> srcsize - state.avail_in
+            dstpos += state.total_out
+            if crc_flag != ISAL_GZIP:
+                break
+            # ignore zero padding after GZIP members
+            while srcpos < <size_t> srcsize and src[srcpos] == 0:
+                srcpos += 1
+            if srcpos >= <size_t> srcsize:
+                break
+            if not sizegiven:
+                # size field is not reliable for multi-member streams
+                fallback = True
+                break
+
+    if fallback:
+        del dst
+        return _isal_decode(src, outtype, crc_flag)
+    if ret != ISAL_DECOMP_OK:
         raise IsalError('isal_inflate_stateless', ret)
+    if state.block_state != ISAL_BLOCK_FINISH:
+        raise IsalError('isal_inflate_stateless', 'incomplete stream')
 
     del dst
-    return _return_output(out, dstsize, <ssize_t> state.total_out, outgiven)
+    return _return_output(out, dstsize, <ssize_t> dstpos, outgiven)
 
 
 # CRC #########################################################################
@@ -283,13 +351,20 @@ def isal_crc32c(
     """Return CRC32C (Castagnoli/iSCSI) checksum of data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data)
-        int srcsize = <int> src.shape[0]
+        unsigned char* ptr = <unsigned char*> src._data
+        size_t srcsize = <size_t> src.shape[0]
+        int size
         unsigned int crc = 0 if value is None else value
 
     with nogil:
-        crc = crc32_iscsi(
-            <unsigned char*> src._data, srcsize, crc
-        )
+        # crc32_iscsi does not apply the standard pre- and post-inversion
+        crc = ~crc
+        while srcsize > 0:
+            size = <int> min(srcsize, <size_t> INT_MAX)
+            crc = crc32_iscsi(ptr, size, crc)
+            ptr += size
+            srcsize -= size
+        crc = ~crc
     return int(crc)
 
 
@@ -313,7 +388,7 @@ def isal_adler32(
 
 # Streaming inflate ###########################################################
 
-def _isal_decode(const uint8_t[::1] src, outtype, int crc_flag):
+def _isal_decode(const uint8_t[::1] src not None, outtype, int crc_flag):
     """Decompress using ISA-L streaming inflate API."""
     cdef:
         output_t* output = NULL
@@ -321,6 +396,9 @@ def _isal_decode(const uint8_t[::1] src, outtype, int crc_flag):
         size_t srcsize = <size_t> src.shape[0]
         size_t incsize = _align_size_t(srcsize // 2)
         size_t size, left
+        uint8_t* next_in
+        uint8_t* next_out
+        uint32_t avail_in, avail_out
         int ret = ISAL_DECOMP_OK
 
     try:
@@ -341,8 +419,7 @@ def _isal_decode(const uint8_t[::1] src, outtype, int crc_flag):
             left = <size_t> output.size
             size = srcsize
 
-            while ret == ISAL_DECOMP_OK or ret == ISAL_OUT_OVERFLOW:
-
+            while True:
                 if state.avail_in == 0 and size > 0:
                     # feed next input chunk
                     if size > <size_t> UINT32_MAX:
@@ -354,7 +431,7 @@ def _isal_decode(const uint8_t[::1] src, outtype, int crc_flag):
                 if state.avail_out == 0:
                     if left == 0:
                         # grow output buffer
-                        left = incsize
+                        left = max(incsize, <size_t> output.size // 2)
                         if output.size > SIZE_MAX - left:
                             raise MemoryError('output buffer size overflow')
                         if output_resize(output, output.size + left) == 0:
@@ -369,19 +446,51 @@ def _isal_decode(const uint8_t[::1] src, outtype, int crc_flag):
                     left -= state.avail_out
 
                 ret = isal_inflate(&state)
-
-                if (
-                    ret == ISAL_DECOMP_OK
-                    and state.avail_in == 0
-                    and size == 0
-                    and state.block_state != ISAL_BLOCK_FINISH
-                ):
-                    raise IsalError('isal_inflate', 'truncated input')
-
-                if state.block_state == ISAL_BLOCK_FINISH:
+                if ret != ISAL_DECOMP_OK:
                     break
 
-            if state.block_state != ISAL_BLOCK_FINISH:
+                if state.block_state == ISAL_BLOCK_FINISH:
+                    if crc_flag != ISAL_GZIP:
+                        break
+                    # skip zero padding after GZIP member
+                    while True:
+                        if state.avail_in == 0:
+                            if size == 0:
+                                break
+                            if size > <size_t> UINT32_MAX:
+                                state.avail_in = <uint32_t> UINT32_MAX
+                            else:
+                                state.avail_in = <uint32_t> size
+                            size -= state.avail_in
+                        if state.next_in[0] != 0:
+                            break
+                        state.next_in += 1
+                        state.avail_in -= 1
+                    if state.avail_in == 0:
+                        break
+                    # decode next GZIP member
+                    next_in = state.next_in
+                    avail_in = state.avail_in
+                    next_out = state.next_out
+                    avail_out = state.avail_out
+                    isal_inflate_reset(&state)
+                    state.crc_flag = crc_flag
+                    state.next_in = next_in
+                    state.avail_in = avail_in
+                    state.next_out = next_out
+                    state.avail_out = avail_out
+                    continue
+
+                if (
+                    state.avail_in == 0
+                    and size == 0
+                    and state.avail_out > 0
+                ):
+                    raise IsalError(
+                        'isal_inflate', 'truncated input or invalid header'
+                    )
+
+            if ret != ISAL_DECOMP_OK:
                 raise IsalError('isal_inflate', ret)
 
         out = _create_output(
