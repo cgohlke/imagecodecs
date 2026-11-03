@@ -42,9 +42,10 @@ include '_shared.pxi'
 from libdeflate cimport *
 
 try:
-    from ._zlib import _zlib_decode
+    from ._zlib import ZlibError, _zlib_decode
 except ImportError:
     _zlib_decode = None
+    ZlibError = None
 
 
 class DEFLATE:
@@ -57,8 +58,10 @@ class DeflateError(RuntimeError):
     """DEFLATE codec exceptions."""
 
     def __init__(self, func, err):
-        if isinstance(err, str):
-            msg = err
+        if err is None:
+            msg = 'NULL'
+        elif isinstance(err, str):
+            msg = repr(err)
         else:
             msg = {
                 LIBDEFLATE_SUCCESS: 'LIBDEFLATE_SUCCESS',
@@ -66,7 +69,9 @@ class DeflateError(RuntimeError):
                 LIBDEFLATE_SHORT_OUTPUT: 'LIBDEFLATE_SHORT_OUTPUT',
                 LIBDEFLATE_INSUFFICIENT_SPACE: 'LIBDEFLATE_INSUFFICIENT_SPACE',
             }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg!r}'
+        msg = f'{func} returned {msg}'
+        if err == LIBDEFLATE_INSUFFICIENT_SPACE:
+            msg += ' (output too small)'
         super().__init__(msg)
 
 
@@ -75,17 +80,21 @@ def deflate_version():
     return 'libdeflate ' + LIBDEFLATE_VERSION_STRING.decode()
 
 
-def deflate_check(const uint8_t[::1] data, /):
+def deflate_check(const uint8_t[::1] data not None, /):
     """Return whether data is DEFLATE encoded or None if unknown."""
     cdef:
-        bytes sig = bytes(data[:2])
+        unsigned int cmf, flg
 
-    # most common ZLIB headers
+    if data.shape[0] < 2:
+        return False
+    cmf = data[0]
+    flg = data[1]
+    # ZLIB header: CM=8, CINFO<=7, no preset dictionary, valid FCHECK
     if (
-        sig == b'\x78\x9C'
-        or sig == b'\x78\x5E'
-        or sig == b'\x78\x01'
-        or sig == b'\x78\xDA'
+        (cmf & 0x0F) == 8
+        and (cmf >> 4) <= 7
+        and (flg & 0x20) == 0
+        and ((cmf << 8) | flg) % 31 == 0
     ):
         return True
     return None
@@ -113,7 +122,7 @@ def deflate_encode(
 
     compressor = libdeflate_alloc_compressor(compression_level)
     if compressor == NULL:
-        raise DeflateError('libdeflate_alloc_compressor', 'NULL')
+        raise DeflateError('libdeflate_alloc_compressor', None)
 
     try:
         if out is None:
@@ -124,7 +133,8 @@ def deflate_encode(
                     )
                     if dstlen == 0:
                         raise DeflateError(
-                            'libdeflate_deflate_compress_bound', '0'
+                            'libdeflate_deflate_compress_bound',
+                            'input too large',
                         )
                 else:
                     dstlen = libdeflate_zlib_compress_bound(
@@ -132,7 +142,7 @@ def deflate_encode(
                     )
                     if dstlen == 0:
                         raise DeflateError(
-                            'libdeflate_zlib_compress_bound', '0'
+                            'libdeflate_zlib_compress_bound', 'input too large'
                         )
                 dstsize = <ssize_t> dstlen
             out = _create_output(outtype, dstsize)
@@ -152,7 +162,9 @@ def deflate_encode(
                     dstlen
                 )
                 if dstlen == 0:
-                    raise DeflateError('libdeflate_deflate_compress', '0')
+                    raise DeflateError(
+                        'libdeflate_deflate_compress', 'output too small'
+                    )
             else:
                 dstlen = libdeflate_zlib_compress(
                     compressor,
@@ -162,7 +174,9 @@ def deflate_encode(
                     dstlen
                 )
                 if dstlen == 0:
-                    raise DeflateError('libdeflate_zlib_compress', '0')
+                    raise DeflateError(
+                        'libdeflate_zlib_compress', 'output too small'
+                    )
     finally:
         if compressor != NULL:
             libdeflate_free_compressor(compressor)
@@ -200,17 +214,18 @@ def deflate_decode(
 
     if out is None:
         if dstsize < 0:
-            if raw:
-                raise NotImplementedError  # TODO
-
-            if _zlib_decode is not None:
-                return _zlib_decode(src, outtype)
-
-            raise NotImplementedError('deflate stream decode not implemented')
+            if _zlib_decode is None:
+                raise NotImplementedError(
+                    'DEFLATE decoding requires output size'
+                )
+            try:
+                return _zlib_decode(src, outtype, -15 if raw else 15)
+            except ZlibError as exc:
+                raise DeflateError('zlib', str(exc)) from exc
 
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     dstlen = <size_t> dstsize
     srclen = <size_t> srcsize
@@ -219,7 +234,7 @@ def deflate_decode(
         with nogil:
             decompressor = libdeflate_alloc_decompressor()
             if decompressor == NULL:
-                raise DeflateError('libdeflate_alloc_decompressor', 'NULL')
+                raise DeflateError('libdeflate_alloc_decompressor', None)
 
             if raw:
                 ret = libdeflate_deflate_decompress(
@@ -266,12 +281,9 @@ GzipError = DeflateError
 gzip_version = deflate_version
 
 
-def gzip_check(const uint8_t[::1] data, /):
+def gzip_check(const uint8_t[::1] data not None, /):
     """Return whether data is GZIP encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:2])
-
-    return sig == b'\x1f\x8b'
+    return _startswith(data, b'\x1f\x8b')
 
 
 def gzip_encode(
@@ -295,7 +307,7 @@ def gzip_encode(
 
     compressor = libdeflate_alloc_compressor(compression_level)
     if compressor == NULL:
-        raise GzipError('libdeflate_alloc_compressor', 'NULL')
+        raise GzipError('libdeflate_alloc_compressor', None)
 
     try:
         if out is None:
@@ -304,7 +316,9 @@ def gzip_encode(
                     compressor, <size_t> srcsize
                 )
                 if dstlen == 0:
-                    raise GzipError('libdeflate_gzip_compress_bound', '0')
+                    raise GzipError(
+                        'libdeflate_gzip_compress_bound', 'input too large'
+                    )
                 dstsize = <ssize_t> dstlen
             out = _create_output(outtype, dstsize)
 
@@ -322,7 +336,9 @@ def gzip_encode(
                 dstlen
             )
             if dstlen == 0:
-                raise GzipError('libdeflate_gzip_compress', '0')
+                raise GzipError(
+                    'libdeflate_gzip_compress', 'output too small'
+                )
 
     finally:
         if compressor != NULL:
@@ -340,7 +356,8 @@ def gzip_decode(
 ):
     """Return decoded GZIP data.
 
-    Supports only single-member streams < 2^32.
+    If the output size is unknown and the GZIP size field does not match,
+    for example, for multi-member streams, the zlib codec is used.
 
     """
     cdef:
@@ -349,58 +366,99 @@ def gzip_decode(
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t srclen, dstlen
+        size_t srcpos = 0
+        size_t dstpos = 0
+        size_t actual_in_nbytes_ret
         size_t actual_out_nbytes_ret
+        bint sizegiven
+        bint fallback = False
         libdeflate_result ret
         libdeflate_decompressor* decompressor = NULL
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    if srcsize < 4 or src[0] != 0x1F or src[1] != 0x8B:
+    # 10 byte header, empty DEFLATE block, 8 byte trailer
+    if srcsize < 20 or src[0] != 0x1F or src[1] != 0x8B:
         raise ValueError('invalid GZIP header')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
+    sizegiven = out is not None or dstsize >= 0
 
     if out is None:
         if dstsize < 0:
             # the last 4 bytes contain the size of the original, uncompressed
             # input data modulo 2^32 in little endian order
-            dstsize = (
-                (src[srcsize - 4] << 0) |
-                (src[srcsize - 3] << 8) |
-                (src[srcsize - 2] << 16) |
-                (src[srcsize - 1] << 24)
+            dstsize = <ssize_t> (
+                (<uint32_t> src[srcsize - 4])
+                | (<uint32_t> src[srcsize - 3] << 8)
+                | (<uint32_t> src[srcsize - 2] << 16)
+                | (<uint32_t> src[srcsize - 1] << 24)
             )
-        out = _create_output(outtype, dstsize)
+            # DEFLATE cannot expand data by more than ~1032:1
+            if dstsize < 0 or dstsize // 1032 > srcsize:
+                fallback = True
+        if not fallback:
+            out = _create_output(outtype, dstsize)
 
-    dst = out
-    dstsize = dst.shape[0]
-    dstlen = <size_t> dstsize
-    srclen = <size_t> srcsize
+    if not fallback:
+        dst = _inplace_input(out) if outgiven else out
+        dstsize = dst.shape[0]
+        dstlen = <size_t> dstsize
+        srclen = <size_t> srcsize
 
-    try:
-        with nogil:
-            decompressor = libdeflate_alloc_decompressor()
-            if decompressor == NULL:
-                raise GzipError('libdeflate_alloc_decompressor', 'NULL')
+        try:
+            with nogil:
+                decompressor = libdeflate_alloc_decompressor()
+                if decompressor == NULL:
+                    raise GzipError('libdeflate_alloc_decompressor', None)
 
-            ret = libdeflate_gzip_decompress(
-                decompressor,
-                <const void*> src._data,
-                srclen,
-                <void*> dst._data,
-                dstlen,
-                &actual_out_nbytes_ret
+                while True:
+                    ret = libdeflate_gzip_decompress_ex(
+                        decompressor,
+                        <const void*> (src._data + srcpos),
+                        srclen - srcpos,
+                        <void*> (dst._data + dstpos),
+                        dstlen - dstpos,
+                        &actual_in_nbytes_ret,
+                        &actual_out_nbytes_ret
+                    )
+                    if ret != LIBDEFLATE_SUCCESS:
+                        if (
+                            ret == LIBDEFLATE_INSUFFICIENT_SPACE
+                            and not sizegiven
+                        ):
+                            fallback = True
+                            break
+                        raise GzipError('libdeflate_gzip_decompress_ex', ret)
+                    srcpos += actual_in_nbytes_ret
+                    dstpos += actual_out_nbytes_ret
+                    # ignore zero padding after members
+                    while srcpos < srclen and src[srcpos] == 0:
+                        srcpos += 1
+                    if srcpos >= srclen:
+                        break
+                    if not sizegiven:
+                        fallback = True
+                        break
+
+        finally:
+            if decompressor != NULL:
+                libdeflate_free_decompressor(decompressor)
+
+        del dst
+
+    if fallback:
+        # size field is not reliable for multi-member or padded streams
+        if _zlib_decode is None:
+            raise ValueError(
+                'GZIP size field does not match data; output size required'
             )
-            if ret != LIBDEFLATE_SUCCESS:
-                raise GzipError('libdeflate_gzip_decompress', ret)
-
-    finally:
-        if decompressor != NULL:
-            libdeflate_free_decompressor(decompressor)
-
-    del dst
-    return _return_output(out, dstsize, actual_out_nbytes_ret, outgiven)
+        try:
+            return _zlib_decode(src, outtype, 31)
+        except ZlibError as exc:
+            raise GzipError('zlib', str(exc)) from exc
+    return _return_output(out, dstsize, dstpos, outgiven)
 
 
 # CRC #########################################################################
