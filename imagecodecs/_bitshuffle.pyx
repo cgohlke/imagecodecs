@@ -61,7 +61,7 @@ class BitshuffleError(RuntimeError):
             -81: 'Block size not a multiple of 8',
             -91: 'Decompression error, wrong number of bytes processed',
         }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg}'
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -72,152 +72,107 @@ def bitshuffle_version():
     )
 
 
-def bitshuffle_check(const uint8_t[::1] data, /):
+def bitshuffle_check(const uint8_t[::1] data not None, /):
     """Return whether data is BITSHUFFLE encoded or None if unknown."""
-    return None if data.shape[0] > 0 else True
+    return None
 
 
 def bitshuffle_encode(
     data,
     /,
     *,
-    itemsize=1,
+    itemsize=None,
     blocksize=0,
     out=None,
 ):
-    """Return BITSHUFFLE encoded data."""
-    cdef:
-        const uint8_t[::1] src = _readable_input(data, out)
-        const uint8_t[::1] dst  # must be const to write to bytes
-        numpy.ndarray ndarr
-        ssize_t srcsize
-        ssize_t dstsize
-        size_t elem_size
-        size_t block_size = blocksize
-        int64_t ret
+    """Return BITSHUFFLE encoded data.
 
-    if isinstance(data, numpy.ndarray):
-        out = _create_array(out, data.shape, data.dtype)
-        ndarr = out
-        srcsize = data.size
-        elem_size = <size_t> data.itemsize
-        with nogil:
-            ret = bshuf_bitshuffle(
-                <void*> src._data,
-                <void*> ndarr.data,
-                <size_t> srcsize,
-                elem_size,
-                block_size
-            )
-        if ret < 0:
-            raise BitshuffleError('bshuf_bitshuffle', ret)
-        return out
+    By default, itemsize is the item size of numpy arrays, else 1.
 
-    srcsize = src.shape[0]
-    elem_size = itemsize
-
-    if elem_size < 1:
-        # != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
-        raise ValueError('invalid item size')
-    if srcsize % elem_size != 0:
-        raise ValueError('data size not a multiple of item size')
-
-    out, dstsize, outgiven, outtype = _parse_output(out)
-
-    if out is None:
-        if dstsize < 0:
-            dstsize = srcsize
-        out = _create_output(outtype, dstsize)
-
-    dst = out
-    dstsize = dst.shape[0]
-
-    if dstsize < srcsize:
-        raise RuntimeError('output too small')
-
-    with nogil:
-        ret = bshuf_bitshuffle(
-            <void*> src._data,
-            <void*> dst._data,
-            srcsize // elem_size,
-            elem_size,
-            block_size
-        )
-    if ret < 0:
-        raise BitshuffleError('bshuf_bitshuffle', ret)
-
-    del dst
-    return _return_output(out, dstsize, <ssize_t> ret, outgiven)
+    """
+    return _bitshuffle(data, itemsize, blocksize, out, False)
 
 
 def bitshuffle_decode(
     data,
     /,
     *,
-    itemsize=1,
+    itemsize=None,
     blocksize=0,
     out=None,
 ):
-    """Return decoded BITSHUFFLE data."""
+    """Return decoded BITSHUFFLE data.
+
+    By default, itemsize is the item size of numpy arrays, else 1.
+
+    """
+    return _bitshuffle(data, itemsize, blocksize, out, True)
+
+
+cdef _bitshuffle(data, itemsize, blocksize, out, bint decode):
+    """Return bit shuffled or unshuffled data."""
     cdef:
         const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
         numpy.ndarray ndarr
-        ssize_t srcsize
+        void* dstptr
+        ssize_t srcsize = src.shape[0]
         ssize_t dstsize
-        size_t elem_size
-        size_t block_size = blocksize
+        ssize_t elem_size
+        ssize_t block_size = blocksize
+        bint isarray = isinstance(data, numpy.ndarray)
         int64_t ret
 
-    if isinstance(data, numpy.ndarray):
-        out = _create_array(out, data.shape, data.dtype)
-        ndarr = out
-        srcsize = data.size
-        elem_size = <size_t> data.itemsize
-        with nogil:
-            ret = bshuf_bitunshuffle(
-                <void*> src._data,
-                <void*> ndarr.data,
-                <size_t> srcsize,
-                elem_size,
-                block_size
-            )
-        if ret < 0:
-            raise BitshuffleError('bshuf_bitunshuffle', ret)
-        return out
-
-    srcsize = src.shape[0]
-    elem_size = itemsize
-
+    if itemsize is None:
+        elem_size = data.itemsize if isarray else 1
+    else:
+        elem_size = itemsize
     if elem_size < 1:
-        # != 1 and elem_size != 2 and elem_size != 4 and elem_size != 8:
-        raise ValueError('invalid item size')
+        raise ValueError(f'invalid {itemsize=}')
+    if block_size < 0:
+        raise ValueError(f'invalid {blocksize=}')
     if srcsize % elem_size != 0:
         raise ValueError('data size not a multiple of item size')
 
-    out, dstsize, outgiven, outtype = _parse_output(out)
-
-    if out is None:
-        if dstsize < 0:
-            dstsize = srcsize
-        out = _create_output(outtype, dstsize)
-
-    dst = out
-    dstsize = dst.shape[0]
-
-    if dstsize < srcsize:
-        raise RuntimeError('output too small')
+    if isarray:
+        out = _create_array(out, data.shape, data.dtype)
+        ndarr = out
+        dstptr = <void*> ndarr.data
+    else:
+        out, dstsize, outgiven, outtype = _parse_output(out)
+        if out is None:
+            if dstsize < 0:
+                dstsize = srcsize
+            out = _create_output(outtype, dstsize)
+        dst = _inplace_input(out) if outgiven else out
+        dstsize = dst.shape[0]
+        if dstsize < srcsize:
+            raise RuntimeError('output too small')
+        dstptr = <void*> dst._data
 
     with nogil:
-        ret = bshuf_bitunshuffle(
-            <void*> src._data,
-            <void*> dst._data,
-            srcsize // elem_size,
-            elem_size,
-            block_size
-        )
+        if decode:
+            ret = bshuf_bitunshuffle(
+                <const void*> src._data,
+                dstptr,
+                <size_t> (srcsize // elem_size),
+                <size_t> elem_size,
+                <size_t> block_size
+            )
+        else:
+            ret = bshuf_bitshuffle(
+                <const void*> src._data,
+                dstptr,
+                <size_t> (srcsize // elem_size),
+                <size_t> elem_size,
+                <size_t> block_size
+            )
     if ret < 0:
-        raise BitshuffleError('bshuf_bitunshuffle', ret)
+        raise BitshuffleError(
+            'bshuf_bitunshuffle' if decode else 'bshuf_bitshuffle', ret
+        )
 
+    if isarray:
+        return out
     del dst
     return _return_output(out, dstsize, <ssize_t> ret, outgiven)
