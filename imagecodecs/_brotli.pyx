@@ -59,17 +59,21 @@ class BrotliError(RuntimeError):
     """BROTLI codec exceptions."""
 
     def __init__(self, func, err):
-        err = {
-            None: 'NULL',
-            True: 'True',
-            False: 'False',
-            BROTLI_DECODER_RESULT_ERROR: 'BROTLI_DECODER_RESULT_ERROR',
-            BROTLI_DECODER_RESULT_SUCCESS: 'BROTLI_DECODER_RESULT_SUCCESS',
-            BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
-                'BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT',
-            BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
-                'BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT',
-        }.get(err, f'unknown error {err!r}')
+        if err is False:
+            err = 'BROTLI_FALSE'
+        elif isinstance(err, str):
+            err = repr(err)
+        else:
+            err = {
+                None: 'NULL',
+                BROTLI_DECODER_RESULT_ERROR: 'BROTLI_DECODER_RESULT_ERROR',
+                BROTLI_DECODER_RESULT_SUCCESS:
+                    'BROTLI_DECODER_RESULT_SUCCESS',
+                BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
+                    'BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT',
+                BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+                    'BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT',
+            }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {err}'
         super().__init__(msg)
 
@@ -82,7 +86,7 @@ def brotli_version():
     return f'brotli {ver >> 24}.{(ver >> 12) & 0xFFF}.{ver & 0xFFF}'
 
 
-def brotli_check(const uint8_t[::1] data, /):
+def brotli_check(const uint8_t[::1] data not None, /):
     """Return whether data is BROTLI encoded or None if unknown."""
     return None if data.shape[0] > 0 else False
 
@@ -146,7 +150,9 @@ def brotli_encode(
             <uint8_t*> dst._data
         )
     if ret != BROTLI_TRUE:
-        raise BrotliError('BrotliEncoderCompress', bool(ret))
+        if <size_t> dstsize < BrotliEncoderMaxCompressedSize(<size_t> srcsize):
+            raise BrotliError('BrotliEncoderCompress', 'output too small')
+        raise BrotliError('BrotliEncoderCompress', False)
 
     del dst
     return _return_output(out, dstsize, encoded_size, outgiven)
@@ -162,9 +168,12 @@ def brotli_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t dstsize
+        const uint8_t* next_in = NULL
+        uint8_t* next_out = NULL
         ssize_t srcsize = src.shape[0]
-        size_t decoded_size
+        ssize_t dstsize
+        size_t available_in, available_out
+        BrotliDecoderState* state = NULL
         BrotliDecoderResult ret
 
     if data is out:
@@ -178,22 +187,35 @@ def brotli_decode(
     if out is None:
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
-    decoded_size = <size_t> dstsize
 
-    with nogil:
-        ret = BrotliDecoderDecompress(
-            <size_t> srcsize,
-            <const uint8_t*> src._data,
-            &decoded_size,
-            <uint8_t*> dst._data
-        )
-    if ret != BROTLI_DECODER_RESULT_SUCCESS:
-        raise BrotliError('BrotliDecoderDecompress', ret)
+    try:
+        with nogil:
+            state = BrotliDecoderCreateInstance(NULL, NULL, NULL)
+            if state == NULL:
+                raise BrotliError('BrotliDecoderCreateInstance', None)
+            next_in = <const uint8_t*> src._data
+            available_in = <size_t> srcsize
+            next_out = <uint8_t*> dst._data
+            available_out = <size_t> dstsize
+            ret = BrotliDecoderDecompressStream(
+                state,
+                &available_in,
+                &next_in,
+                &available_out,
+                &next_out,
+                NULL
+            )
+        _brotli_decode_check(state, ret, available_in)
+    finally:
+        if state != NULL:
+            BrotliDecoderDestroyInstance(state)
 
     del dst
-    return _return_output(out, dstsize, decoded_size, outgiven)
+    return _return_output(
+        out, dstsize, dstsize - <ssize_t> available_out, outgiven
+    )
 
 
 cdef _brotli_decode(const uint8_t[::1] src, outtype):
@@ -237,19 +259,19 @@ cdef _brotli_decode(const uint8_t[::1] src, outtype):
                     ret == BROTLI_DECODER_RESULT_ERROR
                     or ret == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT
                 ):
-                    raise BrotliError('BrotliDecoderDecompressStream', ret)
+                    break
 
                 output.pos = output.size - available_out
 
                 if ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
-                    incsize = _align_size_t(srcsize)
+                    # grow geometrically to avoid quadratic reallocation
+                    incsize = max(_align_size_t(srcsize), output.size)
                     if output_resize(output, output.size + incsize) == 0:
                         raise MemoryError('output_resize failed')
                     next_out = output.data + output.pos
                     available_out += incsize
 
-        if ret != BROTLI_DECODER_RESULT_SUCCESS:
-            raise BrotliError('BrotliDecoderDecompressStream', ret)
+        _brotli_decode_check(state, ret, available_in)
 
         out = _create_output(
             outtype, output.pos, <const char*> output.data
@@ -261,6 +283,32 @@ cdef _brotli_decode(const uint8_t[::1] src, outtype):
             BrotliDecoderDestroyInstance(state)
 
     return out
+
+
+cdef int _brotli_decode_check(
+    BrotliDecoderState* state, BrotliDecoderResult ret, size_t available_in
+) except -1:
+    """Raise BrotliError if stream was not fully and exactly decoded."""
+    cdef:
+        const char* msg
+
+    if ret == BROTLI_DECODER_RESULT_SUCCESS:
+        if available_in > 0:
+            raise BrotliError(
+                'BrotliDecoderDecompressStream', 'unused data after stream'
+            )
+        return 0
+    if ret == BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
+        raise BrotliError('BrotliDecoderDecompressStream', 'truncated data')
+    if ret == BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+        raise BrotliError('BrotliDecoderDecompressStream', 'output too small')
+    if ret == BROTLI_DECODER_RESULT_ERROR:
+        msg = BrotliDecoderErrorString(BrotliDecoderGetErrorCode(state))
+        if msg != NULL:
+            raise BrotliError(
+                'BrotliDecoderDecompressStream', msg.decode().lstrip('_')
+            )
+    raise BrotliError('BrotliDecoderDecompressStream', ret)
 
 
 # Output Stream ###############################################################
