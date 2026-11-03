@@ -57,7 +57,7 @@ def template_version():
     return 'templatelib n/a'
 
 
-def template_check(const uint8_t[::1] data, /):
+def template_check(const uint8_t[::1] data not None, /):
     """Return whether data is TEMPLATE encoded or None if unknown."""
     return None if data.shape[0] >= 0 else False
 
@@ -84,3 +84,13 @@ def template_decode(
 ):
     """Return decoded TEMPLATE data (not implemented)."""
     raise NotImplementedError('template_decode')
+
+
+def template_info(
+    data,
+    /,
+    index=None,
+
+):
+    """Return information about TEMPLATE encoded data (not implemented)."""
+    raise NotImplementedError('template_info')
