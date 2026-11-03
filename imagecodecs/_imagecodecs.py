@@ -67,11 +67,16 @@ import lzma
 import struct
 import sys
 import zlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, overload
 
 if TYPE_CHECKING:
+    from collections.abc import Buffer, Callable, Sequence
     from types import ModuleType
-    from typing import Any
+    from typing import Any, NoReturn
+
+    from numpy.typing import ArrayLike, DTypeLike, NDArray
+
+    from .typing import BytesOut, BytesResult
 
 import numpy
 
@@ -88,7 +93,7 @@ lzfse: ModuleType | None
 lzham: ModuleType | None
 snappy: ModuleType | None
 tifffile: ModuleType | None
-zfpy: ModuleType | None
+zfp: ModuleType | None
 zopfli: ModuleType | None
 zstd: ModuleType | None
 zarr: ModuleType | None
@@ -183,7 +188,7 @@ except ImportError:
 def version() -> str:
     """Return detailed version information about test dependencies."""
     try:
-        zstd_version = zstd.version()
+        zstd_version: str = zstd.version()
     except Exception:
         try:
             if sys.version_info >= (3, 14):
@@ -222,6 +227,17 @@ def version() -> str:
     )
 
 
+@overload
+def notimplemented[F: Callable[..., Any]](arg: F, /) -> F: ...
+
+
+@overload
+def notimplemented[F: Callable[..., Any]](
+    arg: ModuleType | bool | None = ...,  # noqa: FBT001
+    /,
+) -> Callable[[F], F]: ...
+
+
 def notimplemented(arg: Any = 0, /) -> Any:
     """Return function decorator that raises NotImplementedError if not arg.
 
@@ -242,9 +258,9 @@ def notimplemented(arg: Any = 0, /) -> Any:
 
     """
 
-    def wrapper(func):
+    def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def notimplemented(*args, **kwargs):
+        def notimplemented(*args: Any, **kwargs: Any) -> NoReturn:
             msg = f'{func.__name__} not implemented'
             raise NotImplementedError(msg)
 
@@ -255,34 +271,50 @@ def notimplemented(arg: Any = 0, /) -> Any:
     if not arg:
         return wrapper
 
-    def nop(func):
+    def nop(func: Callable[..., Any]) -> Callable[..., Any]:
         return func
 
     return nop
 
 
-def none_decode(data, *args, **kwargs):
+def none_decode(data: Any, *args: Any, **kwargs: Any) -> Any:
     """Decode NOP."""
     return data
 
 
-def none_encode(data, *args, **kwargs):
+def none_encode(data: Any, *args: Any, **kwargs: Any) -> Any:
     """Encode NOP."""
     return data
 
 
-def numpy_decode(data, /, index=0, *, out=None, **kwargs):
+def numpy_decode(
+    data: Buffer,
+    /,
+    index: int | None = 0,
+    *,
+    out: NDArray[Any] | None = None,
+    **kwargs: Any,
+) -> NDArray[Any]:
     """Decode NPY and NPZ."""
+    if index is None:
+        index = 0
     with io.BytesIO(data) as fh:
-        out = numpy.load(fh, **kwargs)
-        if hasattr(out, 'files'):
+        result = numpy.load(fh, **kwargs)
+        if hasattr(result, 'files'):
             with contextlib.suppress(TypeError, IndexError):
-                index = out.files[index]
-            out = out[index]
-    return out
+                index = result.files[index]
+            result = result[index]
+    return cast('NDArray[Any]', result)
 
 
-def numpy_encode(data, /, *, level=None, out=None, **kwargs):
+def numpy_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+    **kwargs: Any,
+) -> bytes:
     """Encode NPY and NPZ."""
     with io.BytesIO() as fh:
         if level:
@@ -293,7 +325,14 @@ def numpy_encode(data, /, *, level=None, out=None, **kwargs):
         return fh.read()
 
 
-def delta_encode(data, /, *, axis=-1, dist=1, out=None):
+def delta_encode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    axis: int = -1,
+    dist: int = 1,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     r"""Encode Delta.
 
     >>> delta_encode(b'0123456789')
@@ -304,7 +343,7 @@ def delta_encode(data, /, *, axis=-1, dist=1, out=None):
         msg = f'{dist=} not implemented'
         raise NotImplementedError(msg)
 
-    if isinstance(data, (bytes, bytearray)):
+    if not isinstance(data, numpy.ndarray):
         data = numpy.frombuffer(data, dtype='u1')
         diff = numpy.diff(data, axis=0)
         return numpy.insert(diff, 0, data[0]).tobytes()
@@ -326,7 +365,14 @@ def delta_encode(data, /, *, axis=-1, dist=1, out=None):
     return diff
 
 
-def delta_decode(data, /, *, axis=-1, dist=1, out=None):
+def delta_decode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    axis: int = -1,
+    dist: int = 1,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     r"""Decode Delta.
 
     >>> delta_decode(b'0\x01\x01\x01\x01\x01\x01\x01\x01\x01')
@@ -336,9 +382,9 @@ def delta_decode(data, /, *, axis=-1, dist=1, out=None):
     if dist != 1:
         msg = f'{dist=} not implemented'
         raise NotImplementedError(msg)
-    if out is not None and not out.flags.writeable:
+    if not isinstance(out, numpy.ndarray) or not out.flags.writeable:
         out = None
-    if isinstance(data, (bytes, bytearray)):
+    if not isinstance(data, numpy.ndarray):
         data = numpy.frombuffer(data, dtype='u1')
         return numpy.cumsum(data, axis=0, dtype='u1', out=out).tobytes()
     out = numpy.cumsum(data, axis=axis, dtype=data.dtype, out=out)
@@ -348,14 +394,20 @@ def delta_decode(data, /, *, axis=-1, dist=1, out=None):
     return out.view(out.dtype.newbyteorder())
 
 
-def xor_encode(data, /, *, axis=-1, out=None):
+def xor_encode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    axis: int = -1,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     r"""Encode XOR delta.
 
     >>> xor_encode(b'0123456789')
     b'0\x01\x03\x01\x07\x01\x03\x01\x0f\x01'
 
     """
-    if isinstance(data, (bytes, bytearray)):
+    if not isinstance(data, numpy.ndarray):
         data = numpy.frombuffer(data, dtype='u1')
         xor = numpy.bitwise_xor(data[1:], data[:-1])
         return numpy.insert(xor, 0, data[0]).tobytes()
@@ -382,14 +434,20 @@ def xor_encode(data, /, *, axis=-1, out=None):
     return xor
 
 
-def xor_decode(data, /, *, axis=-1, out=None):
+def xor_decode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    axis: int = -1,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     r"""Decode XOR delta.
 
     >>> xor_decode(b'0\x01\x03\x01\x07\x01\x03\x01\x0f\x01')
     b'0123456789'
 
     """
-    if isinstance(data, (bytes, bytearray)):
+    if isinstance(data, bytes | bytearray):
         prev = data[0]
         b = [chr(prev)]
         for c in data[1:]:
@@ -399,19 +457,25 @@ def xor_decode(data, /, *, axis=-1, out=None):
     raise NotImplementedError
 
 
-def floatpred_decode(data, /, *, axis=-2, dist=1, out=None):
+def floatpred_decode(
+    data: NDArray[Any],
+    /,
+    *,
+    axis: int = -2,
+    dist: int = 1,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode floating point horizontal differencing.
 
     The TIFF predictor type 3 reorders the bytes of the image values and
     applies horizontal byte differencing to improve compression of floating
     point images. The ordering of interleaved color channels is preserved.
 
-    Parameters
-    ----------
-    data : numpy.ndarray
-        The image to be decoded. The dtype must be a floating point.
-        The shape must include the number of contiguous samples per pixel
-        even if 1.
+    Parameters:
+        data:
+            The image to be decoded. The dtype must be a floating point.
+            The shape must include the number of contiguous samples per pixel
+            even if 1.
 
     """
     if dist != 1:
@@ -446,31 +510,43 @@ def floatpred_decode(data, /, *, axis=-2, dist=1, out=None):
 
 
 @notimplemented
-def floatpred_encode(data, /, *, axis=-2, dist=1, out=None):
+def floatpred_encode(
+    data: NDArray[Any],
+    /,
+    *,
+    axis: int = -2,
+    dist: int = 1,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Encode Floating Point Predictor."""
+    raise NotImplementedError
 
 
-def bitorder_decode(data, /, *, out=None, _bitorder=[]):
+def bitorder_decode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+    _bitorder: list[Any] = [],
+) -> NDArray[Any] | BytesResult:
     r"""Reverse bits in each byte of byte string or numpy array.
 
     Decode data where pixels with lower column values are stored in the
     lower-order bits of the bytes (TIFF FillOrder is LSB2MSB).
 
-    Parameters
-    ----------
-    data : byte string or ndarray
-        The data to be bit reversed. If byte string, a new bit-reversed byte
-        string is returned. Numpy arrays are bit-reversed in-place.
+    Parameters:
+        data:
+            Data to be bit reversed. If byte string, a new bit-reversed byte
+            string is returned. Numpy arrays are bit-reversed in-place.
 
-    Examples
-    --------
-    >>> bitorder_decode(b'\x01\x64')
-    b'\x80&'
-    >>> data = numpy.array([1, 666], dtype='uint16')
-    >>> bitorder_decode(data)
-    array([  128, 16473], dtype=uint16)
-    >>> data
-    array([  128, 16473], dtype=uint16)
+    Examples:
+        >>> bitorder_decode(b'\x01\x64')
+        b'\x80&'
+        >>> data = numpy.array([1, 666], dtype='uint16')
+        >>> bitorder_decode(data)
+        array([  128, 16473], dtype=uint16)
+        >>> data
+        array([  128, 16473], dtype=uint16)
 
     """
     if not _bitorder:
@@ -490,11 +566,11 @@ def bitorder_decode(data, /, *, out=None, _bitorder=[]):
             b'\xdf?\xbf\x7f\xff'
         )
         _bitorder.append(numpy.frombuffer(_bitorder[0], dtype='uint8'))
+    if not isinstance(data, numpy.ndarray):
+        return bytes(data).translate(_bitorder[0])
     try:
         view = data.view('uint8')
         return numpy.take(_bitorder[1], view, out=view)
-    except AttributeError:
-        return data.translate(_bitorder[0])
     except ValueError as exc:
         msg = 'slices of arrays not supported'
         raise NotImplementedError(msg) from exc
@@ -503,7 +579,12 @@ def bitorder_decode(data, /, *, out=None, _bitorder=[]):
 bitorder_encode = bitorder_decode
 
 
-def packbits_decode(encoded, /, *, out=None):
+def packbits_decode(
+    encoded: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     r"""Decompress PackBits encoded byte string.
 
     >>> packbits_decode(b'\x80\x80')  # NOP
@@ -516,8 +597,9 @@ def packbits_decode(encoded, /, *, out=None):
     b'\xaa\xaa\xaa\x80\x00*\xaa\xaa\xaa\xaa\x80\x00*"\xaa\xaa\xaa\xaa\xaa\xaa'
 
     """
-    out = []
-    out_extend = out.extend
+    encoded = bytes(encoded)
+    result: list[int] = []
+    out_extend = result.extend
     i = 0
     try:
         while True:
@@ -533,10 +615,16 @@ def packbits_decode(encoded, /, *, out=None):
                 i += n
     except TypeError:
         pass
-    return bytes(out)
+    return bytes(result)
 
 
-def lzw_decode(encoded, /, *, buffersize=0, out=None):
+def lzw_decode(
+    encoded: Buffer,
+    /,
+    *,
+    buffersize: int = 0,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     r"""Decompress LZW (Lempel-Ziv-Welch) encoded TIFF strip (byte string).
 
     The strip must begin with a CLEAR code and end with an EOI code.
@@ -552,13 +640,14 @@ def lzw_decode(encoded, /, *, buffersize=0, out=None):
     b'say hammer yo hammer mc hammer go hammer'
 
     """
+    encoded = bytes(encoded)
     len_encoded = len(encoded)
     bitcount_max = len_encoded * 8
     unpack = struct.unpack
     newtable = [bytes([i]) for i in range(256)]
     newtable.extend((b'\0', b'\0'))
 
-    def next_code():
+    def next_code() -> int:
         # return integer of 'bitw' bits at 'bitcount' position in encoded
         start = bitcount // 8
         s = encoded[start : start + 4]
@@ -628,29 +717,35 @@ def lzw_decode(encoded, /, *, buffersize=0, out=None):
     return b''.join(result)
 
 
-def packints_decode(data, dtype, bitspersample, /, *, runlen=0, out=None):
+def packints_decode(
+    data: Buffer,
+    dtype: DTypeLike,
+    bitspersample: int,
+    /,
+    *,
+    runlen: int = 0,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decompress byte string to array of integers of any bit size <= 32.
 
     This Python implementation is slow and only handles itemsizes 1, 2, 4, 8,
     16, 32, and 64.
 
-    Parameters
-    ----------
-    data : byte str
-        Data to decompress.
-    dtype : numpy.dtype or str
-        A numpy boolean or integer type.
-    bitspersample : int
-        Number of bits per integer.
-    runlen : int
-        Number of consecutive integers, after which to start at next byte.
+    Parameters:
+        data : byte str
+            Data to decompress.
+        dtype : numpy.dtype or str
+            A numpy boolean or integer type.
+        bitspersample : int
+            Number of bits per integer.
+        runlen : int
+            Number of consecutive integers, after which to start at next byte.
 
-    Examples
-    --------
-    >>> packints_decode(b'a', 'B', 1)
-    array([0, 1, 1, 0, 0, 0, 0, 1], dtype=uint8)
-    >>> packints_decode(b'ab', 'B', 2)
-    array([1, 2, 0, 1, 1, 2, 0, 2], dtype=uint8)
+    Examples:
+        >>> packints_decode(b'a', 'B', 1)
+        array([0, 1, 1, 0, 0, 0, 0, 1], dtype=uint8)
+        >>> packints_decode(b'ab', 'B', 2)
+        array([1, 2, 0, 1, 1, 2, 0, 2], dtype=uint8)
 
     """
     if bitspersample == 1:  # bitarray
@@ -661,6 +756,7 @@ def packints_decode(data, dtype, bitspersample, /, *, runlen=0, out=None):
             data = data[:, :runlen].reshape(-1)
         return data.astype(dtype)
 
+    data = bytes(data)
     dtype = numpy.dtype(dtype)
     if bitspersample in {8, 16, 32, 64}:
         return numpy.frombuffer(data, dtype)
@@ -705,82 +801,147 @@ def packints_decode(data, dtype, bitspersample, /, *, runlen=0, out=None):
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_encode(data, /, *, itemsize=1, blocksize=0, out=None):
+def bitshuffle_encode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    itemsize: int | None = 1,
+    blocksize: int = 0,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     """Bitshuffle."""
     if isinstance(data, numpy.ndarray):
         return bitshuffle.bitshuffle(data, blocksize)
+    if itemsize is None:
+        itemsize = 1
     data = numpy.frombuffer(data, dtype=f'uint{itemsize * 8}')
     data = bitshuffle.bitshuffle(data, blocksize)
     return data.tobytes()
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_decode(data, /, *, itemsize=1, blocksize=0, out=None):
+def bitshuffle_decode(
+    data: NDArray[Any] | Buffer,
+    /,
+    *,
+    itemsize: int | None = 1,
+    blocksize: int = 0,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> NDArray[Any] | BytesResult:
     """Bitunshuffle."""
     if isinstance(data, numpy.ndarray):
         return bitshuffle.bitunshuffle(data, blocksize)
+    if itemsize is None:
+        itemsize = 1
     data = numpy.frombuffer(data, dtype=f'uint{itemsize * 8}')
     data = bitshuffle.bitunshuffle(data, blocksize)
     return data.tobytes()
 
 
-def zlib_encode(data, /, level=6, *, out=None):
+def zlib_encode(
+    data: Buffer,
+    /,
+    level: int | None = 6,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Zlib."""
-    return zlib.compress(data, level)
+    return zlib.compress(data, 6 if level is None else level)
 
 
-def zlib_decode(data, /, *, out=None):
+def zlib_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress Zlib."""
     return zlib.decompress(data)
 
 
-def deflate_encode(data, /, level=6, *, raw=False, out=None):
+def deflate_encode(
+    data: Buffer,
+    /,
+    level: int | None = 6,
+    *,
+    raw: bool = False,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Deflate/Zlib."""
     if raw:
         raise NotImplementedError
-    return zlib.compress(data, level)
+    return zlib.compress(data, 6 if level is None else level)
 
 
-def deflate_decode(data, /, *, raw=False, out=None):
+def deflate_decode(
+    data: Buffer,
+    /,
+    *,
+    raw: bool = False,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress deflate/Zlib."""
     if raw:
         raise NotImplementedError
     return zlib.decompress(data)
 
 
-def gzip_encode(data, /, level=6, *, out=None):
+def gzip_encode(
+    data: Buffer,
+    /,
+    level: int | None = 6,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress GZIP."""
-    return gzip.compress(data, level)
+    level = 6 if level is None else level
+    return gzip.compress(data, level)  # type: ignore[arg-type]
 
 
-def gzip_decode(data, /, *, out=None):
+def gzip_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress GZIP."""
     return gzip.decompress(data)
 
 
-def bz2_encode(data, /, level=9, *, out=None):
+def bz2_encode(
+    data: Buffer,
+    /,
+    level: int | None = 9,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress BZ2."""
-    return bz2.compress(data, level)
+    return bz2.compress(data, 9 if level is None else level)
 
 
-def bz2_decode(data, /, *, out=None):
+def bz2_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress BZ2."""
     return bz2.decompress(data)
 
 
 @notimplemented(blosc)
 def blosc_encode(
-    data,
+    data: Buffer,
     /,
-    level=None,
+    level: int | None = None,
     *,
-    compressor='blosclz',
-    numthreads=1,
-    typesize=8,
-    blocksize=0,
-    shuffle=None,
-    out=None,
-):
+    compressor: str | None = 'blosclz',
+    numthreads: int | None = 1,
+    typesize: int | None = 8,
+    blocksize: int | None = 0,
+    shuffle: int | None = None,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Blosc."""
     if shuffle is None:
         shuffle = blosc.SHUFFLE
@@ -788,122 +949,231 @@ def blosc_encode(
         level = 9
     return blosc.compress(
         data,
-        typesize=typesize,
+        typesize=8 if typesize is None else typesize,
         clevel=level,
         shuffle=shuffle,
-        cname=compressor,
+        cname='blosclz' if compressor is None else compressor,
     )
 
 
 @notimplemented(blosc)
-def blosc_decode(data, /, *, out=None):
+def blosc_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress Blosc."""
     return blosc.decompress(data)
 
 
-def lzma_encode(data, /, level=None, *, out=None):
+def lzma_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress LZMA."""
     return lzma.compress(data)
 
 
-def lzma_decode(data, /, *, out=None):
+def lzma_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress LZMA."""
     return lzma.decompress(data)
 
 
 @notimplemented(zstd)
-def zstd_encode(data, /, level=5, *, out=None):
+def zstd_encode(
+    data: Buffer,
+    /,
+    level: int | None = 5,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress ZStandard."""
     return zstd.compress(data, level)
 
 
 @notimplemented(zstd)
-def zstd_decode(data, /, *, out=None):
+def zstd_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress ZStandard."""
     return zstd.decompress(data)
 
 
 @notimplemented(brotli)
-def brotli_encode(data, /, level=11, *, mode=0, lgwin=22, out=None):
+def brotli_encode(
+    data: Buffer,
+    /,
+    level: int | None = 11,
+    *,
+    mode: int | None = 0,
+    lgwin: int | None = 22,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Brotli."""
-    return brotli.compress(data, quality=level, mode=mode, lgwin=lgwin)
+    return brotli.compress(
+        data,
+        quality=11 if level is None else level,
+        mode=0 if mode is None else mode,
+        lgwin=22 if lgwin is None else lgwin,
+    )
 
 
 @notimplemented(brotli)
-def brotli_decode(data, /, *, out=None):
+def brotli_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress Brotli."""
     return brotli.decompress(data)
 
 
 @notimplemented(snappy)
-def snappy_encode(data, /, level=None, *, out=None):
+def snappy_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Snappy."""
     return snappy.compress(data)
 
 
 @notimplemented(snappy)
-def snappy_decode(data, /, *, out=None):
+def snappy_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress Snappy."""
     return snappy.decompress(data)
 
 
 @notimplemented(zopfli)
-def zopfli_encode(data, /, level=None, *, out=None):
+def zopfli_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress Zopfli."""
     c = zopfli.ZopfliCompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
     return c.compress(data) + c.flush()
 
 
 @notimplemented(zopfli)
-def zopfli_decode(data, /, *, out=None):
+def zopfli_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress Zopfli."""
     d = zopfli.ZopfliDecompressor(zopfli.ZOPFLI_FORMAT_ZLIB)
     return d.decompress(data) + d.flush()
 
 
 @notimplemented(lzf)
-def lzf_encode(data, /, level=None, *, header=False, out=None):
+def lzf_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    header: bool = False,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress LZF."""
     return lzf.compress(data)
 
 
 @notimplemented(lzf)
-def lzf_decode(data, /, *, header=False, out=None):
+def lzf_decode(
+    data: Buffer,
+    /,
+    *,
+    header: bool = False,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress LZF."""
     return lzf.decompress(data)
 
 
 @notimplemented(lzfse)
-def lzfse_encode(data, /, level=None, *, out=None):
+def lzfse_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress LZFSE."""
     return lzfse.compress(data)
 
 
 @notimplemented(lzfse)
-def lzfse_decode(data, /, *, out=None):
+def lzfse_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress LZFSE."""
     return lzfse.decompress(data)
 
 
 @notimplemented(lzham)
-def lzham_encode(data, /, level=None, *, out=None):
+def lzham_encode(
+    data: Buffer,
+    /,
+    level: int | None = None,
+    *,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress LZHAM."""
     return lzham.compress(data)
 
 
 @notimplemented(lzham)
-def lzham_decode(data, /, *, out=None):
+def lzham_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress LZHAM."""
     return lzham.decompress(data)
 
 
 @notimplemented(zfp)
 def zfp_encode(
-    data, /, level=None, *, mode=None, execution=None, header=True, out=None
-):
+    data: ArrayLike,
+    /,
+    level: float | tuple[int, int, int, int] | None = None,
+    *,
+    mode: int | str | None = None,
+    execution: int | str | None = None,
+    header: bool = True,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress ZFP."""
     del execution
-    kwargs = {'write_header': header}
+    kwargs: dict[str, Any] = {'write_header': header}
     match mode:
         case None | zfp.mode_null | 'R' | 'reversible':  # zfp.mode_reversible
             pass
@@ -914,55 +1184,100 @@ def zfp_encode(
         case zfp.mode_fixed_accuracy | 'a' | 'accuracy':
             kwargs['tolerance'] = -1 if level is None else level
         case zfp.mode_expert | 'c' | 'expert':
-            _minbits, _maxbits, _maxprec, _minexp = level
+            _minbits, _maxbits, _maxprec, _minexp = level  # type: ignore[misc]
             raise NotImplementedError
     return zfp.compress_numpy(data, **kwargs)
 
 
 @notimplemented(zfp)
-def zfp_decode(data, /, *, shape=None, dtype=None, out=None):
+def zfp_decode(
+    data: Buffer,
+    /,
+    *,
+    shape: Sequence[int] | None = None,
+    dtype: DTypeLike | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decompress ZFP."""
     return zfp.decompress_numpy(data)
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_lz4_encode(data, /, level=1, *, blocksize=0, out=None):
+def bitshuffle_lz4_encode(
+    data: NDArray[Any],
+    /,
+    level: int | None = 1,
+    *,
+    blocksize: int = 0,
+    out: BytesOut | None = None,
+) -> NDArray[Any]:
     """Compress LZ4 with Bitshuffle."""
     return bitshuffle.compress_lz4(data, blocksize)
 
 
 @notimplemented(bitshuffle)
-def bitshuffle_lz4_decode(data, /, shape, dtype, *, blocksize=0, out=None):
+def bitshuffle_lz4_decode(
+    data: NDArray[Any],
+    /,
+    shape: Sequence[int],
+    dtype: DTypeLike,
+    *,
+    blocksize: int = 0,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decompress LZ4 with Bitshuffle."""
     return bitshuffle.decompress_lz4(data, shape, dtype, blocksize)
 
 
 @notimplemented(lz4)
-def lz4_encode(data, /, level=1, *, header=False, out=None):
+def lz4_encode(
+    data: Buffer,
+    /,
+    level: int | None = 1,
+    *,
+    header: bool = False,
+    out: BytesOut | None = None,
+) -> BytesResult:
     """Compress LZ4."""
     return lz4.block.compress(data, store_size=header)
 
 
 @notimplemented(lz4)
-def lz4_decode(data, /, *, header=False, out=None):
+def lz4_decode(
+    data: Buffer,
+    /,
+    *,
+    header: bool = False,
+    out: NDArray[Any] | BytesOut | None = None,
+) -> BytesResult:
     """Decompress LZ4."""
     if header:
         return lz4.block.decompress(data)
-    if isinstance(out, int):
+    if isinstance(out, int | numpy.integer):
         return lz4.block.decompress(data, uncompressed_size=out)
-    outsize = max(24, 24 + 255 * (len(data) - 10))  # ugh
+    outsize = max(24, 24 + 255 * (len(memoryview(data)) - 10))  # ugh
     return lz4.block.decompress(data, uncompressed_size=outsize)
 
 
 @notimplemented(tifffile)
-def tiff_decode(data, /, key=None, **kwargs):
+def tiff_decode(
+    data: Buffer,
+    /,
+    index: int | Sequence[int] | slice | None = None,
+    **kwargs: Any,
+) -> NDArray[Any]:
     """Decode TIFF."""
     with io.BytesIO(data) as fh:
-        return tifffile.imread(fh, key=key, **kwargs)
+        return tifffile.imread(fh, key=index, **kwargs)
 
 
 @notimplemented(tifffile)
-def tiff_encode(data, /, level=1, **kwargs):
+def tiff_encode(
+    data: ArrayLike,
+    /,
+    level: int | None = 1,
+    **kwargs: Any,
+) -> BytesResult:
     """Encode TIFF."""
     with io.BytesIO() as fh:
         tifffile.imwrite(fh, data, **kwargs)
@@ -971,33 +1286,60 @@ def tiff_encode(data, /, level=1, **kwargs):
 
 
 @notimplemented(pillow)
-def pil_decode(data, /, *, out=None):
+def pil_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode image data using Pillow."""
     return numpy.asarray(pillow.Image.open(io.BytesIO(data)))
 
 
 @notimplemented(pillow)
-def jpeg8_decode(
-    data, /, *, tables=None, colorspace=None, outcolorspace=None, out=None
-):
+def jpeg_decode(
+    data: Buffer,
+    /,
+    *,
+    tables: bytes | None = None,
+    colorspace: int | str | None = None,
+    outcolorspace: int | str | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode JPEG 8-bit."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def jpeg2k_decode(data, /, *, verbose=None, out=None):
+def jpeg2k_decode(
+    data: Buffer,
+    /,
+    *,
+    verbose: int | None = None,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode JPEG 2000."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def webp_decode(data, /, *, out=None):
+def webp_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode WebP."""
     return pil_decode(data)
 
 
 @notimplemented(pillow)
-def png_decode(data, /, *, out=None):
+def png_decode(
+    data: Buffer,
+    /,
+    *,
+    out: NDArray[Any] | None = None,
+) -> NDArray[Any]:
     """Decode PNG."""
     return pil_decode(data)
 
@@ -1009,5 +1351,4 @@ if __name__ == '__main__':
     numpy.set_printoptions(suppress=True, precision=2)
     doctest.testmod()
 
-# mypy: allow-untyped-defs, allow-untyped-calls
-# mypy: disable-error-code="no-redef, union-attr"
+# mypy: disable-error-code="union-attr, no-any-return, no-redef"
