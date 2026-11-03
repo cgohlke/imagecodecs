@@ -62,7 +62,8 @@ class LercError(RuntimeError):
             WrongParam: 'WrongParam',
             BufferTooSmall: 'BufferTooSmall',
             NaN: 'NaN',
-            # HasNoData: 'HasNoData',  # requires LERC 4
+            HasNoData: 'HasNoData',
+            DimensionsTooLarge: 'DimensionsTooLarge',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -75,12 +76,9 @@ def lerc_version():
     )
 
 
-def lerc_check(const uint8_t[::1] data, /):
+def lerc_check(const uint8_t[::1] data not None, /):
     """Return whether data is LERC encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:9])
-
-    return sig[:5] == b'Lerc2' or sig[:9] == b'CntZImage'
+    return _startswith(data, b'Lerc2') or _startswith(data, b'CntZImage')
 
 
 def lerc_encode(
@@ -114,9 +112,14 @@ def lerc_encode(
         double maxZErr = _default_value(level, 0.0, 0.0, None)
         unsigned int blobSize
         int ndim = src.ndim
+        int i
 
-    if src.dtype.byteorder == '>':
-        raise ValueError('big-endian data not supported')
+    compressout = None
+    if compression is not None:
+        if compression not in {'zstd', 'deflate'}:
+            raise ValueError(f'{compression=!r} not supported')
+        compressout = out
+        out = None
 
     if src.dtype == numpy.uint8:
         dataType = dt_uchar
@@ -136,6 +139,10 @@ def lerc_encode(
         dataType = dt_uint
     else:
         raise ValueError('data type not supported by LERC')
+
+    for i in range(ndim):
+        if src.shape[i] > INT_MAX:
+            raise ValueError('data shape too large for LERC')
 
     if ndim == 2:
         nRows = <int> src.shape[0]
@@ -168,6 +175,8 @@ def lerc_encode(
             if msk.shape[0] != nRows or msk.shape[1] != nCols:
                 raise ValueError('masks.shape does not match data')
         elif msk.ndim == 3:
+            if msk.shape[0] != 1 and msk.shape[0] != nBands:
+                raise ValueError('masks.shape does not match data')
             nMasks = <int> msk.shape[0]
             if msk.shape[1] != nRows or msk.shape[2] != nCols:
                 raise ValueError('masks.shape does not match data')
@@ -178,19 +187,20 @@ def lerc_encode(
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
         if dstsize < 0:
-            ret = lerc_computeCompressedSizeForVersion(
-                <const void*> src.data,
-                iversion,
-                dataType,
-                nDepth,
-                nCols,
-                nRows,
-                nBands,
-                nMasks,
-                pValidBytes,
-                maxZErr,
-                &blobSize
-            )
+            with nogil:
+                ret = lerc_computeCompressedSizeForVersion(
+                    <const void*> src.data,
+                    iversion,
+                    dataType,
+                    nDepth,
+                    nCols,
+                    nRows,
+                    nBands,
+                    nMasks,
+                    pValidBytes,
+                    maxZErr,
+                    &blobSize
+                )
             if ret != 0:
                 raise LercError('lerc_computeCompressedSizeForVersion', ret)
             dstsize = <ssize_t> blobSize
@@ -198,7 +208,7 @@ def lerc_encode(
 
     dst = out
     dstsize = dst.shape[0]
-    blobSize = <unsigned int> dstsize
+    blobSize = <unsigned int> min(<size_t> dstsize, <size_t> UINT32_MAX)
 
     with nogil:
         ret = lerc_encodeForVersion(
@@ -226,11 +236,8 @@ def lerc_encode(
     if compressionargs is None:
         compressionargs = {}
     if compression == 'zstd':
-        out = zstd_encode(out, **compressionargs)
-        return out
-    if compression == 'deflate':
-        return zlib_encode(out, **compressionargs)
-    raise ValueError(f'{compression=!r} not supported')
+        return zstd_encode(out, out=compressout, **compressionargs)
+    return zlib_encode(out, out=compressout, **compressionargs)
 
 
 def lerc_decode(
@@ -239,14 +246,17 @@ def lerc_decode(
     *,
     masks=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded LERC image and optional masks."""
     cdef:
         numpy.ndarray dst
         numpy.ndarray valid
+        numpy.ndarray usesnodata
+        numpy.ndarray nodatavalues
         const uint8_t[::1] src = data
         ssize_t srcsize
-        unsigned int[9] infoArray
+        unsigned int[11] infoArray
         double[3] dataRangeArray
         unsigned char* pValidBytes = NULL
         lerc_status ret
@@ -260,36 +270,40 @@ def lerc_decode(
         unsigned int dataType
         unsigned int blobSize
 
+    if data is None:
+        raise TypeError('data must not be None')
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    sig = bytes(src[:9])
-
-    if sig[:5] == b'Lerc2':
+    compression = None
+    if _startswith(src, b'Lerc2'):
         pass
-    elif sig[:9] == b'CntZImage' and memoryview(data).readonly:
-        # Lerc1 decoder segfaults if data is not writable
+    elif _startswith(src, b'CntZImage'):
+        # Lerc1 decoder temporarily modifies input
         src = memoryview(data).tobytes()
-    elif sig[:4] == b'\x28\xB5\x2F\xFD':
+    elif _startswith(src, b'\x28\xB5\x2F\xFD'):
         src = zstd_decode(data)
+        compression = 'zstd'
     elif (
-        sig[:2] == b'\x78\x9C'
-        or sig[:2] == b'\x78\x5E'
-        or sig[:2] == b'\x78\x01'
-        or sig[:2] == b'\x78\xDA'
+        _startswith(src, b'\x78\x9C')
+        or _startswith(src, b'\x78\x5E')
+        or _startswith(src, b'\x78\x01')
+        or _startswith(src, b'\x78\xDA')
     ):
         src = zlib_decode(data)
+        compression = 'deflate'
 
     srcsize = src.shape[0]
 
-    ret = lerc_getBlobInfo(
-        <const unsigned char*> src._data,
-        <unsigned int> srcsize,
-        &infoArray[0],
-        &dataRangeArray[0],
-        9,
-        3
-    )
+    with nogil:
+        ret = lerc_getBlobInfo(
+            <const unsigned char*> src._data,
+            <unsigned int> min(<size_t> srcsize, <size_t> UINT32_MAX),
+            &infoArray[0],
+            &dataRangeArray[0],
+            11,
+            3
+        )
     if ret != 0:
         raise LercError('lerc_getBlobInfo', ret)
 
@@ -303,7 +317,7 @@ def lerc_decode(
     blobSize = infoArray[7]
     nMasks = infoArray[8]
 
-    if srcsize < <ssize_t> blobSize:
+    if <size_t> srcsize < <size_t> blobSize:
         raise RuntimeError('incomplete blob')
 
     if dataType == dt_char:
@@ -335,14 +349,34 @@ def lerc_decode(
     else:
         shape = nRows, nCols
 
+    if _info:
+        return {
+            '_codec': 'lerc',
+            'shape': shape,
+            'dtype': numpy.dtype(dtype),
+            'version': infoArray[0],
+            'planar': nBands > 1 and nDepth == 1,
+            'masks': nMasks,
+            'validpixels': nValidPixels,
+            'nodata': infoArray[10] != 0,
+            'level': dataRangeArray[2],
+            'zmin': dataRangeArray[0],
+            'zmax': dataRangeArray[1],
+            'compression': compression,
+        }
+
     out = _create_array(
         out,
         shape,
         dtype,
         None,
-        nValidPixels != <int> (<ssize_t> nRows * nCols)
+        # nValidPixels is for the first band only
+        nMasks > 0 or nValidPixels != <ssize_t> nRows * nCols
     )
     dst = out
+
+    usesnodata = numpy.empty(nBands, numpy.uint8)
+    nodatavalues = numpy.empty(nBands, numpy.float64)
 
     if nMasks > 0:
         if nMasks <= 1:
@@ -352,7 +386,7 @@ def lerc_decode(
         pValidBytes = <unsigned char*> valid.data
 
     with nogil:
-        ret = lerc_decode_c(
+        ret = lerc_decode_4D(
             <const unsigned char*> src._data,
             blobSize,
             nMasks,
@@ -362,10 +396,12 @@ def lerc_decode(
             nRows,
             nBands,
             dataType,
-            <void*> dst.data
+            <void*> dst.data,
+            <unsigned char*> usesnodata.data,
+            <double*> nodatavalues.data
         )
     if ret != 0:
-        raise LercError('lerc_decode', ret)
+        raise LercError('lerc_decode_4D', ret)
 
     if masks is None or masks is False:
         return out
@@ -373,3 +409,8 @@ def lerc_decode(
         return out, valid
     else:
         return out, None
+
+
+def lerc_info(data, /):
+    """Return information about LERC encoded data."""
+    return lerc_decode(data, _info=True)
