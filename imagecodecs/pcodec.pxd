@@ -1,6 +1,6 @@
 # imagecodecs/pcodec.pxd
 
-# Cython declarations for the `pcodec 1.0.2` library.
+# Cython declarations for the `pcodec 1.1.0` library.
 # https://github.com/mwlon/pcodec
 
 cdef extern from 'cpcodec.h' nogil:
