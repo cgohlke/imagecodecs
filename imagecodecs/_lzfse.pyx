@@ -41,8 +41,6 @@
 
 include '_shared.pxi'
 
-from imcd cimport imcd_memsearch
-from libc.stdint cimport uint32_t
 from lzfse cimport *
 
 
@@ -61,12 +59,9 @@ def lzfse_version():
     return 'lzfse 1.0'
 
 
-def lzfse_check(const uint8_t[::1] data, /):
+def lzfse_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZFSE encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:3])
-
-    return sig == b'bvx'
+    return _startswith(data, b'bvx')
 
 
 def lzfse_encode(
@@ -124,10 +119,10 @@ def lzfse_decode(
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
-        ssize_t dstsize
+        ssize_t dstsize, rawsize
         size_t dst_size
 
-    if srcsize < 12 or bytes(src[:3]) != b'bvx':
+    if srcsize < 4 or not _startswith(src, b'bvx'):
         raise ValueError('invalid LZFSE stream')
 
     if data is out:
@@ -135,18 +130,24 @@ def lzfse_decode(
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
+    # exact decoded size, or -1 if block headers cannot be parsed
+    rawsize = _lzfse_decoded_size(<const uint8_t*> src._data, <size_t> srcsize)
+
     if out is None:
         if dstsize < 0:
-            dstsize = _lzfse_decoded_size(<char*> src._data, srcsize)
-            if dstsize < 0 or dstsize > INT32_MAX:
+            if rawsize > INT32_MAX:
                 # arbitrary 2 GB limit
-                raise LzfseError(f'_lzfse_decoded_size {dstsize} out of bound')
+                raise ValueError(f'LZFSE decoded size {rawsize} too large')
+            if rawsize < 0:
+                raise LzfseError('cannot determine decoded size; specify out')
+            dstsize = rawsize
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
-    if dstsize == 0 or srcsize == 12:
+    if rawsize == 0 or dstsize == 0:
+        # lzfse_decode_buffer returns 0 for empty output and errors
         del dst
         return _return_output(out, dstsize, 0, outgiven)
 
@@ -165,26 +166,61 @@ def lzfse_decode(
     return _return_output(out, dstsize, dst_size, outgiven)
 
 
-cdef ssize_t _lzfse_decoded_size(char* src, ssize_t srcsize) noexcept nogil:
-    """Return sum of all block headers n_raw_bytes fields."""
+cdef ssize_t _lzfse_decoded_size(
+    const uint8_t* src, size_t srcsize
+) noexcept nogil:
+    """Return sum of n_raw_bytes of all blocks, or -1 if unknown."""
     cdef:
-        ssize_t size = 0
-        ssize_t index = 0
-        char c
+        size_t pos = 0
+        size_t size = 0
+        size_t blocksize
+        uint64_t v0, v1, v2
+        uint8_t kind
 
-    while 1:
-        # search for block magic
-        index = imcd_memsearch(src, srcsize, b'bvx', 3)
-        if index < 0 or srcsize - index < 8:
-            break
-        src += index + 3
-        c = src[0]
-        if c == b'$':
-            # end of stream
-            break
-        if c == b'n' or c == b'2' or c == b'1' or c == b'-':
-            # next 4 bytes are number of decoded bytes in block
-            size += (<uint32_t*> (src + 1))[0]
-        src += 5
-        srcsize -= index + 8
-    return size
+    while srcsize - pos >= 4:
+        if src[pos] != 0x62 or src[pos + 1] != 0x76 or src[pos + 2] != 0x78:
+            return -1  # not 'bvx'
+        kind = src[pos + 3]
+        if kind == 0x24:  # '$' end of stream
+            return <ssize_t> size
+        if srcsize - pos < 8:
+            return -1
+        if kind == 0x2D:  # '-' uncompressed
+            blocksize = 8 + <size_t> _le32(src + pos + 4)
+        elif kind == 0x6E:  # 'n' LZVN
+            if srcsize - pos < 12:
+                return -1
+            blocksize = 12 + <size_t> _le32(src + pos + 8)
+        elif kind == 0x32:  # '2' LZFSE v2
+            if srcsize - pos < 32:
+                return -1
+            v0 = _le64(src + pos + 8)
+            v1 = _le64(src + pos + 16)
+            v2 = _le64(src + pos + 24)
+            # header_size + n_literal_payload_bytes + n_lmd_payload_bytes
+            blocksize = <size_t> (
+                (v2 & 0xFFFFFFFFU)
+                + ((v0 >> 20) & 0xFFFFFU)
+                + ((v1 >> 40) & 0xFFFFFU)
+            )
+        else:
+            # LZFSE v1 headers are not parsed
+            return -1
+        if blocksize > srcsize - pos:
+            return -1
+        size += _le32(src + pos + 4)
+        pos += blocksize
+    return -1
+
+
+cdef inline uint32_t _le32(const uint8_t* p) noexcept nogil:
+    return (
+        <uint32_t> p[0]
+        | (<uint32_t> p[1] << 8)
+        | (<uint32_t> p[2] << 16)
+        | (<uint32_t> p[3] << 24)
+    )
+
+
+cdef inline uint64_t _le64(const uint8_t* p) noexcept nogil:
+    return <uint64_t> _le32(p) | (<uint64_t> _le32(p + 4) << 32)
