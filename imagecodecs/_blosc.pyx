@@ -74,9 +74,9 @@ def blosc_version():
     return 'c-blosc ' + BLOSC_VERSION_STRING.decode()
 
 
-def blosc_check(const uint8_t[::1] data, /):
+def blosc_check(const uint8_t[::1] data not None, /):
     """Return whether data is BLOSC encoded or None if unknown."""
-    return None if data.shape[0] > 0 else False
+    return None if data.shape[0] >= BLOSC_MIN_HEADER_LENGTH else False
 
 
 def blosc_encode(
@@ -93,70 +93,32 @@ def blosc_encode(
 ):
     """Return BLOSC encoded data."""
     cdef:
-        const uint8_t[::1] src
+        ssize_t itemsize
+        const uint8_t[::1] src = _readable_input(data, out, &itemsize)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize
+        ssize_t srcsize = src.shape[0]
         ssize_t dstsize
-        size_t cblocksize
-        size_t ctypesize
-        char* compname = NULL
+        size_t cblocksize = 0 if blocksize is None else blocksize
+        size_t ctypesize = itemsize if typesize is None else typesize
+        const char* compname = NULL
         int clevel = _default_value(level, 9, 0, 9)
         int numinternalthreads = _default_threads(numthreads)
-        int doshuffle
+        int compcode = _enum_value(
+            compressor, BLOSC.COMPRESSOR, BLOSC.COMPRESSOR.BLOSCLZ
+        )
+        int doshuffle = _enum_value(
+            shuffle, BLOSC.SHUFFLE, BLOSC.SHUFFLE.SHUFFLE
+        )
         int ret
 
-    if data is out:
-        raise ValueError('cannot transform in-place')
+    if ctypesize == 0:
+        raise ValueError('invalid typesize 0')
 
-    try:
-        src = data  # common case: contiguous bytes
-        ctypesize = 1
-    except Exception:
-        view = memoryview(data)
-        if view.contiguous:
-            src = view.cast('B')  # view as bytes
-        else:
-            src = view.tobytes()  # copy non-contiguous
-        ctypesize = view.itemsize
-
-    srcsize = src.shape[0]
+    if blosc_compcode_to_compname(compcode, &compname) < 0:
+        raise ValueError(f'compressor {compressor!r} not supported')
 
     if srcsize > INT32_MAX - BLOSC_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
-
-    if blocksize is None:
-        cblocksize = 0
-    else:
-        cblocksize = blocksize
-
-    if compressor is None:
-        compname = BLOSC_BLOSCLZ_COMPNAME
-    elif compressor == BLOSC_BLOSCLZ:
-        compname = BLOSC_BLOSCLZ_COMPNAME
-    elif compressor == BLOSC_LZ4:
-        compname = BLOSC_LZ4_COMPNAME
-    elif compressor == BLOSC_LZ4HC:
-        compname = BLOSC_LZ4HC_COMPNAME
-    elif compressor == BLOSC_SNAPPY:
-        compname = BLOSC_SNAPPY_COMPNAME
-    elif compressor == BLOSC_ZLIB:
-        compname = BLOSC_ZLIB_COMPNAME
-    elif compressor == BLOSC_ZSTD:
-        compname = BLOSC_ZSTD_COMPNAME
-    else:
-        compressor = compressor.lower().encode()
-        compname = compressor
-
-    if shuffle is None:
-        doshuffle = BLOSC_SHUFFLE
-    elif not shuffle:
-        doshuffle = BLOSC_NOSHUFFLE
-    elif shuffle == BLOSC_NOSHUFFLE or shuffle == 'noshuffle':
-        doshuffle = BLOSC_NOSHUFFLE
-    elif shuffle == BLOSC_BITSHUFFLE or shuffle == 'bitshuffle':
-        doshuffle = BLOSC_BITSHUFFLE
-    else:
-        doshuffle = BLOSC_SHUFFLE
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -169,6 +131,8 @@ def blosc_encode(
 
     dst = out
     dstsize = dst.shape[0]
+    if dstsize > INT32_MAX:
+        dstsize = INT32_MAX  # c-blosc stores destsize as int32
 
     with nogil:
         if numinternalthreads == 0:
@@ -204,6 +168,7 @@ def blosc_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
+        ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         size_t nbytes, cbytes, blocksize
         int numinternalthreads = _default_threads(numthreads)
@@ -212,27 +177,35 @@ def blosc_decode(
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    if src.shape[0] > INT32_MAX:
+    if srcsize > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
+
+    if srcsize < BLOSC_MIN_HEADER_LENGTH:
+        raise BloscError('invalid blosc data: header too short')
+
+    # blosc_decompress_ctx trusts the compressed size in the header
+    blosc_cbuffer_sizes(
+        <const void*> src._data,
+        &nbytes,
+        &cbytes,
+        &blocksize
+    )
+    if (
+        (nbytes == 0 and blocksize == 0)
+        or nbytes > <size_t> INT32_MAX  # negative int32 read as size_t
+        or cbytes < <size_t> BLOSC_MIN_HEADER_LENGTH
+        or cbytes > <size_t> srcsize
+    ):
+        raise BloscError('blosc_cbuffer_sizes returned invalid blosc data')
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            blosc_cbuffer_sizes(
-                <const void*> src._data,
-                &nbytes,
-                &cbytes,
-                &blocksize
-            )
-            if nbytes == 0 and blocksize == 0:
-                raise BloscError(
-                    'blosc_cbuffer_sizes returned invalid blosc data'
-                )
             dstsize = <ssize_t> nbytes
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     if dstsize > INT32_MAX:
         raise ValueError('output size larger than 2 GB')
@@ -252,3 +225,48 @@ def blosc_decode(
 
     del dst
     return _return_output(out, dstsize, ret, outgiven)
+
+
+def blosc_info(const uint8_t[::1] data not None, /):
+    """Return information about BLOSC data."""
+    cdef:
+        const void* src = <const void*> data._data
+        ssize_t srcsize = data.shape[0]
+        size_t nbytes, cbytes, blocksize, typesize
+        int flags, version, compversion
+
+    if srcsize < BLOSC_MIN_HEADER_LENGTH:
+        raise BloscError('invalid blosc data: header too short')
+
+    blosc_cbuffer_sizes(src, &nbytes, &cbytes, &blocksize)
+    blosc_cbuffer_metainfo(src, &typesize, &flags)
+    blosc_cbuffer_versions(src, &version, &compversion)
+
+    if flags & 0x4:  # BLOSC_DOBITSHUFFLE
+        shuffle = BLOSC.SHUFFLE.BITSHUFFLE
+    elif flags & 0x1:  # BLOSC_DOSHUFFLE
+        shuffle = BLOSC.SHUFFLE.SHUFFLE
+    else:
+        shuffle = BLOSC.SHUFFLE.NOSHUFFLE
+
+    # compressor format in upper flag bits; LZ4HC shares the LZ4 format
+    compressor = {
+        0: BLOSC.COMPRESSOR.BLOSCLZ,
+        1: BLOSC.COMPRESSOR.LZ4,
+        2: BLOSC.COMPRESSOR.SNAPPY,
+        3: BLOSC.COMPRESSOR.ZLIB,
+        4: BLOSC.COMPRESSOR.ZSTD,
+    }.get(data[2] >> 5, data[2] >> 5)
+
+    return {
+        '_codec': 'blosc',
+        'nbytes': nbytes,
+        'cbytes': cbytes,
+        'blocksize': blocksize,
+        'typesize': typesize,
+        'compressor': compressor,
+        'shuffle': shuffle,
+        'memcpyed': bool(flags & 0x2),  # BLOSC_MEMCPYED
+        'version': version,
+        'compversion': compversion,
+    }
