@@ -86,12 +86,9 @@ def zfp_version():
     return 'zfp ' + ZFP_VERSION_STRING.decode()
 
 
-def zfp_check(const uint8_t[::1] data, /):
+def zfp_check(const uint8_t[::1] data not None, /):
     """Return whether data is ZFP encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:3])
-
-    return sig == b'zfp'
+    return _startswith(data, b'zfp')
 
 
 def zfp_encode(
@@ -110,7 +107,9 @@ def zfp_encode(
     cdef:
         numpy.ndarray src = _array_input(data, out, dtype=None, contig=False)
         const uint8_t[::1] dst  # must be const to write to bytes
+        void* dstptr = NULL
         size_t byteswritten
+        size_t maxsize
         ssize_t dstsize
         bitstream* stream = NULL
         zfp_stream* zfp = NULL
@@ -126,7 +125,7 @@ def zfp_encode(
         uint minbits = 0
         uint maxbits = 0
         uint maxprec = 0
-        uint minexp = 0
+        int minexp = 0
         size_t nx, ny, nz, nw
         ptrdiff_t sx, sy, sz, sw
         zfp_bool ret
@@ -180,10 +179,19 @@ def zfp_encode(
     if zmode == zfp_mode_fixed_precision:
         precision = _default_value(level, ZFP_MAX_PREC, 0, ZFP_MAX_PREC)
     elif zmode == zfp_mode_fixed_rate:
+        if level is None:
+            raise ValueError('fixed-rate mode requires level')
         rate = level
     elif zmode == zfp_mode_fixed_accuracy:
+        if level is None:
+            raise ValueError('fixed-accuracy mode requires level')
         tolerance = level
     elif zmode == zfp_mode_expert:
+        if level is None:
+            raise ValueError(
+                'expert mode requires '
+                'level=(minbits, maxbits, maxprec, minexp)'
+            )
         minbits, maxbits, maxprec, minexp = level
 
     if execution is None:
@@ -233,17 +241,28 @@ def zfp_encode(
             if ret == zfp_false:
                 raise ZfpError('zfp_stream_set_params failed')
 
+        maxsize = _zfp_maximum_size(zfp, field)
+        if maxsize == 0:
+            raise ZfpError('zfp_stream_maximum_size failed')
+
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
             if dstsize < 0:
-                dstsize = zfp_stream_maximum_size(zfp, field)
+                dstsize = <ssize_t> maxsize
             out = _create_output(outtype, dstsize)
 
         dst = out
         dstsize = dst.shape[0]
 
+        # zfp writes whole 64-bit words without bounds checking
+        if dstsize < <ssize_t> maxsize:
+            raise ValueError(f'output too small {dstsize=} < {maxsize=}')
+        dstptr = <void*> &dst[0]
+        if (<size_t> dstptr) % 8 != 0:
+            raise ValueError('output is not 8-byte aligned')
+
         with nogil:
-            stream = stream_open(<void*> dst._data, dstsize)
+            stream = stream_open(dstptr, maxsize)
             if stream == NULL:
                 raise ZfpError('stream_open failed')
 
@@ -298,18 +317,22 @@ def zfp_decode(
     strides=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded ZFP data."""
     cdef:
         numpy.ndarray dst
+        uint8_t* buffer = NULL
         const uint8_t[::1] src = data
+        const uint8_t* srcptr = NULL
         ssize_t srcsize = src.shape[0]
+        uint64_t[4] header  # ZFP_HEADER_MAX_BITS fit in 3 words
         zfp_stream* zfp = NULL
         bitstream* stream = NULL
         zfp_field* field = NULL
         zfp_type ztype
         ssize_t ndim
-        size_t size
+        size_t size, headerbits, maxsize, bufsize
         # uint threads = _default_threads(numthreads)
         size_t nx, ny, nz, nw
         ptrdiff_t sx = 0
@@ -325,18 +348,52 @@ def zfp_decode(
 
     if dtype is None:
         ztype = zfp_type_none
-    elif dtype == numpy.int32:
-        ztype = zfp_type_int32
-    elif dtype == numpy.int64:
-        ztype = zfp_type_int64
-    elif dtype == numpy.float32:
-        ztype = zfp_type_float
-    elif dtype == numpy.float64:
-        ztype = zfp_type_double
     else:
-        raise ValueError('dtype not supported by ZFP')
+        dtype = numpy.dtype(dtype)
+        if dtype == numpy.int32:
+            ztype = zfp_type_int32
+        elif dtype == numpy.int64:
+            ztype = zfp_type_int64
+        elif dtype == numpy.float32:
+            ztype = zfp_type_float
+        elif dtype == numpy.float64:
+            ztype = zfp_type_double
+        else:
+            raise ValueError('dtype not supported by ZFP')
 
-    ndim = -1 if shape is None else len(shape)
+    count = 0
+    if shape is None:
+        ndim = -1
+        if strides is not None:
+            raise ValueError('strides require shape')
+    else:
+        shape = tuple(int(i) for i in shape)
+        ndim = len(shape)
+        if ndim < 1 or ndim > 4:
+            raise ValueError('shape not supported by ZFP')
+        if any(i < 1 for i in shape):
+            raise ValueError(f'invalid {shape=!r}')
+        count = 1
+        for i in shape:
+            count *= i
+        if strides is not None:
+            strides = tuple(int(i) for i in strides)
+            if len(strides) != ndim:
+                raise ValueError(f'{strides=!r} do not match {shape=!r}')
+            # element strides into contiguous output; 0 means default
+            lo = hi = 0
+            n = 1
+            for i, s in zip(reversed(shape), reversed(strides)):
+                if s == 0:
+                    s = n
+                if s > 0:
+                    hi += (i - 1) * s
+                else:
+                    lo += (i - 1) * s
+                n *= i
+            if lo < 0 or hi >= count:
+                raise ValueError(f'{strides=!r} exceed output array')
+
     if ndim == -1:
         pass
     elif ndim == 1:
@@ -367,8 +424,6 @@ def zfp_decode(
             sy = <ptrdiff_t> strides[2]
             sz = <ptrdiff_t> strides[1]
             sw = <ptrdiff_t> strides[0]
-    else:
-        raise ValueError('shape not supported by ZFP')
 
     # TODO: enable execution mode or threading when supported
     # if execution is None:
@@ -392,7 +447,10 @@ def zfp_decode(
         if field == NULL:
             raise ZfpError('zfp_field_alloc failed')
 
-        stream = stream_open(<void*> src._data, <size_t> srcsize)
+        # read header from zero-padded copy to not read past end of src
+        memset(<void*> header, 0, 32)
+        memcpy(<void*> header, <const void*> &src[0], min(srcsize, 32))
+        stream = stream_open(<void*> header, 32)
         if stream == NULL:
             raise ZfpError('stream_open failed')
 
@@ -403,14 +461,22 @@ def zfp_decode(
         # if ret == zfp_false:
         #     raise ZfpError('zfp_stream_set_execution failed')
 
-        if ztype == zfp_type_none or ndim == -1:
-            size = zfp_read_header(zfp, field, ZFP_HEADER_FULL)
-        else:
-            size = zfp_read_header(
+        headerbits = zfp_read_header(zfp, field, ZFP_HEADER_FULL)
+        if ztype != zfp_type_none and ndim != -1 and (
+            headerbits == 0
+            or field.dtype != ztype
+            or zfp_field_size(field, NULL) != count
+        ):
+            # data were probably encoded without metadata
+            zfp_stream_rewind(zfp)
+            headerbits = zfp_read_header(
                 zfp, field, ZFP_HEADER_MAGIC | ZFP_HEADER_MODE
             )
-        if size == 0:
+        if headerbits == 0:
             raise ZfpError('zfp_read_header failed')
+
+        stream_close(stream)
+        stream = NULL
 
         if ztype == zfp_type_none:
             ztype = field.dtype
@@ -433,13 +499,13 @@ def zfp_decode(
             if field.nx == 0:
                 raise ZfpError('invalid zfp_field nx')
             elif field.ny == 0:
-                shape = field.nx,
+                shape = (field.nx,)
             elif field.nz == 0:
-                shape = field.ny, field.nx
+                shape = (field.ny, field.nx)
             elif field.nw == 0:
-                shape = field.nz, field.ny, field.nx
+                shape = (field.nz, field.ny, field.nx)
             else:
-                shape = field.nw, field.nz, field.ny, field.nx
+                shape = (field.nw, field.nz, field.ny, field.nx)
         elif ndim == 1:
             zfp_field_set_size_1d(field, nx)
             zfp_field_set_stride_1d(field, sx)
@@ -453,15 +519,52 @@ def zfp_decode(
             zfp_field_set_size_4d(field, nx, ny, nz, nw)
             zfp_field_set_stride_4d(field, sx, sy, sz, sw)
 
+        maxsize = _zfp_maximum_size(zfp, field)
+        if maxsize == 0:
+            raise ZfpError('zfp_stream_maximum_size failed')
+
+        if _info:
+            return {
+                '_codec': 'zfp',
+                'shape': shape,
+                'dtype': numpy.dtype(dtype),
+                'maxsize': maxsize,
+                **_zfp_info(zfp, field),
+            }
+
         out = _create_array(out, shape, dtype)
         dst = out
 
         with nogil:
+            # zfp reads whole 64-bit words without bounds checking
+            if (
+                <size_t> srcsize >= maxsize
+                and (<size_t> <const void*> &src[0]) % 8 == 0
+            ):
+                srcptr = &src[0]
+                bufsize = <size_t> srcsize
+            else:
+                bufsize = (max(maxsize, <size_t> srcsize) + 7) // 8 * 8
+                buffer = <uint8_t*> malloc(bufsize)
+                if buffer == NULL:
+                    raise MemoryError('failed to allocate buffer')
+                memcpy(<void*> buffer, <const void*> &src[0], srcsize)
+                memset(<void*> (buffer + srcsize), 0, bufsize - srcsize)
+                srcptr = buffer
+
+            stream = stream_open(<void*> srcptr, bufsize)
+            if stream == NULL:
+                raise ZfpError('stream_open failed')
+
+            zfp_stream_set_bit_stream(zfp, stream)
+            zfp_stream_rewind(zfp)
+            stream_skip(stream, headerbits)
+
             zfp_field_set_pointer(field, <void*> dst.data)
             size = zfp_decompress(zfp, field)
 
-        if size == 0:
-            raise ZfpError('zfp_decompress failed')
+            if size == 0:
+                raise ZfpError('zfp_decompress failed')
 
     finally:
         if field != NULL:
@@ -470,5 +573,75 @@ def zfp_decode(
             zfp_stream_close(zfp)
         if stream != NULL:
             stream_close(stream)
+        free(buffer)
 
     return out
+
+
+def zfp_info(
+    data,
+    /,
+    *,
+    shape=None,
+    dtype=None,
+    strides=None,
+):
+    """Return information about ZFP encoded data."""
+    return zfp_decode(
+        data,
+        shape=shape,
+        dtype=dtype,
+        strides=strides,
+        _info=True,
+    )
+
+
+cdef dict _zfp_info(const zfp_stream* zfp, const zfp_field* field):
+    """Return compression parameters of ZFP stream."""
+    cdef:
+        zfp_mode zmode = zfp_stream_compression_mode(zfp)
+        uint minbits, maxbits, maxprec
+        int minexp
+
+    zfp_stream_params(zfp, &minbits, &maxbits, &maxprec, &minexp)
+    if zmode == zfp_mode_fixed_rate:
+        level = zfp_stream_rate(zfp, zfp_field_dimensionality(field))
+    elif zmode == zfp_mode_fixed_precision:
+        level = zfp_stream_precision(zfp)
+    elif zmode == zfp_mode_fixed_accuracy:
+        level = zfp_stream_accuracy(zfp)
+    elif zmode == zfp_mode_expert:
+        level = (minbits, maxbits, maxprec, minexp)
+    else:
+        level = None
+    return {
+        'mode': ZFP.MODE(zmode),
+        'level': level,
+        'minbits': minbits,
+        'maxbits': maxbits,
+        'maxprec': maxprec,
+        'minexp': minexp,
+    }
+
+
+cdef size_t _zfp_maximum_size(
+    const zfp_stream* zfp,
+    const zfp_field* field
+) noexcept nogil:
+    """Return zfp_stream_maximum_size or 0 if it overflows size_t."""
+    # zfp computes blocks * maxbits in size_t, which overflows on 32-bit
+    cdef:
+        uint64_t maxbits = (
+            (<uint64_t> 1 << (2 * zfp_field_dimensionality(field))) * 66 + 20
+        )
+
+    if maxbits > zfp.maxbits:
+        maxbits = zfp.maxbits
+    if maxbits < zfp.minbits:
+        maxbits = zfp.minbits
+    if (
+        <uint64_t> zfp_field_blocks(field) * maxbits + ZFP_HEADER_MAX_BITS + 64
+        > <uint64_t> SIZE_MAX
+    ):
+        return 0
+    return zfp_stream_maximum_size(zfp, field)
