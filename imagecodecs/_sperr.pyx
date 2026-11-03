@@ -77,7 +77,7 @@ def sperr_version():
     )
 
 
-def sperr_check(const uint8_t[::1] data, /):
+def sperr_check(const uint8_t[::1] data not None, /):
     """Return whether data is SPERR encoded or None if unknown."""
     return None if data.shape[0] >= 10 else False
 
@@ -106,12 +106,6 @@ def sperr_encode(
         int out_inc_header = bool(header)
         int is_float, mode_, ret
 
-    if src.size == 0:
-        raise ValueError('src is empty')
-
-    if src.dtype.byteorder == '>':
-        raise ValueError('big-endian data not supported')
-
     if src.dtype == numpy.float64:
         is_float = 0
     elif src.dtype == numpy.float32:
@@ -135,6 +129,9 @@ def sperr_encode(
             chunk_y = dimy
             chunk_z = dimz
         else:
+            chunks = tuple(chunks)
+            if len(chunks) != 3 or any(i < 0 for i in chunks):
+                raise ValueError(f'invalid {chunks=}')
             chunk_z = <size_t> chunks[0]
             chunk_y = <size_t> chunks[1]
             chunk_x = <size_t> chunks[2]
@@ -149,6 +146,8 @@ def sperr_encode(
     ):
         raise ValueError(f'invalid {dimx=}, {dimy=}, or {dimz=}')
 
+    if mode is None:
+        raise ValueError('mode not specified')
     mode_ = _enum_value(mode, SPERR.MODE)
 
     with nogil:
@@ -188,6 +187,10 @@ def sperr_encode(
     try:
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < <ssize_t> dst_len:
+                raise ValueError(
+                    f'output buffer too small {dstsize} < {dst_len}'
+                )
             dstsize = <ssize_t> dst_len
             out = _create_output(outtype, dstsize, <const char*> dst_ptr)
         else:
@@ -220,9 +223,6 @@ def sperr_decode(
     Either a header (always present for 3D), a ndarray output, or
     shape and dtype are required.
 
-    `sperr_decomp_2d` and `sperr_decomp_3d` read beyond data buffer in some
-    cases, may segfault or return wrong values.
-
     """
     cdef:
         numpy.ndarray dst
@@ -230,51 +230,63 @@ def sperr_decode(
         size_t src_len = <size_t> src.shape[0]
         size_t dstlen
         void* dst_ptr = NULL
-        size_t ndim = 0
-        size_t dimx, dimy, dimz
+        size_t dimx = 0
+        size_t dimy = 0
+        size_t dimz = 1
         size_t nthreads = _default_threads(numthreads)
         int out_inc_header = bool(header)
-        int is_float, ret
+        int is_3d = 0
+        int is_float, output_float, ret
 
-    if data is out:
+    if data is None:
+        raise ValueError('input data is None')
+
+    if out is not None and data is out:
         raise ValueError('cannot transform in-place')
 
     if src_len == 0:
         raise ValueError('src is empty')
 
-    is_ndarray = isinstance(out, numpy.ndarray)
-    if is_ndarray or (shape is not None and dtype is not None):
-        if is_ndarray:
-            dtype = out.dtype
-            shape = out.shape
+    if isinstance(out, numpy.ndarray):
+        if dtype is not None and (
+            numpy.dtype(dtype).newbyteorder('=')
+            != out.dtype.newbyteorder('=')
+        ):
+            raise ValueError(f'invalid {out.dtype=}, {dtype=}')
+        dtype = out.dtype
+        shape = out.shape
+    if dtype is not None:
+        dtype = numpy.dtype(dtype)
+        if dtype.kind != 'f' or dtype.itemsize not in {4, 8}:
+            raise ValueError(f'invalid {dtype=}')
+    if shape is not None:
+        if isinstance(shape, int | numpy.integer):
+            shape = (int(shape),)
         else:
-            dtype = numpy.dtype(dtype)
             shape = tuple(shape)
 
-        if dtype.char == 'd':
-            is_float = 0
-        elif dtype.char == 'f':
-            is_float = 1
-        else:
-            raise ValueError(f'invalid {dtype=}')
-
-        shape = _squeeze_shape(shape, 2)
-        ndim = len(shape)
-        if ndim == 2:
-            dimz = 1
-            dimy = <size_t> shape[0]
-            dimx = <size_t> shape[1]
-        elif ndim == 3:
+    if not out_inc_header:
+        if shape is None or dtype is None:
+            raise ValueError('shape and dtype required if header=False')
+        squeezed = _squeeze_shape(shape, 2)
+        if any(i <= 0 for i in squeezed):
+            raise ValueError(f'invalid {shape=}')
+        if len(squeezed) == 2:
+            dimy = <size_t> squeezed[0]
+            dimx = <size_t> squeezed[1]
+        elif len(squeezed) == 3:
             # header always present
             out_inc_header = 1
         else:
             raise ValueError(f'invalid {shape=}')
 
     if out_inc_header:
-        if src_len < 10:
+        # 3D header is 14 bytes, 2D header 10 bytes
+        if src_len < 10 or (src[1] & 0x40 and src_len < 14):
             raise ValueError(
                 f'data too short to contain SPERR header {src_len}'
             )
+        is_3d = (src[1] & 0x40) != 0
         sperr_parse_header(
             <const void*> src._data,
             &dimx,
@@ -282,51 +294,37 @@ def sperr_decode(
             &dimz,
             &is_float
         )
-        if (
-            (is_float != 0 and is_float != 1)
-            or dimx == 0
-            or dimy == 0
-            or dimz == 0
-        ):
+        if dimx == 0 or dimy == 0 or dimz == 0:
             raise ValueError("'sperr_parse_header' returned invalid values")
-        if ndim == 0:
-            ndim = 2 if dimz == 1 else 3
-        if ndim == 2:
-            shape = (int(dimy), int(dimx))
+        if is_3d:
+            hdrshape = (int(dimz), int(dimy), int(dimx))
         else:
-            shape = (int(dimz), int(dimy), int(dimx))
-        dtype = numpy.dtype('f4' if is_float else 'f8')
-
-    elif shape is None or dtype is None:
-        raise ValueError('shape and dtype required if header=False')
+            hdrshape = (int(dimy), int(dimx))
+        if shape is None:
+            shape = hdrshape
+        elif (
+            tuple(i for i in shape if i != 1)
+            != tuple(i for i in hdrshape if i != 1)
+        ):
+            raise ValueError(f'{shape=} does not match {hdrshape=}')
+        if dtype is None:
+            dtype = numpy.dtype('f4' if is_float else 'f8')
 
     if dimx > INT32_MAX or dimy > INT32_MAX or dimz > INT32_MAX:
         raise ValueError(f'invalid {dimx=}, {dimy=}, or {dimz=}')
 
+    output_float = dtype.itemsize == 4
     out = _create_array(out, shape, dtype)
     dst = out
     dstlen = dst.nbytes
 
     try:
-        if src_len < <size_t> (10 * out_inc_header):
-            raise ValueError(f'data too short {src_len}')
         with nogil:
-            if ndim == 2:
-                ret = sperr_decomp_2d(
-                    <const void*> &src[10 * out_inc_header],
-                    src_len - 10 * out_inc_header,
-                    is_float,
-                    dimx,
-                    dimy,
-                    &dst_ptr
-                )
-                if ret != 0 or dst_ptr == NULL:
-                    raise SperrError('sperr_decomp_2d', ret)
-            else:
+            if is_3d:
                 ret = sperr_decomp_3d(
                     <const void*> src._data,
                     src_len,
-                    is_float,
+                    output_float,
                     nthreads,
                     &dimx,
                     &dimy,
@@ -335,11 +333,70 @@ def sperr_decode(
                 )
                 if ret != 0 or dst_ptr == NULL:
                     raise SperrError('sperr_decomp_3d', ret)
+            else:
+                ret = sperr_decomp_2d(
+                    <const void*> &src[10 * out_inc_header],
+                    src_len - 10 * out_inc_header,
+                    output_float,
+                    dimx,
+                    dimy,
+                    &dst_ptr
+                )
+                if ret != 0 or dst_ptr == NULL:
+                    raise SperrError('sperr_decomp_2d', ret)
 
-        if dstlen != dimx * dimy * dimz * (4 if is_float else 8):
-            raise ValueError(f'invalid output size {out.nbytes=}')
-        memcpy(<void*> dst.data, <const void*> dst_ptr, dstlen)
+            if dstlen != dimx * dimy * dimz * (4 if output_float else 8):
+                raise ValueError(f'invalid output size {dstlen=}')
+            memcpy(<void*> dst.data, <const void*> dst_ptr, dstlen)
     finally:
         free(dst_ptr)
 
+    if not dst.dtype.isnative:
+        # library writes native byte order
+        dst.byteswap(inplace=True)
+
     return out
+
+
+def sperr_info(const uint8_t[::1] data not None, /):
+    """Return information about SPERR encoded data with header."""
+    cdef:
+        size_t src_len = <size_t> data.shape[0]
+        size_t dimx = 0
+        size_t dimy = 0
+        size_t dimz = 1
+        uint16_t[3] chunk
+        int is_float = 0
+        bint is_3d
+
+    if src_len < 10 or (data[1] & 0x40 and src_len < 14):
+        raise ValueError(f'data too short to contain SPERR header {src_len}')
+    is_3d = (data[1] & 0x40) != 0
+    sperr_parse_header(
+        <const void*> data._data, &dimx, &dimy, &dimz, &is_float
+    )
+    if dimx == 0 or dimy == 0 or dimz == 0:
+        raise ValueError("'sperr_parse_header' returned invalid values")
+
+    if is_3d:
+        shape = (dimz, dimy, dimx)
+        chunks = shape
+        if data[1] & 0x10:
+            # multi-chunk header contains chunk dimensions
+            if src_len < 20:
+                raise ValueError(
+                    f'data too short to contain SPERR header {src_len}'
+                )
+            memcpy(<void*> chunk, <const void*> &data[14], 6)
+            chunks = (chunk[2], chunk[1], chunk[0])
+    else:
+        shape = (dimy, dimx)
+        chunks = None
+
+    return {
+        '_codec': 'sperr',
+        'shape': shape,
+        'dtype': numpy.dtype('f4' if is_float else 'f8'),
+        'chunks': chunks,
+        'version': data[0],
+    }
