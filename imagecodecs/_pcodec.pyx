@@ -62,22 +62,19 @@ class PcodecError(RuntimeError):
             PcoCompressionError: 'PcoCompressionError',
             PcoDecompressionError: 'PcoDecompressionError',
         }.get(err, f'unknown error {err!r}')
-        msg = f'{func} returned {msg!r}'
+        msg = f'{func} returned {msg}'
         super().__init__(msg)
 
 
 def pcodec_version():
     """Return pcodec library version string."""
     # TODO: use version from header when available
-    return 'pcodec 1.0.4'
+    return 'pcodec 1.1.0'
 
 
-def pcodec_check(const uint8_t[::1] data, /):
+def pcodec_check(const uint8_t[::1] data not None, /):
     """Return whether data is PCODEC encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'pco!'
+    return _startswith(data, b'pco!')
 
 
 def pcodec_encode(
@@ -95,41 +92,53 @@ def pcodec_encode(
         ssize_t dstsize
         PcoChunkConfig config
         unsigned char pcotype
-        size_t bound, n_written
+        size_t size = <size_t> src.size
+        size_t max_page_n = 0
+        size_t bound, pagebound, npages, n_written
         PcoError ret
-
-    if src.size > INT32_MAX:
-        raise ValueError(f'invalid {src.size=}')
-
-    if src.dtype.byteorder == '>':
-        raise ValueError('big-endian data not supported')
 
     try:
         pcotype = PCO_TYPE[(src.dtype.kind, src.dtype.itemsize)]
     except KeyError:
         raise ValueError(f'{src.dtype=} not supported')
 
+    if pagesize is not None:
+        if pagesize < 0:
+            raise ValueError(f'invalid {pagesize=}')
+        max_page_n = pagesize
+
     out, dstsize, outgiven, outtype = _parse_output(out)
     if out is None:
-        bound = pco_standalone_guarantee_file_size(
-            <size_t> src.size, pcotype
-        )
-        if bound == 0:
-            raise PcodecError(
-                'pco_standalone_guarantee_file_size', PcoInvalidType
-            )
-        out = _create_output(outtype, <ssize_t> bound)
+        if dstsize < 0:
+            bound = pco_standalone_guarantee_file_size(size, pcotype)
+            if bound == 0:
+                raise PcodecError(
+                    'pco_standalone_guarantee_file_size', PcoInvalidType
+                )
+            if 0 < max_page_n < size:
+                # library bound assumes default page size
+                npages = (size + max_page_n - 1) // max_page_n
+                pagebound = pco_standalone_guarantee_file_size(
+                    max_page_n, pcotype
+                )
+                if pagebound == 0 or npages > SIZE_MAX // 2 // pagebound:
+                    raise ValueError(f'invalid {pagesize=}')
+                bound = max(bound, npages * pagebound)
+            if bound > SIZE_MAX // 2:
+                raise ValueError(f'invalid {src.size=}')
+            dstsize = <ssize_t> bound
+        out = _create_output(outtype, dstsize)
 
     dst = out
     dstsize = dst.shape[0]
 
     config.compression_level = _default_value(level, 8, 0, 12)
-    config.max_page_n = 0 if pagesize is None else <size_t> pagesize
+    config.max_page_n = max_page_n
 
     with nogil:
         ret = pco_standalone_simple_compress_into(
             <const void*> src.data,
-            <size_t> src.size,
+            size,
             pcotype,
             &config,
             <void*> dst._data,
@@ -161,7 +170,10 @@ def pcodec_decode(
         size_t n_written
         PcoError ret
 
-    if data is out:
+    if data is None:
+        raise ValueError('input data is None')
+
+    if out is not None and data is out:
         raise ValueError('cannot transform in-place')
 
     if isinstance(out, numpy.ndarray):
@@ -173,13 +185,16 @@ def pcodec_decode(
         raise ValueError('dtype not specified')
 
     try:
-        dtype = numpy.dtype(dtype)
         pcotype = PCO_TYPE[(dtype.kind, dtype.itemsize)]
     except KeyError:
         raise ValueError(f'{dtype=} not supported')
 
     if shape is None:
         raise ValueError('shape not specified')
+    if isinstance(shape, int | numpy.integer):
+        shape = (int(shape),)
+    else:
+        shape = tuple(shape)
 
     out = _create_array(out, shape, dtype)
     dst = out
@@ -201,6 +216,10 @@ def pcodec_decode(
         raise ValueError(
             f'decompressed element count mismatch: {n_written=} != {dst.size=}'
         )
+
+    if not dtype.isnative:
+        # library writes native byte order
+        out.byteswap(inplace=True)
 
     return out
 
