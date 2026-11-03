@@ -71,25 +71,26 @@ class SnappyError(RuntimeError):
 def snappy_version():
     """Return Snappy library version string."""
     # SNAPPY_VERSION is defined in snappy-stubs-public.h C++ header only
-    return 'snappy 1.3.0'
+    return 'snappy 1.3.1'
 
 
-def snappy_check(const uint8_t[::1] data, /):
+def snappy_check(const uint8_t[::1] data not None, /):
     """Return whether data is SNAPPY encoded or None if unknown."""
     cdef:
         snappy_status ret
 
-    ret = snappy_validate_compressed_buffer(
-        <const char*> data._data,
-        <size_t> data.shape[0]
-    )
+    with nogil:
+        ret = snappy_validate_compressed_buffer(
+            <const char*> data._data,
+            <size_t> data.shape[0]
+        )
     return ret == SNAPPY_OK
 
 
 def snappy_encode(
     data,
     /,
-    level,
+    level=None,
     *,
     out=None,
 ):
@@ -106,7 +107,7 @@ def snappy_encode(
             SNAPPY_MIN_COMPRESSION_LEVEL,
             SNAPPY_MAX_COMPRESSION_LEVEL
         )
-        snappy_status ret
+        snappy_status ret = SNAPPY_OK
         char* buffer = NULL
 
     out, dstsize, outgiven, outtype = _parse_output(out)
@@ -120,28 +121,31 @@ def snappy_encode(
     dst = out
     dstsize = dst.shape[0]
 
-    if <size_t> dstsize < output_length:
-        # snappy_compress requires at least (32+len(data)+len(data)/6) bytes
-        with nogil:
+    with nogil:
+        if <size_t> dstsize < output_length:
+            # snappy_compress requires at least
+            # (32+len(data)+len(data)/6) bytes
             buffer = <char*> malloc(output_length)
             if buffer == NULL:
                 raise MemoryError('failed to allocate buffer')
-            ret = snappy_compress(
+            ret = snappy_compress_with_level(
                 <const char*> src._data,
                 <size_t> srcsize,
+                compression_level,
                 buffer,
                 &output_length
             )
-            if ret != SNAPPY_OK:
-                free(buffer)
-                raise SnappyError('snappy_compress', ret)
-            if <size_t> dstsize < output_length:
-                free(buffer)
-                raise SnappyError('snappy_compress', SNAPPY_BUFFER_TOO_SMALL)
-            memcpy(<void*> dst._data, <const void*> buffer, output_length)
+            if ret == SNAPPY_OK:
+                if <size_t> dstsize < output_length:
+                    ret = SNAPPY_BUFFER_TOO_SMALL
+                else:
+                    memcpy(
+                        <void*> dst._data,
+                        <const void*> buffer,
+                        output_length
+                    )
             free(buffer)
-    else:
-        with nogil:
+        else:
             output_length = <size_t> dstsize
             ret = snappy_compress_with_level(
                 <const char*> src._data,
@@ -151,7 +155,7 @@ def snappy_encode(
                 &output_length
             )
         if ret != SNAPPY_OK:
-            raise SnappyError('snappy_compress', ret)
+            raise SnappyError('snappy_compress_with_level', ret)
 
     del dst
     return _return_output(out, dstsize, output_length, outgiven)
@@ -179,17 +183,18 @@ def snappy_decode(
 
     if out is None:
         if dstsize < 0:
-            ret = snappy_uncompressed_length(
-                <const char*> src._data,
-                <size_t> srcsize,
-                &result
-            )
+            with nogil:
+                ret = snappy_uncompressed_length(
+                    <const char*> src._data,
+                    <size_t> srcsize,
+                    &result
+                )
             if ret != SNAPPY_OK:
                 raise SnappyError('snappy_uncompressed_length', ret)
             dstsize = <ssize_t> result
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     output_length = <size_t> dstsize
 
@@ -205,3 +210,24 @@ def snappy_decode(
 
     del dst
     return _return_output(out, dstsize, output_length, outgiven)
+
+
+def snappy_info(const uint8_t[::1] data not None, /):
+    """Return information about SNAPPY encoded data."""
+    cdef:
+        size_t result
+        snappy_status ret
+
+    with nogil:
+        ret = snappy_uncompressed_length(
+            <const char*> data._data,
+            <size_t> data.shape[0],
+            &result
+        )
+    if ret != SNAPPY_OK:
+        raise SnappyError('snappy_uncompressed_length', ret)
+
+    return {
+        '_codec': 'snappy',
+        'size': result,
+    }
