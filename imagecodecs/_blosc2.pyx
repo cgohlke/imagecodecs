@@ -58,8 +58,13 @@ class BLOSC2:
         BITSHUFFLE = BLOSC_BITSHUFFLE
         DELTA = BLOSC_DELTA
         TRUNC_PREC = BLOSC_TRUNC_PREC
+        BYTEDELTA = BLOSC_FILTER_BYTEDELTA
+        INT_TRUNC = BLOSC_FILTER_INT_TRUNC
+        # require b2nd metalayer, only supported by B2ND:
+        # NDCELL = BLOSC_FILTER_NDCELL
+        # NDMEAN = BLOSC_FILTER_NDMEAN
 
-    class COMPRESSOR(enum.IntEnum):
+    class CODEC(enum.IntEnum):
         """BLOSC2 codec compressors."""
 
         BLOSCLZ = BLOSC_BLOSCLZ
@@ -67,6 +72,11 @@ class BLOSC2:
         LZ4HC = BLOSC_LZ4HC
         ZLIB = BLOSC_ZLIB
         ZSTD = BLOSC_ZSTD  # default
+        # require b2nd metalayer, only supported by B2ND:
+        # NDLZ = BLOSC_CODEC_NDLZ
+        # ZFP_ACC = BLOSC_CODEC_ZFP_FIXED_ACCURACY
+        # ZFP_PREC = BLOSC_CODEC_ZFP_FIXED_PRECISION
+        # ZFP_RATE = BLOSC_CODEC_ZFP_FIXED_RATE
 
     class SPLIT(enum.IntEnum):
         """BLOSC2 split modes."""
@@ -96,9 +106,9 @@ def blosc2_version():
     return 'c-blosc2 ' + BLOSC2_VERSION_STRING.decode()
 
 
-def blosc2_check(const uint8_t[::1] data, /):
+def blosc2_check(const uint8_t[::1] data not None, /):
     """Return whether data is BLOSC2 encoded or None if unknown."""
-    return None if data.shape[0] > 0 else False
+    return None if data.shape[0] >= BLOSC_MIN_HEADER_LENGTH else False
 
 
 def blosc2_encode(
@@ -106,8 +116,9 @@ def blosc2_encode(
     /,
     level=None,
     *,
-    compressor=None,
-    shuffle=None,  # TODO: enable filters
+    codec=None,
+    filters=None,
+    filters_meta=None,
     splitmode=None,
     typesize=None,
     blocksize=None,
@@ -116,14 +127,16 @@ def blosc2_encode(
 ):
     """Return BLOSC2 encoded data."""
     cdef:
-        const uint8_t[::1] src
+        ssize_t itemsize
+        const uint8_t[::1] src = _readable_input(data, out, &itemsize)
         const uint8_t[::1] dst  # must be const to write to bytes
-        ssize_t srcsize
+        ssize_t srcsize = src.shape[0]
         ssize_t dstsize
-        int32_t cblocksize
-        int32_t ctypesize
-        uint8_t compcode
-        uint8_t cfilter
+        int32_t cblocksize = 0 if blocksize is None else blocksize
+        int32_t ctypesize = (
+            <int32_t> itemsize if typesize is None else typesize
+        )
+        uint8_t compcode = _enum_value(codec, BLOSC2.CODEC, BLOSC2.CODEC.ZSTD)
         int32_t csplitmode
         int16_t nthreads = _default_threads(numthreads)
         int clevel = _default_value(level, 1, 0, 9)
@@ -131,32 +144,19 @@ def blosc2_encode(
         blosc2_cparams cparams = BLOSC2_CPARAMS_DEFAULTS
         int ret
 
-    if data is out:
-        raise ValueError('cannot transform in-place')
+    if typesize is None and ctypesize == 1:
+        ctypesize = 8  # default for byte input
 
-    try:
-        src = data  # common case: contiguous bytes
-        ctypesize = 8
-    except Exception:
-        view = memoryview(data)
-        if view.contiguous:
-            src = view.cast('B')  # view as bytes
-        else:
-            src = view.tobytes()  # copy non-contiguous
-        ctypesize = <int32_t> view.itemsize
+    if ctypesize < 1:
+        raise ValueError(f'invalid typesize {ctypesize}')
 
-    srcsize = src.shape[0]
+    if cblocksize < 0:
+        raise ValueError(f'invalid blocksize {cblocksize}')
 
     if srcsize > INT32_MAX - BLOSC2_MAX_OVERHEAD:
         raise ValueError('data size larger than 2 GB')
 
-    cblocksize = 0 if blocksize is None else blocksize
-
-    compcode = _enum_value(
-        compressor, BLOSC2.COMPRESSOR, BLOSC2.COMPRESSOR.ZSTD
-    )
-
-    cfilter = _enum_value(shuffle, BLOSC2.FILTER, BLOSC2.FILTER.SHUFFLE)
+    _set_filters(&cparams, filters, filters_meta, BLOSC2.FILTER, ctypesize)
 
     if splitmode is not None and not splitmode:
         csplitmode = BLOSC2.SPLIT.NEVER
@@ -172,6 +172,8 @@ def blosc2_encode(
 
     dst = out
     dstsize = dst.shape[0]
+    if dstsize > INT32_MAX:
+        dstsize = INT32_MAX
 
     with nogil:
         if nthreads == 0:
@@ -183,7 +185,6 @@ def blosc2_encode(
         cparams.clevel = clevel
         cparams.splitmode = csplitmode
         cparams.nthreads = nthreads
-        cparams.filters[BLOSC2_MAX_FILTERS - 1] = cfilter
 
         context = blosc2_create_cctx(cparams)
         if context == NULL:
@@ -231,24 +232,25 @@ def blosc2_decode(
     if srcsize > INT32_MAX:
         raise ValueError('data size larger than 2 GB')
 
+    if srcsize < BLOSC_MIN_HEADER_LENGTH:
+        raise Blosc2Error('invalid blosc2 data: header too short')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            blosc2_cbuffer_sizes(
+            ret = blosc2_cbuffer_sizes(
                 <const void*> src._data,
                 &nbytes,
                 &cbytes,
                 &blocksize
             )
-            if nbytes == 0 and blocksize == 0:
-                raise Blosc2Error(
-                    'blosc2_cbuffer_sizes returned invalid blosc data'
-                )
+            if ret < 0:
+                raise Blosc2Error('blosc2_cbuffer_sizes', ret)
             dstsize = <ssize_t> nbytes
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     if dstsize > INT32_MAX:
         raise ValueError('output size larger than 2 GB')
@@ -280,6 +282,83 @@ def blosc2_decode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
+def blosc2_info(const uint8_t[::1] data not None, /):
+    """Return information about BLOSC2 encoded data."""
+    cdef:
+        ssize_t srcsize = data.shape[0]
+        int32_t nbytes, cbytes, blocksize
+        uint8_t flags, compformat
+        ssize_t i
+        int ret, compcode
+
+    if srcsize < BLOSC_MIN_HEADER_LENGTH:
+        raise ValueError('data too short for BLOSC2 header')
+
+    ret = blosc2_cbuffer_sizes(
+        <const void*> &data[0], &nbytes, &cbytes, &blocksize
+    )
+    if ret < 0:
+        raise Blosc2Error('blosc2_cbuffer_sizes', ret)
+
+    flags = data[BLOSC2_CHUNK_FLAGS]
+    if (flags & BLOSC_DOSHUFFLE) and (flags & BLOSC_DOBITSHUFFLE):
+        # extended BLOSC2 header
+        if srcsize < BLOSC_EXTENDED_HEADER_LENGTH:
+            raise ValueError('data too short for BLOSC2 extended header')
+        filters = [
+            data[BLOSC2_CHUNK_FILTER_CODES + i]
+            for i in range(BLOSC2_MAX_FILTERS)
+        ]
+        filters_meta = [
+            data[BLOSC2_CHUNK_FILTER_META + i]
+            for i in range(BLOSC2_MAX_FILTERS)
+        ]
+        udcompcode = data[BLOSC2_CHUNK_FILTER_CODES + BLOSC2_MAX_FILTERS]
+        codec_meta = data[BLOSC2_CHUNK_FILTER_CODES + BLOSC2_MAX_FILTERS + 1]
+    else:
+        # BLOSC1 header
+        filters = [BLOSC_NOFILTER] * BLOSC2_MAX_FILTERS
+        filters_meta = [0] * BLOSC2_MAX_FILTERS
+        if flags & BLOSC_DOSHUFFLE:
+            filters[BLOSC2_MAX_FILTERS - 1] = BLOSC_SHUFFLE
+        if flags & BLOSC_DOBITSHUFFLE:
+            filters[BLOSC2_MAX_FILTERS - 1] = BLOSC_BITSHUFFLE
+        if flags & BLOSC_DODELTA:
+            filters[BLOSC2_MAX_FILTERS - 2] = BLOSC_DELTA
+        udcompcode = 0
+        codec_meta = 0
+
+    compformat = flags >> 5
+    if compformat == BLOSC_BLOSCLZ_FORMAT:
+        compcode = BLOSC_BLOSCLZ
+    elif compformat == BLOSC_LZ4_FORMAT:
+        compcode = BLOSC_LZ4  # LZ4HC shares the LZ4 format
+    elif compformat == BLOSC_ZLIB_FORMAT:
+        compcode = BLOSC_ZLIB
+    elif compformat == BLOSC_ZSTD_FORMAT:
+        compcode = BLOSC_ZSTD
+    elif compformat == BLOSC_UDCODEC_FORMAT:
+        compcode = udcompcode
+    else:
+        compcode = compformat
+
+    return {
+        '_codec': 'blosc2',
+        'nbytes': int(nbytes),
+        'cbytes': int(cbytes),
+        'blocksize': int(blocksize),
+        'typesize': int(data[BLOSC2_CHUNK_TYPESIZE]),
+        'codec': _enum_or_int(compcode, BLOSC2.CODEC),
+        'codec_meta': int(codec_meta),
+        'filters': [_enum_or_int(f, BLOSC2.FILTER) for f in filters],
+        'filters_meta': [int(m) for m in filters_meta],
+        'splitmode': (
+            BLOSC2.SPLIT.NEVER if flags & 0x10 else BLOSC2.SPLIT.ALWAYS
+        ),
+        'version': int(data[BLOSC2_CHUNK_VERSION]),
+    }
+
+
 ##############################################################################
 
 class B2ND:
@@ -296,8 +375,12 @@ class B2ND:
         BITSHUFFLE = BLOSC_BITSHUFFLE
         DELTA = BLOSC_DELTA
         TRUNC_PREC = BLOSC_TRUNC_PREC
+        NDCELL = BLOSC_FILTER_NDCELL
+        NDMEAN = BLOSC_FILTER_NDMEAN
+        BYTEDELTA = BLOSC_FILTER_BYTEDELTA
+        INT_TRUNC = BLOSC_FILTER_INT_TRUNC
 
-    class COMPRESSOR(enum.IntEnum):
+    class CODEC(enum.IntEnum):
         """B2ND codec compressors."""
 
         BLOSCLZ = BLOSC_BLOSCLZ
@@ -305,6 +388,10 @@ class B2ND:
         LZ4HC = BLOSC_LZ4HC
         ZLIB = BLOSC_ZLIB
         ZSTD = BLOSC_ZSTD  # default
+        NDLZ = BLOSC_CODEC_NDLZ
+        ZFP_ACC = BLOSC_CODEC_ZFP_FIXED_ACCURACY
+        ZFP_PREC = BLOSC_CODEC_ZFP_FIXED_PRECISION
+        ZFP_RATE = BLOSC_CODEC_ZFP_FIXED_RATE
 
 
 class B2ndError(Blosc2Error):
@@ -316,12 +403,9 @@ def b2nd_version():
     return blosc2_version()
 
 
-def b2nd_check(const uint8_t[::1] data, /):
+def b2nd_check(const uint8_t[::1] data not None, /):
     """Return whether data is B2ND encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:10])
-
-    return sig == b'\x9E\xA8\x62\x32\x66\x72\x61\x6D\x65\x00'
+    return _startswith(data, b'\x9E\xA8\x62\x32\x66\x72\x61\x6D\x65\x00')
 
 
 def b2nd_encode(
@@ -331,14 +415,18 @@ def b2nd_encode(
     *,
     chunkshape=None,
     blockshape=None,
-    compressor=None,
-    shuffle=None,
+    codec=None,
+    codec_meta=None,
+    filters=None,
+    filters_meta=None,
     numthreads=None,
     out=None,
 ):
     """Return B2ND encoded data."""
     cdef:
-        numpy.ndarray src = _array_input(data, out)
+        numpy.ndarray src = _array_input(
+            data, out, dtype=None, contig=True, empty=False, native=False
+        )
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
         int64_t srcsize = src.nbytes
@@ -355,7 +443,8 @@ def b2nd_encode(
         int64_t[16] cshape  # B2ND_MAX_DIM
         int32_t[16] cchunkshape
         int32_t[16] cblockshape
-        uint8_t compcode, cfilter
+        uint8_t compcode
+        uint8_t compmeta = _filter_meta(codec_meta)
         int16_t nthreads = _default_threads(numthreads)
         int clevel = _default_value(level, 1, 0, 9)
         bool needs_free = 0
@@ -364,11 +453,18 @@ def b2nd_encode(
         bint default_blockshape = 1
         int ret
 
+    if src.ndim > B2ND_MAX_DIM:
+        raise ValueError(f'{src.ndim=} exceeds {B2ND_MAX_DIM=}')
+    if chunkshape is not None and len(chunkshape) != ndim:
+        raise ValueError(f'{len(chunkshape)=} != {src.ndim=}')
+    if blockshape is not None and len(blockshape) != ndim:
+        raise ValueError(f'{len(blockshape)=} != {src.ndim=}')
+
     dtype = src.dtype.str.encode()
     dtype_bytes = dtype
 
-    compcode = _enum_value(compressor, B2ND.COMPRESSOR, B2ND.COMPRESSOR.ZSTD)
-    cfilter = _enum_value(shuffle, B2ND.FILTER, B2ND.FILTER.SHUFFLE)
+    compcode = _enum_value(codec, B2ND.CODEC, B2ND.CODEC.ZSTD)
+    _set_filters(&cparams, filters, filters_meta, B2ND.FILTER, typesize)
 
     for i in range(ndim):
         cshape[i] = src.shape[i]
@@ -405,10 +501,10 @@ def b2nd_encode(
                     cblockshape[i] = cchunkshape[i]
 
             cparams.compcode = compcode
+            cparams.compcode_meta = compmeta
             cparams.clevel = clevel
             cparams.typesize = typesize
             cparams.nthreads = nthreads
-            cparams.filters[BLOSC2_MAX_FILTERS - 1] = cfilter
             dparams.nthreads = nthreads
             storage.cparams = &cparams
             storage.dparams = &dparams
@@ -442,6 +538,10 @@ def b2nd_encode(
 
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < cframe_len:
+                raise ValueError(
+                    f'output buffer too small {dstsize} < {cframe_len}'
+                )
             dstsize = <ssize_t> cframe_len
             out = _create_output(outtype, dstsize, <const char*> cframe)
         else:
@@ -482,14 +582,15 @@ def b2nd_decode(
         int64_t dstsize
         b2nd_array_t* array = NULL
         int16_t nthreads = _default_threads(numthreads)
-        int16_t old_nthreads
+        # int16_t old_nthreads
         char* dtype_str
         int ret
 
     try:
         if nthreads == 0:
             nthreads = blosc2_get_nthreads()
-        old_nthreads = blosc2_set_nthreads(nthreads)
+        # TODO: blosc2_set_nthreads is not thread safe
+        # old_nthreads = blosc2_set_nthreads(nthreads)
 
         with nogil:
             ret = b2nd_from_cframe(<uint8_t *> src._data, srcsize, 0, &array)
@@ -511,7 +612,7 @@ def b2nd_decode(
             ret = b2nd_to_cbuffer(array, <void *> dst.data, dstsize)
 
     finally:
-        blosc2_set_nthreads(old_nthreads)
+        # blosc2_set_nthreads(old_nthreads)
         if array != NULL:
             b2nd_free(array)
 
@@ -519,3 +620,118 @@ def b2nd_decode(
         raise B2ndError('b2nd_to_cbuffer', ret)
 
     return out
+
+
+def b2nd_info(const uint8_t[::1] data not None, /):
+    """Return information about B2ND encoded data."""
+    cdef:
+        const uint8_t[::1] src = data
+        int64_t srcsize = src.shape[0]
+        b2nd_array_t* array = NULL
+        blosc2_schunk* sc
+        char* dtype_str
+        ssize_t i
+        int ret
+
+    with nogil:
+        ret = b2nd_from_cframe(<uint8_t *> src._data, srcsize, 0, &array)
+    if ret < 0:
+        raise B2ndError('b2nd_from_cframe', ret)
+
+    try:
+        sc = array.sc
+        dtype_str = array.dtype
+        if dtype_str == NULL:
+            dtype = numpy.dtype('uint8')
+        else:
+            dtype = numpy.dtype(dtype_str.decode())
+        info = {
+            '_codec': 'b2nd',
+            'shape': tuple(array.shape[i] for i in range(array.ndim)),
+            'dtype': dtype,
+            'chunkshape': tuple(
+                array.chunkshape[i] for i in range(array.ndim)
+            ),
+            'blockshape': tuple(
+                array.blockshape[i] for i in range(array.ndim)
+            ),
+            'level': int(sc.clevel),
+            'codec': _enum_or_int(sc.compcode, B2ND.CODEC),
+            'codec_meta': int(sc.compcode_meta),
+            'filters': [
+                _enum_or_int(sc.filters[i], B2ND.FILTER)
+                for i in range(BLOSC2_MAX_FILTERS)
+            ],
+            'filters_meta': [
+                int(sc.filters_meta[i]) for i in range(BLOSC2_MAX_FILTERS)
+            ],
+            'typesize': int(sc.typesize),
+            'nchunks': int(sc.nchunks),
+            'nbytes': int(sc.nbytes),
+            'cbytes': int(sc.cbytes),
+        }
+    finally:
+        b2nd_free(array)
+
+    return info
+
+
+cdef uint8_t _filter_meta(value) except? 0:
+    """Return filter or codec meta value as uint8."""
+    if value is None:
+        return 0
+    value = int(value)
+    if value < -128 or value > 255:
+        raise ValueError(f'meta value {value} out of range [-128, 255]')
+    # negative values are interpreted as int8 by some plugins
+    return <uint8_t> (value & 0xFF)
+
+
+cdef _set_filters(
+    blosc2_cparams* cparams,
+    filters,
+    filters_meta,
+    enum_class,
+    int32_t typesize
+):
+    """Set filter pipeline and meta values in cparams like python-blosc2."""
+    cdef:
+        ssize_t i, nfilters
+
+    if filters is None:
+        codes = [enum_class.NOFILTER] * (BLOSC2_MAX_FILTERS - 1)
+        codes.append(enum_class.SHUFFLE)
+    elif isinstance(filters, int | str):
+        raise TypeError('filters must be a sequence')
+    else:
+        codes = [_enum_value(f, enum_class) for f in filters]
+    nfilters = len(codes)
+    if nfilters > BLOSC2_MAX_FILTERS:
+        raise ValueError(
+            f'number of filters {nfilters} > {BLOSC2_MAX_FILTERS}'
+        )
+
+    if filters_meta is None:
+        metas = [0] * nfilters
+    else:
+        metas = list(filters_meta)
+        if len(metas) != nfilters:
+            raise ValueError(
+                f'number of filters_meta {len(metas)} != '
+                f'number of filters {nfilters}'
+            )
+
+    for i in range(BLOSC2_MAX_FILTERS):
+        cparams.filters[i] = BLOSC_NOFILTER
+        cparams.filters_meta[i] = 0
+
+    for i in range(nfilters):
+        if codes[i] == BLOSC_FILTER_BYTEDELTA:
+            if typesize == 1:
+                # BYTEDELTA does not work with typesize 1
+                continue
+            if metas[i] == 0:
+                # BYTEDELTA requires typesize in meta outside of super-chunks
+                metas[i] = typesize
+        cparams.filters[i] = <uint8_t> codes[i]
+        cparams.filters_meta[i] = _filter_meta(metas[i])
