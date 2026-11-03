@@ -47,6 +47,16 @@ chunks and stores the compressed chunk sizes in a compact header.
 The per-chunk codec is zstd (default) or lz4. An optional hi/lo byte-packing
 preprocessing step may be applied before compression.
 
+Differences from libCZI:
+
+- libCZI applies hi/lo byte-packing only to 16-bit pixel types (Gray16,
+  Bgr48). ZSTD1 here uses `itemsize` as the packing stride, so streams
+  encoded with itemsize > 2 and hilo cannot be decoded correctly by libCZI.
+  Decoding hilo streams requires itemsize > 1. CHUNKED always uses stride 2.
+- Encoding ignores `hilo` if itemsize is 1.
+- Decoders optionally swap BGR to RGB (`samples`) and accept plain Zstd
+  streams (ZSTD1) or empty data (CHUNKED).
+
 """
 
 include '_shared.pxi'
@@ -83,7 +93,7 @@ def zstd1_version():
     )
 
 
-def zstd1_check(const uint8_t[::1] data, /):
+def zstd1_check(const uint8_t[::1] data not None, /):
     """Return whether data is ZSTD1 encoded or None if unknown."""
     cdef:
         ssize_t srcsize = data.shape[0]
@@ -91,12 +101,12 @@ def zstd1_check(const uint8_t[::1] data, /):
 
     if srcsize < 2:
         return False
+    if _startswith(data, b'\x28\xB5\x2F\xFD'):
+        return None  # plain Zstd stream, accepted by zstd1_decode
     header_size = data[0]
     if header_size < 1 or <ssize_t> header_size >= srcsize:
         return False
-    if srcsize - header_size < 4:
-        return False
-    return bytes(data[header_size:header_size + 4]) == b'\x28\xB5\x2F\xFD'
+    return _startswith(data, b'\x28\xB5\x2F\xFD', header_size)
 
 
 def zstd1_encode(
@@ -145,6 +155,9 @@ def zstd1_encode(
 
     dst = out
     dstsize = dst.shape[0]
+
+    if dstsize < hdr_len:
+        raise ValueError(f'output too small {dstsize=} < {hdr_len}')
 
     if workers > 1:
         try:
@@ -210,7 +223,7 @@ def zstd1_encode(
                     <const uint8_t *> src._data,
                     tmpptr,
                     <size_t> srcsize,
-                    <size_t> itemsize
+                    <size_t> itemsize,
                 )
                 ret = ZSTD_compress(
                     <void*> (dstptr + hdr_len),
@@ -271,13 +284,7 @@ def zstd1_decode(
     if samples not in {1, 3, 4}:
         raise ValueError(f'{samples=} not in {{1, 3, 4}}')
 
-    if (
-        srcsize >= 4
-        and src[0] == 0x28
-        and src[1] == 0xB5
-        and src[2] == 0x2F
-        and src[3] == 0xFD
-    ):
+    if _startswith(src, b'\x28\xB5\x2F\xFD'):
         # plain Zstd stream: no ZSTD1 header, no hilo shuffle
         header_size = 0
     else:
@@ -300,6 +307,9 @@ def zstd1_decode(
             else:
                 break  # unknown chunk type; forward-compatible stop
 
+    if hilo and itemsize == 1:
+        raise ValueError('hilo encoded data require itemsize > 1')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     # compressed frame starts at src[header_size]
@@ -321,13 +331,13 @@ def zstd1_decode(
             dstsize = <ssize_t> cntsize
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     with nogil:
-        if hilo and itemsize > 1:
+        if hilo:
             # decompress into tmp, unshuffle directly into dst to avoid memcpy
-            tmp = <uint8_t*> malloc(<size_t> dstsize)
+            tmp = <uint8_t*> malloc(<size_t> max(dstsize, 1))
             if tmp == NULL:
                 raise MemoryError('failed to allocate hilo_unpack buffer')
             ret = ZSTD_decompress(
@@ -343,7 +353,6 @@ def zstd1_decode(
             if items * itemsize == <ssize_t> ret:
                 _hilo_unpack(tmp, <uint8_t*> dst._data, ret, itemsize)
             free(tmp)
-
             if items * itemsize != <ssize_t> ret:
                 raise ValueError(
                     'decompressed size not a multiple of itemsize'
@@ -409,30 +418,37 @@ cdef _zstd1_decode_stream(
             zinput.size = srcsize
             zinput.pos = 0
 
-            while zinput.pos < zinput.size:
+            while True:
                 if output.size - output.used < outsize:
                     ret = output_resize(output, output.used + incsize)
                     if ret == 0:
                         raise MemoryError('output_resize failed')
                     zoutput.dst = <void*> output.data
                     zoutput.size = <size_t> output.size
-                    zoutput.pos = output.pos
+                    zoutput.pos = output.used
 
                 ret = ZSTD_decompressStream(dctx, &zoutput, &zinput)
                 if ZSTD_isError(ret):
                     raise Zstd1Error('ZSTD_decompressStream', err=ret)
 
-                # output.pos = zoutput.pos
                 output.used = zoutput.pos
 
-            if hilo and itemsize > 1:
-                size = <ssize_t> output.pos
+                if zinput.pos == zinput.size:
+                    if ret == 0:
+                        break
+                    if zoutput.pos < zoutput.size:
+                        raise Zstd1Error(
+                            'ZSTD_decompressStream', 'truncated input'
+                        )
+
+            size = <ssize_t> output.used
+            if hilo:
                 items = size // itemsize
                 if items * itemsize != size:
                     raise ValueError(
                         'decompressed size not a multiple of itemsize'
                     )
-                tmp = <uint8_t*> malloc(<size_t> size)
+                tmp = <uint8_t*> malloc(<size_t> max(size, 1))
                 if tmp == NULL:
                     raise MemoryError('failed to allocate hilo_unpack buffer')
                 # unshuffle output.data to tmp
@@ -450,7 +466,6 @@ cdef _zstd1_decode_stream(
                         )
                     _bgr_swap(tmp, items, samples, itemsize)
             elif samples == 3 or samples == 4:
-                size = <ssize_t> output.pos
                 items = size // (samples * itemsize)
                 if items * samples * itemsize != size:
                     raise ValueError(
@@ -458,12 +473,10 @@ cdef _zstd1_decode_stream(
                     )
                 _bgr_swap(output.data, items, samples, itemsize)
 
-        if hilo and itemsize > 1:
+        if hilo:
             out = _create_output(outtype, size, <const char*> tmp)
         else:
-            out = _create_output(
-                outtype, output.pos, <const char*> output.data
-            )
+            out = _create_output(outtype, size, <const char*> output.data)
 
     finally:
         free(tmp)
@@ -549,10 +562,10 @@ class ChunkedError(RuntimeError):
 
 def chunked_version():
     """Return CHUNKED codec version string."""
-    return 'chunked 2026.10.10'
+    return 'chunked 2026.11.11'
 
 
-def chunked_check(const uint8_t[::1] data, /):
+def chunked_check(const uint8_t[::1] data not None, /):
     """Return whether data is CHUNKED encoded or None if unknown."""
     cdef:
         uint32_t* comp_sizes = NULL
@@ -621,10 +634,10 @@ def chunked_encode(
 
     if chunk_size < 1:
         raise ValueError(f'{chunksize=} < 1')
+    if chunk_size > 536870911:
+        raise ValueError(f'{chunksize=} > 536870911')
     if itemsize < 1:
         raise ValueError(f'{itemsize=} < 1')
-    if srcsize < 1:
-        raise ValueError('chunked_encode: empty input not supported')
 
     if codec is not None:
         codec_id = _enum_value(codec, CHUNKED.CODEC)
@@ -637,40 +650,53 @@ def chunked_encode(
         clevel = 0  # not used
 
     nchunks = (srcsize + chunk_size - 1) // chunk_size
-    comp_sizes = <uint32_t*> malloc(<size_t> nchunks * sizeof(uint32_t))
-    if comp_sizes == NULL:
-        raise MemoryError('failed to allocate comp_sizes')
 
     try:
-        # compute maximum compressed size (upper bound for temp buffer)
-        max_compressed_size = 0
-        for i in range(nchunks):
-            chunk_start = i * chunk_size
-            chunk_size_i = srcsize - chunk_start
-            if chunk_size_i > chunk_size:
-                chunk_size_i = chunk_size
-            if codec_id == CODEC_ZSTD:
-                zbound = ZSTD_compressBound(<size_t> chunk_size_i)
-                if zbound == 0:
-                    raise ChunkedError('ZSTD_compressBound', 'returned 0')
-                max_compressed_size += <ssize_t> zbound
-            else:
-                if chunk_size_i > LZ4_MAX_INPUT_SIZE:
-                    raise ValueError(
-                        f'chunk size {chunk_size_i} exceeds LZ4_MAX_INPUT_SIZE'
-                    )
-                max_compressed_size += LZ4_compressBound(<int> chunk_size_i)
-
-        compressed_buffer = <uint8_t*> malloc(<size_t> max_compressed_size)
-        if compressed_buffer == NULL:
-            raise MemoryError('failed to allocate compressed_buffer')
-
-        if do_hilo:
-            hilo_buffer = <uint8_t*> malloc(<size_t> chunk_size)
-            if hilo_buffer == NULL:
-                raise MemoryError('failed to allocate hilo_buffer')
-
         with nogil:
+            comp_sizes = <uint32_t*> malloc(
+                <size_t> max(nchunks, 1) * sizeof(uint32_t)
+            )
+            if comp_sizes == NULL:
+                raise MemoryError('failed to allocate comp_sizes')
+
+            # compute maximum compressed size (upper bound for temp buffer)
+            max_compressed_size = 0
+            for i in range(nchunks):
+                chunk_start = i * chunk_size
+                chunk_size_i = srcsize - chunk_start
+                if chunk_size_i > chunk_size:
+                    chunk_size_i = chunk_size
+                if codec_id == CODEC_ZSTD:
+                    zbound = ZSTD_compressBound(<size_t> chunk_size_i)
+                    if ZSTD_isError(zbound):
+                        raise ChunkedError(
+                            'ZSTD_compressBound',
+                            ZSTD_getErrorName(zbound).decode()
+                        )
+                    max_compressed_size += <ssize_t> zbound
+                else:
+                    if chunk_size_i > LZ4_MAX_INPUT_SIZE:
+                        raise ValueError(
+                            f'chunk size {chunk_size_i} exceeds '
+                            'LZ4_MAX_INPUT_SIZE'
+                        )
+                    max_compressed_size += LZ4_compressBound(
+                        <int> chunk_size_i
+                    )
+
+            compressed_buffer = <uint8_t*> malloc(
+                <size_t> max(max_compressed_size, 1)
+            )
+            if compressed_buffer == NULL:
+                raise MemoryError('failed to allocate compressed_buffer')
+
+            if do_hilo:
+                hilo_buffer = <uint8_t*> malloc(
+                    <size_t> max(min(chunk_size, srcsize), 1)
+                )
+                if hilo_buffer == NULL:
+                    raise MemoryError('failed to allocate hilo_buffer')
+
             comp_compressed = 0
 
             # TODO: parallelize chunk compression?
@@ -711,11 +737,11 @@ def chunked_encode(
                         <const char*> chunk_src_ptr,
                         <char*> (compressed_buffer + comp_compressed),
                         <int> chunk_size_i,
-                        <int> (max_compressed_size - comp_compressed),
+                        LZ4_compressBound(<int> chunk_size_i),
                     )
                     if ret_l4 <= 0:
                         raise ChunkedError(
-                            'LZ4_compress_default', 'returned 0'
+                            'LZ4_compress_default', 'compression failed'
                         )
                     comp_sizes[i] = <uint32_t> ret_l4
                     comp_compressed += <ssize_t> ret_l4
@@ -724,9 +750,17 @@ def chunked_encode(
             actual_header_size = _chunked_header_actual_size(
                 comp_sizes, nchunks, chunk_size, srcsize, codec_id, do_hilo
             )
+            if actual_header_size < 0:
+                raise ChunkedError(
+                    'chunked_encode', 'chunk sizes exceed header limits'
+                )
 
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < actual_header_size + comp_compressed:
+                raise ChunkedError(
+                    'chunked_encode', 'output buffer too small'
+                )
             dstsize = actual_header_size + comp_compressed
             out = _create_output(outtype, dstsize)
 
@@ -780,7 +814,7 @@ def chunked_decode(
 ):
     """Return decoded CHUNKED data."""
     cdef:
-        const uint8_t[::1] src = _readable_input(data)
+        const uint8_t[::1] src = data
         const uint8_t[::1] dst
         uint32_t* comp_sizes = NULL
         uint32_t* decomp_sizes = NULL
@@ -815,7 +849,7 @@ def chunked_decode(
         )
         if header_size < 0:
             raise ChunkedError(
-                '_chunked_header_parse', f'returned {header_size}'
+                '_chunked_header_parse', f'invalid header ({header_size})'
             )
 
         comp_size = 0
@@ -838,7 +872,7 @@ def chunked_decode(
             dstsize = decomp_size
             out = _create_output(outtype, dstsize)
 
-        dst = out
+        dst = _inplace_input(out) if outgiven else out
         dstsize = dst.shape[0]
 
         if dstsize < decomp_size:
@@ -1173,7 +1207,7 @@ cdef int _varint4_array_read(
     if i != end:
         return ERROR_OVERRUN
 
-    buf = <uint32_t*> malloc(<size_t> size * sizeof(uint32_t))
+    buf = <uint32_t*> malloc(<size_t> max(size, 1) * sizeof(uint32_t))
     if buf == NULL:
         return ERROR_NOMEM
 
@@ -1271,16 +1305,21 @@ cdef ssize_t _chunked_header_actual_size(
     int codec_id,
     bint do_hilo,
 ) noexcept nogil:
-    """Return header byte count for given encoding parameters."""
+    """Return header byte count for given encoding parameters or -1."""
     cdef:
         ssize_t total, payload_size, i
-        uint32_t decomp_common, decomp_last
+        uint32_t decomp_common, decomp_last, n
         bint two_decomp
 
     # ChunkSizes: id(1) + length_varint + payload
     payload_size = 0
     for i in range(nchunks):
-        payload_size += _varint4_encoded_size(comp_sizes[i])
+        n = _varint4_encoded_size(comp_sizes[i])
+        if n == 0:
+            return -1
+        payload_size += n
+    if payload_size >= 4194304:
+        return -1
     total = 1
     total += <ssize_t> _varint3_encoded_size(<uint32_t> payload_size)
     total += payload_size
@@ -1565,10 +1604,9 @@ cdef void _bgr_swap(
         uint16_t tmp_u16
         uint32_t tmp_u32
         uint64_t tmp_u64
-        uint16_t* p16
-        uint32_t* p32
-        uint64_t* p64
+        uint8_t* p
 
+    # memcpy avoids unaligned access on user-provided output buffers
     if itemsize == 1:
         for i in range(items):
             tmp_u8 = data[i * stride]
@@ -1579,22 +1617,22 @@ cdef void _bgr_swap(
                 data[i * stride + 3] = 0xFF
     elif itemsize == 2:
         for i in range(items):
-            p16 = <uint16_t*> (data + i * stride)
-            tmp_u16 = p16[0]
-            p16[0] = p16[2]
-            p16[2] = tmp_u16
+            p = data + i * stride
+            memcpy(&tmp_u16, p, 2)
+            memcpy(p, p + 4, 2)
+            memcpy(p + 4, &tmp_u16, 2)
     elif itemsize == 4:
         for i in range(items):
-            p32 = <uint32_t*> (data + i * stride)
-            tmp_u32 = p32[0]
-            p32[0] = p32[2]
-            p32[2] = tmp_u32
+            p = data + i * stride
+            memcpy(&tmp_u32, p, 4)
+            memcpy(p, p + 8, 4)
+            memcpy(p + 8, &tmp_u32, 4)
     elif itemsize == 8:
         for i in range(items):
-            p64 = <uint64_t*> (data + i * stride)
-            tmp_u64 = p64[0]
-            p64[0] = p64[2]
-            p64[2] = tmp_u64
+            p = data + i * stride
+            memcpy(&tmp_u64, p, 8)
+            memcpy(p, p + 16, 8)
+            memcpy(p + 16, &tmp_u64, 8)
     else:
         for i in range(items):
             for j in range(itemsize):
