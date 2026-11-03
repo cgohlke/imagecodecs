@@ -68,7 +68,7 @@ class AecError(RuntimeError):
             AEC_STREAM_ERROR: 'AEC_STREAM_ERROR',
             AEC_DATA_ERROR: 'AEC_DATA_ERROR',
             AEC_MEM_ERROR: 'AEC_MEM_ERROR',
-            # AEC_RSI_OFFSETS_ERROR: 'AEC_RSI_OFFSETS_ERROR',
+            AEC_RSI_OFFSETS_ERROR: 'AEC_RSI_OFFSETS_ERROR',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -81,7 +81,7 @@ def aec_version():
     )
 
 
-def aec_check(const uint8_t[::1] data, /):
+def aec_check(const uint8_t[::1] data not None, /):
     """Return whether data is AEC encoded or None if unknown."""
     return None if data.shape[0] > 0 else False
 
@@ -113,6 +113,7 @@ def aec_encode(
         unsigned int block_size = _default_value(blocksize, 8, 8, 64)
         unsigned int rsi_ = _default_value(rsi, 2, 1, 4096)
         aec_stream strm
+        bint initialized = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -131,7 +132,9 @@ def aec_encode(
             src = view.cast('B')  # view as bytes
         else:
             src = view.tobytes()  # copy
-        if view.format in 'hilqnfde':
+        if view.format.lstrip('@=<>!') in {
+            'b', 'h', 'i', 'l', 'q', 'n', 'f', 'd', 'e'
+        }:
             flags_ |= AEC_DATA_SIGNED
         bits_per_sample = <unsigned int> (view.itemsize * 8)
 
@@ -152,7 +155,7 @@ def aec_encode(
     if out is None:
         if dstsize < 0:
             # https://gitlab.dkrz.de/k202009/libaec/-/tree/master#output
-            dstsize = (srcsize * 67) // 64 + 256 + 1
+            dstsize = srcsize + (srcsize // 64) * 3 + 3 + 256 + 1
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -173,6 +176,7 @@ def aec_encode(
             ret = aec_encode_init(&strm)
             if ret != AEC_OK:
                 raise AecError('aec_encode_init', ret)
+            initialized = True
 
             ret = aec_encode_c(&strm, AEC_FLUSH)
             if ret != AEC_OK:
@@ -181,8 +185,15 @@ def aec_encode(
             byteswritten = <ssize_t> strm.total_out
             if strm.total_in != <size_t> srcsize:
                 raise ValueError('output buffer too small')
+
+            # AEC_STREAM_ERROR if the final flush did not fit in output
+            initialized = False
+            ret = aec_encode_end(&strm)
+            if ret != AEC_OK:
+                raise ValueError('output buffer too small')
     finally:
-        ret = aec_encode_end(&strm)
+        if initialized:
+            ret = aec_encode_end(&strm)
         # if ret != AEC_OK:
         #     raise AecError('aec_encode_end', ret)
 
@@ -213,6 +224,7 @@ def aec_decode(
         unsigned int block_size = _default_value(blocksize, 8, 8, 64)
         unsigned int rsi_ = _default_value(rsi, 2, 1, 4096)
         aec_stream strm
+        bint initialized = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -243,13 +255,12 @@ def aec_decode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = srcsize * 8  # ? TODO: use dynamic destination buffer
+            return _aec_decode(
+                src, outtype, bits_per_sample, block_size, rsi_, flags_
+            )
         out = _create_output(outtype, dstsize)
 
-    try:
-        dst = out
-    except ValueError:
-        dst = numpy.ravel(out).view('uint8')
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     try:
@@ -267,6 +278,7 @@ def aec_decode(
             ret = aec_decode_init(&strm)
             if ret != AEC_OK:
                 raise AecError('aec_decode_init', ret)
+            initialized = True
 
             ret = aec_decode_c(&strm, AEC_FLUSH)
             if ret != AEC_OK:
@@ -276,9 +288,89 @@ def aec_decode(
             if strm.total_in != <size_t> srcsize:
                 raise ValueError('output buffer too small')
     finally:
-        ret = aec_decode_end(&strm)
+        if initialized:
+            ret = aec_decode_end(&strm)
         # if ret != AEC_OK:
         #     raise AecError('aec_decode_end', ret)
 
     del dst
     return _return_output(out, dstsize, byteswritten, outgiven)
+
+
+cdef _aec_decode(
+    const uint8_t[::1] src,
+    outtype,
+    unsigned int bits_per_sample,
+    unsigned int block_size,
+    unsigned int rsi,
+    unsigned int flags,
+):
+    """Decode AEC stream of unknown decoded size into growing buffer."""
+    cdef:
+        size_t srcsize = <size_t> src.shape[0]
+        size_t size = _align_size_t(srcsize * 8)
+        size_t total_in, total_out
+        uint8_t* buffer = NULL
+        uint8_t* tmp
+        aec_stream strm
+        int ret = AEC_OK
+        bint initialized = False
+
+    try:
+        with nogil:
+            buffer = <uint8_t*> malloc(size)
+            if buffer == NULL:
+                raise MemoryError('failed to allocate output buffer')
+
+            memset(<void*> &strm, 0, sizeof(aec_stream))
+            strm.next_in = <unsigned char*> src._data
+            strm.avail_in = srcsize
+            strm.next_out = <unsigned char*> buffer
+            strm.avail_out = size
+            strm.bits_per_sample = bits_per_sample
+            strm.block_size = block_size
+            strm.rsi = rsi
+            strm.flags = flags
+
+            ret = aec_decode_init(&strm)
+            if ret != AEC_OK:
+                raise AecError('aec_decode_init', ret)
+            initialized = True
+
+            while True:
+                total_in = strm.total_in
+                total_out = strm.total_out
+                ret = aec_decode_c(&strm, AEC_FLUSH)
+                # AEC_MEM_ERROR: output ended within a sample
+                if ret != AEC_OK and ret != AEC_MEM_ERROR:
+                    raise AecError('aec_decode', ret)
+                if (
+                    ret == AEC_OK
+                    and strm.avail_in == 0
+                    and strm.avail_out > 0
+                ):
+                    break
+                if (
+                    strm.total_in == total_in
+                    and strm.total_out == total_out
+                    and strm.avail_out > 0
+                ):
+                    raise AecError('aec_decode', AEC_STREAM_ERROR)
+                # grow geometrically and resume decoding
+                tmp = <uint8_t*> realloc(<void*> buffer, size * 2)
+                if tmp == NULL:
+                    raise MemoryError('failed to reallocate output buffer')
+                buffer = tmp
+                strm.next_out = <unsigned char*> (buffer + strm.total_out)
+                strm.avail_out = size * 2 - strm.total_out
+                size *= 2
+
+        out = _create_output(
+            outtype, <ssize_t> strm.total_out, <const char*> buffer
+        )
+    finally:
+        if initialized:
+            aec_decode_end(&strm)
+        free(buffer)
+
+    return out
