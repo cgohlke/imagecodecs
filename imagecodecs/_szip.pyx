@@ -68,15 +68,14 @@ class SzipError(RuntimeError):
     """SZIP codec exceptions."""
 
     def __init__(self, func, err):
-        msg = {
+        msg = repr(err) if isinstance(err, str) else {
             SZ_OK: 'SZ_OK',
             SZ_OUTBUFF_FULL: 'SZ_OUTBUFF_FULL',
             SZ_NO_ENCODER_ERROR: 'SZ_NO_ENCODER_ERROR',
             SZ_PARAM_ERROR: 'SZ_PARAM_ERROR',
             SZ_MEM_ERROR: 'SZ_MEM_ERROR',
-            # AEC_RSI_OFFSETS_ERROR: 'AEC_RSI_OFFSETS_ERROR',
-            -2: 'AEC_STREAM_ERROR',
-            -3: 'AEC_DATA_ERROR',
+            AEC_STREAM_ERROR: 'AEC_STREAM_ERROR',
+            AEC_DATA_ERROR: 'AEC_DATA_ERROR',
         }.get(err, f'unknown error {err!r}')
         msg = f'{func} returned {msg}'
         super().__init__(msg)
@@ -89,7 +88,7 @@ def szip_version():
     )
 
 
-def szip_check(const uint8_t[::1] data, /):
+def szip_check(const uint8_t[::1] data not None, /):
     """Return whether data is SZIP encoded or None if unknown."""
     return None if data.shape[0] > 0 else False
 
@@ -127,7 +126,9 @@ def szip_encode(
 
     if not 0 < param.pixels_per_block <= SZ_MAX_PIXELS_PER_BLOCK:
         raise ValueError(f'invalid pixels_per_block {param.pixels_per_block}')
-    if not 0 < param.bits_per_pixel <= 128:
+    if not (
+        0 < param.bits_per_pixel <= 32 or param.bits_per_pixel == 64
+    ):
         raise ValueError(f'invalid bits_per_pixel {param.bits_per_pixel}')
     if not 0 < param.pixels_per_scanline <= SZ_MAX_PIXELS_PER_SCANLINE:
         raise ValueError(
@@ -149,6 +150,8 @@ def szip_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
+    if dst.shape[0] < offset:
+        raise ValueError('output too small')
     dstsize = dst.shape[0] - offset
     dstlen = <size_t> dstsize
 
@@ -196,6 +199,7 @@ def szip_decode(
         SZ_com_t_s param
         int offset = 4 if header else 0
         int ret
+        bint estimated = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -207,27 +211,38 @@ def szip_decode(
 
     if not 0 < param.pixels_per_block <= SZ_MAX_PIXELS_PER_BLOCK:
         raise ValueError(f'invalid pixels_per_block {param.pixels_per_block}')
-    if not 0 < param.bits_per_pixel <= 128:
+    if not (
+        0 < param.bits_per_pixel <= 32 or param.bits_per_pixel == 64
+    ):
         raise ValueError(f'invalid bits_per_pixel {param.bits_per_pixel}')
     if not 0 < param.pixels_per_scanline <= SZ_MAX_PIXELS_PER_SCANLINE:
         raise ValueError(
             f'invalid pixels_per_scanline {param.pixels_per_scanline}'
         )
 
+    if srcsize < offset:
+        raise ValueError('invalid data size')
+
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if header and dstsize < 0:
-        if srcsize < offset:
-            raise ValueError('invalid data size')
-        dstsize = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24)
+        dstsize = <ssize_t> (
+            (<uint32_t> src[0])
+            | ((<uint32_t> src[1]) << 8)
+            | ((<uint32_t> src[2]) << 16)
+            | ((<uint32_t> src[3]) << 24)
+        )
+        if dstsize < 0 or dstsize >= INT32_MAX:
+            raise ValueError(f'invalid size in header {dstsize}')
         dstsize_header = dstsize
 
     if out is None:
         if dstsize < 0:
             dstsize = srcsize * 8  # TODO
+            estimated = True
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     dstlen = <size_t> dstsize
 
@@ -246,8 +261,16 @@ def szip_decode(
         if dstsize < dstsize_header:
             # buffer too small but SZ_BufftoBuffDecompress passed
             raise SzipError('SZ_BufftoBuffDecompress', SZ_OUTBUFF_FULL)
+        if dstlen < <size_t> dstsize_header:
+            raise SzipError('SZ_BufftoBuffDecompress', 'truncated data')
         # dstlen output might be padded up to next scanline
         dstlen = <size_t> dstsize_header
+    elif estimated and dstsize > 0 and dstlen >= <size_t> dstsize:
+        # SZ_BufftoBuffDecompress does not report unused input
+        raise SzipError(
+            'SZ_BufftoBuffDecompress',
+            'output may be truncated; specify out or use header',
+        )
 
     del dst
     return _return_output(out, dstsize, <ssize_t> dstlen, outgiven)
