@@ -73,7 +73,7 @@ def lz4_version():
     )
 
 
-def lz4_check(const uint8_t[::1] data, /):
+def lz4_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZ4 encoded or None if unknown."""
     return None if data.shape[0] > 0 else False
 
@@ -114,10 +114,13 @@ def lz4_encode(
         out = _create_output(outtype, dstsize)
 
     dst = out
-    dstsize = <int> dst.shape[0] - offset
 
     if dst.shape[0] > INT32_MAX:
         raise ValueError('output too large')
+    if dst.shape[0] < offset:
+        raise ValueError('output too small')
+
+    dstsize = <int> dst.shape[0] - offset
 
     if hc:
         compressionlevel = _default_value(
@@ -169,45 +172,70 @@ def lz4_decode(
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
-        int srcsize = <int> src.shape[0]
-        int dstsize
+        ssize_t srcsize = src.shape[0]
+        ssize_t dstsize
+        int64_t maxsize
+        uint32_t headersize
         int offset = 4 if header else 0
         int ret
+        bint estimate = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    if src.shape[0] > INT32_MAX:
+    if srcsize > INT32_MAX:
         raise ValueError('data too large')
+    if srcsize < offset:
+        raise ValueError('invalid data size')
+
+    # decoded size bound for maximum LZ4 compression ratio
+    maxsize = min(
+        <int64_t> INT32_MAX,
+        24 + 255 * max(<int64_t> 0, <int64_t> (srcsize - offset - 10))
+    )
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if header and dstsize < 0:
-        if srcsize < offset:
-            raise ValueError('invalid data size')
-        dstsize = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24)
+        headersize = (
+            (<uint32_t> src[0])
+            | ((<uint32_t> src[1]) << 8)
+            | ((<uint32_t> src[2]) << 16)
+            | ((<uint32_t> src[3]) << 24)
+        )
+        if headersize > maxsize:
+            raise ValueError(f'invalid size in header {headersize}')
+        dstsize = <ssize_t> headersize
 
     if out is None:
         if dstsize < 0:
             # TODO: use streaming API
-            dstsize = max(24, 24 + 255 * (srcsize - offset - 10))  # ugh
-            # if dstsize < 0:
-            #     raise Lz4Error(f'invalid output size {dstsize}')
+            dstsize = <ssize_t> min(
+                maxsize, max(<int64_t> 65536, <int64_t> srcsize * 8)
+            )
+            estimate = True
         out = _create_output(outtype, dstsize)
 
-    dst = out
-    dstsize = <int> dst.shape[0]
+    while True:
+        dst = _inplace_input(out) if outgiven else out
+        dstsize = dst.shape[0]
 
-    if dst.shape[0] > INT32_MAX:
-        raise ValueError('output too large')
+        if dstsize > INT32_MAX:
+            raise ValueError('output too large')
 
-    with nogil:
-        ret = LZ4_decompress_safe(
-            <char*> &src[offset],
-            <char*> dst._data,
-            srcsize - offset,
-            dstsize
+        with nogil:
+            ret = LZ4_decompress_safe(
+                <char*> &src[offset],
+                <char*> dst._data,
+                <int> (srcsize - offset),
+                <int> dstsize
+            )
+        if ret >= 0 or not estimate or dstsize >= maxsize:
+            break
+        out = _create_output(
+            outtype, <ssize_t> min(maxsize, <int64_t> dstsize * 4)
         )
+
     if ret < 0:
         raise Lz4Error(f'LZ4_decompress_safe returned {ret}')
 
@@ -234,14 +262,17 @@ class Lz4fError(RuntimeError):
             char* errormessage
             LZ4F_errorCode_t errorcode
 
-        try:
-            errorcode = <LZ4F_errorCode_t> err
-            errormessage = <char*> LZ4F_getErrorName(errorcode)
-            if errormessage == NULL:
-                raise RuntimeError('LZ4F_getErrorName returned NULL')
-            msg = errormessage.decode().strip()
-        except Exception:
-            msg = 'NULL' if err is None else f'unknown error {err!r}'
+        if isinstance(err, str):
+            msg = err
+        else:
+            try:
+                errorcode = <LZ4F_errorCode_t> err
+                errormessage = <char*> LZ4F_getErrorName(errorcode)
+                if errormessage == NULL:
+                    raise RuntimeError('LZ4F_getErrorName returned NULL')
+                msg = errormessage.decode().strip()
+            except Exception:
+                msg = 'NULL' if err is None else f'unknown error {err!r}'
         msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
@@ -253,12 +284,9 @@ def lz4f_version():
     )
 
 
-def lz4f_check(const uint8_t[::1] data, /):
+def lz4f_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZ4F encoded or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:4])
-
-    return sig == b'\x04\x22\x4d\x18'  # LZ4_MAGIC_NUMBER 0x184d2204
+    return _startswith(data, b'\x04\x22\x4d\x18')  # LZ4_MAGIC_NUMBER
 
 
 def lz4f_encode(
@@ -270,6 +298,7 @@ def lz4f_encode(
     blockchecksum=None,
     contentchecksum=None,
     contentsize=None,
+    # numthreads=None,
     out=None,
 ):
     """Return LZ4F encoded data."""
@@ -292,14 +321,15 @@ def lz4f_encode(
         prefs.frameInfo.blockChecksumFlag = LZ4F_blockChecksumEnabled
     if contentchecksum:
         prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled
+    # TODO: enable multi-threading for lz4 >= 1.11.0
+    # if numthreads is not None:
+    #     prefs.nbWorkers = _default_threads(numthreads)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
     if out is None:
         if dstsize < 0:
-            dstsize = LZ4F_compressFrameBound(srcsize, &prefs)
-            if dstsize < 0:
-                raise Lz4fError(f'LZ4F_compressFrameBound returned {dstsize}')
+            dstsize = <ssize_t> LZ4F_compressFrameBound(srcsize, &prefs)
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -335,6 +365,7 @@ def lz4f_decode(
         ssize_t dstsize
         size_t byteswritten, bytesread, ret, blksize
         size_t srcindex = 0
+        int status
         LZ4F_dctx* dctx = NULL
         LZ4F_decompressOptions_t* options = NULL
         LZ4F_frameInfo_t frameinfo
@@ -347,47 +378,59 @@ def lz4f_decode(
     if out is None:
         if dstsize < 0:
             try:
-                # read content size from frame header
-                ret = LZ4F_headerSize(
-                    <const void*> src._data, <size_t> srcsize
-                )
-                if LZ4F_isError(<LZ4F_errorCode_t> ret):
-                    raise Lz4fError('LZ4F_headerSize', ret)
-                if ret > <size_t> srcsize:
-                    raise Lz4fError('LZ4F_headerSize', 'invalid input')
-                srcindex = ret
-                ret = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION)
-                if LZ4F_isError(<LZ4F_errorCode_t> ret):
-                    raise Lz4fError('LZ4F_createDecompressionContext', ret)
-                ret = LZ4F_getFrameInfo(
-                    dctx,
-                    &frameinfo,
-                    <const void*> src._data,
-                    &srcindex
-                )
-                if LZ4F_isError(<LZ4F_errorCode_t> ret):
-                    raise Lz4fError('LZ4F_getFrameInfo', ret)
-                if frameinfo.contentSize > 0:
-                    dstsize = <ssize_t> frameinfo.contentSize
-                else:
-                    # content size not in header
-                    with nogil:
+                with nogil:
+                    # read content size from frame header
+                    ret = LZ4F_headerSize(
+                        <const void*> src._data, <size_t> srcsize
+                    )
+                    if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                        raise Lz4fError('LZ4F_headerSize', ret)
+                    if ret > <size_t> srcsize:
+                        raise Lz4fError('LZ4F_headerSize', 'invalid input')
+                    srcindex = ret
+                    ret = LZ4F_createDecompressionContext(
+                        &dctx, LZ4F_VERSION
+                    )
+                    if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                        raise Lz4fError(
+                            'LZ4F_createDecompressionContext', ret
+                        )
+                    ret = LZ4F_getFrameInfo(
+                        dctx,
+                        &frameinfo,
+                        <const void*> src._data,
+                        &srcindex
+                    )
+                    if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                        raise Lz4fError('LZ4F_getFrameInfo', ret)
+                    if frameinfo.contentSize > 0:
+                        dstsize = <ssize_t> frameinfo.contentSize
+                    else:
+                        # content size not in header
                         blksize = _lz4f_blocksize(frameinfo.blockSizeID)
-                        ret = _lz4f_decode_chunked(
+                        status = _lz4f_decode_chunked(
                             dctx,
                             <const uint8_t*> src._data,
                             <size_t> srcsize,
                             srcindex,
                             &outbuf,
+                            &ret,
                             blksize
                         )
                         LZ4F_freeDecompressionContext(dctx)
                         dctx = NULL
+                        if status == 1:
+                            raise MemoryError(
+                                'failed to allocate decode buffer'
+                            )
+                        if status == 2:
+                            raise Lz4fError(
+                                'LZ4F_decompress', 'incomplete frame'
+                            )
+                        if status != 0:
+                            raise Lz4fError('LZ4F_decompress', ret)
 
-                    if LZ4F_isError(<LZ4F_errorCode_t> ret):
-                        if ret == SIZE_MAX:
-                            raise MemoryError('Failed to allocatedecode chunk')
-                        raise Lz4fError('LZ4F_decompress', ret)
+                if frameinfo.contentSize == 0:
                     out = _create_output(
                         outtype, <ssize_t> ret, <const char*> outbuf
                     )
@@ -401,7 +444,7 @@ def lz4f_decode(
 
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
     byteswritten = <size_t> dstsize
     bytesread = <size_t> srcsize - srcindex
@@ -423,11 +466,62 @@ def lz4f_decode(
             )
             if LZ4F_isError(<LZ4F_errorCode_t> ret):
                 raise Lz4fError('LZ4F_decompress', <LZ4F_errorCode_t> ret)
+            # output truncated to a too-small buffer is allowed
+            if ret != 0 and byteswritten < <size_t> dstsize:
+                raise Lz4fError('LZ4F_decompress', 'incomplete frame')
     finally:
         LZ4F_freeDecompressionContext(dctx)
 
     del dst
     return _return_output(out, dstsize, byteswritten, outgiven)
+
+
+def lz4f_info(const uint8_t[::1] data not None, /):
+    """Return information about LZ4F encoded data.
+
+    Size is the decoded size or None if not stored in the frame header.
+
+    """
+    cdef:
+        size_t srcsize = <size_t> data.shape[0]
+        size_t srcindex, ret
+        LZ4F_dctx* dctx = NULL
+        LZ4F_frameInfo_t frameinfo
+
+    try:
+        with nogil:
+            ret = LZ4F_headerSize(<const void*> data._data, srcsize)
+            if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                raise Lz4fError('LZ4F_headerSize', ret)
+            if ret > srcsize:
+                raise Lz4fError('LZ4F_headerSize', 'invalid input')
+            srcindex = ret
+            ret = LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION)
+            if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                raise Lz4fError('LZ4F_createDecompressionContext', ret)
+            ret = LZ4F_getFrameInfo(
+                dctx, &frameinfo, <const void*> data._data, &srcindex
+            )
+            if LZ4F_isError(<LZ4F_errorCode_t> ret):
+                raise Lz4fError('LZ4F_getFrameInfo', ret)
+    finally:
+        LZ4F_freeDecompressionContext(dctx)
+
+    return {
+        '_codec': 'lz4f',
+        'size': (
+            None if frameinfo.contentSize == 0 else frameinfo.contentSize
+        ),
+        'blocksizeid': int(frameinfo.blockSizeID),
+        'blocklinked': frameinfo.blockMode == LZ4F_blockLinked,
+        'blockchecksum': (
+            frameinfo.blockChecksumFlag == LZ4F_blockChecksumEnabled
+        ),
+        'contentchecksum': (
+            frameinfo.contentChecksumFlag == LZ4F_contentChecksumEnabled
+        ),
+        'dictid': frameinfo.dictID,
+    }
 
 
 cdef inline size_t _lz4f_blocksize(
@@ -446,18 +540,19 @@ cdef inline size_t _lz4f_blocksize(
     return <size_t> 65536
 
 
-cdef size_t _lz4f_decode_chunked(
+cdef int _lz4f_decode_chunked(
     LZ4F_dctx* dctx,
     const uint8_t* src,
     size_t srcsize,
     size_t srcindex,
     uint8_t** pdst,
+    size_t* psize,
     const size_t blksize
 ) noexcept nogil:
     """Decode LZ4F compressed data in chunks.
 
-    Return bytes written to ``pdst`` or LZ4F error code on decode error,
-    SIZE_MAX on malloc failure.
+    Return 0 on success with decoded size in ``psize``, 1 on malloc failure,
+    2 on incomplete frame, or 3 on decode error with error code in ``psize``.
 
     """
     cdef:
@@ -468,8 +563,9 @@ cdef size_t _lz4f_decode_chunked(
         size_t src0, dst0, ret
 
     pdst[0] = NULL
+    psize[0] = 0
     if buf == NULL:
-        return SIZE_MAX
+        return 1
 
     while True:
         if cap - used < blksize:
@@ -477,7 +573,7 @@ cdef size_t _lz4f_decode_chunked(
             newbuf = <uint8_t*> realloc(buf, cap)
             if newbuf == NULL:
                 free(buf)
-                return SIZE_MAX
+                return 1
             buf = newbuf
         dst0 = cap - used
         src0 = srcsize - srcindex
@@ -486,17 +582,19 @@ cdef size_t _lz4f_decode_chunked(
         )
         if LZ4F_isError(<LZ4F_errorCode_t> ret):
             free(buf)
-            return ret
+            psize[0] = ret
+            return 3
         used += dst0
         srcindex += src0
         if ret == 0:
             break
         if src0 == 0 and dst0 == 0:
             free(buf)
-            return ret
+            return 2
 
     pdst[0] = buf
-    return used
+    psize[0] = used
+    return 0
 
 
 # LZ4H5 #######################################################################
@@ -529,7 +627,7 @@ class Lz4h5Error(RuntimeError):
 lz4h5_version = lz4_version
 
 
-def lz4h5_check(const uint8_t[::1] data, /):
+def lz4h5_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZ4H5 encoded or None if unknown."""
     return None if data.shape[0] >= 12 else False
 
@@ -539,6 +637,7 @@ def lz4h5_encode(
     /,
     level=None,
     *,
+    hc=False,
     blocksize=None,
     out=None,
 ):
@@ -553,7 +652,16 @@ def lz4h5_encode(
         ssize_t nblocks
         int blksize
         int lz4size, lz4dstsize
-        int acceleration = _default_value(level, 1, 1, 65537)
+        int acceleration = 1
+        int compressionlevel = 0
+        bint usehc = hc
+
+    if usehc:
+        compressionlevel = _default_value(
+            level, LZ4HC_CLEVEL_DEFAULT, LZ4HC_CLEVEL_MIN, LZ4HC_CLEVEL_MAX
+        )
+    else:
+        acceleration = _default_value(level, 1, 1, 65537)
 
     if blocksize is None:
         blksize = <int> min(1073741823, max(srcsize, 1))
@@ -590,13 +698,22 @@ def lz4h5_encode(
             dstpos += 4
             lz4dstsize = <int> min(dstsize - dstpos, INT32_MAX)
             blksize = <int> min(blksize, srcsize - srcpos)
-            lz4size = LZ4_compress_fast(
-                <const char*> &src[srcpos],
-                <char*> &dst[dstpos],
-                blksize,
-                lz4dstsize,
-                acceleration
-            )
+            if usehc:
+                lz4size = LZ4_compress_HC(
+                    <const char*> &src[srcpos],
+                    <char*> &dst[dstpos],
+                    blksize,
+                    lz4dstsize,
+                    compressionlevel
+                )
+            else:
+                lz4size = LZ4_compress_fast(
+                    <const char*> &src[srcpos],
+                    <char*> &dst[dstpos],
+                    blksize,
+                    lz4dstsize,
+                    acceleration
+                )
             if (
                 # compression succeeded without space savings
                 # or compression failed, likely due to not enough output space
@@ -607,7 +724,7 @@ def lz4h5_encode(
                 )
                 lz4size = blksize
             elif lz4size <= 0:
-                raise Lz4h5Error(f'LZ4_compress_fast returned {lz4size}')
+                raise Lz4h5Error(f'LZ4 compression returned {lz4size}')
 
             write_i4be(<uint8_t*> &dst[dstpos - 4], <uint32_t> lz4size)
             srcpos += blksize
@@ -659,7 +776,7 @@ def lz4h5_decode(
             dstsize = orisize
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     if dstsize < orisize:
@@ -668,7 +785,7 @@ def lz4h5_decode(
         )
 
     with nogil:
-        while srcpos < srcsize and dstpos < dstsize:
+        while srcpos < srcsize and dstpos < orisize:
             if srcsize - srcpos < 4:
                 raise Lz4h5Error('LZ4H5 data too short')
 
@@ -683,7 +800,7 @@ def lz4h5_decode(
                 )
 
             blksize = <int> min(
-                <int64_t> blksize, <int64_t> (dstsize - dstpos)
+                <int64_t> blksize, <int64_t> (orisize - dstpos)
             )
 
             if blksize == lz4size:
@@ -701,11 +818,16 @@ def lz4h5_decode(
                     lz4size,
                     blksize
                 )
-                if ret < 0:
-                    raise Lz4h5Error(f'LZ4_decompress_safe returned {ret}')
+                if ret != blksize:
+                    raise Lz4h5Error(
+                        f'LZ4_decompress_safe returned {ret} != {blksize}'
+                    )
 
             srcpos += lz4size
             dstpos += ret
+
+    if dstpos != orisize:
+        raise Lz4h5Error(f'LZ4H5 data too short {dstpos} < {orisize}')
 
     del dst
     return _return_output(out, dstsize, dstpos, outgiven)
