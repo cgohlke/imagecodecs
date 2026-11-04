@@ -90,7 +90,7 @@ def heif_version():
     return 'libheif ' + heif_get_version().decode()
 
 
-def heif_check(const uint8_t[::1] data, /):
+def heif_check(const uint8_t[::1] data not None, /):
     """Return whether data is HEIF encoded image or None if unknown."""
     cdef:
         heif_filetype_result result
@@ -116,14 +116,26 @@ def heif_encode(
     *,
     bitspersample=None,
     photometric=None,
+    hasalpha=None,
     compression=None,
+    iccprofile=None,
     numthreads=None,
     out=None,
 ):
-    """Return HEIF encoded image."""
+    """Return HEIF encoded image.
+
+    Uint16 data are encoded with bitspersample=10 by default. Values must
+    fit in bitspersample (8, 10, or 12). Larger values are not checked.
+
+    Set hasalpha to distinguish gray+alpha images from gray frames when
+    photometric is MONOCHROME.
+
+    """
     cdef:
         numpy.ndarray src = _array_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
+        const uint8_t[::1] iccbuf
+        size_t iccsize = 0
         ssize_t itemsize = src.dtype.itemsize
         ssize_t dstsize
         ssize_t srcindex
@@ -136,13 +148,15 @@ def heif_encode(
         heif_color_profile_nclx* nclx = NULL
         heif_compression_format compression_format
         heif_colorspace colorspace
+        heif_chroma chroma
         heif_writer writer
         heif_error err
         int lossless = 1 if (level is None or level > 100) else 0
         int quality = _default_value(level, 90, 0, 100)
         int nthreads = <int> _default_threads(numthreads)
         int stride, ystride, astride
-        bint monochrome, hasalpha
+        ssize_t _imageindex, _row, col
+        bint monochrome, withalpha
         uint8_t* srcptr = NULL
         uint8_t* dstptr = NULL
         uint8_t* yptr = NULL
@@ -151,6 +165,15 @@ def heif_encode(
         uint16_t* y2ptr = NULL
         uint16_t* a2ptr = NULL
         imagelayout_t layout
+
+    if photometric is not None:
+        photometric = _enum_value(photometric, HEIF.COLORSPACE)
+        if photometric == HEIF.COLORSPACE.MONOCHROME:
+            photometric = 'GRAY'
+        elif photometric == HEIF.COLORSPACE.UNDEFINED:
+            photometric = None
+        else:
+            photometric = 'RGB'
 
     _image_layout(
         IC_UINT
@@ -169,9 +192,12 @@ def heif_encode(
         None,  # planar
         None,  # frames
         None,  # volumetric
-        None,  # extrasample
+        'UNASSALPHA' if hasalpha else None,
         &layout,
     )
+
+    if hasalpha is not None and bool(hasalpha) != (layout.extracount > 0):
+        raise ValueError(f'{hasalpha=} does not match data shape')
 
     if not (
         layout.height > 0
@@ -185,7 +211,7 @@ def heif_encode(
     )
 
     monochrome = layout.samples < 3
-    hasalpha = layout.extracount > 0
+    withalpha = layout.extracount > 0
 
     if bitspersample is None:
         depth = 8 if itemsize == 1 else 10
@@ -197,6 +223,10 @@ def heif_encode(
             or (depth > 8 and itemsize == 1)
         ):
             raise ValueError('invalid bitspersample')
+
+    if iccprofile is not None:
+        iccbuf = iccprofile
+        iccsize = <size_t> iccbuf.shape[0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -249,7 +279,10 @@ def heif_encode(
             # TODO: encode monochrome in chroma 400?
             if not monochrome:
                 err = heif_encoder_set_parameter(encoder, 'chroma', '444')
-                if err.code != 0:
+                if (
+                    err.code != 0
+                    and err.subcode != heif_suberror_Unsupported_parameter
+                ):
                     raise HeifError('heif_encoder_set_parameter', err.message)
 
             if lossless != 0:
@@ -277,6 +310,15 @@ def heif_encode(
                     raise HeifError(
                         'heif_encoder_set_lossy_quality', err.message
                     )
+
+            if iccsize > 0:
+                if options == NULL:
+                    options = heif_encoding_options_alloc()
+                    if options == NULL:
+                        raise HeifError('heif_encoding_options_alloc', b'NULL')
+                if nclx != NULL:
+                    # nclx signals RGB matrix for lossless; keep with ICC
+                    options.save_two_colr_boxes_when_ICC_and_nclx_available = 1
 
             if monochrome:
                 colorspace = heif_colorspace_monochrome
@@ -307,6 +349,15 @@ def heif_encode(
                 if err.code != 0:
                     raise HeifError('heif_image_create', err.message)
 
+                if iccsize > 0:
+                    err = heif_image_set_raw_color_profile(
+                        image, 'prof', <const void*> &iccbuf[0], iccsize
+                    )
+                    if err.code != 0:
+                        raise HeifError(
+                            'heif_image_set_raw_color_profile', err.message
+                        )
+
                 if monochrome:
                     err = heif_image_add_plane(
                         image,
@@ -324,7 +375,7 @@ def heif_encode(
                     if yptr == NULL:
                         raise HeifError('heif_image_get_plane', b'NULL')
 
-                    if hasalpha:
+                    if withalpha:
                         err = heif_image_add_plane(
                             image,
                             heif_channel_Alpha,
@@ -369,6 +420,10 @@ def heif_encode(
                                 aptr += astride
 
                     else:
+                        if ystride < rowsize:
+                            raise HeifError(
+                                'heif_image_get_plane', b'stride too small'
+                            )
                         for _row in range(layout.height):
                             memcpy(
                                 <void*> yptr,
@@ -401,7 +456,10 @@ def heif_encode(
                     if dstptr == NULL:
                         raise HeifError('heif_image_get_plane', b'NULL')
 
-                    # assert stride >= <int> rowsize:
+                    if stride < rowsize:
+                        raise HeifError(
+                            'heif_image_get_plane', b'stride too small'
+                        )
                     for _row in range(layout.height):
                         memcpy(
                             <void*> dstptr, <const void*> srcptr, rowsize
@@ -434,7 +492,7 @@ def heif_encode(
 
         if compressed.owner:
             out = _create_output(
-                out, compressed.used, <const char*> compressed.data
+                outtype, compressed.used, <const char*> compressed.data
             )
         else:
             out = _return_output(
@@ -466,6 +524,7 @@ def heif_decode(
     photometric=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
     """Return decoded HEIF image.
 
@@ -474,21 +533,24 @@ def heif_decode(
     is raised.
 
     Monochrome images are returned as RGB(A) unless
-    photometric==heif_colorspace_monochrome.
+    photometric==heif_colorspace_monochrome, in which case the luma
+    and optional alpha channels are returned.
 
     """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
-        ssize_t imageindex = -1 if index is None else index
-        ssize_t height, width, samples, imagecount
-        ssize_t rowsize, srcindex, dstindex
-        int stride, itemsize, bps
+        ssize_t imageindex = 0 if index is None else index
+        ssize_t height, width, samples, imagecount, framecount
+        ssize_t rowsize, _row, _col
+        int stride, astride, itemsize, bps
         int nthreads = <int> _default_threads(numthreads)
         uint8_t* srcptr = NULL
+        uint8_t* aptr = NULL
         uint8_t* dstptr = NULL
         uint16_t* src2ptr = NULL
+        uint16_t* a2ptr = NULL
         uint16_t* dst2ptr = NULL
         heif_context* context = NULL
         heif_decoding_options* options = NULL
@@ -499,7 +561,7 @@ def heif_decode(
         heif_chroma chroma = heif_chroma_undefined
         heif_chroma chroma_sequence = heif_chroma_undefined
         heif_error err
-        bint hasalpha = False
+        bint allimages = index is None
         bint monochrome = False
 
     if data is out:
@@ -539,13 +601,18 @@ def heif_decode(
             imagecount = heif_context_get_number_of_top_level_images(context)
             if imagecount <= 0:
                 raise HeifError(
-                    'heif_context_get_number_of_top_level_images', b'NULL'
+                    'heif_context_get_number_of_top_level_images',
+                    b'%i' % imagecount
                 )
+            framecount = imagecount
 
-            if imageindex >= imagecount:
+            if imageindex < -imagecount or imageindex >= imagecount:
                 raise IndexError(
-                    f'index {imageindex} out of range [0, {imagecount}]'
+                    f'frame index={imageindex} out of range '
+                    f'[{-imagecount}, {imagecount})'
                 )
+            if imageindex < 0:
+                imageindex += imagecount
 
             if imagecount == 1:
                 err = heif_context_get_primary_image_handle(context, &handle)
@@ -565,16 +632,14 @@ def heif_decode(
                 )
 
                 err = heif_context_get_image_handle(
-                    context,
-                    imageids[imageindex if imageindex > 0 else 0],
-                    &handle
+                    context, imageids[imageindex], &handle
                 )
                 if err.code != 0:
                     raise HeifError(
                         'heif_context_get_image_handle', err.message
                     )
 
-                if imageindex >= 0:
+                if not allimages:
                     imagecount = 1
 
             imageindex = 0
@@ -588,39 +653,48 @@ def heif_decode(
                     )
 
                 # TODO: detect monochrome images from handle
-                # TODO: decode only luma and alpha for monochrome images
-                # if heif_image_handle_get_chroma_bits_per_pixel(handle) <= 0:
+
+                if monochrome:
+                    err = heif_image_handle_get_preferred_decoding_colorspace(
+                        handle, &colorspace, &chroma
+                    )
+                    if err.code != 0:
+                        raise HeifError(
+                            'heif_image_handle_get_preferred_decoding_'
+                            'colorspace',
+                            err.message
+                        )
+                    if colorspace == heif_colorspace_monochrome:
+                        chroma = heif_chroma_planar
+                    else:
+                        # libheif cannot convert color to monochrome
+                        colorspace = heif_colorspace_YCbCr
+                        chroma = heif_chroma_444
 
                 if heif_image_handle_has_alpha_channel(handle):
-                    samples = 2 if monochrome else 4
-                    if bps > 8:
-                        chroma = heif_chroma_interleaved_RRGGBBAA_LE
+                    if monochrome:
+                        samples = 2
                     else:
-                        chroma = heif_chroma_interleaved_RGBA
+                        samples = 4
+                        if bps > 8:
+                            chroma = heif_chroma_interleaved_RRGGBBAA_LE
+                        else:
+                            chroma = heif_chroma_interleaved_RGBA
+                elif monochrome:
+                    samples = 1
                 else:
-                    samples = 1 if monochrome else 3
+                    samples = 3
                     if bps > 8:
                         chroma = heif_chroma_interleaved_RRGGBB_LE
                     else:
                         chroma = heif_chroma_interleaved_RGB
                 # TODO: decode aux images as extrasamples
 
-                err = heif_decode_image(
-                    handle, &image, colorspace, chroma, options
-                )
-                if err.code != 0:
-                    raise HeifError('heif_decode_image', err.message)
-
                 if dstptr == NULL:
                     # first image
-                    width = <ssize_t> heif_image_get_primary_width(image)
-                    height = <ssize_t> heif_image_get_primary_height(image)
-                    if heif_image_get_bits_per_pixel(
-                        image, heif_channel_interleaved
-                    ) > 32:
-                        itemsize = 2
-                    else:
-                        itemsize = 1
+                    width = <ssize_t> heif_image_handle_get_width(handle)
+                    height = <ssize_t> heif_image_handle_get_height(handle)
+                    itemsize = 2 if bps > 8 else 1
                     rowsize = width * samples * itemsize
                     chroma_sequence = chroma
 
@@ -645,59 +719,89 @@ def heif_decode(
                         else:
                             shape = (int(height), int(width))
 
+                        if _info:
+                            return {
+                                '_codec': 'heif',
+                                'shape': shape,
+                                'dtype': numpy.dtype(dtype),
+                                'frames': int(framecount),
+                                'bitspersample': int(bps),
+                                **_heif_info(context, handle)
+                            }
+
                         out = _create_array(out, shape, dtype)
                         dst = out
                         dstptr = <uint8_t*> dst.data
 
                 elif (
-                    width != <ssize_t> heif_image_get_primary_width(image)
-                    or height != <ssize_t> heif_image_get_primary_height(image)
+                    width != <ssize_t> heif_image_handle_get_width(handle)
+                    or height != <ssize_t> heif_image_handle_get_height(handle)
                     or chroma_sequence != chroma
+                    or itemsize != (2 if bps > 8 else 1)
                 ):
                     raise ValueError('image sequence shape or dtype mismatch')
 
+                err = heif_decode_image(
+                    handle, &image, colorspace, chroma, options
+                )
+                if err.code != 0:
+                    raise HeifError('heif_decode_image', err.message)
+
+                if (
+                    width != <ssize_t> heif_image_get_primary_width(image)
+                    or height != <ssize_t> heif_image_get_primary_height(image)
+                ):
+                    raise ValueError('decoded image shape mismatch')
+
                 srcptr = <uint8_t*> heif_image_get_plane_readonly(
-                    image, heif_channel_interleaved, &stride
+                    image,
+                    heif_channel_Y if monochrome else heif_channel_interleaved,
+                    &stride
                 )
                 if srcptr == NULL:
                     raise HeifError(
                         'heif_image_get_plane_readonly', b'NULL'
                     )
+                if stride < width * itemsize * (1 if monochrome else samples):
+                    raise HeifError(
+                        'heif_image_get_plane_readonly', b'stride too small'
+                    )
 
-                if monochrome:
-                    hasalpha = samples == 2
-                    dstindex = 0
+                if monochrome and samples == 2:
+                    aptr = <uint8_t*> heif_image_get_plane_readonly(
+                        image, heif_channel_Alpha, &astride
+                    )
+                    if aptr == NULL:
+                        raise HeifError(
+                            'heif_image_get_plane_readonly', b'NULL'
+                        )
+                    if astride < width * itemsize:
+                        raise HeifError(
+                            'heif_image_get_plane_readonly',
+                            b'stride too small'
+                        )
                     if itemsize == 1:
                         for _row in range(height):
-                            srcindex = 0
                             for _col in range(width):
-                                dstptr[dstindex] = srcptr[srcindex]
-                                srcindex += 3
-                                dstindex += 1
-                                if hasalpha:
-                                    dstptr[dstindex] = srcptr[srcindex]
-                                    srcindex += 1
-                                    dstindex += 1
+                                dstptr[2 * _col] = srcptr[_col]
+                                dstptr[2 * _col + 1] = aptr[_col]
                             srcptr += stride
+                            aptr += astride
+                            dstptr += rowsize
                     else:
-                        dst2ptr = <uint16_t*> dstptr
-                        dstindex = 0
                         for _row in range(height):
                             src2ptr = <uint16_t*> srcptr
-                            srcindex = 0
+                            a2ptr = <uint16_t*> aptr
+                            dst2ptr = <uint16_t*> dstptr
                             for _col in range(width):
-                                dst2ptr[dstindex] = src2ptr[srcindex]
-                                srcindex += 3
-                                dstindex += 1
-                                if hasalpha:
-                                    dst2ptr[dstindex] = src2ptr[srcindex]
-                                    srcindex += 1
-                                    dstindex += 1
+                                dst2ptr[2 * _col] = src2ptr[_col]
+                                dst2ptr[2 * _col + 1] = a2ptr[_col]
                             srcptr += stride
-                    dstptr += height * rowsize
+                            aptr += astride
+                            dstptr += rowsize
 
                 else:
-                    # RGBA
+                    # interleaved RGB(A) or monochrome without alpha
                     for _row in range(height):
                         memcpy(
                             <void*> dstptr,
@@ -737,6 +841,80 @@ def heif_decode(
             heif_decoding_options_free(options)
 
     return out
+
+
+def heif_info(
+    data,
+    /,
+    index=0,
+    *,
+    photometric=None,
+):
+    """Return information about HEIF image."""
+    return heif_decode(
+        data,
+        index=index,
+        photometric=photometric,
+        numthreads=1,
+        _info=True
+    )
+
+
+cdef dict _heif_info(
+    heif_context* context,
+    const heif_image_handle* handle,
+):
+    """Return heif_info dict from image handle."""
+    cdef:
+        heif_colorspace colorspace
+        heif_chroma chroma
+        heif_color_profile_type icctype
+        heif_error err
+        uint32_t itemtype
+        uint8_t[::1] iccbuf
+        size_t iccsize
+
+    err = heif_image_handle_get_preferred_decoding_colorspace(
+        handle, &colorspace, &chroma
+    )
+    if err.code != 0:
+        raise HeifError(
+            'heif_image_handle_get_preferred_decoding_colorspace', err.message
+        )
+
+    itemtype = heif_item_get_item_type(
+        context, heif_image_handle_get_item_id(handle)
+    )
+
+    iccprofile = None
+    icctype = heif_image_handle_get_color_profile_type(handle)
+    if (
+        icctype == heif_color_profile_type_prof
+        or icctype == heif_color_profile_type_rICC
+    ):
+        iccsize = heif_image_handle_get_raw_color_profile_size(handle)
+        if iccsize > 0:
+            iccprofile = bytearray(iccsize)
+            iccbuf = iccprofile
+            err = heif_image_handle_get_raw_color_profile(
+                handle, <void*> &iccbuf[0]
+            )
+            if err.code != 0:
+                raise HeifError(
+                    'heif_image_handle_get_raw_color_profile', err.message
+                )
+            iccprofile = bytes(iccprofile)
+
+    return {
+        'hasalpha': bool(heif_image_handle_has_alpha_channel(handle)),
+        'photometric': _enum_or_int(colorspace, HEIF.COLORSPACE),
+        # derived images (grid, iden, iovl) are UNDEFINED
+        # HTJ2K is reported as JPEG2000
+        'compression': _HEIF_ITEM_COMPRESSION.get(
+            int(itemtype).to_bytes(4, 'big'), HEIF.COMPRESSION.UNDEFINED
+        ),
+        'iccprofile': iccprofile,
+    }
 
 
 cdef heif_error heif_write_callback(
@@ -837,12 +1015,7 @@ cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
     cdef:
         uint8_t* tmp
 
-    if (
-        output == NULL
-        or newsize == 0
-        or output.used > output.size
-        or output.owner == 0
-    ):
+    if output == NULL or newsize == 0 or output.owner == 0:
         return 0
 
     if newsize == output.size:
@@ -854,3 +1027,16 @@ cdef int output_resize(output_t* output, size_t newsize) noexcept nogil:
     output.data = tmp
     output.size = newsize
     return 1
+
+
+_HEIF_ITEM_COMPRESSION = {
+    b'hvc1': HEIF.COMPRESSION.HEVC,
+    b'avc1': HEIF.COMPRESSION.AVC,
+    b'jpeg': HEIF.COMPRESSION.JPEG,
+    b'av01': HEIF.COMPRESSION.AV1,
+    b'vvc1': HEIF.COMPRESSION.VVC,
+    b'evc1': HEIF.COMPRESSION.EVC,
+    b'j2k1': HEIF.COMPRESSION.JPEG2000,
+    b'unci': HEIF.COMPRESSION.UNCOMPRESSED,
+    b'mski': HEIF.COMPRESSION.MASK,
+}
