@@ -1,6 +1,6 @@
 # imagecodecs/lz4.pxd
 
-# Cython declarations for the `lz4 1.10.0` library.
+# Cython declarations for the `lz4 1.11.0` library.
 # https://github.com/lz4/lz4
 
 cdef extern from 'lz4.h' nogil:
@@ -329,7 +329,9 @@ cdef extern from 'lz4frame.h' nogil:
         int compressionLevel
         unsigned autoFlush
         unsigned favorDecSpeed
-        unsigned[3] reserved
+        unsigned nbWorkers
+        unsigned reserved1
+        unsigned reserved0
 
     # define LZ4F_INIT_PREFERENCES :
     #     LZ4F_INIT_FRAMEINFO,
@@ -362,9 +364,16 @@ cdef extern from 'lz4frame.h' nogil:
 
     ctypedef LZ4F_cctx* LZ4F_compressionContext_t
 
+    ctypedef enum LZ4F_stableSrc_t:
+        LZ4F_srcUnstable
+        LZ4F_srcStable
+        LZ4F_srcStableUntilFlush
+
     ctypedef struct LZ4F_compressOptions_t:
         unsigned stableSrc
-        unsigned[3] reserved
+        unsigned uncompressed
+        unsigned reserved1
+        unsigned reserved0
 
     # Resource Management
 
