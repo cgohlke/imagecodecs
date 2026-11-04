@@ -25,7 +25,12 @@ include imagecodecs/patches/*
 include 3rdparty/*
 include 3rdparty/*/*
 
-include tests/*.py
+recursive-exclude tests *
+include tests/conftest.py
+include tests/test_imagecodecs.py
+include tests/test_imagelayout.py
+include tests/test_numcodecs.py
+include tests/test_zarr.py
 include tests/data/*.txt
 include tests/data/*.bin
 include tests/data/*.npy
@@ -53,8 +58,6 @@ include tests/data/libaec/121B2TestData/*.txt
 include tests/data/libaec/121B2TestData/AllOptions/*.*
 
 # files too large or not licensed
-exclude tests/test_jpegxr.py
-exclude tests/test_imagecodecs_more.py
 exclude tests/data/libaec/121B2TestData/ExtendedParameters/*.*
 exclude tests/data/tiff/gray.movie.*.tif
 exclude tests/data/ljpeg/dcm*.ljp
@@ -69,14 +72,22 @@ exclude tests/data/huge.bin
 
 exclude .env
 exclude .gitignore
-exclude *.cmd
-exclude *.yaml
 exclude *.code-workspace
+exclude AGENTS.md
 exclude mypy.ini
 exclude ruff.toml
 exclude typos.toml
 exclude uncrustify.cfg
 exclude build_utils/*
+
+global-exclude *.lib
+global-exclude *.ini
+global-exclude *.cmd
+global-exclude *.rar
+global-exclude *.zip
+global-exclude *.yaml
+global-exclude *.html
+global-exclude *?-?Copy*
 
 recursive-exclude .github *
 recursive-exclude doc *
@@ -84,7 +95,4 @@ recursive-exclude docs *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *-
-recursive-exclude * *.html
-recursive-exclude * *Copy*.*
-recursive-exclude * *.lib
 recursive-exclude * numpy/*.h
