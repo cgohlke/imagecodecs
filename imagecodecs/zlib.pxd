@@ -1,6 +1,6 @@
 # imagecodecs/zlib.pxd
 
-# Cython declarations for the `zlib 1.3.2` library.
+# Cython declarations for the `zlib 1.4` library.
 # https://github.com/madler/zlib
 
 cdef extern from 'zlib.h' nogil:
@@ -64,7 +64,7 @@ cdef extern from 'zlib.h' nogil:
     ctypedef void* voidp
     ctypedef const void* voidpc
     ctypedef size_t z_size_t
-    ctypedef long long z_off_t
+    ctypedef long z_off_t
     ctypedef long long z_off64_t
 
     ctypedef voidpf (*alloc_func)(
@@ -132,6 +132,11 @@ cdef extern from 'zlib.h' nogil:
 
     int inflateInit(
         z_streamp strm
+    )
+
+    int inflateInit2(
+        z_streamp strm,
+        int windowBits
     )
 
     int inflate(
