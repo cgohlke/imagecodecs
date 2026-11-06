@@ -33,14 +33,18 @@
 
 from __future__ import annotations
 
-import contextlib
 import io
+import json
+from typing import TYPE_CHECKING, Any
 
 import numpy
 import pytest
 from conftest import datafiles
 from numpy import array_equal  # faster than assert_array_equal
 from numpy.testing import assert_allclose
+
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
 
 try:
     import imagecodecs
@@ -57,7 +61,11 @@ try:
 except ImportError:
     pytest.skip('imagecodecs.zarr not found', allow_module_level=True)
 
-from zarr.abc.codec import ArrayArrayCodec, ArrayBytesCodec
+from zarr.abc.codec import (
+    ArrayArrayCodec,
+    ArrayBytesCodec,
+    BytesBytesCodec,
+)
 from zarr.buffer import default_buffer_prototype
 from zarr.buffer.cpu import Buffer
 from zarr.core.array_spec import ArrayConfig, ArraySpec
@@ -66,7 +74,7 @@ from zarr.core.dtype import get_data_type_from_native_dtype
 zarr3codecs.register_codecs()
 
 
-def _array_spec(shape, dtype):
+def _array_spec(shape: tuple[int, ...], dtype: DTypeLike) -> ArraySpec:
     """Return an ArraySpec for decode-only zarr codec tests."""
     return ArraySpec(
         shape=shape,
@@ -79,20 +87,80 @@ def _array_spec(shape, dtype):
 
 @pytest.mark.parallel_threads(1)
 @pytest.mark.iterations(1)
-def test_zarr_register(caplog):
+def test_zarr_register(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test register_codecs function."""
     from zarr.registry import get_codec_class
 
-    zarr3codecs.register_codecs(verbose=False)
-    assert 'zarr codec' not in caplog.text
     zarr3codecs.register_codecs()
     assert 'zarr codec' not in caplog.text
 
     assert get_codec_class('imagecodecs_lzw') is zarr3codecs.Lzw
+    assert (
+        zarr3codecs.JpegCodec
+        in zarr.registry._codec_registries['jpeg'].values()
+    )
+
+    def register_codec(_key: Any, _cls: Any) -> None:
+        raise RuntimeError
+
+    monkeypatch.setattr(zarr.registry, 'register_codec', register_codec)
+    zarr3codecs.register_codecs(['lzw'], verbose=False)
+    assert 'zarr codec' not in caplog.text
+    zarr3codecs.register_codecs(['lzw'])
+    assert 'zarr codec imagecodecs_lzw registration failed' in caplog.text
+
+
+@pytest.mark.parametrize(
+    ('names', 'expected'),
+    [
+        (['jpeg2k'], [('imagecodecs_jpeg2k', zarr3codecs.Jpeg2k)]),
+        (['imagecodecs_jpeg2k'], [('imagecodecs_jpeg2k', zarr3codecs.Jpeg2k)]),
+        (
+            ['jpeg2k', 'imagecodecs_jpeg2k'],
+            [('imagecodecs_jpeg2k', zarr3codecs.Jpeg2k)],
+        ),
+        ([], []),
+    ],
+)
+def test_zarr_register_names(
+    names: list[str],
+    expected: list[tuple[str, type]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test registration by short codec name or full codec ID."""
+    registered = []
+    monkeypatch.setattr(
+        zarr.registry,
+        'register_codec',
+        lambda key, cls: registered.append((key, cls)),
+    )
+    zarr3codecs.register_codecs(names, verbose=False)
+    assert registered == expected
+
+
+@pytest.mark.parametrize(
+    'names',
+    [['unknown'], ['imagecodecs_unknown'], ['jpeg2k', 'unknown']],
+)
+def test_zarr_register_unknown(
+    names: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test unknown names fail without partial registration."""
+    registered = []
+    monkeypatch.setattr(
+        zarr.registry,
+        'register_codec',
+        lambda key, cls: registered.append((key, cls)),
+    )
+    with pytest.raises(ValueError, match='unknown codec names'):
+        zarr3codecs.register_codecs(names, verbose=False)
+    assert registered == []
 
 
 @pytest.mark.skipif(not imagecodecs.LZO.available, reason='LZO missing')
-def test_lzo_zarr():
+def test_lzo_zarr() -> None:
     """Test LZO decoding with zarr."""
     spec = _array_spec((64,), 'uint8')
     result = zarr3codecs.Lzo(header=True)._decode_sync(
@@ -101,46 +169,53 @@ def test_lzo_zarr():
         ),
         spec,
     )
-    assert bytes(result.to_bytes()) == b'a\01\fa' * 16
+    assert bytes(result.to_bytes()) == b'a\x01\x0ca' * 16
 
 
 @pytest.mark.parametrize('dtype', ['uint8', 'float32'])
 @pytest.mark.parametrize(
     'kind', ['crc32', 'adler32', 'fletcher32', 'lookup3', 'h5crc']
 )
-def test_checksum_zarr(kind, dtype):
+def test_checksum_zarr(kind: str, dtype: DTypeLike) -> None:
     """Test zarr3codecs.Checksum roundtrips."""
-    if kind in {'crc32', 'adler32'} and not imagecodecs.ZLIB.available:
-        pytest.skip('ZLIB missing')
+    if kind in {'crc32', 'adler32'}:
+        if not (
+            imagecodecs.ZLIBNG.available
+            or imagecodecs.DEFLATE.available
+            or imagecodecs.ZLIB.available
+        ):
+            pytest.skip('ZLIB missing')
     elif not imagecodecs.H5CHECKSUM.available:
         pytest.skip('H5CHECKSUM missing')
-    from zarr.abc.codec import BytesBytesCodec
 
     data = numpy.arange(255, dtype=dtype).reshape((15, 17))[1:14, 2:15]
-    codec_obj = zarr3codecs.Checksum(kind=kind)
+    codec_obj = zarr3codecs.Checksum(kind=kind)  # type: ignore[arg-type]
     assert isinstance(codec_obj, BytesBytesCodec)
 
-    store = zarr.storage.MemoryStore()
-    z = zarr.create_array(
-        store,
-        shape=data.shape,
-        chunks=data.shape,
-        dtype=data.dtype,
-        compressors=[codec_obj],
-    )
-    z[:] = data
-    del z
+    with zarr.storage.MemoryStore() as store:
+        z = zarr.create_array(
+            store,
+            shape=data.shape,
+            chunks=data.shape,
+            dtype=data.dtype,
+            compressors=[codec_obj],
+        )
+        z[:] = data
+        del z
 
-    z = zarr.open_array(store, mode='r')
-    assert array_equal(z[:], data)
-    with contextlib.suppress(Exception):
-        store.close()
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    assert array_equal(decoded, data)
 
 
 @pytest.mark.skipif(
     not imagecodecs.DICOMRLE.available, reason='DICOMRLE missing'
 )
-def test_dicomrle_zarr():
+def test_dicomrle_zarr() -> None:
     """Test DICOMRLE decoding with zarr."""
     encoded = (
         b'\x0c\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00U\x00'
@@ -170,7 +245,7 @@ def test_dicomrle_zarr():
 
 
 @pytest.mark.skipif(not imagecodecs.DDS.available, reason='DDS missing')
-def test_dds_zarr():
+def test_dds_zarr() -> None:
     """Test DDS decoding with zarr."""
     try:
         with open(datafiles('bcn/bc1.dds'), 'rb') as fh:
@@ -184,8 +259,22 @@ def test_dds_zarr():
     assert array_equal(decoded.as_numpy_array(), expected)
 
 
+@pytest.mark.skipif(not imagecodecs.OPENZL.available, reason='OPENZL missing')
+def test_openzl_zarr() -> None:
+    """Test OPENZL decoding with zarr."""
+    with open(datafiles('rgb_u2.zl'), 'rb') as fh:
+        encoded = fh.read()
+    spec = _array_spec((32, 31, 3), 'uint16')
+    decoded = zarr3codecs.Openzl()._decode_sync(
+        Buffer.from_bytes(encoded), spec
+    )
+    assert bytes(decoded.to_bytes()) == bytes(
+        imagecodecs.openzl_decode(encoded)
+    )
+
+
 @pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
-def test_eer_zarr():
+def test_eer_zarr() -> None:
     """Test EER decoding with zarr."""
     encoded = b'\x03\x1b\xfc\xb1\x35\xfb'  # from EER specification
     expected = imagecodecs.eer_decode(encoded, (1, 312), 7, 1, 1)
@@ -200,33 +289,30 @@ def test_eer_zarr():
 
 
 @pytest.mark.skipif(not imagecodecs.ZSTD1.available, reason='ZSTD1 missing')
-def test_zstd1_zarr():
+def test_zstd1_zarr() -> None:
     """Test Zstd1 zarr codec."""
     data = numpy.arange(256, dtype=numpy.uint16)
     raw = data.tobytes()
     spec = _array_spec(data.shape, data.dtype)
-
-    # lossless roundtrip without shuffle
-    codec = zarr3codecs.Zstd1()
-    encoded = codec._encode_sync(Buffer.from_bytes(raw), spec)
-    decoded = codec._decode_sync(encoded, spec)
-    assert decoded.as_numpy_array().tobytes() == raw
 
     # auto hilo=False (no shuffle): Zstd1() on uint8
     spec8 = _array_spec(data.shape, numpy.dtype('uint8'))
     raw8 = data.astype(numpy.uint8).tobytes()
     codec = zarr3codecs.Zstd1()
     encoded_nohilo = codec._encode_sync(Buffer.from_bytes(raw8), spec8)
+    assert encoded_nohilo is not None
     decoded = codec._decode_sync(encoded_nohilo, spec8)
     assert decoded.as_numpy_array().tobytes() == raw8
 
     # auto hilo=True (shuffle): Zstd1() on uint16 -> hilo enabled
     codec = zarr3codecs.Zstd1()
     encoded_hilo = codec._encode_sync(Buffer.from_bytes(raw), spec)
+    assert encoded_hilo is not None
     decoded = codec._decode_sync(encoded_hilo, spec)
     assert decoded.as_numpy_array().tobytes() == raw
     codec_nohilo = zarr3codecs.Zstd1(hilo=False)
     encoded_no = codec_nohilo._encode_sync(Buffer.from_bytes(raw), spec)
+    assert encoded_no is not None
     assert (
         encoded_hilo.as_numpy_array().tobytes()
         != encoded_no.as_numpy_array().tobytes()
@@ -235,12 +321,14 @@ def test_zstd1_zarr():
     # explicit hilo=False
     codec = zarr3codecs.Zstd1(hilo=False)
     encoded = codec._encode_sync(Buffer.from_bytes(raw), spec)
+    assert encoded is not None
     decoded = codec._decode_sync(encoded, spec)
     assert decoded.as_numpy_array().tobytes() == raw
 
     # explicit level
     codec = zarr3codecs.Zstd1(level=3)
     encoded = codec._encode_sync(Buffer.from_bytes(raw), spec)
+    assert encoded is not None
     decoded = codec._decode_sync(encoded, spec)
     assert decoded.as_numpy_array().tobytes() == raw
 
@@ -250,9 +338,10 @@ def test_zstd1_zarr():
     reason='CCITT or TIFF missing',
 )
 @pytest.mark.parametrize('compression', ['ccittrle', 'ccittfax3', 'ccittfax4'])
-def test_ccitt_zarr(compression):
+def test_ccitt_zarr(compression: str) -> None:
     """Test CCITT decoding with zarr."""
     tifffile = pytest.importorskip('tifffile')
+    codec: ArrayBytesCodec
     shape = (8, 16)
     data = numpy.zeros(shape, dtype=numpy.bool_)
     data[0, 1] = data[4, 8] = True
@@ -345,13 +434,15 @@ def test_ccitt_zarr(compression):
         ),
     ],
 )
-def test_zarr_pipeline(pipeline):
+def test_zarr_pipeline(pipeline: str) -> None:
     """Test imagecodecs.zarr codec pipelines through zarr 3 roundtrips."""
     data = numpy.load(datafiles('rgb.u1.npy'))
     data = numpy.stack([data, data])
     shape = data.shape
     chunks = (1, 128, 128, 3)
-    serializer = None
+    serializer: ArrayBytesCodec | None = None
+    compressors: list[BytesBytesCodec]
+    filters: list[ArrayArrayCodec]
 
     match pipeline:
         case 'delta_lzw':
@@ -377,64 +468,72 @@ def test_zarr_pipeline(pipeline):
         case _:
             raise RuntimeError
 
-    store = zarr.storage.MemoryStore()
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
     if serializer is not None:
         kwargs['serializer'] = serializer
-    z = zarr.create_array(
-        store,
-        shape=shape,
-        chunks=chunks,
-        dtype=data.dtype,
-        filters=filters,
-        compressors=compressors,
-        **kwargs,
-    )
-    z[:] = data
-    del z
+    with zarr.storage.MemoryStore() as store:
+        z = zarr.create_array(
+            store,
+            shape=shape,
+            chunks=chunks,
+            dtype=data.dtype,
+            filters=filters,
+            compressors=compressors,
+            **kwargs,
+        )
+        z[:] = data
+        del z
 
-    z = zarr.open_array(store, mode='r')
-    assert array_equal(z[:], data)
-    with contextlib.suppress(Exception):
-        store.close()
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    assert array_equal(decoded, data)
 
 
 @pytest.mark.parametrize(
     'codec', ['jpeg2k', 'jpegxl', 'htj2k', 'exr', 'lerc', 'tiff']
 )
 @pytest.mark.parametrize('planar', [True, False])
-def test_planar(codec, planar):
+def test_planar(codec: str, *, planar: bool) -> None:
     """Test zarr planar option."""
     # https://github.com/cgohlke/imagecodecs/issues/145
     if not getattr(imagecodecs, codec.upper()).available:
         pytest.skip(f'{codec} not found')
 
     data = numpy.load(datafiles('rgb.u1.npy'))
-    data = numpy.moveaxis(data, -1, 0)  # planar
-    shape = data.shape
-    chunks = (1, 128, 128)
-    kwargs = {'planar': planar}
+    if planar:
+        data = numpy.moveaxis(data, -1, 0)
+        chunks = (3, 128, 128)
+    else:
+        chunks = (128, 128, 3)
+    kwargs: dict[str, Any] = {'planar': planar}
 
     if codec == 'exr':
         data = data.astype(numpy.float32)
     elif codec == 'tiff':
         kwargs = {'planarconfig': 'separate' if planar else 'contig'}
 
-    store = zarr.storage.MemoryStore()
-    z = zarr.create_array(
-        store,
-        shape=shape,
-        chunks=chunks,
-        dtype=data.dtype,
-        serializer=getattr(zarr3codecs, codec.capitalize())(**kwargs),
-    )
-    z[:] = data
-    del z
+    with zarr.storage.MemoryStore() as store:
+        z = zarr.create_array(
+            store,
+            shape=data.shape,
+            chunks=chunks,
+            dtype=data.dtype,
+            serializer=getattr(zarr3codecs, codec.capitalize())(**kwargs),
+        )
+        z[:] = data
+        del z
 
-    z = zarr.open_array(store, mode='r')
-    assert array_equal(z[:], data)
-    with contextlib.suppress(Exception):
-        store.close()
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    assert array_equal(decoded, data)
 
 
 @pytest.mark.parametrize('photometric', ['gray', 'rgb', 'stack'])
@@ -468,6 +567,7 @@ def test_planar(codec, planar):
         'isal',
         'jpeg',
         'jpeg2k',
+        'jpegli',
         'jpegls',
         'jpegxl',
         'jpegxr',
@@ -516,13 +616,14 @@ def test_planar(codec, planar):
         'zstd1',
     ],
 )
-def test_zarr(codec, photometric):
+def test_zarr(codec: str, photometric: str) -> None:
     """Test imagecodecs.zarr codecs through zarr 3 roundtrips."""
     if not getattr(imagecodecs, codec.upper()).available:
         pytest.skip(f'{codec} not found')
 
     data = numpy.load(datafiles('rgb.u1.npy'))
     data = numpy.stack([data, data])
+    chunks: tuple[int, ...]
     if photometric == 'rgb':
         shape = data.shape
         chunks = (1, 128, 128, 3)
@@ -540,8 +641,10 @@ def test_zarr(codec, photometric):
         chunks = (1, *data.shape[1:])
         axis = -1
 
+    codec_obj: ArrayArrayCodec | ArrayBytesCodec | BytesBytesCodec
+    compression: str | None
     lossless = True
-    atol = 0
+    atol = 0.0
     match codec:
         case 'aec':
             codec_obj = zarr3codecs.Aec()
@@ -554,7 +657,12 @@ def test_zarr(codec, photometric):
         case 'b2nd':
             data = data.astype('float32')
             codec_obj = zarr3codecs.B2nd(
-                level=6, compressor='zstd', chunkshape=chunks, numthreads=2
+                level=6,
+                codec='zstd',
+                filters=['shuffle', 'bytedelta'],
+                filters_meta=[0, 4],
+                chunkshape=chunks,
+                numthreads=2,
             )
         case 'bfloat16':
             data = data.astype('float32')
@@ -569,7 +677,10 @@ def test_zarr(codec, photometric):
             )
         case 'blosc2':
             codec_obj = zarr3codecs.Blosc2(
-                level=9, compressor='blosclz', numthreads=2
+                level=9,
+                codec='blosclz',
+                filters=['shuffle', 'bytedelta'],
+                numthreads=2,
             )
         case 'bmp':
             codec_obj = zarr3codecs.Bmp()
@@ -630,6 +741,10 @@ def test_zarr(codec, photometric):
             codec_obj = zarr3codecs.Jpeg(level=99, subsampling='444')
         case 'jpeg2k':
             codec_obj = zarr3codecs.Jpeg2k(level=0)
+        case 'jpegli':
+            lossless = False
+            atol = 6
+            codec_obj = zarr3codecs.Jpegli(level=99, subsampling='444')
         case 'jpegls':
             codec_obj = zarr3codecs.Jpegls(level=0)
         case 'jpegxl':
@@ -641,7 +756,7 @@ def test_zarr(codec, photometric):
         case 'jpegxs':
             if photometric != 'rgb':
                 pytest.skip(f'xfail - JPEGXS does not support {photometric=}')
-            codec_obj = zarr3codecs.Jpegxs(config='p=MLS.12', verbose=1)
+            codec_obj = zarr3codecs.Jpegxs(config='p=MLS.12')
         case 'lerc':
             if imagecodecs.ZSTD.available:
                 compression = 'zstd'
@@ -651,7 +766,7 @@ def test_zarr(codec, photometric):
                 compressionargs = None
             codec_obj = zarr3codecs.Lerc(
                 level=0.0,
-                compression=compression,
+                compression=compression,  # type: ignore[arg-type]
                 compressionargs=compressionargs,
             )
         case 'ljpeg':
@@ -761,14 +876,13 @@ def test_zarr(codec, photometric):
                 pytest.skip(
                     f'xfail - ULTRAHDR does not support {photometric=}'
                 )
-            else:
-                pytest.skip('xfail - ultrahdr_encode not working')
             data = data.astype('float32')
             data /= data.max()
             data = data.astype('float16')
             codec_obj = zarr3codecs.Ultrahdr()
             lossless = False
             atol = 1e-2
+            pytest.skip('xfail - ultrahdr_encode not working')
         case 'wavpack':
             data = data.astype('int16')
             codec_obj = zarr3codecs.Wavpack(
@@ -798,42 +912,290 @@ def test_zarr(codec, photometric):
         case _:
             raise RuntimeError
 
-    store = zarr.storage.MemoryStore()
-    if isinstance(codec_obj, ArrayArrayCodec):
+    with zarr.storage.MemoryStore() as store:
+        if isinstance(codec_obj, ArrayArrayCodec):
+            z = zarr.create_array(
+                store,
+                shape=shape,
+                chunks=chunks,
+                dtype=data.dtype,
+                filters=[codec_obj],
+            )
+        elif isinstance(codec_obj, ArrayBytesCodec):
+            z = zarr.create_array(
+                store,
+                shape=shape,
+                chunks=chunks,
+                dtype=data.dtype,
+                serializer=codec_obj,
+            )
+        else:  # BytesBytesCodec
+            z = zarr.create_array(
+                store,
+                shape=shape,
+                chunks=chunks,
+                dtype=data.dtype,
+                compressors=[codec_obj],
+            )
+        z[:] = data
+        del z
+
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    if lossless:
+        assert array_equal(decoded, data)
+    else:
+        assert_allclose(decoded, data, atol=atol, rtol=0)
+
+
+@pytest.mark.parametrize(
+    ('shape', 'planar', 'expected'),
+    [
+        ((1, 1), None, (1, 1)),
+        ((1, 5), None, (1, 5)),
+        ((5, 1), None, (5, 1)),
+        ((5, 1, 1), None, (5, 1)),
+        ((1, 4, 5), None, (4, 5)),
+        ((1, 4, 5, 3), None, (4, 5, 3)),
+        ((4, 5), True, (1, 4, 5)),
+        ((1, 3, 4, 5), True, (3, 4, 5)),
+    ],
+)
+def test_zarr_squeeze_shape(
+    shape: tuple[int, ...], *, planar: bool | None, expected: tuple[int, ...]
+) -> None:
+    """Test squeezing chunk shapes for image codecs."""
+    assert zarr3codecs._squeeze_shape(shape, planar=planar) == expected
+
+
+@pytest.mark.parametrize(
+    ('codec', 'kwargs'),
+    [
+        ('hcomp', {'safe32': False}),
+        ('jpeg', {'subsampling': (2, 2)}),
+        ('jpegli', {'subsampling': (2, 2), 'progressive': 2}),
+        ('jpegls', {'spiff': True}),
+        ('lerc', {'compressionargs': {'level': 1}}),
+        ('openzl', {'level': 3}),
+        ('pglz', {'strategy': (32, 1024, 25, 128, 10, 100)}),
+        ('qoi', {'colorspace': 'linear'}),
+        ('snappy', {'level': 1}),
+        ('tiff', {'planarconfig': 'separate'}),
+        (
+            'tiff',
+            {
+                'iccprofile': b'\x00icc',
+                'colormap': [[0, 1], [2, 3], [4, 5]],
+                'resolution': (72, 72),
+                'resolutionunit': 'inch',
+            },
+        ),
+    ],
+)
+def test_zarr_metadata_roundtrip(codec: str, kwargs: dict[str, Any]) -> None:
+    """Test codec configuration survives JSON metadata roundtrip."""
+    if not getattr(imagecodecs, codec.upper()).available:
+        pytest.skip(f'{codec} not found')
+    codec_obj = zarr3codecs._CODEC_CLASSES[codec](**kwargs)
+    restored = type(codec_obj).from_dict(
+        json.loads(json.dumps(codec_obj.to_dict()))
+    )
+    assert restored == codec_obj
+    assert hash(restored) == hash(codec_obj)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG.available, reason='JPEG missing')
+@pytest.mark.parametrize(
+    ('kwargs', 'samples', 'atol'),
+    [
+        ({'encoded_color_space': 'grayscale'}, 0, 8),
+        ({'encoded_color_space': 'grayscale'}, 1, 8),
+        ({'encoded_color_space': 'rgb'}, 3, 8),
+        ({'encoded_color_space': 'ycbcr', 'subsampling': '4:2:0'}, 3, 64),
+        (
+            {
+                'encoded_color_space': 'ycbcr',
+                'decoded_color_space': 'ycbcr',
+                'subsampling': '4:4:4',
+            },
+            3,
+            8,
+        ),
+    ],
+)
+def test_jpegcodec_zarr(
+    kwargs: dict[str, Any], samples: int, atol: int
+) -> None:
+    """Test JpegCodec implementing the zarr-extensions jpeg spec."""
+    data = numpy.load(datafiles('rgb.u1.npy'))[:64, :96]
+    if samples == 0:
+        data = data[..., 0].copy()
+    elif samples == 1:
+        data = data[..., :1].copy()
+    codec_obj = zarr3codecs.JpegCodec(**kwargs)
+    assert codec_obj.to_dict()['name'] == 'jpeg'
+    assert zarr3codecs.JpegCodec.from_dict(codec_obj.to_dict()) == codec_obj
+
+    with zarr.storage.MemoryStore() as store:
         z = zarr.create_array(
             store,
-            shape=shape,
-            chunks=chunks,
-            dtype=data.dtype,
-            filters=[codec_obj],
-        )
-    elif isinstance(codec_obj, ArrayBytesCodec):
-        z = zarr.create_array(
-            store,
-            shape=shape,
-            chunks=chunks,
+            shape=data.shape,
+            chunks=data.shape,
             dtype=data.dtype,
             serializer=codec_obj,
+            compressors=None,
         )
-    else:  # BytesBytesCodec
+        z[:] = data
+        del z
+
+        chunk = store._store_dict['c/' + '/'.join('0' * data.ndim)].to_bytes()
+        assert (b'Adobe' in chunk) == (kwargs['encoded_color_space'] == 'rgb')
+
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    assert_allclose(decoded, data, atol=atol, rtol=0)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG.available, reason='JPEG missing')
+@pytest.mark.parametrize(
+    ('kwargs', 'match'),
+    [
+        ({'encoded_color_space': 'ycbcr'}, 'subsampling required'),
+        (
+            {'encoded_color_space': 'rgb', 'subsampling': '4:2:0'},
+            r'must be all \[1, 1\]',
+        ),
+        (
+            {'encoded_color_space': 'grayscale', 'decoded_color_space': 'rgb'},
+            'invalid combination',
+        ),
+        (
+            {'encoded_color_space': 'grayscale', 'subsampling': [[1, 1]] * 3},
+            'must have 1 components',
+        ),
+        ({'encoded_color_space': 'grayscale', 'quality': 0}, 'range 1-100'),
+        (
+            {
+                'encoded_color_space': 'ycbcr',
+                'subsampling': [[2.0, 2], [1, 1]],
+            },
+            'pairs of int',
+        ),
+    ],
+)
+def test_jpegcodec_invalid(kwargs: dict[str, Any], match: str) -> None:
+    """Test JpegCodec rejects arguments invalid per spec."""
+    with pytest.raises(ValueError, match=match):
+        zarr3codecs.JpegCodec(**kwargs)
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG.available, reason='JPEG missing')
+@pytest.mark.parametrize(
+    ('cfg', 'match'),
+    [
+        ({'encoded_color_space': 'grayscale'}, "requires 'quality'"),
+        (
+            {'quality': 90, 'encoded_color_space': 'ycbcr'},
+            'subsampling required',
+        ),
+        (
+            {
+                'quality': 90,
+                'encoded_color_space': 'grayscale',
+                'decoded_color_space': None,
+            },
+            'must not be null',
+        ),
+        (
+            {'quality': 90, 'encoded_color_space': 'grayscale', 'level': 1},
+            'unknown jpeg configuration keys',
+        ),
+    ],
+)
+def test_jpegcodec_invalid_config(cfg: dict[str, Any], match: str) -> None:
+    """Test JpegCodec rejects configurations invalid per spec."""
+    with pytest.raises(ValueError, match=match):
+        zarr3codecs.JpegCodec.from_dict({'name': 'jpeg', 'configuration': cfg})
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG.available, reason='JPEG missing')
+@pytest.mark.parametrize(
+    'cfg',
+    [
+        {'quality': 90, 'encoded_color_space': 'grayscale'},
+        {'quality': 90, 'encoded_color_space': 'rgb'},
+        {
+            'quality': 90,
+            'encoded_color_space': 'ycbcr',
+            'subsampling': [[2, 2], [1, 1], [1, 1]],
+        },
+        {
+            'quality': 90,
+            'encoded_color_space': 'ycbcr',
+            'decoded_color_space': 'ycbcr',
+            'subsampling': [[2, 2], [1, 1], [1, 1]],
+        },
+    ],
+)
+def test_jpegcodec_spec_examples(cfg: dict[str, Any]) -> None:
+    """Test JpegCodec roundtrips configuration examples from spec."""
+    data: dict[str, Any] = {'name': 'jpeg', 'configuration': cfg}
+    assert zarr3codecs.JpegCodec.from_dict(data).to_dict() == data
+
+
+@pytest.mark.skipif(not imagecodecs.JPEG.available, reason='JPEG missing')
+def test_jpegcodec_unsupported_subsampling() -> None:
+    """Test JpegCodec fails encoding subsampling valid per spec."""
+    codec_obj = zarr3codecs.JpegCodec(
+        encoded_color_space='ycbcr', subsampling=[[4, 2], [1, 1], [1, 1]]
+    )
+    with zarr.storage.MemoryStore() as store:
         z = zarr.create_array(
             store,
-            shape=shape,
-            chunks=chunks,
-            dtype=data.dtype,
-            compressors=[codec_obj],
+            shape=(16, 16, 3),
+            dtype='uint8',
+            serializer=codec_obj,
+            compressors=None,
         )
-    z[:] = data
-    del z
-
-    z = zarr.open_array(store, mode='r')
-    if lossless:
-        assert array_equal(z[:], data)
-    else:
-        assert_allclose(z[:], data, atol=atol)
-    with contextlib.suppress(Exception):
-        store.close()
+        with pytest.raises(ValueError, match='not supported'):
+            z[:] = 1  # chunks equal to fill value are not encoded
 
 
-# mypy: allow-untyped-defs
-# mypy: check-untyped-defs=False
+@pytest.mark.skipif(not imagecodecs.CMS.available, reason='CMS missing')
+@pytest.mark.parametrize(
+    'kwargs', [{'outplanar': True}, {'outcolorspace': 'rgba'}]
+)
+def test_cms_zarr_layout(kwargs: dict[str, Any]) -> None:
+    """Test Cms filter changing chunk layout or number of samples."""
+    data = numpy.load(datafiles('rgb.u1.npy'))[:32, :32]
+    data = numpy.stack([data, data])
+    codec_obj = zarr3codecs.Cms(
+        profile='srgb', outprofile='srgb', colorspace='rgb', **kwargs
+    )
+    with zarr.storage.MemoryStore() as store:
+        z = zarr.create_array(
+            store,
+            shape=data.shape,
+            chunks=(1, *data.shape[1:]),
+            dtype=data.dtype,
+            filters=[codec_obj],
+            compressors=None,
+        )
+        z[:] = data
+        del z
+
+        z = zarr.open_array(store, mode='r')
+        decoded = z[:]
+
+    assert isinstance(decoded, numpy.ndarray)
+    assert decoded.shape == data.shape
+    assert decoded.dtype == data.dtype
+    assert array_equal(decoded, data)
