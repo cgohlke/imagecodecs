@@ -109,7 +109,7 @@ def numpy_abi_version():
     return f'numpy_abi 0x{NPY_VERSION:X}.{NPY_FEATURE_VERSION}'
 
 
-def imcd_check(const uint8_t[::1] data, /):
+def imcd_check(const uint8_t[::1] data not None, /):
     """Return whether data is encoded or None if unknown."""
     return None if data.shape[0] >= 0 else False
 
@@ -133,6 +133,34 @@ def delta_encode(
     """Return DELTA encoded data.
 
     Preserve byteorder.
+    Integer arrays are differenced element-wise with wraparound.
+    Floating-point arrays are differenced as unsigned integers of the same
+    size (TIFF predictor 2 compatible).
+    Byte buffers are differenced byte-wise.
+
+    Parameters:
+        data:
+            Integer or floating-point array, or bytes-like object.
+        axis:
+            Array axis along which to difference.
+            Defaults to last axis.
+        dist:
+            Differencing distance. Only 1 is supported.
+        out:
+            Optional output array or buffer.
+            May be `data` for in-place operation.
+
+    Returns:
+        Differenced array of same shape and dtype as `data`,
+        or bytes for bytes-like `data`.
+
+    Raises:
+        ValueError:
+            If data dtype, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not 1.
+        DeltaError:
+            If encoding fails.
 
     """
     return _delta(data, axis, dist, out, 0)
@@ -148,7 +176,37 @@ def delta_decode(
 ):
     """Return decoded DELTA data.
 
-    Same as numpy.cumsum. Preserve byteorder.
+    Preserve byteorder.
+    Same as numpy.cumsum for integers.
+    Integer arrays are summed element-wise with wraparound.
+    Floating-point arrays are summed as unsigned integers of the same
+    size (TIFF predictor 2 compatible).
+    Byte buffers are summed byte-wise.
+
+    Parameters:
+        data:
+            DELTA encoded integer or floating-point array,
+            or bytes-like object.
+        axis:
+            Array axis along which to sum.
+            Defaults to last axis.
+        dist:
+            Differencing distance. Only 1 is supported.
+        out:
+            Optional output array or buffer.
+            May be `data` for in-place operation.
+
+    Returns:
+        Decoded array of same shape and dtype as `data`,
+        or bytes for bytes-like `data`.
+
+    Raises:
+        ValueError:
+            If data dtype, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not 1.
+        DeltaError:
+            If decoding fails.
 
     """
     return _delta(data, axis, dist, out, 1)
@@ -185,8 +243,15 @@ cdef _delta(
 
         isnative = data.dtype.isnative
 
+        # tifffile decodes predictors in-place into read-only buffers
         out = _create_array(
-            out, data.shape, data.dtype, strides=None, zero=False, contig=False
+            out,
+            data.shape,
+            data.dtype,
+            strides=None,
+            zero=False,
+            contig=False,
+            writable=out is not data,
         )
         if out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
@@ -286,7 +351,32 @@ def xor_encode(
     axis=-1,
     out=None,
 ):
-    """Return XOR encoded data."""
+    """Return XOR encoded data.
+
+    Each element is XORed with its preceding element along `axis`.
+    Byte buffers are encoded byte-wise.
+
+    Parameters:
+        data:
+            Integer or floating-point array, or bytes-like object.
+        axis:
+            Array axis along which to encode.
+            Defaults to last axis.
+        out:
+            Optional output array or buffer.
+            May be `data` for in-place operation.
+
+    Returns:
+        Encoded array of same shape and dtype as `data`,
+        or bytes for bytes-like `data`.
+
+    Raises:
+        ValueError:
+            If data dtype, axis, or output are invalid.
+        XorError:
+            If encoding fails.
+
+    """
     return _xor(data, axis, out, 0)
 
 
@@ -297,7 +387,30 @@ def xor_decode(
     axis=-1,
     out=None,
 ):
-    """Return decoded XOR data."""
+    """Return decoded XOR data.
+
+    Parameters:
+        data:
+            XOR encoded integer or floating-point array,
+            or bytes-like object.
+        axis:
+            Array axis along which to decode.
+            Defaults to last axis.
+        out:
+            Optional output array or buffer.
+            May be `data` for in-place operation.
+
+    Returns:
+        Decoded array of same shape and dtype as `data`,
+        or bytes for bytes-like `data`.
+
+    Raises:
+        ValueError:
+            If data dtype, axis, or output are invalid.
+        XorError:
+            If decoding fails.
+
+    """
     return _xor(data, axis, out, 1)
 
 
@@ -326,7 +439,13 @@ cdef _xor(
             raise ValueError('not an integer or floating-point array')
 
         out = _create_array(
-            out, data.shape, data.dtype, strides=None, zero=False, contig=False
+            out,
+            data.shape,
+            data.dtype,
+            strides=None,
+            zero=False,
+            contig=False,
+            writable=out is not data,
         )
         if out.shape != data.shape or out.dtype != data.dtype:
             raise ValueError('output is not compatible with data array')
@@ -426,6 +545,35 @@ def byteshuffle_encode(
     The output array should not be treated as numbers but as an encoded byte
     sequence viewed as a numpy array with shape and dtype of the input data.
 
+    Parameters:
+        data:
+            Numpy array with itemsize 2, 3, 4, or 8.
+        axis:
+            Array axis along which to shuffle.
+            Must be the last or second to last axis. If second to last,
+            the last axis contains interleaved samples.
+            Defaults to last axis.
+        dist:
+            Differencing distance in number of samples: 1, 2, or 4.
+        delta:
+            Difference shuffled bytes.
+        reorder:
+            Order bytes from most to least significant according to
+            dtype byteorder. Else, keep order of bytes in memory.
+        out:
+            Optional output array.
+
+    Returns:
+        Byte-shuffled data as array of same shape and dtype as `data`.
+
+    Raises:
+        ValueError:
+            If data, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not supported.
+        ByteshuffleError:
+            If encoding fails.
+
     """
     return _byteshuffle(data, axis, dist, delta, reorder, 0, out)
 
@@ -444,6 +592,38 @@ def byteshuffle_decode(
 
     The input array is not really an array of numbers but an encoded byte
     sequence viewed as a numpy array of requested output shape and dtype.
+
+    Parameters:
+        data:
+            Byte-shuffled data viewed as numpy array of output shape and
+            dtype with itemsize 2, 3, 4, or 8.
+            Must be contiguous on dimensions >= `axis`.
+        axis:
+            Array axis along which to unshuffle.
+            Must be the last or second to last axis. If second to last,
+            the last axis contains interleaved samples.
+            Defaults to last axis.
+        dist:
+            Differencing distance in number of samples: 1, 2, or 4.
+        delta:
+            Undo differencing of shuffled bytes.
+        reorder:
+            Bytes are ordered from most to least significant according to
+            dtype byteorder. Else, keep order of bytes in memory.
+        out:
+            Optional output array.
+            Must be contiguous on dimensions >= `axis`.
+
+    Returns:
+        Unshuffled array of same shape and dtype as `data`.
+
+    Raises:
+        ValueError:
+            If data, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not supported.
+        ByteshuffleError:
+            If decoding fails.
 
     """
     return _byteshuffle(data, axis, dist, delta, reorder, 1, out)
@@ -489,8 +669,10 @@ cdef _byteshuffle(
         raise ValueError('output is not compatible with data array')
 
     ndim = data.ndim
+    if ndim < 1:
+        raise ValueError('cannot transform 0-dimensional array')
     axis = axis % ndim
-    if ndim < 1 or ndim - axis > 2:
+    if ndim - axis > 2:
         raise ValueError(f'invalid {axis=}')
 
     samples = data.shape[axis+1] if ndim - axis == 2 else 1
@@ -573,6 +755,30 @@ def floatpred_encode(
     encoded byte sequence viewed as a numpy array with shape and dtype of the
     input data.
 
+    Parameters:
+        data:
+            Floating-point array with itemsize 2, 3, 4, or 8.
+        axis:
+            Array axis along which to predict.
+            Must be the last or second to last axis. If second to last,
+            the last axis contains interleaved samples.
+            Defaults to last axis.
+        dist:
+            Differencing distance in number of samples: 1, 2, or 4.
+        out:
+            Optional output array.
+
+    Returns:
+        Encoded data as array of same shape and dtype as `data`.
+
+    Raises:
+        ValueError:
+            If data, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not supported.
+        FloatpredError:
+            If encoding fails.
+
     """
     return _byteshuffle(data, axis, dist, True, True, False, out)
 
@@ -590,6 +796,33 @@ def floatpred_decode(
     The input array is not really an array of floating-point numbers but an
     encoded byte sequence viewed as a numpy array of requested output shape
     and dtype.
+
+    Parameters:
+        data:
+            Encoded data viewed as numpy array of output shape and dtype
+            with itemsize 2, 3, 4, or 8.
+            Must be contiguous on dimensions >= `axis`.
+        axis:
+            Array axis along which to unpredict.
+            Must be the last or second to last axis. If second to last,
+            the last axis contains interleaved samples.
+            Defaults to last axis.
+        dist:
+            Differencing distance in number of samples: 1, 2, or 4.
+        out:
+            Optional output array.
+            Must be contiguous on dimensions >= `axis`.
+
+    Returns:
+        Decoded floating-point array of same shape and dtype as `data`.
+
+    Raises:
+        ValueError:
+            If data, axis, or output are invalid.
+        NotImplementedError:
+            If `dist` is not supported.
+        FloatpredError:
+            If decoding fails.
 
     """
     return _byteshuffle(data, axis, dist, True, True, True, out)
@@ -609,7 +842,29 @@ def bitorder_encode(
     *,
     out=None,
 ):
-    """Return data with reversed bit-order in each byte."""
+    """Return data with reversed bit-order in each byte.
+
+    Parameters:
+        data:
+            Numpy array or bytes-like object.
+        out:
+            Optional output array or buffer.
+            May be `data` for in-place operation on writable arrays
+            or buffers.
+
+    Returns:
+        Array of same shape and dtype as `data`, or bytes for bytes-like
+        `data`, with reversed bit-order in each byte.
+        Returns `data` if operating in-place.
+
+    Raises:
+        ValueError:
+            If data is not writable for in-place operation,
+            or output is invalid.
+        BitorderError:
+            If encoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -767,7 +1022,28 @@ def packbits_encode(
     axis=None,
     out=None,
 ):
-    """Return PACKBITS encoded data."""
+    """Return PACKBITS encoded data.
+
+    Parameters:
+        data:
+            Numpy array or bytes-like object.
+        axis:
+            Array axis along which to separately encode runs.
+            Trailing dimensions are merged. Defaults to last axis.
+        out:
+            Optional output buffer.
+
+    Returns:
+        PACKBITS encoded data as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If `out` is `data`, `axis` is invalid, or data array is not
+            contiguous along `axis`.
+        PackbitsError:
+            If encoding fails.
+
+    """
     cdef:
         numpy.flatiter srciter
         const uint8_t[::1] src
@@ -784,7 +1060,9 @@ def packbits_encode(
         raise ValueError('cannot transform in-place')
 
     if isarray:
-        data = _array_input(data)
+        data = _array_input(
+            data, None, dtype=None, contig=True, empty=False, native=False
+        )
         if axis is None:
             axis = data.ndim - 1
         elif axis < 0:
@@ -799,6 +1077,8 @@ def packbits_encode(
             raise ValueError(
                 f'data array is not contiguous along axis {axis_}'
             )
+    else:
+        src = _readable_input(data)
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -814,7 +1094,7 @@ def packbits_encode(
                 else:
                     dstsize = 0
             else:
-                dstsize = imcd_packbits_encode_size(len(data))
+                dstsize = imcd_packbits_encode_size(src.shape[0])
         out = _create_output(outtype, dstsize)
 
     dst = out  # must be contiguous bytes
@@ -833,17 +1113,18 @@ def packbits_encode(
                     <uint8_t*> dstptr,
                     dstsize
                 )
+                if ret == 0 and srcsize > 0:
+                    ret = IMCD_OUTPUT_TOO_SMALL
                 if ret < 0:
                     break
                 dstptr = dstptr + ret
                 dstsize -= ret
-                if dstsize <= 0:
-                    break
                 numpy.PyArray_ITER_NEXT(srciter)
         if ret >= 0:
             ret = dstptr - <const uint8_t*> dst._data
     else:
-        src = _readable_input(data)
+        if isarray:
+            src = _readable_input(data)
         srcsize = src.shape[0]
         with nogil:
             ret = imcd_packbits_encode(
@@ -852,6 +1133,8 @@ def packbits_encode(
                 <uint8_t*> dst._data,
                 dstsize
             )
+            if ret == 0 and srcsize > 0:
+                ret = IMCD_OUTPUT_TOO_SMALL
     if ret < 0:
         raise PackbitsError('imcd_packbits_encode', ret)
 
@@ -866,7 +1149,24 @@ def packbits_decode(
     *,
     out=None,
 ):
-    """Return decoded PACKBITS data."""
+    """Return decoded PACKBITS data.
+
+    Parameters:
+        data:
+            PACKBITS encoded data.
+        out:
+            Optional output buffer.
+
+    Returns:
+        Decoded data as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If `out` is `data`.
+        PackbitsError:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -889,7 +1189,7 @@ def packbits_decode(
                 raise PackbitsError('imcd_packbits_decode_size', dstsize)
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     with nogil:
@@ -907,6 +1207,21 @@ def packbits_decode(
     return _return_output(out, dstsize, ret, outgiven)
 
 
+def packbits_info(const uint8_t[::1] data not None, /):
+    """Return information about PACKBITS encoded data."""
+    cdef:
+        ssize_t dstsize
+
+    with nogil:
+        dstsize = imcd_packbits_decode_size(
+            <const uint8_t*> data._data, data.shape[0]
+        )
+    if dstsize < 0:
+        raise PackbitsError('imcd_packbits_decode_size', dstsize)
+
+    return {'_codec': 'packbits', 'size': dstsize}
+
+
 # DICOM RLE ###################################################################
 
 # https://dicom.nema.org/medical/Dicom/current/output/chtml/part05/sect_8.2.2.html
@@ -920,7 +1235,7 @@ ctypedef struct dicomrle_header:
     uint32_t offset[15]
 
 
-def dicomrle_check(const uint8_t[::1] data, /):
+def dicomrle_check(const uint8_t[::1] data not None, /):
     """Return whether data is DICOMRLE encoded data or None if unknown."""
     cdef:
         ssize_t segment
@@ -946,7 +1261,19 @@ def dicomrle_encode(
     *,
     out=None,
 ):
-    """Return DICOMRLE encoded data."""
+    """Return DICOMRLE encoded data (not implemented).
+
+    Parameters:
+        data:
+            Data to encode.
+        out:
+            Optional output buffer.
+
+    Raises:
+        NotImplementedError:
+            Always.
+
+    """
     raise NotImplementedError('dicomrle_encode')
 
 
@@ -956,8 +1283,30 @@ def dicomrle_decode(
     dtype,
     *,
     out=None,
+    bint _info=False,
 ):
-    """Return decoded DICOMRLE data."""
+    """Return decoded DICOMRLE data.
+
+    Parameters:
+        data:
+            DICOM RLE encoded data, including 64-byte header.
+        dtype:
+            Data type of decoded samples.
+            The number of RLE segments must be a multiple of its itemsize.
+        out:
+            Optional output buffer.
+
+    Returns:
+        Decoded data as bytes or in `out`.
+        Samples are interleaved and in byte order of `dtype`.
+
+    Raises:
+        ValueError:
+            If `out` is `data`, or header or segments are invalid.
+        DicomrleError:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -975,6 +1324,12 @@ def dicomrle_decode(
     memcpy(<void*> &header, <const void*> src._data, 64)
     if header.segments == 0 or header.segments > 15 or header.offset[0] != 64:
         raise ValueError(f'invalid DICOM RLE {header.segments=}')
+    for segment in range(<ssize_t> header.segments):
+        if <ssize_t> header.offset[segment] >= srcsize or (
+            segment > 0
+            and header.offset[segment] <= header.offset[segment - 1]
+        ):
+            raise ValueError(f'invalid DICOM RLE offset of {segment=}')
 
     dtype = numpy.dtype(dtype)
     itemsize = dtype.itemsize
@@ -1006,9 +1361,16 @@ def dicomrle_decode(
                     # all decoded segments in a sample have the same size
                     dstsize += itemsize * ret
                     segment += itemsize
+        if _info:
+            return {
+                '_codec': 'dicomrle',
+                'size': dstsize,
+                'dtype': dtype,
+                'samples': header.segments // itemsize,
+            }
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     with nogil:
@@ -1049,6 +1411,11 @@ def dicomrle_decode(
     return _return_output(out, dstsize, decoded_size, outgiven)
 
 
+def dicomrle_info(data, /, dtype):
+    """Return information about DICOMRLE encoded data."""
+    return dicomrle_decode(data, dtype, _info=True)
+
+
 # Packed Integers #############################################################
 
 PACKINTS = IMCD
@@ -1074,6 +1441,31 @@ def packints_encode(
     None: TIFF MSB-first continuous bitstream (default, bps 1-32 and 64).
     '<': GenICam LSB-first continuous bitstream (bps 9-14, e.g. MONO12p).
     '>': GigE Vision MSB-first paired-pixel (bps 10 or 12, e.g. MONO12 packed).
+
+    Parameters:
+        data:
+            Integer array to pack.
+            Itemsize must fit `bitspersample`.
+            Must be little-endian uint16 if `bitorder` is specified.
+        bitspersample:
+            Number of bits per integer.
+        bitorder:
+            Packing scheme: None, '<', or '>'.
+        runlen:
+            Number of integers per run. Each run is padded to the next byte
+            boundary. Defaults to all integers in one run.
+            Not supported with `bitorder`.
+        out:
+            Optional output buffer.
+
+    Returns:
+        Packed integers as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If parameters, data, or output are invalid.
+        PackintsError:
+            If encoding fails.
 
     """
     cdef:
@@ -1161,7 +1553,7 @@ def packints_encode(
 
     # TIFF MSB-first continuous bitstream (default)
     if bitspersample < 1 or (bitspersample > 32 and bitspersample != 64):
-        raise ValueError('bitspersample out of range')
+        raise ValueError(f'{bitspersample=} out of range')
 
     bytesize = <ssize_t> ceil(bitspersample / 8.0)
     itemsize = bytesize if bytesize < 3 else (8 if bytesize > 4 else 4)
@@ -1169,9 +1561,15 @@ def packints_encode(
     data = numpy.asarray(data, order='C')
     if data.dtype.itemsize != itemsize:
         raise ValueError('dtype.itemsize does not fit bitspersample')
+    if not data.dtype.isnative:
+        data = data.astype(data.dtype.newbyteorder('='))
 
+    if runlen < 0:
+        raise ValueError(f'invalid {runlen=}')
     if runlen == 0:
         runlen = data.size
+    elif data.size % runlen:
+        raise ValueError(f'{data.size=} is not a multiple of {runlen=}')
 
     # bytes per run, padded to the next byte boundary
     rowsize = <ssize_t> (
@@ -1231,6 +1629,7 @@ def packints_decode(
     bitorder=None,
     ssize_t runlen=0,
     out=None,
+    bint _info=False,
 ):
     """Return unpacked integers.
 
@@ -1240,6 +1639,33 @@ def packints_decode(
     None: TIFF MSB-first continuous bitstream (default, bps 1-32 and 64).
     '<': GenICam LSB-first continuous bitstream (bps 9-14, e.g. MONO12p).
     '>': GigE Vision MSB-first paired-pixel (bps 10 or 12, e.g. MONO12 packed).
+
+    Parameters:
+        data:
+            Packed integers.
+        dtype:
+            Data type of unpacked integers.
+            Itemsize must fit `bitspersample`.
+            Must be uint16 if `bitorder` is specified.
+        bitspersample:
+            Number of bits per integer.
+        bitorder:
+            Packing scheme: None, '<', or '>'.
+        runlen:
+            Number of integers per run. Each run is padded to the next byte
+            boundary. Defaults to all integers in one run.
+            Not supported with `bitorder`.
+        out:
+            Optional writable, contiguous output array of `dtype`.
+
+    Returns:
+        Unpacked integers as 1D array of `dtype`.
+
+    Raises:
+        ValueError:
+            If parameters, data, or output are invalid.
+        PackintsError:
+            If decoding fails.
 
     """
     cdef:
@@ -1251,6 +1677,9 @@ def packints_decode(
         ssize_t items
         ssize_t rowsize, bytesize, itemsize, i
         ssize_t ret = 0
+        uint64_t rowsize64, count64
+        bint swap = False
+        uint8_t* dstbase = NULL
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -1271,7 +1700,7 @@ def packints_decode(
                 raise ValueError(
                     'bitspersample out of range for lsb bitorder'
                 )
-            items = (srcsize * 8) // bitspersample
+            items = <ssize_t> ((<uint64_t> srcsize * 8) // bitspersample)
         else:
             # GigE Vision MSB-first paired-pixel
             if bitspersample != 10 and bitspersample != 12:
@@ -1284,12 +1713,21 @@ def packints_decode(
                 )
             items = (srcsize // 3) * 2
 
+        if _info:
+            return {
+                '_codec': 'packints',
+                'shape': (items,),
+                'dtype': dtype,
+                'bitspersample': bitspersample,
+            }
+
         if out is None:
             out = numpy.empty(items, numpy.uint16)
         elif (
             not isinstance(out, numpy.ndarray)
             or out.dtype != numpy.uint16
             or out.size < items
+            or not out.flags.writeable
         ):
             raise ValueError('invalid output type, size, or dtype')
         elif not numpy.PyArray_ISCONTIGUOUS(out):
@@ -1318,7 +1756,7 @@ def packints_decode(
 
     # TIFF MSB-first continuous bitstream (default)
     if bitspersample < 1 or (bitspersample > 32 and bitspersample != 64):
-        raise ValueError('bitspersample out of range')
+        raise ValueError(f'{bitspersample=} out of range')
 
     bytesize = <ssize_t> ceil(bitspersample / 8.0)
     itemsize = bytesize if bytesize < 3 else (8 if bytesize > 4 else 4)
@@ -1330,20 +1768,32 @@ def packints_decode(
     if dtype.itemsize != itemsize:
         raise ValueError('dtype.itemsize does not fit bitspersample')
 
+    if runlen < 0:
+        raise ValueError(f'invalid {runlen=}')
     if runlen == 0:
         runlen = <ssize_t> (
             (<uint64_t> srcsize * 8) / <uint64_t> bitspersample
         )
 
     # bytes per run, padded to the next byte boundary
-    rowsize = <ssize_t> (
-        (<uint64_t> runlen * <uint64_t> bitspersample + 7) / 8
-    )
-
-    if rowsize > 0:
-        dstsize = (srcsize // rowsize) * runlen
+    rowsize64 = (<uint64_t> runlen * <uint64_t> bitspersample + 7) // 8
+    if rowsize64 > 0 and rowsize64 <= <uint64_t> srcsize:
+        count64 = (<uint64_t> srcsize // rowsize64) * <uint64_t> runlen
+        if count64 > <uint64_t> (SSIZE_MAX // itemsize):
+            raise ValueError('data size out of range')
+        rowsize = <ssize_t> rowsize64
+        dstsize = <ssize_t> count64
     else:
+        rowsize = 0
         dstsize = 0
+
+    if _info:
+        return {
+            '_codec': 'packints',
+            'shape': (dstsize,),
+            'dtype': dtype,
+            'bitspersample': bitspersample,
+        }
 
     if out is None:
         out = numpy.empty(dstsize, dtype)
@@ -1351,6 +1801,7 @@ def packints_decode(
         not isinstance(out, numpy.ndarray)
         or out.dtype != dtype
         or out.size < dstsize
+        or not out.flags.writeable
     ):
         raise ValueError('invalid output type, size, or dtype')
     elif not numpy.PyArray_ISCONTIGUOUS(out):
@@ -1359,6 +1810,8 @@ def packints_decode(
         return out
 
     dstptr = <uint8_t*> numpy.PyArray_DATA(out)
+    dstbase = dstptr
+    swap = not dtype.isnative
 
     with nogil:
         # work around "Converting to Python object not allowed without gil"
@@ -1376,15 +1829,33 @@ def packints_decode(
             srcptr += rowsize
             dstptr += runlen * itemsize
 
-    if ret < 0:
-        raise PackintsError('imcd_packints_decode', ret)
+        if ret < 0:
+            raise PackintsError('imcd_packints_decode', ret)
 
-    if not dtype.isnative and bitspersample % 8:
-        dstptr = <uint8_t*> numpy.PyArray_DATA(out)
-        with nogil:
-            imcd_swapbytes(<void*> dstptr, dstsize, itemsize)
+        if swap:
+            imcd_swapbytes(<void*> dstbase, dstsize, itemsize)
 
     return out
+
+
+def packints_info(
+    data,
+    dtype,
+    int bitspersample,
+    /,
+    *,
+    bitorder=None,
+    ssize_t runlen=0,
+):
+    """Return information about packed integers."""
+    return packints_decode(
+        data,
+        dtype,
+        bitspersample,
+        bitorder=bitorder,
+        runlen=runlen,
+        _info=True,
+    )
 
 
 # 24-bit Floating Point #######################################################
@@ -1418,7 +1889,29 @@ def float24_encode(
     rounding=None,
     out=None,
 ):
-    """Return FLOAT24 encoded array."""
+    """Return FLOAT24 encoded array.
+
+    Parameters:
+        data:
+            Float32 array in native byte order.
+        byteorder:
+            Byte order of encoded values: '<', '>', or '='.
+            Defaults to native.
+        rounding:
+            Rounding mode. Defaults to `FLOAT24.ROUND.TONEAREST`.
+        out:
+            Optional output buffer.
+
+    Returns:
+        FLOAT24 encoded data as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If data, byteorder, or output are invalid.
+        Float24Error:
+            If encoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -1484,7 +1977,27 @@ def float24_decode(
     byteorder=None,
     out=None,
 ):
-    """Return decoded FLOAT24 array."""
+    """Return decoded FLOAT24 array.
+
+    Parameters:
+        data:
+            FLOAT24 encoded data. Size must be a multiple of 3.
+        byteorder:
+            Byte order of encoded values: '<', '>', or '='.
+            Defaults to native.
+        out:
+            Optional writable, contiguous, native float32 output array.
+
+    Returns:
+        Decoded values as 1D float32 array.
+
+    Raises:
+        ValueError:
+            If data, byteorder, or output are invalid.
+        Float24Error:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t* srcptr = <const uint8_t*> src._data
@@ -1514,6 +2027,7 @@ def float24_decode(
         not isinstance(out, numpy.ndarray)
         or out.dtype != numpy.float32  # must be native
         or out.size < srcsize // 3
+        or not out.flags.writeable
     ):
         raise ValueError('invalid output type, size, or dtype')
     elif not numpy.PyArray_ISCONTIGUOUS(out):
@@ -1567,7 +2081,29 @@ def bfloat16_encode(
     rounding=None,
     out=None,
 ):
-    """Return BFLOAT16 encoded array."""
+    """Return BFLOAT16 encoded array.
+
+    Parameters:
+        data:
+            Float32 array in native byte order.
+        byteorder:
+            Byte order of encoded values: '<', '>', or '='.
+            Defaults to native.
+        rounding:
+            Rounding mode. Defaults to `BFLOAT16.ROUND.TONEAREST`.
+        out:
+            Optional output buffer.
+
+    Returns:
+        BFLOAT16 encoded data as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If data, byteorder, or output are invalid.
+        Bfloat16Error:
+            If encoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -1633,7 +2169,27 @@ def bfloat16_decode(
     byteorder=None,
     out=None,
 ):
-    """Return decoded BFLOAT16 array."""
+    """Return decoded BFLOAT16 array.
+
+    Parameters:
+        data:
+            BFLOAT16 encoded data. Size must be a multiple of 2.
+        byteorder:
+            Byte order of encoded values: '<', '>', or '='.
+            Defaults to native.
+        out:
+            Optional writable, contiguous, native float32 output array.
+
+    Returns:
+        Decoded values as 1D float32 array.
+
+    Raises:
+        ValueError:
+            If data, byteorder, or output are invalid.
+        Bfloat16Error:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t* srcptr = <const uint8_t*> src._data
@@ -1663,6 +2219,7 @@ def bfloat16_decode(
         not isinstance(out, numpy.ndarray)
         or out.dtype != numpy.float32  # must be native
         or out.size < srcsize // 2
+        or not out.flags.writeable
     ):
         raise ValueError('invalid output type, size, or dtype')
     elif not numpy.PyArray_ISCONTIGUOUS(out):
@@ -1695,7 +2252,7 @@ EerError = ImcdError
 eer_version = imcd_version
 
 
-def eer_check(const uint8_t[::1] data, /):
+def eer_check(const uint8_t[::1] data not None, /):
     """Return whether data is EER encoded or None if unknown."""
     return None if data.shape[0] >= 0 else False
 
@@ -1711,7 +2268,40 @@ def eer_decode(
     uint32_t superres=0,
     out=None,
 ):
-    """Return decoded EER image."""
+    """Return decoded EER image.
+
+    Parameters:
+        data:
+            EER encoded frame.
+        shape:
+            Shape (height, width) of decoded image, including
+            super-resolution factors.
+        skipbits:
+            Number of bits encoding pixel skips (4 to 14).
+        horzbits:
+            Number of bits encoding horizontal sub-pixel position (1 to 4).
+        vertbits:
+            Number of bits encoding vertical sub-pixel position (1 to 4).
+        superres:
+            Number of sub-pixel bits used for super-resolution.
+            Defaults to 0 (no super-resolution).
+        out:
+            Optional output array of `shape`.
+            If uint16, electron events are added to existing counts.
+            Else, bool.
+
+    Returns:
+        Decoded electron events as bool array, or event counts in uint16
+        `out` array.
+
+    Raises:
+        ValueError:
+            If `out` is `data`, bit parameters are invalid, or `shape` is
+            incompatible with super-resolution.
+        EerError:
+            If decoding fails.
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -1720,21 +2310,22 @@ def eer_decode(
         ssize_t height = shape[0]
         ssize_t width = shape[1]
         uint8_t* dstptr
+        bint zero = out is None or isinstance(out, int | numpy.integer)
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
     if not (
-        1 < skipbits < 15
+        3 < skipbits < 15
         and 0 < horzbits < 5
         and 0 < vertbits < 5
         and 8 < skipbits + horzbits + vertbits < 17
     ):
         raise ValueError(f'invalid {skipbits=}, {horzbits=}, or {vertbits=}')
 
-    if (
-        superres
-        and (height % (2 ** vertbits) or width % (2 ** horzbits))
+    if superres and (
+        height % (2 ** min(vertbits, superres))
+        or width % (2 ** min(horzbits, superres))
     ):
         raise ValueError('shape not compatible with superresolution')
 
@@ -1743,7 +2334,7 @@ def eer_decode(
         or not (isinstance(out, numpy.ndarray) and out.dtype.char == 'H')
     ):
         out = _create_array(
-            out, shape, numpy.bool_, strides=None, zero=out is None
+            out, shape, numpy.bool_, strides=None, zero=zero
         )
     else:
         out = _create_array(
@@ -1768,6 +2359,11 @@ def eer_decode(
             )
         if ret < 0:
             raise EerError('imcd_eer_decode', ret)
+        if out.dtype == numpy.bool_ and not zero:
+            # events added to a provided bool array must stay 0 or 1
+            numpy.minimum(
+                out.view(numpy.uint8), 1, out=out.view(numpy.uint8)
+            )
     else:
         with nogil:
             ret = imcd_eer_decode_u2(
@@ -1793,7 +2389,19 @@ def eer_encode(
     *,
     out=None,
 ):
-    """Return EER encoded image (not implemented)."""
+    """Return EER encoded image (not implemented).
+
+    Parameters:
+        data:
+            Image to encode.
+        out:
+            Optional output buffer.
+
+    Raises:
+        NotImplementedError:
+            Always.
+
+    """
     raise NotImplementedError('eer_encode')
 
 
@@ -1807,12 +2415,32 @@ LzwError = ImcdError
 lzw_version = imcd_version
 
 
-def lzw_check(const uint8_t[::1] data, /):
+def lzw_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZW encoded or None if unknown."""
     return (
         data.shape[0] >= 2
         and bool(imcd_lzw_check(<const uint8_t*> data._data, data.shape[0]))
     )
+
+
+def lzw_info(const uint8_t[::1] data not None, /):
+    """Return information about LZW encoded data."""
+    cdef:
+        imcd_lzw_handle_t* handle = NULL
+        ssize_t dstsize
+
+    with nogil:
+        handle = imcd_lzw_new()
+        if handle == NULL:
+            raise LzwError('imcd_lzw_new', None)
+        dstsize = imcd_lzw_decode_size(
+            handle, <const uint8_t*> data._data, data.shape[0]
+        )
+        imcd_lzw_del(handle)
+        if dstsize < 0:
+            raise LzwError('imcd_lzw_decode_size', dstsize)
+
+    return {'_codec': 'lzw', 'size': dstsize}
 
 
 def lzw_decode(
@@ -1821,7 +2449,24 @@ def lzw_decode(
     *,
     out=None,
 ):
-    """Return decoded LZW data."""
+    """Return decoded LZW data.
+
+    Parameters:
+        data:
+            TIFF LZW encoded data.
+        out:
+            Optional output buffer.
+
+    Returns:
+        Decoded data as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If `out` is `data`.
+        LzwError:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -1849,7 +2494,7 @@ def lzw_decode(
                     raise LzwError('imcd_lzw_decode_size', dstsize)
             out = _create_output(outtype, dstsize)
 
-        dst = out
+        dst = _inplace_input(out) if outgiven else out
         dstsize = dst.shape[0]
 
         with nogil:
@@ -1875,7 +2520,22 @@ def lzw_encode(
     *,
     out=None,
 ):
-    """Return LZW encoded data."""
+    """Return LZW encoded data.
+
+    Parameters:
+        data:
+            Data to encode.
+        out:
+            Optional output buffer.
+
+    Returns:
+        TIFF LZW encoded data as bytes or in `out`.
+
+    Raises:
+        LzwError:
+            If encoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = _readable_input(data, out)
         const uint8_t[::1] dst  # must be const to write to bytes
