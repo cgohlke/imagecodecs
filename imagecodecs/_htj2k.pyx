@@ -61,7 +61,7 @@ class Htj2kError(RuntimeError):
     """HTJ2K codec exceptions."""
 
 
-def htj2k_init(verbose=None):
+def htj2k_init(*, verbose=None):
     """Initialize HTJ2K codec."""
     cdef:
         OJPH_MSG_LEVEL msglevel = OJPH_MSG_NO_MSG
@@ -82,17 +82,32 @@ def htj2k_version():
     )
 
 
-def htj2k_check(const uint8_t[::1] data, /):
+def htj2k_check(const uint8_t[::1] data not None, /):
     """Return whether data is HTJ2K encoded or None if unknown."""
     cdef:
-        bytes sig = bytes(data[:12])
+        ssize_t size = data.shape[0]
+        ssize_t pos, end
 
-    # TODO: is there a more specific JPH signature?
-    return (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2
-        or sig[:4] == b'\xff\x4f\xff\x51'  # J2K
-        # or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2 ?
-    )
+    if _startswith(data, b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'):
+        # JPH files list 'jph ' brand in ftyp box
+        if size < 24 or not _startswith(data, b'ftyp', 16):
+            return False
+        end = min(size, 12 + int.from_bytes(data[12:16], 'big'))
+        for pos in range(20, end - 3, 4):
+            if _startswith(data, b'jph ', pos):
+                return True
+        return False
+
+    if _startswith(data, b'\xff\x4f\xff\x51'):
+        # HTJ2K codestreams require a CAP marker segment following SIZ
+        if size < 6:
+            return None
+        pos = 4 + ((<ssize_t> data[4] << 8) | data[5])
+        if pos + 2 > size:
+            return None
+        return data[pos] == 0xFF and data[pos + 1] == 0x50
+
+    return False
 
 
 def htj2k_encode(
@@ -119,6 +134,61 @@ def htj2k_encode(
     signed 32-bit integers with an NLT type 3 marker. Lossless roundtrip
     requires reversible=True. Lossy encoding is possible but quantization
     errors in bit-pattern space translate to large errors in float values.
+    No color transform is applied to float32 samples, so multi-sample
+    images decode as planar unless htj2k_decode is called with planar=False.
+
+    Args:
+        data:
+            Image to encode.
+            Integer (8, 16, or 32-bit) or float32 array of shape
+            (height, width), (height, width, samples), or
+            (samples, height, width) if `planar` is True.
+        level:
+            Quantization level.
+            Values in [0.0, 1.0] specify the quantization step size
+            (0 for lossless). Values in (1.0, 100.0] specify a JPEG-like
+            quality factor. By default, the image is encoded losslessly.
+        rgb:
+            Apply color transform to non-planar images.
+            By default, the transform is applied to images with 3 or 4
+            samples. Requires at least 3 samples.
+        planar:
+            Samples are stored in first dimension of `data`.
+        bitspersample:
+            Number of significant bits per sample.
+            By default, the bit depth of the data type.
+        tile:
+            Tile size as (width, height).
+            By default, the image is encoded as a single tile.
+        resolutions:
+            Number of resolution levels in [1, 33].
+            Limited by the image and tile size. By default, 6.
+        reversible:
+            Use reversible wavelet transform.
+            By default, True if encoding losslessly.
+        tlm:
+            Write tile-part length markers.
+        tilepart:
+            Tile-part divisions.
+            Combination of HTJ2K.TILEPART flags: RESOLUTIONS, COMPONENTS.
+        block_size:
+            Code-block size as (width, height).
+            By default, (64, 64).
+        prog_order:
+            Progression order.
+            One of 'LRCP', 'RLCP', 'RPCL', 'PCRL', or 'CPRL'.
+        profile:
+            Codestream profile, 'IMF' or 'BROADCAST'.
+        out:
+            Output destination.
+            None, bytes, bytearray, writable buffer, or output size.
+
+    Returns:
+        HTJ2K codestream.
+
+    Raises:
+        Htj2kError: OpenJPH library error.
+        ValueError: Invalid image layout or parameter.
 
     """
     cdef:
@@ -131,7 +201,8 @@ def htj2k_encode(
         size_t out_len
         ssize_t itemsize = src.itemsize
         ui32 tile_w, tile_h, c
-        ui32 decompositions = 0 if resolutions is None else resolutions
+        ui32 decompositions = 0
+        bint set_decompositions = resolutions is not None
         float qfactor = 0.0
         float qstep = 0.0
         bint is_signed = src.dtype.kind == 'i'
@@ -149,13 +220,6 @@ def htj2k_encode(
         ui32 max_decomp = 0
         int ret
         imagelayout_t layout
-
-    # htj2k-specific planar auto-detection:
-    # if planar is not explicitly set and the array looks like (S, H, W)
-    # (i.e. shape[2] > 4 and shape[0] <= 4), treat as planar
-    if planar is None and src.ndim == 3:
-        if src.shape[2] > 4 and src.shape[0] <= 4:
-            planar = True
 
     _image_layout(
         IC_UINT
@@ -185,7 +249,12 @@ def htj2k_encode(
     if is_float:
         if itemsize != 4:
             raise ValueError('only float32 is supported')
+        if layout.bitspersample != 32:
+            raise ValueError('float32 requires bitspersample=32')
         is_signed = True  # float32 bits are encoded as signed 32-bit integers
+
+    if set_decompositions:
+        decompositions = _default_value(resolutions, 6, 1, 33) - 1
 
     if tile is None:
         tile_w = 0
@@ -194,6 +263,8 @@ def htj2k_encode(
             raise ValueError('single tile size must not exceed 4 GB')
     else:
         tile_w, tile_h = tile
+        if tile_w == 0 or tile_h == 0:
+            raise ValueError(f'invalid {tile=}')
 
     if tilepart is not None:
         tilepart = _enum_value(tilepart, HTJ2K.TILEPART)
@@ -215,10 +286,13 @@ def htj2k_encode(
         qstep = 1.0 / 16384.0
 
     if layout.samples > 1 and not layout.planar and not is_float:
-        if (
-            rgb or
-            (rgb is None and (layout.samples == 3 or layout.samples == 4))
-        ):
+        if rgb is None:
+            color_transform = layout.samples == 3 or layout.samples == 4
+        elif rgb:
+            if layout.samples < 3:
+                raise ValueError(
+                    f'rgb requires at least 3 samples, got {layout.samples}'
+                )
             color_transform = True
 
     if profile is not None:
@@ -231,6 +305,8 @@ def htj2k_encode(
 
     if block_size is not None:
         block_w, block_h = block_size
+        if block_w == 0 or block_h == 0:
+            raise ValueError(f'invalid {block_size=}')
 
     try:
         with nogil:
@@ -254,7 +330,7 @@ def htj2k_encode(
                     c, point(1, 1), <ui32> layout.bitspersample, is_signed
                 )
             cs.access_cod().set_reversible(is_reversible)
-            if decompositions > 0:
+            if set_decompositions:
                 min_dim = (
                     <ui32> layout.width
                     if layout.width < layout.height
@@ -363,6 +439,8 @@ def htj2k_encode(
 
         out, dstsize, outgiven, outtype = _parse_output(out)
         if out is None:
+            if 0 <= dstsize < <ssize_t> out_len:
+                raise ValueError('output too small')
             out = _create_output(outtype, out_len)
         dst = out
         dstsize = dst.shape[0]
@@ -395,12 +473,42 @@ def htj2k_decode(
     skipres=None,
     resilient=False,
     out=None,
+    bint _info=False,
 ):
     """Return decoded HTJ2K image.
 
-    Images are returned as float32 if they were encoded with a nonlinear
-    transform. Otherwise, the dtype is determined by the bit depth and
-    signedness of the encoded image.
+    Signed 32-bit images encoded with a binary complement nonlinear
+    transform (NLT type 3) are returned as float32. Otherwise, the dtype is
+    determined by the bit depth and signedness of the encoded image.
+
+    If `planar` is None, multi-component images are returned in the
+    layout of the codestream (samples first if planar), unless a color
+    transform is used. This differs from other codecs, which return
+    samples last by default.
+
+    Args:
+        data:
+            HTJ2K codestream or JPH file.
+        planar:
+            Return samples in first dimension.
+            Ignored for images using a color transform.
+        skipres:
+            Number of highest resolution levels to skip.
+            Integer or (skipped_for_data, skipped_for_reconstruction).
+        resilient:
+            Enable resilience to codestream errors.
+        out:
+            Output array.
+            Must match shape and dtype of the decoded image.
+
+    Returns:
+        Decoded image array.
+
+    Raises:
+        Htj2kError:
+            OpenJPH library error.
+        ValueError:
+            Unsupported bit depth, mixed components, or subsampled components.
 
     """
     cdef:
@@ -414,6 +522,7 @@ def htj2k_decode(
         ui32 bit_depth, c
         ssize_t height, width, samples, itemsize
         bint is_rgb, is_signed, is_planar, to_planar
+        int planar_ = -1 if planar is None else (1 if planar else 0)
         bint is_resilient = resilient
         bint is_float = False
         cppbool signed_nlt = 0
@@ -425,10 +534,10 @@ def htj2k_decode(
         raise ValueError('cannot transform in-place')
 
     if skipres is not None:
-        try:
-            skipped_res_for_data, skipped_res_for_recon = skipres
-        except Exception:
+        if isinstance(skipres, int | numpy.integer):
             skipped_res_for_data = skipped_res_for_recon = skipres
+        else:
+            skipped_res_for_data, skipped_res_for_recon = skipres
 
     try:
         with nogil:
@@ -442,6 +551,10 @@ def htj2k_decode(
             cs.restrict_input_resolution(
                 skipped_res_for_data, skipped_res_for_recon
             )
+            is_rgb = cs.access_cod().is_using_color_transform()
+            if planar_ >= 0 and not is_rgb:
+                # pull lines in the requested output order
+                cs.set_planar(<bint> planar_)
             cs.create()
 
             # height = cs.access_siz().get_recon_height().y
@@ -451,15 +564,19 @@ def htj2k_decode(
             samples = cs.access_siz().get_num_components()
             bit_depth = cs.access_siz().get_bit_depth(0)
             is_signed = cs.access_siz().is_signed(0)
-            is_rgb = cs.access_cod().is_using_color_transform()
             is_planar = cs.is_planar()
-            if cs.access_nlt().get_nonlinear_transform(
-                0, bd_nlt, signed_nlt, nl_type
+            if (
+                bit_depth == 32
+                and is_signed
+                and cs.access_nlt().get_nonlinear_transform(
+                    0, bd_nlt, signed_nlt, nl_type
+                )
             ):
                 is_float = nl_type == <ui8> 3  # OJPH_NLT_BINARY_COMPLEMENT_NLT
 
             # TODO: is this necessary/correct?
             # TODO: find dtype compatible with all components?
+            # TODO: tests/data/htj2k-codestreams/testfiles_jph/file3_b11.jph
             for c in range(<ui32> samples):
                 if (
                     bit_depth != cs.access_siz().get_bit_depth(c)
@@ -472,7 +589,7 @@ def htj2k_decode(
                         f'{is_signed=} != {cs.access_siz().is_signed(c)}, '
                         'or downsampling=('
                         f'{cs.access_siz().get_downsampling(c).y}, '
-                        f'{cs.access_siz().get_downsampling(c).x}) != (1, 1)'
+                        f'{cs.access_siz().get_downsampling(c).x}) != (1, 1) '
                         f'for component {c}'
                     )
 
@@ -502,6 +619,15 @@ def htj2k_decode(
             dtype = f'i{itemsize}'
         else:
             dtype = f'u{itemsize}'
+
+        if _info:
+            return {
+                '_codec': 'htj2k',
+                'shape': shape,
+                'dtype': numpy.dtype(dtype),
+                'bitspersample': int(bit_depth),
+                **_htj2k_info(cs, to_planar),
+            }
 
         out = _create_array(out, shape, dtype, None, True)
         dst = out
@@ -593,6 +719,63 @@ def htj2k_decode(
             del file
 
     return out
+
+
+def htj2k_info(
+    data,
+    /,
+    *,
+    planar=None,
+    skipres=None,
+    resilient=False,
+):
+    """Return information about decoded HTJ2K image.
+
+    Arguments are the same as for :py:func:`htj2k_decode`.
+
+    """
+    return htj2k_decode(
+        data,
+        planar=planar,
+        skipres=skipres,
+        resilient=resilient,
+        _info=True,
+    )
+
+
+cdef dict _htj2k_info(codestream* cs, bint planar):
+    """Return metadata of HTJ2K codestream after reading headers."""
+    cdef:
+        ui32 width = (
+            cs.access_siz().get_image_extent().x
+            - cs.access_siz().get_image_offset().x
+        )
+        ui32 height = (
+            cs.access_siz().get_image_extent().y
+            - cs.access_siz().get_image_offset().y
+        )
+        ui32 tile_w = cs.access_siz().get_tile_size().w
+        ui32 tile_h = cs.access_siz().get_tile_size().h
+        ui32 block_w = cs.access_cod().get_block_dims().w
+        ui32 block_h = cs.access_cod().get_block_dims().h
+
+    tile = None
+    if tile_w < width or tile_h < height:
+        tile = (int(tile_w), int(tile_h))
+
+    return {
+        'rgb': True if cs.access_cod().is_using_color_transform() else False,
+        'planar': (
+            planar if cs.access_siz().get_num_components() > 1 else None
+        ),
+        'tile': tile,
+        'resolutions': int(cs.access_cod().get_num_decompositions()) + 1,
+        'reversible': True if cs.access_cod().is_reversible() else False,
+        'block_size': (int(block_w), int(block_h)),
+        'prog_order': (
+            cs.access_cod().get_progression_order_as_string().decode()
+        ),
+    }
 
 
 ctypedef fused data_t:
