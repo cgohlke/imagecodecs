@@ -56,7 +56,7 @@ class OpenzlError(RuntimeError):
             const char* error = ZL_ErrorCode_toString(<ZL_ErrorCode> err)
 
         msg = f'unknown error {err!r}' if error == NULL else error.decode()
-        msg = f'{func} returned {msg}'
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -70,7 +70,7 @@ def openzl_version():
     )
 
 
-def openzl_check(const uint8_t[::1] data, /):
+def openzl_check(const uint8_t[::1] data not None, /):
     """Return whether data is OpenZL encoded or None if unknown."""
     cdef:
         ZL_FrameInfo* fi
@@ -112,6 +112,7 @@ def openzl_decode(
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
+        size_t size
         ZL_Report res
 
     if data is out:
@@ -127,10 +128,13 @@ def openzl_decode(
                 )
             if ZL_isError(res):
                 raise OpenzlError('ZL_getDecompressedSize', ZL_errorCode(res))
-            dstsize = <ssize_t> ZL_validResult(res)
+            size = ZL_validResult(res)
+            if size > <size_t> PY_SSIZE_T_MAX:
+                raise ValueError(f'decompressed size {size} too large')
+            dstsize = <ssize_t> size
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     with nogil:
@@ -143,7 +147,7 @@ def openzl_decode(
     if ZL_isError(res):
         raise OpenzlError('ZL_decompress', ZL_errorCode(res))
 
-    dstsize = <ssize_t> ZL_validResult(res)
+    size = ZL_validResult(res)
 
     del dst
-    return _return_output(out, dstsize, dstsize, outgiven)
+    return _return_output(out, dstsize, <ssize_t> size, outgiven)
