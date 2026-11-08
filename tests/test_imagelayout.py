@@ -31,8 +31,16 @@
 
 """Unittests for the imagecodecs._shared.image_layout function."""
 
+from __future__ import annotations
+
+import sys
+from typing import TYPE_CHECKING
+
 import numpy
 import pytest
+
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
 
 pytest.importorskip('imagecodecs._shared')
 
@@ -46,13 +54,13 @@ from imagecodecs._shared import (
 )
 
 
-def test_image_layout_0d():
+def test_image_layout_0d() -> None:
     """Test that 0-dimensional array raises."""
     with pytest.raises(ValueError, match='0-dimensional'):
         image_layout((), numpy.uint8)
 
 
-def test_image_layout_1d():
+def test_image_layout_1d() -> None:
     """Test 1D array -> single scanline, gray."""
     r = image_layout((100,), numpy.uint8)
     assert isinstance(r, ImageLayout)
@@ -64,7 +72,7 @@ def test_image_layout_1d():
     assert r.depth == 1
 
 
-def test_image_layout_1d_photo_hint():
+def test_image_layout_1d_photo_hint() -> None:
     """Test 1D array with photometric hint: gray ok, multi-sample rejects."""
     r = image_layout((100,), numpy.uint8, photometric='gray')
     assert r.photometric == Photometric.GRAY
@@ -72,7 +80,7 @@ def test_image_layout_1d_photo_hint():
         image_layout((100,), numpy.uint8, photometric='rgb')
 
 
-def test_image_layout_2d_gray():
+def test_image_layout_2d_gray() -> None:
     """Test 2D array -> height x width, gray."""
     r = image_layout((64, 128), numpy.uint8)
     assert r.height == 64
@@ -83,7 +91,7 @@ def test_image_layout_2d_gray():
     assert r.depth == 1
 
 
-def test_image_layout_3d_rgb():
+def test_image_layout_3d_rgb() -> None:
     """Test (H, W, 3) -> RGB."""
     r = image_layout((48, 64, 3), numpy.uint8)
     assert r.height == 48
@@ -93,7 +101,7 @@ def test_image_layout_3d_rgb():
     assert r.extracount == 0
 
 
-def test_image_layout_3d_rgb_autodetect():
+def test_image_layout_3d_rgb_autodetect() -> None:
     """Test RGB auto-detect for allowed dtypes and sample counts."""
     # uint8 (H,W,3) -> RGB
     r = image_layout((48, 64, 3), dtype=numpy.uint8)
@@ -132,7 +140,7 @@ def test_image_layout_3d_rgb_autodetect():
     assert r.samples == 5
 
 
-def test_image_layout_3d_no_rgb_autodetect():
+def test_image_layout_3d_no_rgb_autodetect() -> None:
     """Test dtypes that should NOT auto-detect as RGB."""
     # int16 (H,W,3) -> gray (sint excluded)
     r = image_layout(
@@ -171,7 +179,7 @@ def test_image_layout_3d_no_rgb_autodetect():
     assert r.samples == 3
 
 
-def test_image_layout_3d_rgba():
+def test_image_layout_3d_rgba() -> None:
     """Test (H, W, 4) -> RGB + 1 extra."""
     r = image_layout((48, 64, 4), numpy.uint8)
     assert r.photometric == Photometric.RGB
@@ -181,7 +189,7 @@ def test_image_layout_3d_rgba():
     assert r.extraindex == 3
 
 
-def test_image_layout_3d_gray_alpha():
+def test_image_layout_3d_gray_alpha() -> None:
     """Test (H, W, 2) -> gray + alpha, not mistaken for frames."""
     r = image_layout((48, 64, 2), numpy.uint8)
     assert r.photometric == Photometric.GRAY
@@ -192,7 +200,7 @@ def test_image_layout_3d_gray_alpha():
     assert r.frames == 1
 
 
-def test_image_layout_3d_gray_single():
+def test_image_layout_3d_gray_single() -> None:
     """Test (H, W, 1) -> gray, no extra."""
     r = image_layout((48, 64, 1), numpy.uint8)
     assert r.photometric == Photometric.GRAY
@@ -201,7 +209,7 @@ def test_image_layout_3d_gray_single():
     assert r.frames == 1
 
 
-def test_image_layout_3d_frames_hint():
+def test_image_layout_3d_frames_hint() -> None:
     """Test (N, H, W) with frames=True -> N frames, gray."""
     r = image_layout((10, 48, 64), numpy.uint8, frames=True)
     assert r.frames == 10
@@ -211,7 +219,7 @@ def test_image_layout_3d_frames_hint():
     assert r.photometric == Photometric.GRAY
 
 
-def test_image_layout_3d_gray_photo_hint():
+def test_image_layout_3d_gray_photo_hint() -> None:
     """Test (H, W, 3) with photometric=GRAY and extrasample -> gray+extras."""
     r = image_layout(
         (48, 64, 3),
@@ -224,7 +232,7 @@ def test_image_layout_3d_gray_photo_hint():
     assert r.extracount == 2
 
 
-def test_image_layout_3d_ambiguous_no_frames_cap():
+def test_image_layout_3d_ambiguous_no_frames_cap() -> None:
     """Test 3D ambiguous with codec that lacks IC.FRAMES -> channels."""
     caps = IC.GRAY | IC.RGB | IC.UINT | IC.SZ1 | IC.ALPHA | IC.EXTRA
     r = image_layout((10, 48, 64), numpy.uint8, caps=int(caps))
@@ -232,7 +240,53 @@ def test_image_layout_3d_ambiguous_no_frames_cap():
     assert r.frames == 1
 
 
-def test_image_layout_3d_ambiguous_heuristic_small():
+@pytest.mark.parametrize(
+    ('shape', 'extracount', 'extratype'),
+    [
+        ((48, 64, 2), 1, ExtraSample.UNASSALPHA),
+        ((48, 64, 4), 3, ExtraSample.UNSPECIFIED),
+        ((1, 48, 64, 2), 1, ExtraSample.UNASSALPHA),
+    ],
+)
+def test_image_layout_gray_hint_no_frames_cap(
+    shape: tuple[int, ...], extracount: int, extratype: ExtraSample
+) -> None:
+    """Test gray hint with codec lacking IC.FRAMES -> gray + extra samples."""
+    caps = IC.GRAY | IC.UINT | IC.SZ1 | IC.ALPHA | IC.EXTRA
+    r = image_layout(shape, numpy.uint8, photometric='gray', caps=int(caps))
+    assert r.photometric == Photometric.GRAY
+    assert r.frames == 1
+    assert r.height == 48
+    assert r.width == 64
+    assert r.samples == shape[-1]
+    assert r.extracount == extracount
+    assert r.extratype == extratype
+
+
+def test_image_layout_gray_hint_frames_cap() -> None:
+    """Test gray hint with codec supporting IC.FRAMES -> frames."""
+    caps = IC.GRAY | IC.UINT | IC.SZ1 | IC.FRAMES
+    r = image_layout(
+        (10, 48, 64), numpy.uint8, photometric='gray', caps=int(caps)
+    )
+    assert r.frames == 10
+    assert r.samples == 1
+
+
+def test_image_layout_frames_true_no_frames_cap() -> None:
+    """Test explicit frames=True is not overridden by missing IC.FRAMES."""
+    caps = IC.GRAY | IC.UINT | IC.SZ1 | IC.EXTRA
+    with pytest.raises(ValueError, match='frames'):
+        image_layout(
+            (5, 48, 64),
+            numpy.uint8,
+            photometric='gray',
+            frames=True,
+            caps=int(caps),
+        )
+
+
+def test_image_layout_3d_ambiguous_heuristic_small() -> None:
     """Test 3D ambiguous heuristic: trailing dim <= 4 -> channels."""
     r = image_layout((10, 48, 3), numpy.uint8)
     assert r.samples == 3
@@ -240,7 +294,7 @@ def test_image_layout_3d_ambiguous_heuristic_small():
     assert r.frames == 1
 
 
-def test_image_layout_3d_ambiguous_heuristic_large():
+def test_image_layout_3d_ambiguous_heuristic_large() -> None:
     """Test 3D ambiguous heuristic: trailing dim > 4 -> no channels."""
     r = image_layout((10, 48, 64), numpy.uint8)
     assert r.samples == 1
@@ -248,7 +302,7 @@ def test_image_layout_3d_ambiguous_heuristic_large():
     assert r.photometric == Photometric.GRAY
 
 
-def test_image_layout_4d_frames_rgb():
+def test_image_layout_4d_frames_rgb() -> None:
     """Test (N, H, W, 3) -> N frames of RGB."""
     r = image_layout((5, 48, 64, 3), numpy.uint8)
     assert r.frames == 5
@@ -258,7 +312,7 @@ def test_image_layout_4d_frames_rgb():
     assert r.photometric == Photometric.RGB
 
 
-def test_image_layout_4d_volumetric_rgb():
+def test_image_layout_4d_volumetric_rgb() -> None:
     """Test (D, H, W, 3) with volumetric=True."""
     r = image_layout((8, 48, 64, 3), numpy.uint8, volumetric=True)
     assert r.depth == 8
@@ -269,7 +323,7 @@ def test_image_layout_4d_volumetric_rgb():
     assert r.frames == 1
 
 
-def test_image_layout_4d_volumetric_gray():
+def test_image_layout_4d_volumetric_gray() -> None:
     """Test (D, H, W) with volumetric=True."""
     r = image_layout((8, 48, 64), numpy.uint8, volumetric=True)
     assert r.depth == 8
@@ -280,7 +334,7 @@ def test_image_layout_4d_volumetric_gray():
     assert r.frames == 1
 
 
-def test_image_layout_5d_frames_volumetric_rgb():
+def test_image_layout_5d_frames_volumetric_rgb() -> None:
     """Test (N, D, H, W, S) with volumetric=True."""
     r = image_layout((2, 4, 48, 64, 3), numpy.uint8, volumetric=True)
     assert r.frames == 2
@@ -289,7 +343,7 @@ def test_image_layout_5d_frames_volumetric_rgb():
     assert r.photometric == Photometric.RGB
 
 
-def test_image_layout_planar_3d():
+def test_image_layout_planar_3d() -> None:
     """Test (S, H, W) with planar=True -> planar RGB."""
     r = image_layout((3, 48, 64), numpy.uint8, planar=True)
     assert r.planar is True
@@ -300,7 +354,7 @@ def test_image_layout_planar_3d():
     assert r.frames == 1
 
 
-def test_image_layout_planar_4d_frames():
+def test_image_layout_planar_4d_frames() -> None:
     """Test (N, S, H, W) with planar=True -> N frames of planar."""
     r = image_layout((5, 3, 48, 64), numpy.uint8, planar=True)
     assert r.planar is True
@@ -308,7 +362,7 @@ def test_image_layout_planar_4d_frames():
     assert r.samples == 3
 
 
-def test_image_layout_planar_volumetric():
+def test_image_layout_planar_volumetric() -> None:
     """Test (S, D, H, W) with planar=True and volumetric=True."""
     r = image_layout((3, 8, 48, 64), numpy.uint8, planar=True, volumetric=True)
     assert r.planar is True
@@ -317,13 +371,13 @@ def test_image_layout_planar_volumetric():
     assert r.photometric == Photometric.RGB
 
 
-def test_image_layout_planar_ndim_too_small():
+def test_image_layout_planar_ndim_too_small() -> None:
     """Test planar with ndim < 3 raises."""
     with pytest.raises(ValueError, match='planar requires'):
         image_layout((48, 64), numpy.uint8, planar=True)
 
 
-def test_image_layout_volumetric_ndim_too_small():
+def test_image_layout_volumetric_ndim_too_small() -> None:
     """Test volumetric with ndim < 3 raises."""
     with pytest.raises(ValueError, match='volumetric requires'):
         image_layout((48, 64), numpy.uint8, volumetric=True)
@@ -345,7 +399,9 @@ def test_image_layout_volumetric_ndim_too_small():
         (numpy.bool_, SampleFormat.BOOL),
     ],
 )
-def test_image_layout_sampleformat(dtype, expected_sf):
+def test_image_layout_sampleformat(
+    dtype: DTypeLike, expected_sf: SampleFormat
+) -> None:
     """Test sampleformat is correctly inferred from dtype."""
     r = image_layout((64, 64), dtype=dtype)
     assert r.sampleformat == expected_sf
@@ -361,14 +417,14 @@ def test_image_layout_sampleformat(dtype, expected_sf):
         (numpy.complex128, 16),
     ],
 )
-def test_image_layout_itemsize(dtype, expected_isz):
+def test_image_layout_itemsize(dtype: DTypeLike, expected_isz: int) -> None:
     """Test itemsize is correctly inferred from dtype."""
     r = image_layout((64, 64), dtype=dtype)
     assert r.itemsize == expected_isz
     assert r.bitspersample == expected_isz * 8
 
 
-def test_image_layout_bool_dtype():
+def test_image_layout_bool_dtype() -> None:
     """Test bool dtype produces SF_BOOL with itemsize 1."""
     r = image_layout((64, 64), dtype=numpy.bool_)
     assert r.sampleformat == SampleFormat.BOOL
@@ -376,13 +432,13 @@ def test_image_layout_bool_dtype():
     assert r.bitspersample == 8
 
 
-def test_image_layout_bps_default():
+def test_image_layout_bps_default() -> None:
     """Test bitspersample defaults to itemsize * 8."""
     r = image_layout((64, 64), dtype=numpy.uint16)
     assert r.bitspersample == 16
 
 
-def test_image_layout_bps_custom_with_cap():
+def test_image_layout_bps_custom_with_cap() -> None:
     """Test custom bitspersample accepted when IC.BPS in caps."""
     caps = IC.GRAY | IC.UINT | IC.SZ2 | IC.BPS
     r = image_layout(
@@ -391,7 +447,7 @@ def test_image_layout_bps_custom_with_cap():
     assert r.bitspersample == 12
 
 
-def test_image_layout_bps_custom_no_cap():
+def test_image_layout_bps_custom_no_cap() -> None:
     """Test custom bitspersample rejected when IC.BPS not in caps."""
     caps = IC.GRAY | IC.UINT | IC.SZ2
     with pytest.raises(ValueError, match=r'bitspersample.*custom'):
@@ -400,7 +456,7 @@ def test_image_layout_bps_custom_no_cap():
         )
 
 
-def test_image_layout_bps_same_as_native():
+def test_image_layout_bps_same_as_native() -> None:
     """Test bitspersample hint matching native passes without IC.BPS."""
     caps = IC.GRAY | IC.UINT | IC.SZ2
     r = image_layout(
@@ -409,20 +465,20 @@ def test_image_layout_bps_same_as_native():
     assert r.bitspersample == 16
 
 
-def test_image_layout_bps_no_caps():
+def test_image_layout_bps_no_caps() -> None:
     """Test custom bitspersample with caps=0 (no validation)."""
     r = image_layout((64, 64), dtype=numpy.uint16, bitspersample=12)
     assert r.bitspersample == 12
 
 
 @pytest.mark.parametrize('bps', [0, -1, -8, 17, 32])
-def test_image_layout_bps_out_of_range(bps):
+def test_image_layout_bps_out_of_range(bps: int) -> None:
     """Test bitspersample outside 1..itemsize*8 raises."""
     with pytest.raises(ValueError, match='out of range'):
         image_layout((64, 64), dtype=numpy.uint16, bitspersample=bps)
 
 
-def test_image_layout_bps_dtype_mismatch():
+def test_image_layout_bps_dtype_mismatch() -> None:
     """Test dtype too wide for bitspersample raises."""
     # https://github.com/cgohlke/imagecodecs/issues/153
     with pytest.raises(ValueError, match='requires dtype itemsize=1'):
@@ -444,7 +500,9 @@ def test_image_layout_bps_dtype_mismatch():
         ('palette', Photometric.PALETTE),
     ],
 )
-def test_image_layout_photometric_string(name, expected):
+def test_image_layout_photometric_string(
+    name: str, expected: Photometric
+) -> None:
     """Test photometric string normalization."""
     r = image_layout((64, 64, 3), numpy.uint8, photometric=name)
     assert r.photometric == expected
@@ -459,39 +517,41 @@ def test_image_layout_photometric_string(name, expected):
         ('cielab', Photometric.CIELAB),
     ],
 )
-def test_image_layout_photometric_string_multi(name, expected):
+def test_image_layout_photometric_string_multi(
+    name: str, expected: Photometric
+) -> None:
     """Test photometric string normalization for multi-sample types."""
     r = image_layout((64, 64, 4), numpy.uint8, photometric=name)
     assert r.photometric == expected
 
 
-def test_image_layout_photometric_int():
+def test_image_layout_photometric_int() -> None:
     """Test photometric as integer."""
     r = image_layout((64, 64, 4), numpy.uint8, photometric=Photometric.CMYK)
     assert r.photometric == Photometric.CMYK
 
 
-def test_image_layout_photometric_invalid():
+def test_image_layout_photometric_invalid() -> None:
     """Test invalid photometric string raises."""
     with pytest.raises(ValueError, match='not recognised'):
         image_layout((64, 64, 3), numpy.uint8, photometric='INVALID')
 
 
 @pytest.mark.parametrize('val', [True, 'SEPARATE', 'separate'])
-def test_image_layout_planar_true_strings(val):
+def test_image_layout_planar_true_strings(*, val: str | bool) -> None:
     """Test planar=True from boolean or 'SEPARATE' string."""
     r = image_layout((3, 48, 64), numpy.uint8, planar=val)
     assert r.planar is True
 
 
 @pytest.mark.parametrize('val', [False, 'CONTIG', 'contig'])
-def test_image_layout_planar_false_strings(val):
+def test_image_layout_planar_false_strings(*, val: str | bool) -> None:
     """Test planar=False from boolean or 'CONTIG' string."""
     r = image_layout((48, 64, 3), numpy.uint8, planar=val)
     assert r.planar is False
 
 
-def test_image_layout_planar_invalid():
+def test_image_layout_planar_invalid() -> None:
     """Test invalid planar string raises."""
     with pytest.raises(ValueError, match=r'planar.*not recognised'):
         image_layout((3, 48, 64), numpy.uint8, planar='INVALID')
@@ -508,13 +568,15 @@ def test_image_layout_planar_invalid():
         ('straight', ExtraSample.UNASSALPHA),
     ],
 )
-def test_image_layout_extrasample_string(val, expected):
+def test_image_layout_extrasample_string(
+    val: str, expected: ExtraSample
+) -> None:
     """Test extrasample string normalization."""
     r = image_layout((48, 64, 4), numpy.uint8, extrasample=val)
     assert r.extratype == expected
 
 
-def test_image_layout_extrasample_int():
+def test_image_layout_extrasample_int() -> None:
     """Test extrasample as integer."""
     r = image_layout(
         (48, 64, 4), numpy.uint8, extrasample=ExtraSample.ASSOCALPHA
@@ -522,13 +584,22 @@ def test_image_layout_extrasample_int():
     assert r.extratype == ExtraSample.ASSOCALPHA
 
 
-def test_image_layout_extrasample_invalid():
+def test_image_layout_extrasample_invalid() -> None:
     """Test invalid extrasample raises."""
     with pytest.raises(ValueError, match='not recognised'):
         image_layout((48, 64, 4), numpy.uint8, extrasample='INVALID')
+    for value in (-1, 3, 256):
+        with pytest.raises(ValueError, match='not recognised'):
+            image_layout((48, 64, 4), numpy.uint8, extrasample=value)
 
 
-def test_image_layout_alpha_single_extra_auto():
+def test_image_layout_ndim_too_large() -> None:
+    """Test shape with more than 32 dimensions raises."""
+    with pytest.raises(ValueError, match='maximum of 32'):
+        image_layout((1,) * 31 + (48, 64), numpy.uint8)
+
+
+def test_image_layout_alpha_single_extra_auto() -> None:
     """Test single unspecified extra -> auto UNASSALPHA."""
     r = image_layout((48, 64, 4), numpy.uint8)  # RGB + 1 extra
     assert r.extratype == ExtraSample.UNASSALPHA
@@ -536,7 +607,16 @@ def test_image_layout_alpha_single_extra_auto():
     assert r.extracount == 1
 
 
-def test_image_layout_alpha_multiple_extras_no_auto():
+def test_image_layout_alpha_single_extra_explicit_unspecified() -> None:
+    """Test explicit UNSPECIFIED extrasample -> no auto alpha."""
+    r = image_layout((48, 64, 4), numpy.uint8, extrasample='unspecified')
+    assert r.photometric == Photometric.RGB
+    assert r.extratype == ExtraSample.UNSPECIFIED
+    assert r.extraindex == 0
+    assert r.extracount == 1
+
+
+def test_image_layout_alpha_multiple_extras_no_auto() -> None:
     """Test multiple extras with no hint -> no auto alpha."""
     r = image_layout(
         (48, 64, 5), numpy.uint8, photometric='rgb'
@@ -546,7 +626,7 @@ def test_image_layout_alpha_multiple_extras_no_auto():
     assert r.extracount == 2
 
 
-def test_image_layout_alpha_with_hint():
+def test_image_layout_alpha_with_hint() -> None:
     """Test alpha with explicit hint on multi-extra."""
     r = image_layout((48, 64, 5), numpy.uint8, extrasample='associated')
     assert r.extratype == ExtraSample.ASSOCALPHA
@@ -554,7 +634,7 @@ def test_image_layout_alpha_with_hint():
     assert r.extracount == 2
 
 
-def test_image_layout_no_extra_no_alpha():
+def test_image_layout_no_extra_no_alpha() -> None:
     """Test exact-fit photometric -> no alpha, no extra."""
     r = image_layout((48, 64, 3), numpy.uint8)  # exactly RGB
     assert r.extratype == ExtraSample.UNSPECIFIED
@@ -562,69 +642,69 @@ def test_image_layout_no_extra_no_alpha():
     assert r.extracount == 0
 
 
-def test_image_layout_caps_zero_skips():
+def test_image_layout_caps_zero_skips() -> None:
     """Test caps=0 skips all validation."""
     r = image_layout((48, 64, 3), dtype=numpy.float32)  # no caps -> passes
     assert r.sampleformat == SampleFormat.FLOAT
 
 
-def test_image_layout_caps_reject_sf():
+def test_image_layout_caps_reject_sf() -> None:
     """Test caps rejects unsupported sample format."""
     caps = IC.UINT | IC.SZ4 | IC.GRAY | IC.RGB
     with pytest.raises(ValueError, match='sample format'):
         image_layout((48, 64), dtype=numpy.float32, caps=int(caps))
 
 
-def test_image_layout_caps_reject_sz():
+def test_image_layout_caps_reject_sz() -> None:
     """Test caps rejects unsupported item size."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY
     with pytest.raises(ValueError, match='item size'):
         image_layout((48, 64), dtype=numpy.uint16, caps=int(caps))
 
 
-def test_image_layout_caps_reject_photo():
+def test_image_layout_caps_reject_photo() -> None:
     """Test caps rejects unsupported photometric."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY  # no IC.RGB
     with pytest.raises(ValueError, match='photometric'):
         image_layout((48, 64, 3), numpy.uint8, caps=int(caps))
 
 
-def test_image_layout_caps_reject_frames():
+def test_image_layout_caps_reject_frames() -> None:
     """Test caps rejects frames when IC.FRAMES not set."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY
     with pytest.raises(ValueError, match='frames'):
         image_layout((5, 48, 64), numpy.uint8, frames=True, caps=int(caps))
 
 
-def test_image_layout_caps_reject_alpha():
+def test_image_layout_caps_reject_alpha() -> None:
     """Test caps rejects alpha when IC.ALPHA not set."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY | IC.RGB
     with pytest.raises(ValueError, match='alpha'):
         image_layout((48, 64, 4), numpy.uint8, caps=int(caps))
 
 
-def test_image_layout_caps_reject_extra():
+def test_image_layout_caps_reject_extra() -> None:
     """Test caps rejects multiple extras when IC.EXTRA not set."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY | IC.RGB | IC.ALPHA
     with pytest.raises(ValueError, match='extra samples'):
         image_layout((48, 64, 6), numpy.uint8, caps=int(caps))
 
 
-def test_image_layout_caps_reject_planar():
+def test_image_layout_caps_reject_planar() -> None:
     """Test caps rejects planar when IC.PLANAR not set."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY | IC.RGB
     with pytest.raises(ValueError, match='planar'):
         image_layout((3, 48, 64), numpy.uint8, planar=True, caps=int(caps))
 
 
-def test_image_layout_caps_reject_volumetric():
+def test_image_layout_caps_reject_volumetric() -> None:
     """Test caps rejects volumetric when IC.DEPTH not set."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY
     with pytest.raises(ValueError, match='volumetric'):
         image_layout((8, 48, 64), numpy.uint8, volumetric=True, caps=int(caps))
 
 
-def test_image_layout_caps_accept():
+def test_image_layout_caps_accept() -> None:
     """Test caps accept with all matching flags."""
     caps = (
         IC.UINT
@@ -651,7 +731,7 @@ def test_image_layout_caps_accept():
     assert r.extratype == ExtraSample.ASSOCALPHA
 
 
-def test_image_layout_caps_bool():
+def test_image_layout_caps_bool() -> None:
     """Test IC.BOOL cap required for bool dtype."""
     caps = IC.UINT | IC.SZ1 | IC.GRAY
     with pytest.raises(ValueError, match='sample format'):
@@ -662,13 +742,13 @@ def test_image_layout_caps_bool():
     assert r.sampleformat == SampleFormat.BOOL
 
 
-def test_image_layout_samples_less_than_photo():
+def test_image_layout_samples_less_than_photo() -> None:
     """Test samples < photo_samples raises."""
     with pytest.raises(ValueError, match=r'samples.*less than'):
         image_layout((48, 64, 2), numpy.uint8, photometric='rgb')
 
 
-def test_image_layout_enum_types():
+def test_image_layout_enum_types() -> None:
     """Test returned values are proper enum types."""
     r = image_layout((48, 64, 3), numpy.uint8)
     assert isinstance(r.photometric, Photometric)
@@ -676,7 +756,7 @@ def test_image_layout_enum_types():
     assert isinstance(r.extratype, ExtraSample)
 
 
-def test_image_layout_intflag():
+def test_image_layout_intflag() -> None:
     """Test IC IntFlag composition."""
     flags = IC.GRAY | IC.RGB | IC.UINT | IC.SZ1
     assert isinstance(flags, IC)
@@ -684,7 +764,7 @@ def test_image_layout_intflag():
     assert IC.CMYK not in flags
 
 
-def test_image_layout_cmyk():
+def test_image_layout_cmyk() -> None:
     """Test CMYK with 4 samples."""
     r = image_layout((48, 64, 4), numpy.uint8, photometric='cmyk')
     assert r.photometric == Photometric.CMYK
@@ -692,7 +772,7 @@ def test_image_layout_cmyk():
     assert r.extracount == 0
 
 
-def test_image_layout_cmyka():
+def test_image_layout_cmyka() -> None:
     """Test CMYK+alpha with 5 samples."""
     r = image_layout((48, 64, 5), numpy.uint8, photometric='cmyk')
     assert r.photometric == Photometric.CMYK
@@ -701,7 +781,7 @@ def test_image_layout_cmyka():
     assert r.extratype == ExtraSample.UNASSALPHA
 
 
-def test_image_layout_multi_batch_frames():
+def test_image_layout_multi_batch_frames() -> None:
     """Test (2, 3, 48, 64, 3) -> frames=6."""
     r = image_layout((2, 3, 48, 64, 3), numpy.uint8)
     assert r.frames == 6
@@ -709,7 +789,7 @@ def test_image_layout_multi_batch_frames():
     assert r.photometric == Photometric.RGB
 
 
-def test_image_layout_3d_photo_gray_no_channels():
+def test_image_layout_3d_photo_gray_no_channels() -> None:
     """Test (N, H, W) with photometric=gray (1 sample) -> frames."""
     r = image_layout((10, 48, 64), numpy.uint8, photometric='gray')
     assert r.frames == 10
@@ -717,7 +797,7 @@ def test_image_layout_3d_photo_gray_no_channels():
     assert r.photometric == Photometric.GRAY
 
 
-def test_image_layout_4d_gray_photo_hint_frames():
+def test_image_layout_4d_gray_photo_hint_frames() -> None:
     """Test (N, H, W, 1) with photometric=gray -> N frames, not H*N frames."""
     r = image_layout((10, 48, 64, 1), numpy.uint8, photometric='gray')
     assert r.frames == 10
@@ -727,7 +807,7 @@ def test_image_layout_4d_gray_photo_hint_frames():
     assert r.photometric == Photometric.GRAY
 
 
-def test_image_layout_5d_gray_photo_hint_frames():
+def test_image_layout_5d_gray_photo_hint_frames() -> None:
     """Test 5D with single-sample photometric hint."""
     # (2, 3, 2, 4, 3) with photometric='gray' must produce 12 frames of 4x3
     # gray images, NOT 6 frames of 4x3 with 2 samples (channels) misinterpreted
@@ -756,14 +836,52 @@ def test_image_layout_5d_gray_photo_hint_frames():
     assert r.samples == 1
 
 
-def test_image_layout_3d_frames_false():
+def test_image_layout_3d_frames_false() -> None:
     """Test (H, W, S) with frames=False forces channel interpretation."""
     r = image_layout((48, 64, 64), numpy.uint8, frames=False)
     assert r.frames == 1
     assert r.samples == 64
 
+    # frames=False takes precedence over single-sample photometric hint
+    r = image_layout(
+        (48, 64, 3), numpy.uint8, photometric='gray', frames=False
+    )
+    assert r.frames == 1
+    assert r.samples == 3
+    assert r.photometric == Photometric.GRAY
+    assert r.extracount == 2
 
-def test_image_layout_be():
+
+def test_image_layout_negative_dimension() -> None:
+    """Test negative dimensions raise regardless of caps."""
+    caps = IC.GRAY | IC.UINT | IC.SZ1
+    with pytest.raises(ValueError, match='negative'):
+        image_layout((48, -1), numpy.uint8)
+    with pytest.raises(ValueError, match='negative'):
+        image_layout((48, -1), numpy.uint8, caps=int(caps | IC.EMPTY))
+    with pytest.raises(ValueError, match='non-positive'):
+        image_layout((48, 0), numpy.uint8, caps=int(caps))
+    r = image_layout((48, 0), numpy.uint8, caps=int(caps | IC.EMPTY))
+    assert r.width == 0
+
+
+def test_image_layout_frames_overflow() -> None:
+    """Test frame count overflow raises."""
+    big = sys.maxsize // 2 + 1
+    with pytest.raises(ValueError, match='overflow'):
+        image_layout((big, 4, 48, 64), numpy.uint8, photometric='gray')
+
+
+def test_image_layout_extratype_without_extras() -> None:
+    """Test extrasample hint without extra samples yields UNSPECIFIED."""
+    r = image_layout((48, 64, 3), numpy.uint8, extrasample='associated')
+    assert r.photometric == Photometric.RGB
+    assert r.extracount == 0
+    assert r.extraindex == 0
+    assert r.extratype == ExtraSample.UNSPECIFIED
+
+
+def test_image_layout_be() -> None:
     """Test big-endian dtype rejected when IC_BE not in caps."""
     # reject >u2 without IC_BE in caps
     caps = IC.UINT | IC.SZ2 | IC.GRAY
@@ -789,7 +907,3 @@ def test_image_layout_be():
     # caps=0 skips validation
     r = image_layout((48, 64), dtype='>u2')
     assert r.itemsize == 2
-
-
-# mypy: allow-untyped-defs
-# mypy: check-untyped-defs=False
