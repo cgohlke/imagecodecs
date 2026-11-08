@@ -557,6 +557,16 @@ ccitt_bitstream_peek_lut(
 }
 
 
+/* Return whether no bits are left in the bitstream. */
+static inline int
+ccitt_bitstream_exhausted(
+    ccitt_bitstream_t *bs)
+{
+    ccitt_bitstream_fill(bs, 1);
+    return bs->bits < 1;
+}
+
+
 /**************************** CCITT 1D Line Decoder **************************/
 
 /* Decode one line of 1D (Modified Huffman) coded data.
@@ -595,7 +605,7 @@ ccitt_decode_1d_line(
              * Commit the pending run if it fills the remaining pixels.
              * In either case break without consuming any bits so that the
              * caller can resynchronize via EOL detection. */
-            if (run > 0 && pos + run == rowlen) {
+            if (run > 0 && run == rowlen - pos) {
                 memset(dst + pos, (uint8_t)color, (size_t)run);
                 pos = rowlen;
                 run = 0;
@@ -622,14 +632,16 @@ ccitt_decode_1d_line(
 
         if (CCITT_LUT_IS_MAKEUP(value)) {
             /* makeup code: accumulate run length, continue same color */
-            run += CCITT_LUT_MAKEUP_RUNLEN(value);
+            if (run <= PTRDIFF_MAX - 4096) {
+                run += CCITT_LUT_MAKEUP_RUNLEN(value);
+            }
             continue;
         }
 
         /* Terminating code: value is run length 0-63 */
         run += (ssize_t)value;
 
-        if (pos + run > rowlen) {
+        if (run > rowlen - pos) {
             run = rowlen - pos;
         }
 
@@ -797,7 +809,9 @@ ccitt_decode_run(
         }
 
         if (CCITT_LUT_IS_MAKEUP(value)) {
-            run += CCITT_LUT_MAKEUP_RUNLEN(value);
+            if (run <= PTRDIFF_MAX - 4096) {
+                run += CCITT_LUT_MAKEUP_RUNLEN(value);
+            }
             continue;
         }
 
@@ -909,7 +923,11 @@ ccitt_decode_2d_line(
         /* Read up to 7 bits for 2D mode code (Table 4/T.4) */
         ccitt_bitstream_fill(bs, 7);
         if (bs->bits < 1) {
-            break;  /* input exhausted */
+            if (a0 < 0) {
+                /* exhausted before any row progress */
+                return CCITT_VALUE_ERROR;
+            }
+            break;  /* input exhausted mid-row, fill rest with white */
         }
 
         bits = ccitt_bitstream_peek(bs, 7);
@@ -1003,7 +1021,7 @@ ccitt_decode_2d_line(
             }
 
             /* Fill first run with a0's color */
-            if (start + run1 > rowlen) {
+            if (run1 > rowlen - start) {
                 run1 = rowlen - start;
             }
             if (run1 > 0) {
@@ -1016,7 +1034,7 @@ ccitt_decode_2d_line(
             start += run1;
 
             /* Fill second run with opposite color */
-            if (start + run2 > rowlen) {
+            if (run2 > rowlen - start) {
                 run2 = rowlen - start;
             }
             if (run2 > 0) {
@@ -1106,7 +1124,7 @@ ssize_t ccitt_rle_decode_size(
             if (run < 0) {
                 goto ccitt_rle_size_done;
             }
-            pos += run;
+            pos = (run > rowlen - pos) ? rowlen : pos + run;
             color ^= 1;
         }
         nrows++;
@@ -1138,7 +1156,7 @@ ccitt_rle_size_done:
 }
 
 
-/* Decode CCITTRLE. */
+/* Decode CCITTRLE. Return number of decoded rows. */
 ssize_t ccitt_rle_decode(
     const uint8_t* src,
     const ssize_t srcsize,
@@ -1172,6 +1190,10 @@ ssize_t ccitt_rle_decode(
         uint8_t *line = dst + row * rowlen;
         int ret;
 
+        if (ccitt_bitstream_exhausted(&bs)) {
+            break;
+        }
+
         ret = ccitt_decode_1d_line(&bs, line, rowlen);
         if (ret < 0) {
             return (ssize_t)ret;
@@ -1190,7 +1212,7 @@ ssize_t ccitt_rle_decode(
         ccitt_find_eol(&bs, 0);
     }
 
-    return ccitt_safe_product(nrows, rowlen);
+    return row;
 }
 
 
@@ -1300,7 +1322,7 @@ ssize_t ccitt_fax3_decode_size(
 }
 
 
-/* Decode CCITTFAX3. */
+/* Decode CCITTFAX3. Return number of decoded rows. */
 ssize_t ccitt_fax3_decode(
     const uint8_t* src,
     const ssize_t srcsize,
@@ -1354,6 +1376,10 @@ ssize_t ccitt_fax3_decode(
         uint8_t *line = dst + row * rowlen;
         int ret;
 
+        if (ccitt_bitstream_exhausted(&bs)) {
+            break;
+        }
+
         if (twod) {
             /* In 2D mode, a tag bit after the EOL indicates the encoding:
              *   1 = 1D-coded line
@@ -1399,7 +1425,7 @@ ssize_t ccitt_fax3_decode(
         free(refline);
     }
 
-    return ccitt_safe_product(nrows, rowlen);
+    return row;
 }
 
 
@@ -1460,11 +1486,17 @@ ssize_t ccitt_fax4_decode_size(
     if (nrows < 1) {
         return CCITT_VALUE_ERROR;
     }
+    /* Bitstream exhausted without EOFB: stream is truncated or corrupt.
+       A valid T.6 stream ends with two EOL codes; those bits remain in the
+       accumulator when EOFB is detected, so bs.bits > 0 at that point. */
+    if (bs.bits == 0 && bs.nbytes == 0) {
+        return CCITT_VALUE_ERROR;
+    }
     return ccitt_safe_product(nrows, rowlen);
 }
 
 
-/* Decode CCITTFAX4. */
+/* Decode CCITTFAX4. Return number of decoded rows. */
 ssize_t ccitt_fax4_decode(
     const uint8_t* src,
     const ssize_t srcsize,
@@ -1505,6 +1537,10 @@ ssize_t ccitt_fax4_decode(
         uint8_t *line = dst + row * rowlen;
         int ret;
 
+        if (ccitt_bitstream_exhausted(&bs)) {
+            break;
+        }
+
         ret = ccitt_decode_2d_line(&bs, line, refline, rowlen);
         if (ret < 0) {
             /* Check for EOFB (two consecutive EOL codes = 24 zero-bits
@@ -1526,5 +1562,5 @@ ssize_t ccitt_fax4_decode(
     }
 
     free(refline);
-    return ccitt_safe_product(nrows, rowlen);
+    return row;
 }
