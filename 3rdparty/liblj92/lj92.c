@@ -41,8 +41,14 @@ Modifications applied by Christoph Gohlke:
 - https://patch-diff.githubusercontent.com/raw/ilia3101/MLV-App/pull/221.patch
 - Fix undefined behavior, integer overflow, and off-by-one errors.
 - Add bounds checks to decoder and encoder.
+- Support restart intervals (DRI/RSTn) of whole rows, reset prediction.
+- Validate SOF3, DHT, and restart markers, image dimensions, buffer sizes.
+- Validate encoder input and build Huffman table from delinearized values.
+- Support point transform.
+
 */
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -81,6 +87,9 @@ typedef struct _ljp {
     int huffbits[LJ92_MAX_COMPONENTS];
     int datalen;
     int scanstart;
+    int restart_interval;
+    int sampling_1x1;
+    int entropy_end;
     int ix;
     int x;           // width
     int y;           // height
@@ -125,7 +134,14 @@ parseHuff(
     uint8_t *huffhead = &self->data[self->ix];
     const uint8_t *bits = &huffhead[2];
     int hufflen = BEH(huffhead[0]);
-    if ((self->ix + hufflen) >= self->datalen) {
+    if (hufflen < 19 || (self->ix + hufflen) >= self->datalen) {
+        return LJ92_ERROR_CORRUPT;
+    }
+    int huffcount = 0;
+    for (int i = 1; i < 17; i++) {
+        huffcount += bits[i];
+    }
+    if (19 + huffcount > hufflen) {
         return LJ92_ERROR_CORRUPT;
     }
     // calculate Huffman direct lut
@@ -191,13 +207,41 @@ parseSof3(
     self->x = BEH(self->data[self->ix + 5]);
     self->bits = self->data[self->ix + 2];
     self->components = self->data[self->ix + 7];
-    self->ix += BEH(self->data[self->ix]);
+    int segment_length = BEH(self->data[self->ix]);
+    if (
+        segment_length < 8 + 3 * self->components ||
+        (self->ix + segment_length) > self->datalen)
+    {
+        return LJ92_ERROR_CORRUPT;
+    }
+    self->sampling_1x1 = 1;
+    for (int i = 0; i < self->components; i++) {
+        if (self->data[self->ix + 9 + 3 * i] != 0x11) {
+            self->sampling_1x1 = 0;
+        }
+    }
+    self->ix += segment_length;
     if (self->bits < 2 || self->bits > 16) {
         return LJ92_ERROR_CORRUPT;
     }
     if ((self->components < 1) || (self->components >= 6)) {
         return LJ92_ERROR_CORRUPT;
     }
+    return LJ92_ERROR_NONE;
+}
+
+static int
+parseRestart(
+    ljp *self)
+{
+    if (
+        self->ix + 4 > self->datalen ||
+        BEH(self->data[self->ix]) != 4)
+    {
+        return LJ92_ERROR_CORRUPT;
+    }
+    self->restart_interval = BEH(self->data[self->ix + 2]);
+    self->ix += 4;
     return LJ92_ERROR_NONE;
 }
 
@@ -213,6 +257,65 @@ parseBlock(
         return LJ92_ERROR_CORRUPT;
     }
     return LJ92_ERROR_NONE;
+}
+
+static int
+findEntropyMarker(
+    ljp *self,
+    int start,
+    int *marker,
+    int *code)
+{
+    int ix = start;
+    while (ix + 1 < self->datalen) {
+        if (self->data[ix] != 0xFF) {
+            ix++;
+            continue;
+        }
+        int next = self->data[ix + 1];
+        if (next == 0x00) {
+            ix += 2;
+        }
+        else if (next == 0xFF) {
+            ix++;
+        }
+        else if ((next >= 0xD0 && next <= 0xD7) || next == 0xD9) {
+            *marker = ix;
+            *code = next;
+            return LJ92_ERROR_NONE;
+        }
+        else {
+            return LJ92_ERROR_CORRUPT;
+        }
+    }
+    *marker = self->datalen;
+    *code = -1;
+    return LJ92_ERROR_NONE;
+}
+
+// read one byte of the current restart interval. pad with zeros past its end
+static inline void
+fillRestart(
+    ljp *self,
+    uint32_t *b,
+    int *cnt,
+    int *ix)
+{
+    int one = 0;
+    if (*ix < self->entropy_end) {
+        one = self->data[(*ix)++];
+        if (one == 0xFF) {
+            if (*ix < self->entropy_end && self->data[*ix] == 0) {
+                (*ix)++;
+            }
+            else {
+                one = 0;
+                *ix = self->entropy_end;
+            }
+        }
+    }
+    *b = (*b << 8) | (uint32_t)one;
+    *cnt += 8;
 }
 
 static inline int
@@ -233,18 +336,23 @@ nextdiff(
     int huffbits = self->huffbits[component_idx];
     int ix = self->ix;
     while (cnt < huffbits) {
-        // pad with zeros at end of stream
-        int one = ix < self->datalen ? self->data[ix] : 0;
-        int two = (ix + 1) < self->datalen ? self->data[ix + 1] : 0;
-        b = (b << 16) | (one << 8) | two;
-        cnt += 16;
-        ix += 2;
-        if (one == 0xFF) {
-            b >>= 8;
-            cnt -= 8;
+        if (self->restart_interval) {
+            fillRestart(self, &b, &cnt, &ix);
         }
-        else if (two == 0xFF) {
-            ix++;
+        else {
+            // pad with zeros at end of stream
+            int one = ix < self->datalen ? self->data[ix] : 0;
+            int two = (ix + 1) < self->datalen ? self->data[ix + 1] : 0;
+            b = (b << 16) | (one << 8) | two;
+            cnt += 16;
+            ix += 2;
+            if (one == 0xFF) {
+                b >>= 8;
+                cnt -= 8;
+            }
+            else if (two == 0xFF) {
+                ix++;
+            }
         }
     }
     int index = b >> (cnt - huffbits);
@@ -261,18 +369,23 @@ nextdiff(
     }
     else {
         while (cnt < t) {
-            // pad with zeros at end of stream
-            int one = ix < self->datalen ? self->data[ix] : 0;
-            int two = (ix + 1) < self->datalen ? self->data[ix + 1] : 0;
-            b = (b << 16) | (one << 8) | two;
-            cnt += 16;
-            ix += 2;
-            if (one == 0xFF) {
-                b >>= 8;
-                cnt -= 8;
+            if (self->restart_interval) {
+                fillRestart(self, &b, &cnt, &ix);
             }
-            else if (two == 0xFF) {
-                ix++;
+            else {
+                // pad with zeros at end of stream
+                int one = ix < self->datalen ? self->data[ix] : 0;
+                int two = (ix + 1) < self->datalen ? self->data[ix + 1] : 0;
+                b = (b << 16) | (one << 8) | two;
+                cnt += 16;
+                ix += 2;
+                if (one == 0xFF) {
+                    b >>= 8;
+                    cnt -= 8;
+                }
+                else if (two == 0xFF) {
+                    ix++;
+                }
             }
         }
         cnt -= t;
@@ -455,22 +568,57 @@ parseScan(
         return LJ92_ERROR_CORRUPT;
     }
     int compcount = self->data[self->ix + 2];
-    if (self->ix + 3 + 2 * compcount >= self->datalen) {
+    if (self->ix + 5 + 2 * compcount >= self->datalen) {
         return LJ92_ERROR_CORRUPT;
     }
     int pred = self->data[self->ix + 3 + 2 * compcount];
     if (pred > 7) {
         return LJ92_ERROR_CORRUPT;
     }
+    int pt = self->data[self->ix + 5 + 2 * compcount] & 0x0F;
+    if (pt >= self->bits) {
+        return LJ92_ERROR_CORRUPT;
+    }
 
-    // disable fast path for multiple components until parsePred6 supports it
-    if ((pred == 6) && (self->components == 1)) {
+    // disable fast path for multiple components, restart intervals,
+    // and point transform
+    if (
+        (pred == 6) && (self->components == 1) &&
+        (self->restart_interval == 0) && (pt == 0))
+    {
         return parsePred6(self);
     }
 
     self->ix += BEH(self->data[self->ix]);
     self->cnt = 0;
     self->b = 0;
+    int restart_rows = 0;
+    int marker = self->datalen;
+    int marker_code = -1;
+    int restart_number = 0;
+    if (self->restart_interval) {
+        if (
+            (int64_t)self->restart_interval >=
+            (int64_t)self->x * self->y)
+        {
+            restart_rows = self->y;  // no restart within the image
+        }
+        else if (
+            (!self->sampling_1x1 && self->components > 1) ||
+            self->restart_interval % self->x != 0)
+        {
+            // only restart intervals of whole rows are supported
+            return LJ92_ERROR_UNSUPPORTED;
+        }
+        else {
+            restart_rows = self->restart_interval / self->x;
+        }
+        int err = findEntropyMarker(self, self->ix, &marker, &marker_code);
+        if (err != LJ92_ERROR_NONE) {
+            return err;
+        }
+        self->entropy_end = marker;
+    }
     uint16_t *out = self->image;
     uint16_t *thisrow = self->outrow[0];
     uint16_t *lastrow = self->outrow[1];
@@ -480,13 +628,33 @@ parseScan(
     int Px = 0;
     int left = 0;
     for (int row = 0; row < self->y; row++) {
+        if (restart_rows && row > 0 && (row % restart_rows) == 0) {
+            if (marker_code != 0xD0 + restart_number) {
+                return LJ92_ERROR_CORRUPT;
+            }
+            self->ix = marker + 2;
+            self->cnt = 0;
+            self->b = 0;
+            restart_number = (restart_number + 1) % 8;
+            int err = findEntropyMarker(
+                self,
+                self->ix,
+                &marker,
+                &marker_code
+            );
+            if (err != LJ92_ERROR_NONE) {
+                return err;
+            }
+            self->entropy_end = marker;
+        }
+        int row_in_interval = restart_rows ? row % restart_rows : row;
         for (int col = 0; col < self->x; col++) {
             int colx = col * self->components;
             for (int c = 0; c < self->components; c++) {
-                if ((col == 0) && (row == 0)) {
-                    Px = 1 << (self->bits - 1);
+                if ((col == 0) && (row_in_interval == 0)) {
+                    Px = 1 << (self->bits - pt - 1);
                 }
-                else if (row == 0) {
+                else if (row_in_interval == 0) {
                     // Px = left;
                     Px = thisrow[(col - 1) * self->components + c];
                 }
@@ -543,15 +711,16 @@ parseScan(
                 }
                 left = Px + diff;
                 left = (uint16_t)(left % 65536);
+                int sample = (uint16_t)(left << pt);
                 int linear;
                 if (self->linearize) {
-                    if (left >= self->linlen) {
+                    if (sample >= self->linlen) {
                         return LJ92_ERROR_CORRUPT;
                     }
-                    linear = self->linearize[left];
+                    linear = self->linearize[sample];
                 }
                 else {
-                    linear = left;
+                    linear = sample;
                 }
 
                 thisrow[colx + c] = (uint16_t)left;
@@ -570,6 +739,9 @@ parseScan(
         out += self->x * self->components + self->skiplen;
     }  // row
 
+    if (self->restart_interval && marker_code != -1 && marker_code != 0xD9) {
+        return LJ92_ERROR_CORRUPT;
+    }
     return LJ92_ERROR_NONE;
 }
 
@@ -585,6 +757,9 @@ parseImage(
         }
         else if (nextMarker == 0xc3) {
             ret = parseSof3(self);
+        }
+        else if (nextMarker == 0xdd) {
+            ret = parseRestart(self);
         }
         else if (nextMarker == 0xfe) {
             // Comment
@@ -656,6 +831,16 @@ lj92_open(
     self->num_huff_idx = 0;
 
     int ret = findSoI(self);
+
+    if (ret == LJ92_ERROR_NONE && (self->x < 1 || self->y < 1)) {
+        ret = LJ92_ERROR_CORRUPT;
+    }
+    if (
+        ret == LJ92_ERROR_NONE &&
+        (int64_t)self->x * self->y * self->components > INT_MAX)
+    {
+        ret = LJ92_ERROR_TOO_WIDE;
+    }
 
     if (ret == LJ92_ERROR_NONE) {
         uint16_t *rowcache = (uint16_t *)calloc(
@@ -766,14 +951,13 @@ frequencyScan(
     int row = 0;
     int Px = 0;
     int32_t diff = 0;
-    // int maxval = (1 << self->bitdepth);
+    int maxval = (1 << self->bitdepth);
     while (pixcount--) {
         uint16_t p = *pixel;
-        /*
         if (self->delinearize) {
             if (p >= self->delinearizeLength) {
                 free(rowcache);
-                return LJ92_ERROR_TOO_WIDE;
+                return LJ92_ERROR_CORRUPT;
             }
             p = self->delinearize[p];
         }
@@ -781,7 +965,6 @@ frequencyScan(
             free(rowcache);
             return LJ92_ERROR_TOO_WIDE;
         }
-        */
         rows[1][col] = p;
 
         if ((row == 0) && (col == 0)) {
@@ -1079,7 +1262,7 @@ writeBody(
     while (pixcount--) {
         uint16_t p = *pixel;
         if (self->delinearize) {
-            if (p >= (uint16_t)self->delinearizeLength) {
+            if (p >= self->delinearizeLength) {
                 free(rowcache);
                 return LJ92_ERROR_CORRUPT;
             }
@@ -1215,6 +1398,15 @@ lj92_encode(
     int *encodedLength)
 {
     int ret = LJ92_ERROR_NONE;
+
+    // SOF3 stores dimensions as 16-bit
+    if (
+        width < 1 || height < 1 || width > 65535 || height > 65535 ||
+        components < 1 ||
+        (size_t)width * height * components * 3 + 200 > INT_MAX)
+    {
+        return LJ92_ERROR_TOO_WIDE;
+    }
 
     lje *self = (lje *)calloc(1, sizeof(lje));
     if (self == NULL) {
