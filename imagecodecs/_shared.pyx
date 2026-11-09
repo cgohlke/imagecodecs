@@ -53,6 +53,7 @@ from cpython.bytes cimport (
     PyBytes_Check,
     PyBytes_FromStringAndSize,
 )
+from cpython.pyport cimport PY_SSIZE_T_MAX
 from libc.stdint cimport uint8_t
 
 numpy.import_array()
@@ -74,7 +75,7 @@ cdef tuple _parse_output(
         # create new bytearray output
         out = None
         outtype = bytearray
-    elif isinstance(out, int):
+    elif isinstance(out, int | numpy.integer):
         # create new bytes output of expected length
         outsize = out
         out = None
@@ -109,20 +110,30 @@ cdef _create_output(out, ssize_t size, const char* string=NULL):
 cdef _return_output(out, ssize_t size, ssize_t used, bint outgiven):
     """Return a memoryview, slice, or copy of 'out' of length 'used'.
 
-    If 'used >= size', return 'out' unchanged.
+    If 'out' was provided by the user:
 
-    If 'out' was provided by the user, return a memoryview or a ndarray slice
-    of length 'used' of 'out'. The memoryview will be read-only if 'out' is
-    bytes.
+    - if 'out' is a numpy array, return a 1D uint8 view of the first
+      'used' bytes of 'out'.
+    - if 'out' is a bytearray and 'used >= size', return 'out' unchanged.
+    - else, return a 1D byte memoryview of the first 'used' bytes of 'out'.
+
+    Else if 'used >= size', return 'out' unchanged.
 
     Else if 'out' is a bytesarray, return 'out' resized to length 'used'.
 
     Else, 'out' is bytes, return a copy of 'out' of length 'used'.
 
     """
-    if used >= size:
-        return out
-    if not outgiven:
+    if outgiven:
+        if numpy.PyArray_Check(out):
+            return out.reshape(-1).view(numpy.uint8)[:used]
+        if used >= size and PyByteArray_Check(out):
+            return out
+        view = memoryview(out)
+        if view.ndim != 1 or view.format != 'B':
+            view = view.cast('B')
+        return view[:used]
+    if used < size:
         if PyByteArray_Check(out):
             # resize bytearray
             if PyByteArray_Resize(out, used) < 0:
@@ -137,29 +148,41 @@ cdef _return_output(out, ssize_t size, ssize_t used, bint outgiven):
             # Revisit when PyBytesWriter becomes available in CPython 3.15.
             # In the meantime, users can avoid copy by using bytearray
             out = PyBytes_FromStringAndSize(PyBytes_AsString(out), used)
-    elif numpy.PyArray_Check(out):
-        # slice of user numpy array
-        out = out[:used]
-    else:
-        # memoryview of user bytes or bytearray
-        out = memoryview(out)[:used]
     return out
 
 
 cdef numpy.ndarray _array_input(
-    data, out=None, dtype=None, bint contig=True, bint empty=False
+    data,
+    out=None,
+    dtype=None,
+    bint contig=True,
+    bint empty=False,
+    bint native=True,
 ):
     """Return C-contiguous ndarray from input data.
 
+    If contig is False, return aligned ndarray with strides that are
+    multiples of itemsize.
     Raise ValueError for invalid inputs, scalar arrays, and optionally empty
     arrays.
+    If native is True (default), return array in native byte order.
 
     """
     cdef:
         numpy.ndarray src
+        int i
 
     if out is not None and data is out:
         raise ValueError('cannot transform in-place')
+
+    if native:
+        if dtype is None and isinstance(data, numpy.ndarray):
+            dtype = data.dtype
+        if dtype is not None:
+            dtype = numpy.dtype(dtype)
+            if not dtype.isnative:
+                # convert byte order within the same copy
+                dtype = dtype.newbyteorder('=')
 
     try:
         if contig:
@@ -170,11 +193,26 @@ cdef numpy.ndarray _array_input(
     except Exception as exc:
         raise ValueError('invalid input data') from exc
 
+    if native and not src.dtype.isnative:
+        src = src.astype(src.dtype.newbyteorder('='))
+
     if src.ndim == 0:
         raise ValueError('cannot transform 0-dimensional array')
 
+    if src.dtype.hasobject or src.itemsize == 0:
+        raise ValueError(f'cannot transform {src.dtype=}')
+
     if not empty and src.size == 0:
         raise ValueError('cannot transform empty array')
+
+    if not contig:
+        if not numpy.PyArray_ISALIGNED(src):
+            src = src.copy()
+        else:
+            for i in range(src.ndim):
+                if src.strides[i] % src.itemsize:
+                    src = src.copy()
+                    break
 
     return src
 
@@ -185,19 +223,24 @@ cdef numpy.ndarray _create_array(
     dtype,
     tuple strides=None,
     bint zero=False,
-    bint contig=True
+    bint contig=True,
+    bint writable=True,
 ):
     """Return numpy array of shape and dtype from output argument."""
     cdef:
         ssize_t dstsize
 
-    if out is None or isinstance(out, int):  # numbers.Integral
+    dtype = numpy.dtype(dtype)
+    if dtype.hasobject or dtype.itemsize == 0:
+        raise ValueError(f'invalid output {dtype=}')
+
+    if out is None or isinstance(out, int | numpy.integer):
         if zero:
             return numpy.zeros(shape, dtype)
         return numpy.empty(shape, dtype)
 
     if isinstance(out, numpy.ndarray):
-        if out.itemsize != numpy.dtype(dtype).itemsize:
+        if out.dtype.hasobject or out.itemsize != dtype.itemsize:
             raise ValueError(f'invalid {out.dtype=}, {dtype=}')
         if out.shape != shape:
             # check that shapes match, allowing length-one dimensions.
@@ -226,22 +269,29 @@ cdef numpy.ndarray _create_array(
             dstsize *= i
         out = numpy.frombuffer(out, dtype, dstsize).reshape(shape)
 
+    if writable and not out.flags.writeable:
+        raise ValueError('output is not writable')
+
     if zero:
         out.fill(0)
     return out
 
 
-cdef const uint8_t[::1] _readable_input(data, out=None):
+cdef const uint8_t[::1] _readable_input(
+    data, out=None, ssize_t* itemsize=NULL
+):
     """Return readable, contiguous 1D uint8 view of input data.
 
     Use input directly when possible.
     NumPy arrays are flattened in C order as uint8 bytes.
     Other buffers try a zero-copy memoryview cast, then copy only if needed.
+    If itemsize is not NULL, set it to the item size of the input buffer.
 
     """
     cdef:
         const uint8_t[::1] src
         memoryview view
+        ssize_t size = 1
 
     if data is None:
         raise ValueError('input data is None')
@@ -259,13 +309,17 @@ cdef const uint8_t[::1] _readable_input(data, out=None):
             src = data.reshape(-1).view(numpy.uint8)
             # instead preserve F order:
             # src = numpy.ravel(data, 'K').view(numpy.uint8)
+            size = data.itemsize
         except Exception:
             # buffer protocol
             view = memoryview(data)
-            if view.contiguous:
+            size = view.itemsize
+            if view.c_contiguous:
                 src = view.cast('B')
             else:
                 src = view.tobytes()
+    if itemsize != NULL:
+        itemsize[0] = size
     return src
 
 
@@ -313,8 +367,9 @@ cdef const uint8_t[::1] _inplace_input(data):
         const uint8_t[::1] src
         uint8_t[::1] writable
 
-    if isinstance(data, bytes):
-        raise TypeError("'bytes' object does not support item assignment")
+    # bytes raises BufferError: Object is not writable.
+    # if isinstance(data, bytes):
+    #     raise TypeError("'bytes' object does not support item assignment")
 
     try:
         writable = data
@@ -362,8 +417,19 @@ cdef _enum_value(value, enum_class, default=None):
     if value is None:
         return default
     if isinstance(value, str):
-        return enum_class[value.upper()]
+        try:
+            return enum_class[value.upper()]
+        except KeyError:
+            return enum_class[value]
     return enum_class(value)
+
+
+cdef _enum_or_int(value, enum_class):
+    """Return enum member for value, or int if value is not a member."""
+    try:
+        return enum_class(value)
+    except ValueError:
+        return int(value)
 
 
 cdef uint8_t _default_threads(numthreads):
@@ -558,7 +624,6 @@ cdef int _image_layout(
         int photo_hint = IC_PHOTO_UNSPECIFIED
         int photo_ = IC_PHOTO_UNSPECIFIED
         int extra_type_ = IC_EXTRA_UNSPECIFIED
-        int extra = 0
         int core_axes
         int min_channel_ndim
         bint planar_ = False
@@ -570,6 +635,7 @@ cdef int _image_layout(
         ssize_t height_ = 0
         ssize_t width_ = 0
         ssize_t samples_ = 1
+        ssize_t extra = 0
         ssize_t i
         str s
 
@@ -622,7 +688,7 @@ cdef int _image_layout(
         if bitspersample_ <= 0 or bitspersample_ > itemsize_ * 8:
             raise ValueError(
                 f'bitspersample={bitspersample_} out of range '
-                f'1..{itemsize_ * 8} for {dtype!r}'
+                f'[1, {itemsize_ * 8}) for {dtype!r}'
             )
         if bitspersample_ <= 8 and itemsize_ > 1:
             raise ValueError(
@@ -674,7 +740,7 @@ cdef int _image_layout(
     # photometric hint
     if photometric is None:
         photo_hint = IC_PHOTO_UNSPECIFIED
-    elif isinstance(photometric, int):
+    elif isinstance(photometric, int | numpy.integer):
         photo_hint = photometric
     else:
         s = str(photometric).upper()
@@ -685,8 +751,10 @@ cdef int _image_layout(
     # extrasample hint
     if extrasample is None:
         extra_type_ = IC_EXTRA_UNSPECIFIED
-    elif isinstance(extrasample, int):
+    elif isinstance(extrasample, int | numpy.integer):
         extra_type_ = extrasample
+        if extra_type_ not in _IC_EXTRA_NAMES.values():
+            raise ValueError(f'{extrasample=!r} not recognised')
     else:
         s = str(extrasample).upper()
         if s not in _IC_EXTRA_NAMES:
@@ -697,6 +765,7 @@ cdef int _image_layout(
     if ndim == 0:
         raise ValueError('cannot encode 0-dimensional array')
 
+    # ndarray shapes are never negative, image_layout() checks tuples
     if caps != 0 and not (caps & IC_EMPTY):
         for i in range(ndim):
             if shape[i] <= 0:
@@ -730,6 +799,11 @@ cdef int _image_layout(
 
         if planar_:
             has_channels = True
+        elif ndim < min_channel_ndim:
+            has_channels = False
+        elif caps != 0 and not (caps & IC_FRAMES) and frames is not True:
+            # codec cannot encode frames: trailing dimension must be samples
+            has_channels = True
         elif ndim > min_channel_ndim:
             if (
                 photo_hint != IC_PHOTO_UNSPECIFIED
@@ -742,9 +816,11 @@ cdef int _image_layout(
                 has_channels = False
             else:
                 has_channels = True
-        elif ndim < min_channel_ndim:
-            has_channels = False
         # ndim == min_channel_ndim, resolve with hints
+        elif frames is True:
+            has_channels = False
+        elif frames is False:
+            has_channels = True
         elif (
             photo_hint != IC_PHOTO_UNSPECIFIED
             and _photo_samples(photo_hint) == 1
@@ -753,13 +829,7 @@ cdef int _image_layout(
             # single-sample photometric (gray, palette) with no extrasample
             # hint: all extra dims are frames, never channels
             has_channels = False
-        elif frames is True:
-            has_channels = False
-        elif frames is False:
-            has_channels = True
         elif photo_hint != IC_PHOTO_UNSPECIFIED or extrasample is not None:
-            has_channels = True
-        elif caps != 0 and not (caps & IC_FRAMES):
             has_channels = True
         else:
             # heuristic: trailing dim <= 4 -> likely channel samples
@@ -807,6 +877,8 @@ cdef int _image_layout(
             height_ = shape[ndim - 2]
 
         for i in range(ndim - core_axes):
+            if shape[i] > 0 and frames_ > PY_SSIZE_T_MAX // shape[i]:
+                raise ValueError('number of frames overflows ssize_t')
             frames_ *= shape[i]
 
         # infer photometric from sample count
@@ -839,16 +911,17 @@ cdef int _image_layout(
             f'{photo_samples_} for photometric {photo_}'
         )
 
-    extra = <int> (samples_ - photo_samples_)
+    extra = samples_ - photo_samples_
 
-    if extra > 0:
-        if extra_type_ != IC_EXTRA_UNSPECIFIED:
-            # explicit extrasample hint -> first extra is alpha
-            extra_index_ = <uint8_t>photo_samples_
-        elif extra == 1:
-            # single unspecified extra -> assume unassociated alpha
-            extra_index_ = <uint8_t>photo_samples_
-            extra_type_ = IC_EXTRA_UNASSALPHA
+    if extra == 0:
+        extra_type_ = IC_EXTRA_UNSPECIFIED
+    elif extra_type_ != IC_EXTRA_UNSPECIFIED:
+        # explicit extrasample hint -> first extra is alpha
+        extra_index_ = <uint8_t>photo_samples_
+    elif extra == 1 and extrasample is None:
+        # single extra without hint -> assume unassociated alpha
+        extra_index_ = <uint8_t>photo_samples_
+        extra_type_ = IC_EXTRA_UNASSALPHA
 
     # validate against caps
     if caps != 0:
@@ -913,7 +986,13 @@ def image_layout(
         numpy.dtype dtype_ = numpy.dtype(dtype)
         int ndim_ = <int> len(shape)
 
+    if ndim_ > 32:
+        raise ValueError(f'{ndim_=} exceeds maximum of 32 dimensions')
+
     for i in range(ndim_):
+        # ndarray shapes are never negative, arbitrary tuples may be
+        if shape[i] < 0:
+            raise ValueError('shape has negative dimension')
         shape_buf[i] = shape[i]
 
     _image_layout(
