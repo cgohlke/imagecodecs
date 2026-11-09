@@ -37,15 +37,15 @@ ArrayArrayCodec (filters):
 ArrayBytesCodec (serializer):
 
     Image formats:
-        Apng, Avif, Bmp, Dds, Exr, Gif, Heif, Htj2k, Jpeg, Jpeg2k, Jpegls,
-        Jpegxl, Jpegxr, Jpegxs, Ljpeg, Pcx, Png, Qoi, Rgbe, Spng, Tga, Tiff,
-        Ultrahdr, Webp, Wic
+        Apng, Avif, Bmp, Dds, Exr, Gif, Heif, Htj2k, Jpeg, Jpeg2k, Jpegli,
+        Jpegls, Jpegxl, Jpegxr, Jpegxs, Ljpeg, Pcx, Png, Qoi, Rgbe, Spng,
+        Tga, Tiff, Ultrahdr, Webp, Wic
 
     Image compressors:
         Ccittfax3, Ccittfax4, Ccittrle, Dicomrle, Pixarlog
 
     Scientific compressors:
-        B2nd, Eer, Hcomp, Lerc, Pcodec, Plio, Rcomp, Sperr, Sz3, Zfp
+        B2nd, Eer, Hcomp, Lerc, Pcodec, Plio, Rcomp, Sperr, Sz3, Wavpack, Zfp
 
     Shufflers:
         Bitshuffle, Byteshuffle, Floatpred, Meshopt, Packints
@@ -57,6 +57,9 @@ BytesBytesCodec (compressors):
     Aec, Blosc, Blosc2, Brotli, Bz2, Checksum, Chunked, Deflate, Isal, Lz4,
     Lz4f, Lz4h5, Lzf, Lzfse, Lzham, Lzma, Lzo, Lzw, Openzl, Packbits, Pglz,
     Snappy, Szip, Zlib, Zlibng, Zopfli, Zstd, Zstd1
+
+Zarr extension codecs (registered under specification name):
+    JpegCodec ('jpeg')
 
 """
 
@@ -97,6 +100,8 @@ __all__ = [
     'Isal',
     'Jpeg',
     'Jpeg2k',
+    'JpegCodec',
+    'Jpegli',
     'Jpegls',
     'Jpegxl',
     'Jpegxr',
@@ -150,16 +155,17 @@ __all__ = [
 import asyncio
 import base64
 import enum
+import functools
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy
 
 import imagecodecs
 
 if TYPE_CHECKING:
-    from collections.abc import Container
+    from collections.abc import Collection, Sequence
     from typing import Any, Self
 
     from numpy.typing import NDArray
@@ -397,6 +403,7 @@ class Avif(ArrayBytesCodec):
     primaries: str | None = None
     transfer: str | None = None
     matrix: str | None = None
+    iccprofile: bytes | None = None
     numthreads: int | None = None
     index: int | None = None
 
@@ -415,6 +422,7 @@ class Avif(ArrayBytesCodec):
             imagecodecs.AVIF.TRANSFER_CHARACTERISTICS | int | str | None
         ) = None,
         matrix: imagecodecs.AVIF.MATRIX_COEFFICIENTS | int | str | None = None,
+        iccprofile: bytes | None = None,
         numthreads: int | None = None,
         index: int | None = None,
     ) -> None:
@@ -443,13 +451,18 @@ class Avif(ArrayBytesCodec):
                 transfer, imagecodecs.AVIF.TRANSFER_CHARACTERISTICS
             ),
             matrix=_enum_name(matrix, imagecodecs.AVIF.MATRIX_COEFFICIENTS),
+            iccprofile=None if iccprofile is None else bytes(iccprofile),
             numthreads=None if numthreads is None else int(numthreads),
             index=None if index is None else int(index),
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        return cls(**_parse_config(data, 'avif'))
+        cfg = _parse_config(data, 'avif')
+        iccprofile = cfg.get('iccprofile')
+        if isinstance(iccprofile, str):
+            cfg['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**cfg)
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
@@ -470,6 +483,8 @@ class Avif(ArrayBytesCodec):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
+        if self.iccprofile is not None:
+            cfg['iccprofile'] = base64.b64encode(self.iccprofile).decode()
         if cfg:
             return {'name': 'imagecodecs_avif', 'configuration': cfg}
         return {'name': 'imagecodecs_avif'}
@@ -509,6 +524,7 @@ class Avif(ArrayBytesCodec):
             primaries=self.primaries,
             transfer=self.transfer,
             matrix=self.matrix,
+            iccprofile=self.iccprofile,
             numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
@@ -533,8 +549,10 @@ class B2nd(ArrayBytesCodec):
     is_fixed_size = False
 
     level: int | None = None
-    compressor: str | None = None
-    shuffle: str | None = None
+    codec: str | None = None
+    codec_meta: int | None = None
+    filters: str | tuple[str, ...] | None = None
+    filters_meta: tuple[int, ...] | None = None
     chunkshape: tuple[int, ...] | None = None
     blockshape: tuple[int, ...] | None = None
     numthreads: int | None = None
@@ -543,8 +561,10 @@ class B2nd(ArrayBytesCodec):
         self,
         *,
         level: int | None = None,
-        compressor: imagecodecs.B2ND.COMPRESSOR | int | str | None = None,
-        shuffle: imagecodecs.B2ND.FILTER | int | str | None = None,
+        codec: imagecodecs.B2ND.CODEC | int | str | None = None,
+        codec_meta: int | None = None,
+        filters: Sequence[imagecodecs.B2ND.FILTER | int | str] | None = None,
+        filters_meta: Sequence[int] | None = None,
         chunkshape: tuple[int, ...] | None = None,
         blockshape: tuple[int, ...] | None = None,
         numthreads: int | None = None,
@@ -555,8 +575,10 @@ class B2nd(ArrayBytesCodec):
         _setattrs(
             self,
             level=None if level is None else int(level),
-            compressor=_enum_name(compressor, imagecodecs.B2ND.COMPRESSOR),
-            shuffle=_enum_name(shuffle, imagecodecs.B2ND.FILTER),
+            codec=_enum_name(codec, imagecodecs.B2ND.CODEC),
+            codec_meta=None if codec_meta is None else int(codec_meta),
+            filters=_enum_names(filters, imagecodecs.B2ND.FILTER),
+            filters_meta=_filters_meta(filters_meta),
             chunkshape=(
                 None
                 if chunkshape is None
@@ -578,8 +600,10 @@ class B2nd(ArrayBytesCodec):
         cfg: dict[str, JSON] = {}
         for key in (
             'level',
-            'compressor',
-            'shuffle',
+            'codec',
+            'codec_meta',
+            'filters',
+            'filters_meta',
             'chunkshape',
             'blockshape',
             'numthreads',
@@ -594,7 +618,9 @@ class B2nd(ArrayBytesCodec):
     def _decode_sync(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> NDBuffer:
-        decoded = imagecodecs.b2nd_decode(chunk_bytes.as_numpy_array())
+        decoded = imagecodecs.b2nd_decode(
+            chunk_bytes.as_numpy_array(), numthreads=self.numthreads
+        )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(decoded)
 
     async def _decode_single(
@@ -611,8 +637,10 @@ class B2nd(ArrayBytesCodec):
         encoded = imagecodecs.b2nd_encode(
             arr,
             level=self.level,
-            compressor=self.compressor,
-            shuffle=self.shuffle,
+            codec=self.codec,
+            codec_meta=self.codec_meta,
+            filters=self.filters,
+            filters_meta=self.filters_meta,
             chunkshape=self.chunkshape,
             blockshape=self.blockshape,
             numthreads=self.numthreads,
@@ -636,7 +664,7 @@ class B2nd(ArrayBytesCodec):
 class Bfloat16(ArrayBytesCodec):
     """Bfloat16 codec for Zarr 3."""
 
-    is_fixed_size = False
+    is_fixed_size = True
 
     byteorder: Literal['>', '<', '='] | None = None
     rounding: str | None = None
@@ -707,8 +735,7 @@ class Bfloat16(ArrayBytesCodec):
     def compute_encoded_size(
         self, input_byte_length: int, chunk_spec: ArraySpec
     ) -> int:
-        # float32 (4 bytes) -> bfloat16 (2 bytes): half the input
-        return input_byte_length // 2
+        return int(numpy.prod(chunk_spec.shape, dtype=numpy.int64)) * 2
 
 
 @dataclass(frozen=True)
@@ -724,8 +751,7 @@ class Bitorder(ArrayArrayCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'bitorder')
-        return cls()
+        return cls(**_parse_config(data, 'bitorder'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_bitorder'}
@@ -934,8 +960,9 @@ class Blosc2(BytesBytesCodec):
     is_fixed_size = False
 
     level: int | None = None
-    compressor: str | None = None
-    shuffle: str | None = None
+    codec: str | None = None
+    filters: str | tuple[str, ...] | None = None
+    filters_meta: tuple[int, ...] | None = None
     splitmode: str | None = None
     typesize: int | None = None
     blocksize: int | None = None
@@ -945,8 +972,9 @@ class Blosc2(BytesBytesCodec):
         self,
         *,
         level: int | None = None,
-        compressor: imagecodecs.BLOSC2.COMPRESSOR | int | str | None = None,
-        shuffle: imagecodecs.BLOSC2.FILTER | int | str | None = None,
+        codec: imagecodecs.BLOSC2.CODEC | int | str | None = None,
+        filters: Sequence[imagecodecs.BLOSC2.FILTER | int | str] | None = None,
+        filters_meta: Sequence[int] | None = None,
         splitmode: imagecodecs.BLOSC2.SPLIT | int | str | None = None,
         typesize: int | None = None,
         blocksize: int | None = None,
@@ -958,8 +986,9 @@ class Blosc2(BytesBytesCodec):
         _setattrs(
             self,
             level=None if level is None else int(level),
-            compressor=_enum_name(compressor, imagecodecs.BLOSC2.COMPRESSOR),
-            shuffle=_enum_name(shuffle, imagecodecs.BLOSC2.FILTER),
+            codec=_enum_name(codec, imagecodecs.BLOSC2.CODEC),
+            filters=_enum_names(filters, imagecodecs.BLOSC2.FILTER),
+            filters_meta=_filters_meta(filters_meta),
             splitmode=_enum_name(splitmode, imagecodecs.BLOSC2.SPLIT),
             typesize=None if typesize is None else int(typesize),
             blocksize=None if blocksize is None else int(blocksize),
@@ -974,8 +1003,9 @@ class Blosc2(BytesBytesCodec):
         cfg: dict[str, JSON] = {}
         for key in (
             'level',
-            'compressor',
-            'shuffle',
+            'codec',
+            'filters',
+            'filters_meta',
             'splitmode',
             'typesize',
             'blocksize',
@@ -1009,8 +1039,9 @@ class Blosc2(BytesBytesCodec):
         encoded = imagecodecs.blosc2_encode(
             data,
             level=self.level,
-            compressor=self.compressor,
-            shuffle=self.shuffle,
+            codec=self.codec,
+            filters=self.filters,
+            filters_meta=self.filters_meta,
             splitmode=self.splitmode,
             typesize=self.typesize,
             blocksize=self.blocksize,
@@ -1051,7 +1082,7 @@ class Bmp(ArrayBytesCodec):
             raise ValueError(msg)
         _setattrs(
             self,
-            ppm=None if ppm is None else max(1, int(ppm)),
+            ppm=None if ppm is None else int(ppm),
             asrgb=None if asrgb is None else bool(asrgb),
         )
 
@@ -1421,8 +1452,7 @@ class Ccittfax4(ArrayBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'ccittfax4')
-        return cls()
+        return cls(**_parse_config(data, 'ccittfax4'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_ccittfax4'}
@@ -1477,8 +1507,7 @@ class Ccittrle(ArrayBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'ccittrle')
-        return cls()
+        return cls(**_parse_config(data, 'ccittrle'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_ccittrle'}
@@ -1638,6 +1667,9 @@ class Checksum(BytesBytesCodec):
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> Buffer:
         out = memoryview(chunk_bytes.as_numpy_array())
+        if len(out) < 4:
+            msg = f'{self.kind} checksum data too short ({len(out)} bytes)'
+            raise RuntimeError(msg)
         if self.prepend:
             expect = int.from_bytes(out[:4], self.byteorder)
             out = out[4:]
@@ -1818,9 +1850,9 @@ class Cms(ArrayArrayCodec):
             msg = 'imagecodecs.CMS not available'
             raise ValueError(msg)
         if isinstance(profile, str):
-            profile = imagecodecs.cms_profile(profile)
+            profile = imagecodecs.cms_profile(profile)  # type: ignore[arg-type]
         if isinstance(outprofile, str):
-            outprofile = imagecodecs.cms_profile(outprofile)
+            outprofile = imagecodecs.cms_profile(outprofile)  # type: ignore[arg-type]
         _setattrs(
             self,
             profile=profile,
@@ -1866,6 +1898,8 @@ class Cms(ArrayArrayCodec):
     def _decode_sync(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> NDBuffer:
+        # output array restores the original shape, layout, and dtype
+        out = numpy.empty(chunk_spec.shape, chunk_spec.dtype.to_native_dtype())
         decoded = imagecodecs.cms_transform(
             chunk_array.as_numpy_array(),
             self.outprofile,
@@ -1876,10 +1910,9 @@ class Cms(ArrayArrayCodec):
             outplanar=self.planar,
             intent=self.intent,
             flags=self.flags,
+            out=out,
         )
-        return chunk_spec.prototype.nd_buffer.from_numpy_array(
-            decoded.reshape(chunk_spec.shape)
-        )
+        return chunk_spec.prototype.nd_buffer.from_numpy_array(decoded)
 
     async def _decode_single(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
@@ -1889,8 +1922,12 @@ class Cms(ArrayArrayCodec):
     def _encode_sync(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> NDBuffer | None:
-        encoded = imagecodecs.cms_transform(
-            chunk_array.as_numpy_array(),
+        encoded = self._transform(chunk_array.as_numpy_array())
+        return chunk_spec.prototype.nd_buffer.from_numpy_array(encoded)
+
+    def _transform(self, data: NDArray[Any], /) -> NDArray[Any]:
+        return imagecodecs.cms_transform(
+            data,
             self.profile,
             self.outprofile,
             colorspace=self.colorspace,
@@ -1900,17 +1937,45 @@ class Cms(ArrayArrayCodec):
             intent=self.intent,
             flags=self.flags,
         )
-        return chunk_spec.prototype.nd_buffer.from_numpy_array(encoded)
 
     async def _encode_single(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> NDBuffer | None:
         return self._encode_sync(chunk_array, chunk_spec)
 
+    def resolve_metadata(self, chunk_spec: ArraySpec) -> ArraySpec:
+        from zarr.core.array_spec import ArraySpec
+        from zarr.core.dtype import parse_data_type
+
+        dtype = chunk_spec.dtype.to_native_dtype()
+        outshape, outdtype = _cms_output(self, chunk_spec.shape, dtype)
+        if outshape == chunk_spec.shape and outdtype == dtype:
+            return chunk_spec
+        zdtype = parse_data_type(outdtype, zarr_format=3)
+        return ArraySpec(
+            shape=outshape,
+            dtype=zdtype,
+            fill_value=zdtype.cast_scalar(0),
+            config=chunk_spec.config,
+            prototype=chunk_spec.prototype,
+        )
+
     def compute_encoded_size(
         self, input_byte_length: int, chunk_spec: ArraySpec
     ) -> int:
-        return input_byte_length
+        outshape, outdtype = _cms_output(
+            self, chunk_spec.shape, chunk_spec.dtype.to_native_dtype()
+        )
+        return int(numpy.prod(outshape, dtype=numpy.int64)) * outdtype.itemsize
+
+
+@functools.lru_cache(maxsize=32)
+def _cms_output(
+    codec: Cms, shape: tuple[int, ...], dtype: numpy.dtype[Any], /
+) -> tuple[tuple[int, ...], numpy.dtype[Any]]:
+    """Return shape and dtype of CMS transformed chunk."""
+    out = codec._transform(numpy.zeros(shape, dtype))
+    return out.shape, out.dtype
 
 
 @dataclass(frozen=True)
@@ -2381,7 +2446,7 @@ class Exr(ArrayBytesCodec):
 class Float24(ArrayBytesCodec):
     """Float24 codec for Zarr 3."""
 
-    is_fixed_size = False
+    is_fixed_size = True
 
     byteorder: Literal['>', '<', '='] | None = None
     rounding: str | None = None
@@ -2453,8 +2518,7 @@ class Float24(ArrayBytesCodec):
     def compute_encoded_size(
         self, input_byte_length: int, chunk_spec: ArraySpec
     ) -> int:
-        # float32 (4 bytes) -> float24 (3 bytes): 3/4 of input
-        return (input_byte_length // 4) * 3
+        return int(numpy.prod(chunk_spec.shape, dtype=numpy.int64)) * 3
 
 
 @dataclass(frozen=True)
@@ -2542,8 +2606,7 @@ class Gif(ArrayBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'gif')
-        return cls()
+        return cls(**_parse_config(data, 'gif'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_gif'}
@@ -2595,6 +2658,8 @@ class Heif(ArrayBytesCodec):
     bitspersample: int | None = None
     photometric: str | None = None
     compression: str | None = None
+    iccprofile: bytes | None = None
+    hasalpha: bool | None = None
     numthreads: int | None = None
     index: int | None = None
 
@@ -2604,7 +2669,9 @@ class Heif(ArrayBytesCodec):
         level: int | None = None,
         bitspersample: int | None = None,
         photometric: imagecodecs.HEIF.COLORSPACE | int | str | None = None,
+        hasalpha: bool | None = None,
         compression: imagecodecs.HEIF.COMPRESSION | int | str | None = None,
+        iccprofile: bytes | None = None,
         numthreads: int | None = None,
         index: int | None = None,
     ) -> None:
@@ -2618,14 +2685,20 @@ class Heif(ArrayBytesCodec):
                 None if bitspersample is None else int(bitspersample)
             ),
             photometric=_enum_name(photometric, imagecodecs.HEIF.COLORSPACE),
+            hasalpha=None if hasalpha is None else bool(hasalpha),
             compression=_enum_name(compression, imagecodecs.HEIF.COMPRESSION),
+            iccprofile=None if iccprofile is None else bytes(iccprofile),
             numthreads=None if numthreads is None else int(numthreads),
             index=None if index is None else int(index),
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        return cls(**_parse_config(data, 'heif'))
+        cfg = _parse_config(data, 'heif')
+        iccprofile = cfg.get('iccprofile')
+        if isinstance(iccprofile, str):
+            cfg['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**cfg)
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
@@ -2633,6 +2706,7 @@ class Heif(ArrayBytesCodec):
             'level',
             'bitspersample',
             'photometric',
+            'hasalpha',
             'compression',
             'numthreads',
             'index',
@@ -2640,6 +2714,8 @@ class Heif(ArrayBytesCodec):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
+        if self.iccprofile is not None:
+            cfg['iccprofile'] = base64.b64encode(self.iccprofile).decode()
         if cfg:
             return {'name': 'imagecodecs_heif', 'configuration': cfg}
         return {'name': 'imagecodecs_heif'}
@@ -2673,7 +2749,9 @@ class Heif(ArrayBytesCodec):
             level=self.level,
             bitspersample=self.bitspersample,
             photometric=self.photometric,
+            hasalpha=self.hasalpha,
             compression=self.compression,
+            iccprofile=self.iccprofile,
             numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
@@ -2728,7 +2806,7 @@ class Hcomp(ArrayBytesCodec):
             conf['level'] = self.level
         if self.smooth is not None:
             conf['smooth'] = self.smooth
-        if self.safe32:
+        if self.safe32 is not None:
             conf['safe32'] = self.safe32
         if conf:
             return {'name': 'imagecodecs_hcomp', 'configuration': conf}
@@ -3025,6 +3103,7 @@ class Jpeg(ArrayBytesCodec):
     bitspersample: int | None = None
     tables: bytes | None = None
     header: bytes | None = None
+    iccprofile: bytes | None = None
     colorspace_data: str | None = None
     colorspace_jpeg: str | None = None
     subsampling: str | tuple[int, int] | None = None
@@ -3041,8 +3120,9 @@ class Jpeg(ArrayBytesCodec):
         bitspersample: int | None = None,
         tables: bytes | None = None,
         header: bytes | None = None,
-        colorspace_data: imagecodecs.JPEG8.CS | int | str | None = None,
-        colorspace_jpeg: imagecodecs.JPEG8.CS | int | str | None = None,
+        iccprofile: bytes | None = None,
+        colorspace_data: imagecodecs.JPEG.CS | int | str | None = None,
+        colorspace_jpeg: imagecodecs.JPEG.CS | int | str | None = None,
         subsampling: str | tuple[int, int] | None = None,
         optimize: bool | None = None,
         smoothing: bool | None = None,
@@ -3050,8 +3130,8 @@ class Jpeg(ArrayBytesCodec):
         predictor: int | None = None,
         fancyupsampling: bool | None = None,
     ) -> None:
-        if not imagecodecs.JPEG8.available:
-            msg = 'imagecodecs.JPEG8 not available'
+        if not imagecodecs.JPEG.available:
+            msg = 'imagecodecs.JPEG not available'
             raise ValueError(msg)
         _setattrs(
             self,
@@ -3061,9 +3141,14 @@ class Jpeg(ArrayBytesCodec):
             ),
             tables=tables,
             header=header,
-            colorspace_data=_enum_name(colorspace_data, imagecodecs.JPEG8.CS),
-            colorspace_jpeg=_enum_name(colorspace_jpeg, imagecodecs.JPEG8.CS),
-            subsampling=subsampling,
+            iccprofile=iccprofile,
+            colorspace_data=_enum_name(colorspace_data, imagecodecs.JPEG.CS),
+            colorspace_jpeg=_enum_name(colorspace_jpeg, imagecodecs.JPEG.CS),
+            subsampling=(
+                subsampling
+                if subsampling is None or isinstance(subsampling, str)
+                else (int(subsampling[0]), int(subsampling[1]))
+            ),
             optimize=None if optimize is None else bool(optimize),
             smoothing=None if smoothing is None else bool(smoothing),
             lossless=None if lossless is None else bool(lossless),
@@ -3076,7 +3161,7 @@ class Jpeg(ArrayBytesCodec):
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
         cfg = _parse_config(data, 'jpeg')
-        for key in ('header', 'tables'):
+        for key in ('header', 'tables', 'iccprofile'):
             value = cfg.get(key)
             if value is not None and isinstance(value, str):
                 cfg[key] = base64.b64decode(value.encode())
@@ -3099,7 +3184,7 @@ class Jpeg(ArrayBytesCodec):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
-        for key in ('tables', 'header'):
+        for key in ('tables', 'header', 'iccprofile'):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = base64.b64encode(value).decode()
@@ -3113,7 +3198,7 @@ class Jpeg(ArrayBytesCodec):
         buf: bytes | numpy.ndarray[Any, Any] = chunk_bytes.as_numpy_array()
         if self.header is not None:
             buf = b''.join((self.header, bytes(buf), b'\xff\xd9'))
-        decoded = imagecodecs.jpeg8_decode(
+        decoded = imagecodecs.jpeg_decode(
             buf,
             tables=self.tables,
             colorspace=self.colorspace_jpeg,
@@ -3135,7 +3220,7 @@ class Jpeg(ArrayBytesCodec):
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
         arr = _squeeze(chunk_array)
-        encoded = imagecodecs.jpeg8_encode(
+        encoded = imagecodecs.jpeg_encode(
             arr,
             level=self.level,
             colorspace=self.colorspace_data,
@@ -3145,6 +3230,263 @@ class Jpeg(ArrayBytesCodec):
             smoothing=self.smoothing,
             lossless=self.lossless,
             predictor=self.predictor,
+            iccprofile=self.iccprofile,
+        )
+        return chunk_spec.prototype.buffer.from_bytes(encoded)
+
+    async def _encode_single(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        return await asyncio.to_thread(
+            self._encode_sync, chunk_array, chunk_spec
+        )
+
+    def compute_encoded_size(
+        self, input_byte_length: int, chunk_spec: ArraySpec
+    ) -> int:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class JpegCodec(ArrayBytesCodec):
+    """JPEG codec for Zarr 3 conforming to the zarr-extensions 'jpeg' spec.
+
+    https://github.com/zarr-developers/zarr-extensions/tree/main/codecs/jpeg
+
+    """
+
+    is_fixed_size = False
+
+    codec_name: ClassVar[str] = 'jpeg'
+
+    quality: int = 95
+    encoded_color_space: Literal['grayscale', 'ycbcr', 'rgb'] = 'grayscale'
+    decoded_color_space: Literal['grayscale', 'ycbcr', 'rgb'] | None = None
+    subsampling: tuple[tuple[int, int], ...] = ((1, 1),)
+
+    # (decoded_color_space, encoded_color_space)
+    COLOR_SPACES: ClassVar[frozenset[tuple[str, str]]] = frozenset(
+        {
+            ('grayscale', 'grayscale'),
+            ('rgb', 'ycbcr'),
+            ('rgb', 'rgb'),
+            ('ycbcr', 'ycbcr'),
+        }
+    )
+
+    SUBSAMPLING: ClassVar[dict[str, tuple[tuple[int, int], ...]]] = {
+        '4:4:4': ((1, 1), (1, 1), (1, 1)),
+        '4:2:2': ((2, 1), (1, 1), (1, 1)),
+        '4:4:0': ((1, 2), (1, 1), (1, 1)),
+        '4:2:0': ((2, 2), (1, 1), (1, 1)),
+        '4:1:1': ((4, 1), (1, 1), (1, 1)),
+    }
+
+    @staticmethod
+    def default_decoded_color_space(encoded_color_space: str, /) -> str:
+        """Return default decoded_color_space for encoded_color_space."""
+        return 'grayscale' if encoded_color_space == 'grayscale' else 'rgb'
+
+    def __init__(
+        self,
+        *,
+        quality: int = 95,
+        encoded_color_space: Literal['grayscale', 'ycbcr', 'rgb'],
+        decoded_color_space: (
+            Literal['grayscale', 'ycbcr', 'rgb'] | None
+        ) = None,
+        subsampling: str | Sequence[Sequence[int]] | None = None,
+    ) -> None:
+        if not imagecodecs.JPEG.available:
+            msg = 'imagecodecs.JPEG not available'
+            raise ValueError(msg)
+
+        if isinstance(quality, bool) or not isinstance(quality, int):
+            msg = f'quality must be an integer, not {quality!r}'
+            raise TypeError(msg)
+        if not 1 <= quality <= 100:
+            msg = f'quality={quality} not in range 1-100'
+            raise ValueError(msg)
+
+        if encoded_color_space not in {'grayscale', 'ycbcr', 'rgb'}:
+            msg = f'invalid {encoded_color_space=!r}'
+            raise ValueError(msg)
+        decoded: str | None = decoded_color_space
+        if decoded is None:
+            decoded = self.default_decoded_color_space(encoded_color_space)
+        if (decoded, encoded_color_space) not in self.COLOR_SPACES:
+            msg = (
+                f'invalid combination of {decoded_color_space=!r} '
+                f'and {encoded_color_space=!r}'
+            )
+            raise ValueError(msg)
+
+        ncomponents = 1 if encoded_color_space == 'grayscale' else 3
+        if subsampling is None:
+            if encoded_color_space == 'ycbcr':
+                msg = "subsampling required for encoded_color_space='ycbcr'"
+                raise ValueError(msg)
+            subsampling = ((1, 1),) * ncomponents
+        elif isinstance(subsampling, str):
+            if subsampling not in self.SUBSAMPLING:
+                msg = f'invalid {subsampling=!r}'
+                raise ValueError(msg)
+            subsampling = self.SUBSAMPLING[subsampling]
+        if any(
+            len(f) != 2
+            or any(isinstance(i, bool) or not isinstance(i, int) for i in f)
+            for f in subsampling
+        ):
+            msg = f'subsampling factors must be pairs of int: {subsampling!r}'
+            raise ValueError(msg)
+        factors = tuple((int(h), int(v)) for h, v in subsampling)
+        if len(factors) != ncomponents:
+            msg = (
+                f'subsampling must have {ncomponents} components '
+                f'for {encoded_color_space=!r}'
+            )
+            raise ValueError(msg)
+        if any(not (1 <= h <= 4 and 1 <= v <= 4) for h, v in factors):
+            msg = f'subsampling factors not in range 1-4: {factors!r}'
+            raise ValueError(msg)
+        if encoded_color_space != 'ycbcr' and any(
+            f != (1, 1) for f in factors
+        ):
+            msg = (
+                f'subsampling must be all [1, 1] '
+                f'for {encoded_color_space=!r}'
+            )
+            raise ValueError(msg)
+        if any(f != (1, 1) for f in factors[1:]):
+            msg = 'subsampling of chroma components must be [1, 1]'
+            raise ValueError(msg)
+
+        _setattrs(
+            self,
+            quality=quality,
+            encoded_color_space=encoded_color_space,
+            decoded_color_space=decoded_color_space,
+            subsampling=factors,
+        )
+
+    @property
+    def _decoded_color_space(self) -> str:
+        if self.decoded_color_space is not None:
+            return self.decoded_color_space
+        return self.default_decoded_color_space(self.encoded_color_space)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, JSON]) -> Self:
+        _, cfg = parse_named_configuration(
+            data, cls.codec_name, require_configuration=True
+        )
+        assert cfg is not None
+        unknown = set(cfg).difference(
+            {
+                'quality',
+                'encoded_color_space',
+                'decoded_color_space',
+                'subsampling',
+            }
+        )
+        if unknown:
+            msg = f'unknown jpeg configuration keys: {sorted(unknown)!r}'
+            raise ValueError(msg)
+        for key in ('quality', 'encoded_color_space'):
+            if key not in cfg:
+                msg = f'jpeg configuration requires {key!r}'
+                raise ValueError(msg)
+        if 'decoded_color_space' in cfg and cfg['decoded_color_space'] is None:
+            msg = 'decoded_color_space must not be null'
+            raise ValueError(msg)
+        if 'subsampling' in cfg and not isinstance(cfg['subsampling'], list):
+            msg = 'subsampling must be an array of sampling factors'
+            raise TypeError(msg)
+        return cls(**cfg)  # type: ignore[arg-type]
+
+    def to_dict(self) -> dict[str, JSON]:
+        cfg: dict[str, JSON] = {
+            'quality': self.quality,
+            'encoded_color_space': self.encoded_color_space,
+        }
+        if self.decoded_color_space is not None:
+            cfg['decoded_color_space'] = self.decoded_color_space
+        if self.encoded_color_space == 'ycbcr':
+            cfg['subsampling'] = [list(f) for f in self.subsampling]
+        return {'name': self.codec_name, 'configuration': cfg}
+
+    def _image_shape(self, shape: tuple[int, ...], /) -> tuple[int, ...]:
+        """Return 2D or 3D image shape of chunk or raise ValueError."""
+        if len(shape) == 2 or (len(shape) == 3 and shape[2] == 1):
+            ncomponents = 1
+        elif len(shape) == 3 and shape[2] == 3:
+            ncomponents = 3
+        else:
+            msg = f'jpeg codec does not support chunk shape {shape!r}'
+            raise ValueError(msg)
+        if ncomponents != len(self.subsampling):
+            msg = (
+                f'chunk shape {shape!r} does not match '
+                f'encoded_color_space={self.encoded_color_space!r}'
+            )
+            raise ValueError(msg)
+        if not (0 < shape[0] <= 65535 and 0 < shape[1] <= 65535):
+            msg = f'chunk shape {shape!r} exceeds JPEG dimension limits'
+            raise ValueError(msg)
+        if ncomponents == 1:
+            return (shape[0], shape[1])
+        return (shape[0], shape[1], 3)
+
+    def _decode_sync(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        shape = self._image_shape(chunk_spec.shape)
+        decoded = imagecodecs.jpeg_decode(
+            chunk_bytes.as_numpy_array(),
+            outcolorspace=self._decoded_color_space.upper(),
+        )
+        if decoded.dtype != numpy.uint8 or decoded.shape != shape:
+            msg = (
+                f'decoded JPEG {decoded.shape!r} {decoded.dtype} does not '
+                f'match chunk shape {chunk_spec.shape!r} uint8'
+            )
+            raise ValueError(msg)
+        return chunk_spec.prototype.nd_buffer.from_numpy_array(
+            decoded.reshape(chunk_spec.shape)
+        )
+
+    async def _decode_single(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        return await asyncio.to_thread(
+            self._decode_sync, chunk_bytes, chunk_spec
+        )
+
+    def _encode_sync(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        arr = chunk_array.as_numpy_array()
+        if arr.dtype != numpy.uint8:
+            msg = f'jpeg codec does not support dtype {arr.dtype}'
+            raise ValueError(msg)
+        if self.subsampling[0] not in {
+            (1, 1),
+            (2, 1),
+            (1, 2),
+            (2, 2),
+            (4, 1),
+        }:
+            msg = f'encoding {self.subsampling=!r} not supported'
+            raise ValueError(msg)
+        arr = numpy.ascontiguousarray(
+            arr.reshape(self._image_shape(arr.shape))
+        )
+        encoded = imagecodecs.jpeg_encode(
+            arr,
+            level=self.quality,
+            colorspace=self._decoded_color_space.upper(),
+            outcolorspace=self.encoded_color_space.upper(),
+            subsampling=self.subsampling[0],
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -3170,6 +3512,7 @@ class Jpeg2k(ArrayBytesCodec):
     level: int | None = None
     codecformat: str | None = None
     colorspace: str | None = None
+    extrasample: str | None = None
     planar: bool | None = None
     tile: tuple[int, int] | None = None
     bitspersample: int | None = None
@@ -3186,6 +3529,7 @@ class Jpeg2k(ArrayBytesCodec):
         level: int | None = None,
         codecformat: imagecodecs.JPEG2K.CODEC | int | str | None = None,
         colorspace: imagecodecs.JPEG2K.CLRSPC | int | str | None = None,
+        extrasample: imagecodecs.JPEG2K.EXTRA | int | str | None = None,
         planar: bool | None = None,
         tile: tuple[int, int] | None = None,
         bitspersample: int | None = None,
@@ -3204,6 +3548,7 @@ class Jpeg2k(ArrayBytesCodec):
             level=None if level is None else int(level),
             codecformat=_enum_name(codecformat, imagecodecs.JPEG2K.CODEC),
             colorspace=_enum_name(colorspace, imagecodecs.JPEG2K.CLRSPC),
+            extrasample=_enum_name(extrasample, imagecodecs.JPEG2K.EXTRA),
             planar=None if planar is None else bool(planar),
             tile=None if tile is None else (int(tile[0]), int(tile[1])),
             bitspersample=(
@@ -3227,6 +3572,7 @@ class Jpeg2k(ArrayBytesCodec):
             'level',
             'codecformat',
             'colorspace',
+            'extrasample',
             'planar',
             'tile',
             'bitspersample',
@@ -3275,6 +3621,7 @@ class Jpeg2k(ArrayBytesCodec):
             level=self.level,
             codecformat=self.codecformat,
             colorspace=self.colorspace,
+            extrasample=self.extrasample,
             planar=self.planar,
             tile=self.tile,
             reversible=self.reversible,
@@ -3300,6 +3647,175 @@ class Jpeg2k(ArrayBytesCodec):
 
 
 @dataclass(frozen=True)
+class Jpegli(ArrayBytesCodec):
+    """Jpegli codec for Zarr 3."""
+
+    is_fixed_size = False
+
+    level: int | None = None
+    distance: float | None = None
+    tables: bytes | None = None
+    header: bytes | None = None
+    iccprofile: bytes | None = None
+    colorspace_data: str | None = None
+    colorspace_jpeg: str | None = None
+    subsampling: str | tuple[int, int] | None = None
+    optimize: bool | None = None
+    smoothing: int | None = None
+    progressive: bool | int | None = None
+    adaptive: bool | None = None
+    standardtables: bool | None = None
+    fancyupsampling: bool | None = None
+
+    def __init__(
+        self,
+        *,
+        level: int | None = None,
+        distance: float | None = None,
+        tables: bytes | None = None,
+        header: bytes | None = None,
+        iccprofile: bytes | None = None,
+        colorspace_data: imagecodecs.JPEGLI.CS | int | str | None = None,
+        colorspace_jpeg: imagecodecs.JPEGLI.CS | int | str | None = None,
+        subsampling: str | tuple[int, int] | None = None,
+        optimize: bool | None = None,
+        smoothing: int | None = None,
+        progressive: bool | int | None = None,
+        adaptive: bool | None = None,
+        standardtables: bool | None = None,
+        fancyupsampling: bool | None = None,
+    ) -> None:
+        if not imagecodecs.JPEGLI.available:
+            msg = 'imagecodecs.JPEGLI not available'
+            raise ValueError(msg)
+        _setattrs(
+            self,
+            level=None if level is None else int(level),
+            distance=None if distance is None else float(distance),
+            tables=tables,
+            header=header,
+            iccprofile=iccprofile,
+            colorspace_data=_enum_name(colorspace_data, imagecodecs.JPEGLI.CS),
+            colorspace_jpeg=_enum_name(colorspace_jpeg, imagecodecs.JPEGLI.CS),
+            subsampling=(
+                subsampling
+                if subsampling is None or isinstance(subsampling, str)
+                else (int(subsampling[0]), int(subsampling[1]))
+            ),
+            optimize=None if optimize is None else bool(optimize),
+            smoothing=None if smoothing is None else int(smoothing),
+            progressive=(
+                None
+                if progressive is None
+                else (
+                    progressive
+                    if isinstance(progressive, bool)
+                    else int(progressive)
+                )
+            ),
+            adaptive=None if adaptive is None else bool(adaptive),
+            standardtables=(
+                None if standardtables is None else bool(standardtables)
+            ),
+            fancyupsampling=(
+                None if fancyupsampling is None else bool(fancyupsampling)
+            ),
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, JSON]) -> Self:
+        cfg = _parse_config(data, 'jpegli')
+        for key in ('header', 'tables', 'iccprofile'):
+            value = cfg.get(key)
+            if value is not None and isinstance(value, str):
+                cfg[key] = base64.b64decode(value.encode())
+        return cls(**cfg)
+
+    def to_dict(self) -> dict[str, JSON]:
+        cfg: dict[str, JSON] = {}
+        for key in (
+            'level',
+            'distance',
+            'colorspace_data',
+            'colorspace_jpeg',
+            'subsampling',
+            'optimize',
+            'smoothing',
+            'progressive',
+            'adaptive',
+            'standardtables',
+            'fancyupsampling',
+        ):
+            value = getattr(self, key)
+            if value is not None:
+                cfg[key] = value
+        for key in ('tables', 'header', 'iccprofile'):
+            value = getattr(self, key)
+            if value is not None:
+                cfg[key] = base64.b64encode(value).decode()
+        if cfg:
+            return {'name': 'imagecodecs_jpegli', 'configuration': cfg}
+        return {'name': 'imagecodecs_jpegli'}
+
+    def _decode_sync(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        buf: bytes | numpy.ndarray[Any, Any] = chunk_bytes.as_numpy_array()
+        if self.header is not None:
+            buf = b''.join((self.header, bytes(buf), b'\xff\xd9'))
+        decoded = imagecodecs.jpegli_decode(
+            buf,
+            tables=self.tables,
+            colorspace=self.colorspace_jpeg,
+            outcolorspace=self.colorspace_data,
+            fancyupsampling=self.fancyupsampling,
+            dtype=chunk_spec.dtype.to_native_dtype(),
+        )
+        return chunk_spec.prototype.nd_buffer.from_numpy_array(
+            decoded.reshape(chunk_spec.shape)
+        )
+
+    async def _decode_single(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        return await asyncio.to_thread(
+            self._decode_sync, chunk_bytes, chunk_spec
+        )
+
+    def _encode_sync(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        arr = _squeeze(chunk_array)
+        encoded = imagecodecs.jpegli_encode(
+            arr,
+            level=self.level,
+            distance=self.distance,
+            colorspace=self.colorspace_data,
+            outcolorspace=self.colorspace_jpeg,
+            subsampling=self.subsampling,
+            optimize=self.optimize,
+            smoothing=self.smoothing,
+            progressive=self.progressive,
+            adaptive=self.adaptive,
+            standardtables=self.standardtables,
+            iccprofile=self.iccprofile,
+        )
+        return chunk_spec.prototype.buffer.from_bytes(encoded)
+
+    async def _encode_single(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        return await asyncio.to_thread(
+            self._encode_sync, chunk_array, chunk_spec
+        )
+
+    def compute_encoded_size(
+        self, input_byte_length: int, chunk_spec: ArraySpec
+    ) -> int:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class Jpegls(ArrayBytesCodec):
     """JPEG LS codec for Zarr 3."""
 
@@ -3307,6 +3823,7 @@ class Jpegls(ArrayBytesCodec):
 
     level: int | None = None
     bitspersample: int | None = None
+    planar: bool | None = None
     transformation: str | None = None
     spiff: bool | None = None
 
@@ -3315,6 +3832,7 @@ class Jpegls(ArrayBytesCodec):
         *,
         level: int | None = None,
         bitspersample: int | None = None,
+        planar: bool | None = None,
         transformation: (
             imagecodecs.JPEGLS.COLOR_TRANSFORMATION | int | str | None
         ) = None,
@@ -3329,6 +3847,7 @@ class Jpegls(ArrayBytesCodec):
             bitspersample=(
                 None if bitspersample is None else int(bitspersample)
             ),
+            planar=None if planar is None else bool(planar),
             transformation=_enum_name(
                 transformation, imagecodecs.JPEGLS.COLOR_TRANSFORMATION
             ),
@@ -3345,8 +3864,12 @@ class Jpegls(ArrayBytesCodec):
             cfg['level'] = self.level
         if self.bitspersample is not None:
             cfg['bitspersample'] = self.bitspersample
+        if self.planar is not None:
+            cfg['planar'] = self.planar
         if self.transformation is not None:
             cfg['transformation'] = self.transformation
+        if self.spiff is not None:
+            cfg['spiff'] = self.spiff
         if cfg:
             return {'name': 'imagecodecs_jpegls', 'configuration': cfg}
         return {'name': 'imagecodecs_jpegls'}
@@ -3354,7 +3877,9 @@ class Jpegls(ArrayBytesCodec):
     def _decode_sync(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> NDBuffer:
-        decoded = imagecodecs.jpegls_decode(chunk_bytes.as_numpy_array())
+        decoded = imagecodecs.jpegls_decode(
+            chunk_bytes.as_numpy_array(), planar=self.planar
+        )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(
             decoded.reshape(chunk_spec.shape)
         )
@@ -3369,11 +3894,12 @@ class Jpegls(ArrayBytesCodec):
     def _encode_sync(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
-        arr = _squeeze(chunk_array)
+        arr = _squeeze(chunk_array, planar=self.planar)
         encoded = imagecodecs.jpegls_encode(
             arr,
             level=self.level,
             bitspersample=self.bitspersample,
+            planar=self.planar,
             transformation=self.transformation,
             spiff=self.spiff,
         )
@@ -3404,10 +3930,13 @@ class Jpegxl(ArrayBytesCodec):
     lossless: bool | None = None
     decodingspeed: int | None = None
     photometric: str | None = None
+    hasalpha: bool | None = None
     bitspersample: int | None = None
     planar: bool | None = None
     primaries: str | None = None
     transfer: str | None = None
+    whitepoint: str | None = None
+    gamma: float | None = None
     perceptualheuristics: bool | None = None
     usecontainer: bool | None = None
     index: int | None = None
@@ -3423,12 +3952,15 @@ class Jpegxl(ArrayBytesCodec):
         lossless: bool | None = None,
         decodingspeed: int | None = None,
         photometric: imagecodecs.JPEGXL.COLOR_SPACE | int | str | None = None,
+        hasalpha: bool | None = None,
         bitspersample: int | None = None,
         planar: bool | None = None,
         primaries: imagecodecs.JPEGXL.PRIMARIES | int | str | None = None,
         transfer: (
             imagecodecs.JPEGXL.TRANSFER_FUNCTION | int | str | None
         ) = None,
+        whitepoint: imagecodecs.JPEGXL.WHITE_POINT | int | str | None = None,
+        gamma: float | None = None,
         perceptualheuristics: bool | None = None,
         usecontainer: bool | None = None,
         index: int | None = None,
@@ -3453,11 +3985,14 @@ class Jpegxl(ArrayBytesCodec):
             photometric=_enum_name(
                 photometric, imagecodecs.JPEGXL.COLOR_SPACE
             ),
+            hasalpha=None if hasalpha is None else bool(hasalpha),
             planar=None if planar is None else bool(planar),
             primaries=_enum_name(primaries, imagecodecs.JPEGXL.PRIMARIES),
             transfer=_enum_name(
                 transfer, imagecodecs.JPEGXL.TRANSFER_FUNCTION
             ),
+            whitepoint=_enum_name(whitepoint, imagecodecs.JPEGXL.WHITE_POINT),
+            gamma=None if gamma is None else float(gamma),
             perceptualheuristics=(
                 None
                 if perceptualheuristics is None
@@ -3484,10 +4019,13 @@ class Jpegxl(ArrayBytesCodec):
             'lossless',
             'decodingspeed',
             'photometric',
+            'hasalpha',
             'bitspersample',
             'planar',
             'primaries',
             'transfer',
+            'whitepoint',
+            'gamma',
             'perceptualheuristics',
             'usecontainer',
             'index',
@@ -3534,9 +4072,12 @@ class Jpegxl(ArrayBytesCodec):
             decodingspeed=self.decodingspeed,
             bitspersample=self.bitspersample,
             photometric=self.photometric,
+            hasalpha=self.hasalpha,
             planar=self.planar,
             primaries=self.primaries,
             transfer=self.transfer,
+            whitepoint=self.whitepoint,
+            gamma=self.gamma,
             perceptualheuristics=self.perceptualheuristics,
             usecontainer=self.usecontainer,
             numthreads=self.numthreads,
@@ -3743,16 +4284,16 @@ class Lerc(ArrayBytesCodec):
 
     level: float | None = None
     version: int | None = None
-    planar: bool = False
+    planar: bool | None = None
     compression: Literal['zstd', 'deflate'] | None = None
-    compressionargs: dict[str, Any] | None = None
+    compressionargs: dict[str, Any] | None = field(default=None, hash=False)
 
     def __init__(
         self,
         *,
         level: float | None = None,
         version: int | None = None,
-        planar: bool = False,
+        planar: bool | None = None,
         compression: Literal['zstd', 'deflate'] | None = None,
         compressionargs: dict[str, Any] | None = None,
     ) -> None:
@@ -3763,7 +4304,7 @@ class Lerc(ArrayBytesCodec):
             self,
             level=None if level is None else float(level),
             version=None if version is None else int(version),
-            planar=bool(planar),
+            planar=None if planar is None else bool(planar),
             compression=compression,
             compressionargs=compressionargs,
         )
@@ -3774,12 +4315,16 @@ class Lerc(ArrayBytesCodec):
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
-        for key in ('level', 'version', 'compression', 'compressionargs'):
+        for key in (
+            'level',
+            'version',
+            'planar',
+            'compression',
+            'compressionargs',
+        ):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
-        if self.planar:
-            cfg['planar'] = True
         if cfg:
             return {'name': 'imagecodecs_lerc', 'configuration': cfg}
         return {'name': 'imagecodecs_lerc'}
@@ -4081,12 +4626,14 @@ class Lz4h5(BytesBytesCodec):
     is_fixed_size = False
 
     level: int | None = None
+    hc: bool = False
     blocksize: int | None = None
 
     def __init__(
         self,
         *,
         level: int | None = None,
+        hc: bool = False,
         blocksize: int | None = None,
     ) -> None:
         if not imagecodecs.LZ4H5.available:
@@ -4095,6 +4642,7 @@ class Lz4h5(BytesBytesCodec):
         _setattrs(
             self,
             level=None if level is None else int(level),
+            hc=bool(hc),
             blocksize=None if blocksize is None else int(blocksize),
         )
 
@@ -4106,6 +4654,8 @@ class Lz4h5(BytesBytesCodec):
         cfg: dict[str, JSON] = {}
         if self.level is not None:
             cfg['level'] = self.level
+        if self.hc:
+            cfg['hc'] = self.hc
         if self.blocksize is not None:
             cfg['blocksize'] = self.blocksize
         if cfg:
@@ -4131,6 +4681,7 @@ class Lz4h5(BytesBytesCodec):
         encoded = imagecodecs.lz4h5_encode(
             chunk_bytes.as_numpy_array(),
             level=self.level,
+            hc=self.hc,
             blocksize=self.blocksize,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
@@ -4221,8 +4772,7 @@ class Lzfse(BytesBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'lzfse')
-        return cls()
+        return cls(**_parse_config(data, 'lzfse'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_lzfse'}
@@ -4463,8 +5013,7 @@ class Lzw(BytesBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'lzw')
-        return cls()
+        return cls(**_parse_config(data, 'lzw'))
 
     def to_dict(self) -> dict[str, JSON]:
         return {'name': 'imagecodecs_lzw'}
@@ -4600,10 +5149,14 @@ class Openzl(BytesBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'openzl')
-        return cls()
+        return cls(**_parse_config(data, 'openzl'))
 
     def to_dict(self) -> dict[str, JSON]:
+        if self.level is not None:
+            return {
+                'name': 'imagecodecs_openzl',
+                'configuration': {'level': self.level},
+            }
         return {'name': 'imagecodecs_openzl'}
 
     def _decode_sync(
@@ -4622,10 +5175,11 @@ class Openzl(BytesBytesCodec):
     def _encode_sync(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
-        encoded = imagecodecs.openzl_encode(
+        # this currently raises NotImplementedError
+        encoded = imagecodecs.openzl_encode(  # type: ignore[var-annotated]
             chunk_bytes.as_numpy_array(), level=self.level
         )
-        return chunk_spec.prototype.buffer.from_bytes(encoded)
+        return chunk_spec.prototype.buffer.from_bytes(encoded)  # type: ignore[unreachable]
 
     async def _encode_single(
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
@@ -4947,7 +5501,11 @@ class Pglz(BytesBytesCodec):
         _setattrs(
             self,
             header=bool(header),
-            strategy=strategy,
+            strategy=(
+                strategy
+                if strategy is None or isinstance(strategy, str)
+                else tuple(int(i) for i in strategy)
+            ),
             checkcomplete=(
                 None if checkcomplete is None else bool(checkcomplete)
             ),
@@ -5016,12 +5574,14 @@ class Pixarlog(ArrayBytesCodec):
 
     level: int | None = None
     deflate: bool = True
+    byteorder: Literal['>', '<', '='] | None = None
 
     def __init__(
         self,
         *,
         level: int | None = None,
         deflate: bool = True,
+        byteorder: Literal['>', '<', '='] | None = None,
     ) -> None:
         if not imagecodecs.PIXARLOG.available:
             msg = 'imagecodecs.PIXARLOG not available'
@@ -5030,6 +5590,7 @@ class Pixarlog(ArrayBytesCodec):
             self,
             level=None if level is None else int(level),
             deflate=bool(deflate),
+            byteorder=byteorder,
         )
 
     @classmethod
@@ -5042,6 +5603,8 @@ class Pixarlog(ArrayBytesCodec):
             cfg['level'] = self.level
         if not self.deflate:
             cfg['deflate'] = self.deflate
+        if self.byteorder is not None:
+            cfg['byteorder'] = self.byteorder
         if cfg:
             return {
                 'name': 'imagecodecs_pixarlog',
@@ -5053,14 +5616,12 @@ class Pixarlog(ArrayBytesCodec):
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> NDBuffer:
         dtype = chunk_spec.dtype.to_native_dtype()
-        # pixarlog requires 2D or 3D shape; squeeze out the leading batch dim
-        squeezed = tuple(s for s in chunk_spec.shape if s != 1)
-        shape = squeezed if len(squeezed) >= 2 else (1, *squeezed)
         decoded = imagecodecs.pixarlog_decode(
             chunk_bytes.as_numpy_array(),
-            shape=shape,
+            shape=_squeeze_shape(chunk_spec.shape),
             dtype=dtype,
             deflate=self.deflate,
+            byteorder=self.byteorder,
         )
         return chunk_spec.prototype.nd_buffer.from_numpy_array(
             decoded.reshape(chunk_spec.shape)
@@ -5078,7 +5639,10 @@ class Pixarlog(ArrayBytesCodec):
     ) -> Buffer | None:
         arr = _squeeze(chunk_array)
         encoded = imagecodecs.pixarlog_encode(
-            arr, level=self.level, deflate=self.deflate
+            arr,
+            level=self.level,
+            deflate=self.deflate,
+            byteorder=self.byteorder,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -5119,7 +5683,7 @@ class Plio(ArrayBytesCodec):
         dtype = chunk_spec.dtype.to_native_dtype()
         decoded = imagecodecs.plio_decode(
             chunk_bytes.as_numpy_array(),
-            npix=int(numpy.prod(chunk_spec.shape)),
+            npix=int(numpy.prod(chunk_spec.shape, dtype=numpy.int64)),
         )
         decoded = decoded.astype(dtype, copy=False).reshape(chunk_spec.shape)
         return chunk_spec.prototype.nd_buffer.from_numpy_array(decoded)
@@ -5278,8 +5842,7 @@ class Qoi(ArrayBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'qoi')
-        return cls()
+        return cls(**_parse_config(data, 'qoi'))
 
     def to_dict(self) -> dict[str, JSON]:
         if self.colorspace:
@@ -5504,9 +6067,7 @@ class Rgbe(ArrayBytesCodec):
     ) -> NDBuffer:
         # when no header, rgbe_decode needs an out buffer to know dimensions
         if not self.header:
-            squeezed = tuple(s for s in chunk_spec.shape if s != 1)
-            shape = squeezed if len(squeezed) >= 2 else (1, *squeezed)
-            out = numpy.empty(shape, numpy.float32)
+            out = numpy.empty(_squeeze_shape(chunk_spec.shape), numpy.float32)
             decoded = imagecodecs.rgbe_decode(
                 chunk_bytes.as_numpy_array(),
                 header=self.header,
@@ -5560,7 +6121,7 @@ class Snappy(BytesBytesCodec):
 
     level: int | None = None
 
-    def __init__(self, level: int | None = None) -> None:
+    def __init__(self, *, level: int | None = None) -> None:
         if not imagecodecs.SNAPPY.available:
             msg = 'imagecodecs.SNAPPY not available'
             raise ValueError(msg)
@@ -5568,8 +6129,7 @@ class Snappy(BytesBytesCodec):
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        _parse_config(data, 'snappy')
-        return cls()
+        return cls(**_parse_config(data, 'snappy'))
 
     def to_dict(self) -> dict[str, JSON]:
         if self.level is not None:
@@ -5675,7 +6235,7 @@ class Sperr(ArrayBytesCodec):
             dtype = chunk_spec.dtype.to_native_dtype()
             decoded = imagecodecs.sperr_decode(
                 chunk_bytes.as_numpy_array(),
-                shape=chunk_spec.shape,
+                shape=_squeeze_shape(chunk_spec.shape),
                 dtype=dtype,
                 header=False,
                 numthreads=self.numthreads,
@@ -6039,6 +6599,13 @@ class Tiff(ArrayBytesCodec):
     subcodec: str | None = None
     level: int | None = None
     predictor: bool | str | None = None
+    colormap: tuple[tuple[int, ...], ...] | None = None
+    iccprofile: bytes | None = None
+    description: str | None = None
+    datetime: str | None = None
+    resolution: tuple[float, float] | None = None
+    resolutionunit: str | None = None
+    software: str | None = None
     verbose: int | None = None
 
     def __init__(
@@ -6059,6 +6626,13 @@ class Tiff(ArrayBytesCodec):
         subcodec: imagecodecs.TIFF.SUBCODEC | int | str | None = None,
         level: int | None = None,
         predictor: bool | imagecodecs.TIFF.PREDICTOR | int | str | None = None,
+        colormap: NDArray[Any] | Sequence[Sequence[int]] | None = None,
+        iccprofile: bytes | None = None,
+        description: str | None = None,
+        datetime: str | None = None,
+        resolution: tuple[float, float] | None = None,
+        resolutionunit: imagecodecs.TIFF.RESUNIT | int | str | None = None,
+        software: str | None = None,
         verbose: int | None = None,
     ) -> None:
         if not imagecodecs.TIFF.available:
@@ -6089,12 +6663,36 @@ class Tiff(ArrayBytesCodec):
                 if isinstance(predictor, bool)
                 else _enum_name(predictor, imagecodecs.TIFF.PREDICTOR)
             ),
+            colormap=(
+                None
+                if colormap is None
+                else tuple(
+                    tuple(int(v) for v in row)
+                    for row in numpy.asarray(colormap, dtype=numpy.uint16)
+                )
+            ),
+            iccprofile=iccprofile,
+            description=description,
+            datetime=datetime,
+            resolution=(
+                None
+                if resolution is None
+                else (float(resolution[0]), float(resolution[1]))
+            ),
+            resolutionunit=_enum_name(
+                resolutionunit, imagecodecs.TIFF.RESUNIT
+            ),
+            software=software,
             verbose=None if verbose is None else int(verbose),
         )
 
     @classmethod
     def from_dict(cls, data: dict[str, JSON]) -> Self:
-        return cls(**_parse_config(data, 'tiff'))
+        cfg = _parse_config(data, 'tiff')
+        iccprofile = cfg.get('iccprofile')
+        if isinstance(iccprofile, str):
+            cfg['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**cfg)
 
     def to_dict(self) -> dict[str, JSON]:
         cfg: dict[str, JSON] = {}
@@ -6113,11 +6711,19 @@ class Tiff(ArrayBytesCodec):
             'subcodec',
             'level',
             'predictor',
+            'colormap',
+            'description',
+            'datetime',
+            'resolution',
+            'resolutionunit',
+            'software',
             'verbose',
         ):
             value = getattr(self, key)
             if value is not None:
                 cfg[key] = value
+        if self.iccprofile is not None:
+            cfg['iccprofile'] = base64.b64encode(self.iccprofile).decode()
         if self.asrgb:
             cfg['asrgb'] = True
         if cfg:
@@ -6147,7 +6753,7 @@ class Tiff(ArrayBytesCodec):
     def _encode_sync(
         self, chunk_array: NDBuffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
-        arr = _squeeze(chunk_array, planar=self.planarconfig == 'separate')
+        arr = _squeeze(chunk_array, planar=self.planarconfig == 'SEPARATE')
         encoded = imagecodecs.tiff_encode(
             arr,
             level=self.level,
@@ -6163,6 +6769,17 @@ class Tiff(ArrayBytesCodec):
             compression=self.compression,
             subcodec=self.subcodec,
             predictor=self.predictor,
+            colormap=(
+                None
+                if self.colormap is None
+                else numpy.array(self.colormap, dtype=numpy.uint16)
+            ),
+            iccprofile=self.iccprofile,
+            description=self.description,
+            datetime=self.datetime,
+            resolution=self.resolution,
+            resolutionunit=self.resolutionunit,
+            software=self.software,
             verbose=self.verbose,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
@@ -6336,113 +6953,6 @@ class Ultrahdr(ArrayBytesCodec):
 
 
 @dataclass(frozen=True)
-class Webp(ArrayBytesCodec):
-    """WebP codec for Zarr 3."""
-
-    is_fixed_size = False
-
-    level: float | None = None
-    lossless: bool | None = None
-    method: int | None = None
-    index: int | None = None
-    hasalpha: bool | None = None
-    numthreads: int | None = None
-    delay: int | None = None
-
-    def __init__(
-        self,
-        *,
-        level: float | None = None,
-        lossless: bool | None = None,
-        method: int | None = None,
-        index: int | None = None,
-        hasalpha: bool | None = None,
-        numthreads: int | None = None,
-        delay: int | None = None,
-    ) -> None:
-        if not imagecodecs.WEBP.available:
-            msg = 'imagecodecs.WEBP not available'
-            raise ValueError(msg)
-        _setattrs(
-            self,
-            level=None if level is None else float(level),
-            hasalpha=None if hasalpha is None else bool(hasalpha),
-            method=None if method is None else int(method),
-            index=None if index is None else int(index),
-            lossless=None if lossless is None else bool(lossless),
-            numthreads=None if numthreads is None else int(numthreads),
-            delay=None if delay is None else int(delay),
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict[str, JSON]) -> Self:
-        return cls(**_parse_config(data, 'webp'))
-
-    def to_dict(self) -> dict[str, JSON]:
-        cfg: dict[str, JSON] = {}
-        for key in (
-            'level',
-            'lossless',
-            'method',
-            'index',
-            'hasalpha',
-            'numthreads',
-            'delay',
-        ):
-            value = getattr(self, key)
-            if value is not None:
-                cfg[key] = value
-        if cfg:
-            return {'name': 'imagecodecs_webp', 'configuration': cfg}
-        return {'name': 'imagecodecs_webp'}
-
-    def _decode_sync(
-        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
-    ) -> NDBuffer:
-        decoded = imagecodecs.webp_decode(
-            chunk_bytes.as_numpy_array(),
-            index=self.index,
-            hasalpha=self.hasalpha,
-        )
-        return chunk_spec.prototype.nd_buffer.from_numpy_array(
-            decoded.reshape(chunk_spec.shape)
-        )
-
-    async def _decode_single(
-        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
-    ) -> NDBuffer:
-        return await asyncio.to_thread(
-            self._decode_sync, chunk_bytes, chunk_spec
-        )
-
-    def _encode_sync(
-        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
-    ) -> Buffer | None:
-        arr = _squeeze(chunk_array)
-        encoded = imagecodecs.webp_encode(
-            arr,
-            level=self.level,
-            lossless=self.lossless,
-            method=self.method,
-            numthreads=self.numthreads,
-            delay=self.delay,
-        )
-        return chunk_spec.prototype.buffer.from_bytes(encoded)
-
-    async def _encode_single(
-        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
-    ) -> Buffer | None:
-        return await asyncio.to_thread(
-            self._encode_sync, chunk_array, chunk_spec
-        )
-
-    def compute_encoded_size(
-        self, input_byte_length: int, chunk_spec: ArraySpec
-    ) -> int:
-        raise NotImplementedError
-
-
-@dataclass(frozen=True)
 class Wavpack(ArrayBytesCodec):
     """Wavpack codec for Zarr 3."""
 
@@ -6520,6 +7030,113 @@ class Wavpack(ArrayBytesCodec):
             arr,
             level=self.level,
             bitrate=self.bitrate,
+            numthreads=self.numthreads,
+        )
+        return chunk_spec.prototype.buffer.from_bytes(encoded)
+
+    async def _encode_single(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        return await asyncio.to_thread(
+            self._encode_sync, chunk_array, chunk_spec
+        )
+
+    def compute_encoded_size(
+        self, input_byte_length: int, chunk_spec: ArraySpec
+    ) -> int:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class Webp(ArrayBytesCodec):
+    """WebP codec for Zarr 3."""
+
+    is_fixed_size = False
+
+    level: float | None = None
+    lossless: bool | None = None
+    method: int | None = None
+    index: int | None = None
+    hasalpha: bool | None = None
+    delay: int | None = None
+    numthreads: int | None = None
+
+    def __init__(
+        self,
+        *,
+        level: float | None = None,
+        lossless: bool | None = None,
+        method: int | None = None,
+        index: int | None = None,
+        hasalpha: bool | None = None,
+        delay: int | None = None,
+        numthreads: int | None = None,
+    ) -> None:
+        if not imagecodecs.WEBP.available:
+            msg = 'imagecodecs.WEBP not available'
+            raise ValueError(msg)
+        _setattrs(
+            self,
+            level=None if level is None else float(level),
+            hasalpha=None if hasalpha is None else bool(hasalpha),
+            method=None if method is None else int(method),
+            index=None if index is None else int(index),
+            lossless=None if lossless is None else bool(lossless),
+            numthreads=None if numthreads is None else int(numthreads),
+            delay=None if delay is None else int(delay),
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, JSON]) -> Self:
+        return cls(**_parse_config(data, 'webp'))
+
+    def to_dict(self) -> dict[str, JSON]:
+        cfg: dict[str, JSON] = {}
+        for key in (
+            'level',
+            'lossless',
+            'method',
+            'index',
+            'hasalpha',
+            'numthreads',
+            'delay',
+        ):
+            value = getattr(self, key)
+            if value is not None:
+                cfg[key] = value
+        if cfg:
+            return {'name': 'imagecodecs_webp', 'configuration': cfg}
+        return {'name': 'imagecodecs_webp'}
+
+    def _decode_sync(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        decoded = imagecodecs.webp_decode(
+            chunk_bytes.as_numpy_array(),
+            index=self.index,
+            hasalpha=self.hasalpha,
+        )
+        return chunk_spec.prototype.nd_buffer.from_numpy_array(
+            decoded.reshape(chunk_spec.shape)
+        )
+
+    async def _decode_single(
+        self, chunk_bytes: Buffer, chunk_spec: ArraySpec
+    ) -> NDBuffer:
+        return await asyncio.to_thread(
+            self._decode_sync, chunk_bytes, chunk_spec
+        )
+
+    def _encode_sync(
+        self, chunk_array: NDBuffer, chunk_spec: ArraySpec
+    ) -> Buffer | None:
+        arr = _squeeze(chunk_array)
+        encoded = imagecodecs.webp_encode(
+            arr,
+            level=self.level,
+            lossless=self.lossless,
+            method=self.method,
+            delay=self.delay,
             numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
@@ -7050,7 +7667,9 @@ class Zstd(BytesBytesCodec):
         self, chunk_bytes: Buffer, chunk_spec: ArraySpec
     ) -> Buffer | None:
         encoded = imagecodecs.zstd_encode(
-            chunk_bytes.as_numpy_array(), level=self.level
+            chunk_bytes.as_numpy_array(),
+            level=self.level,
+            numthreads=self.numthreads,
         )
         return chunk_spec.prototype.buffer.from_bytes(encoded)
 
@@ -7173,26 +7792,47 @@ class Zstd1(BytesBytesCodec):
         raise NotImplementedError
 
 
+# Map of zarr-extensions specification name -> codec class
+_SPEC_CODEC_CLASSES: dict[str, type] = {
+    globals()[name].codec_name: globals()[name]
+    for name in __all__
+    if name != 'register_codecs' and hasattr(globals()[name], 'codec_name')
+}
+
 # Map of codec name suffix -> codec class; computed from __all__
 _CODEC_CLASSES: dict[str, type] = {
     name.lower(): globals()[name]
     for name in __all__
     if name != 'register_codecs'
+    and globals()[name] not in _SPEC_CODEC_CLASSES.values()
 }
 
 
 def register_codecs(
-    codecs: Container[str] | None = None,
+    codecs: Collection[str] | None = None,
     *,
     verbose: bool = True,
 ) -> None:
-    """Register imagecodecs zarr 3 codecs with zarr."""
+    """Register imagecodecs zarr 3 codecs with zarr.
+
+    Codec names may include or omit the ``imagecodecs_`` prefix.
+    Raise ValueError for unknown names before registering any codecs.
+    Codecs implementing zarr-extensions specifications, for example,
+    JpegCodec as ``jpeg``, are registered only if `codecs` is None.
+
+    """
     from zarr.registry import register_codec
 
+    if codecs is not None:
+        codecs = {name.removeprefix('imagecodecs_') for name in codecs}
+        unknown = codecs.difference(_CODEC_CLASSES)
+        if unknown:
+            msg = f'unknown codec names: {sorted(unknown)!r}'
+            raise ValueError(msg)
     for name, cls in _CODEC_CLASSES.items():
+        key = f'imagecodecs_{name}'
         if codecs is not None and name not in codecs:
             continue
-        key = f'imagecodecs_{name}'
         try:
             register_codec(key, cls)
         except Exception:
@@ -7200,6 +7840,15 @@ def register_codecs(
                 logging.getLogger(__name__).warning(
                     'zarr codec %s registration failed', key
                 )
+    if codecs is None:
+        for key, cls in _SPEC_CODEC_CLASSES.items():
+            try:
+                register_codec(key, cls)
+            except Exception:
+                if verbose:
+                    logging.getLogger(__name__).warning(
+                        'zarr codec %s registration failed', key
+                    )
 
 
 def _parse_config(data: dict[str, JSON], name: str) -> Any:
@@ -7214,8 +7863,24 @@ def _squeeze(
     chunk_array: NDBuffer, /, *, planar: bool | None = None
 ) -> NDArray[Any]:
     """Return array squeezed to 2D or 3D."""
-    arr = numpy.squeeze(chunk_array.as_numpy_array())
-    return numpy.atleast_3d(arr) if planar else numpy.atleast_2d(arr)
+    arr = chunk_array.as_numpy_array()
+    return arr.reshape(_squeeze_shape(arr.shape, planar=planar))
+
+
+def _squeeze_shape(
+    shape: tuple[int, ...], /, *, planar: bool | None = None
+) -> tuple[int, ...]:
+    """Return shape without length-1 dimensions, with at least 2D."""
+    squeezed = tuple(i for i in shape if i != 1)
+    if not squeezed:
+        squeezed = (1, 1)
+    elif len(squeezed) == 1:
+        # keep orientation of single row or column
+        n = squeezed[0]
+        squeezed = (n, 1) if len(shape) > 1 and shape[-1] == 1 else (1, n)
+    if planar and len(squeezed) == 2:
+        squeezed = (1, *squeezed)
+    return squeezed
 
 
 def _enum_name(
@@ -7225,12 +7890,34 @@ def _enum_name(
     if value is None:
         return None
     if isinstance(value, str):
-        return value
+        upper = value.upper()
+        return upper if upper in enum_cls.__members__ else value
     if isinstance(value, enum_cls):
         return value.name
     if isinstance(value, enum.Enum):
         return enum_cls(value.value).name
     return enum_cls(value).name
+
+
+def _enum_names(
+    value: Sequence[int | str | enum.Enum] | None,
+    enum_cls: type[enum.Enum],
+    /,
+) -> tuple[str, ...] | None:
+    """Normalize sequence of enum values to enum name strings."""
+    if value is None:
+        return None
+    if isinstance(value, int | str):
+        msg = 'filters must be a sequence'
+        raise TypeError(msg)
+    return tuple(_enum_name(v, enum_cls) for v in value)  # type: ignore[misc]
+
+
+def _filters_meta(value: Sequence[int] | None, /) -> tuple[int, ...] | None:
+    """Normalize sequence of filter meta values."""
+    if value is None:
+        return None
+    return tuple(int(v) for v in value)
 
 
 def _setattrs(obj: object, /, **kwargs: Any) -> None:
