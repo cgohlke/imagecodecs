@@ -55,6 +55,13 @@ class JPEGLS:
         HP2 = CHARLS_COLOR_TRANSFORMATION_HP2
         HP3 = CHARLS_COLOR_TRANSFORMATION_HP3
 
+    class INTERLEAVE(enum.IntEnum):
+        """JPEGLS interleave mode."""
+
+        NONE = CHARLS_INTERLEAVE_MODE_NONE
+        LINE = CHARLS_INTERLEAVE_MODE_LINE
+        SAMPLE = CHARLS_INTERLEAVE_MODE_SAMPLE
+
 
 class JpeglsError(RuntimeError):
     """JPEGLS codec exceptions."""
@@ -70,7 +77,7 @@ class JpeglsError(RuntimeError):
             msg = error_message.decode().strip()
         except Exception:
             msg = 'NULL' if err is None else f'unknown error {err!r}'
-        msg = f'{func} returned {msg}'
+        msg = f'{func} returned {msg!r}'
         super().__init__(msg)
 
 
@@ -81,20 +88,46 @@ def jpegls_version():
     )
 
 
-def jpegls_check(const uint8_t[::1] data, /):
+def jpegls_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEGLS encoded image or None if unknown."""
     cdef:
-        bytes sig
+        ssize_t size = data.shape[0]
+        ssize_t pos = 2
+        ssize_t length
+        uint8_t marker
 
-    if data.shape[0] < 4:
+    if size < 4 or data[0] != 0xFF or data[1] != 0xD8:
         return False
-    sig = bytes(data[:4])
-    if sig[:2] != b'\xFF\xD8':
-        return False
-    if sig[2:4] == b'\xFF\xF7':  # SOI + SOF55
+    if (
+        size >= 12
+        and data[2] == 0xFF
+        and data[3] == 0xE8
+        and _startswith(data, b'SPIFF\x00', 6)
+    ):
         return True
-    if sig[2:4] == b'\xFF\xE8' and data.shape[0] >= 12:  # SOI + APP8 (SPIFF)
-        return bytes(data[6:12]) == b'SPIFF\x00'
+    # scan marker segments up to the first frame header
+    while pos + 1 < size:
+        if data[pos] != 0xFF:
+            return None
+        marker = data[pos + 1]
+        if marker == 0xFF:  # fill byte
+            pos += 1
+            continue
+        if marker == 0xF7:  # SOF55
+            return True
+        if 0xC0 <= marker <= 0xCF and marker not in {0xC4, 0xC8, 0xCC}:
+            return False  # other JPEG SOF
+        if marker == 0xD9 or marker == 0xDA:  # EOI or SOS
+            return None
+        if marker == 0x01 or 0xD0 <= marker <= 0xD7:  # standalone
+            pos += 2
+            continue
+        if pos + 3 >= size:
+            return None
+        length = (<ssize_t> data[pos + 2] << 8) | data[pos + 3]
+        if length < 2:
+            return None
+        pos += 2 + length
     return None
 
 
@@ -104,6 +137,7 @@ def jpegls_encode(
     level=None,
     *,
     bitspersample=None,
+    planar=None,
     transformation=None,
     spiff=None,
     out=None,
@@ -138,13 +172,14 @@ def jpegls_encode(
         | IC_GRAY
         | IC_RGB
         | IC_ALPHA
+        | IC_PLANAR
         | IC_BPS,
         src.ndim,
         src.shape,
         src.dtype,
         None,  # photometric
         bitspersample,
-        None,  # planar
+        planar,
         None,  # frames
         None,  # volumetric
         None,  # extrasample
@@ -154,7 +189,7 @@ def jpegls_encode(
     if not (layout.height > 0 and srcsize <= UINT32_MAX):
         raise ValueError('invalid data shape or dtype')
 
-    rowstride = <uint32_t> src.strides[0]
+    rowstride = <uint32_t> src.strides[1 if layout.planar else 0]
 
     out, dstsize, outgiven, outtype = _parse_output(out)
 
@@ -192,10 +227,17 @@ def jpegls_encode(
         spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_RGB
     elif layout.samples == 4:
         frameinfo.component_count = 4
+        # some decoders do not support 4-component sample interleave
+        # interleave_mode = CHARLS_INTERLEAVE_MODE_SAMPLE
         interleave_mode = CHARLS_INTERLEAVE_MODE_LINE
-        spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_RGB
+        # SPIFF has no RGBA color space
+        # spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_RGB
+        spiff_color_space = CHARLS_SPIFF_COLOR_SPACE_NONE
     else:
         raise ValueError('invalid shape')
+
+    if layout.planar:
+        interleave_mode = CHARLS_INTERLEAVE_MODE_NONE
 
     try:
         with nogil:
@@ -257,9 +299,9 @@ def jpegls_encode(
                 if size_in_bytes < <size_t> srcsize + 65536:
                     size_in_bytes = <size_t> srcsize + 65536
                 if write_spiff:
-                    dstsize = size_in_bytes + sizeof(charls_spiff_header)
-                else:
-                    dstsize = size_in_bytes
+                    # SPIFF header and end-of-directory segments
+                    size_in_bytes += 64
+                dstsize = <ssize_t> size_in_bytes
                 with gil:
                     out = _create_output(outtype, dstsize)
                     dst = out
@@ -320,21 +362,32 @@ def jpegls_decode(
     data,
     /,
     *,
+    planar=None,
     out=None,
+    bint _info=False,
 ):
-    """Return decoded JPEGLS image."""
+    """Return decoded JPEGLS image.
+
+    Multi-component images are returned with samples last, regardless of
+    the stream's interleave mode, unless `planar` is True.
+
+    """
     cdef:
         numpy.ndarray dst
+        numpy.ndarray dstout
         const uint8_t[::1] src = data
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
-        ssize_t itemsize = 0
+        ssize_t bandsize = 0
         charls_jpegls_errc ret
         charls_jpegls_decoder* decoder = NULL
         charls_interleave_mode interleave_mode
+        charls_color_transformation color_transformation
         charls_frame_info frameinfo
-        # charls_spiff_header spiff_header
-        # int32_t header_found
+        charls_spiff_header spiff_header
+        int32_t header_found = 0
+        bint planar_ = bool(planar)
+        bint transpose = False
 
     if data is out:
         raise ValueError('cannot transform in-place')
@@ -355,20 +408,23 @@ def jpegls_decode(
                     'charls_jpegls_decoder_set_source_buffer', ret
                 )
 
-            # ret = charls_jpegls_decoder_read_spiff_header(
-            #     decoder,
-            #     &spiff_header,
-            #     &header_found
-            # )
-            # if ret:
-            #     raise JpeglsError(
-            #         'charls_jpegls_decoder_read_spiff_header', ret
-            #     )
+            if _info:
+                # must be called before charls_jpegls_decoder_read_header
+                ret = charls_jpegls_decoder_read_spiff_header(
+                    decoder,
+                    &spiff_header,
+                    &header_found
+                )
+                if ret:
+                    raise JpeglsError(
+                        'charls_jpegls_decoder_read_spiff_header', ret
+                    )
 
             ret = charls_jpegls_decoder_read_header(decoder)
             if ret:
                 raise JpeglsError('charls_jpegls_decoder_read_header', ret)
 
+            # memset(<void*> &frameinfo, 0, sizeof(charls_frame_info))
             ret = charls_jpegls_decoder_get_frame_info(decoder, &frameinfo)
             if ret:
                 raise JpeglsError('charls_jpegls_decoder_get_frame_info', ret)
@@ -383,56 +439,82 @@ def jpegls_decode(
                 )
 
             with gil:
+                # CharLS limits bits_per_sample to 2..16
                 if frameinfo.bits_per_sample <= 8:
                     dtype = numpy.uint8
-                    itemsize = 1
-                elif frameinfo.bits_per_sample <= 16:
-                    dtype = numpy.uint16
-                    itemsize = 2
                 else:
-                    raise ValueError(
-                        'JpegLs bits_per_sample not supported: {}'.format(
-                            frameinfo.bits_per_sample
-                        )
-                    )
+                    dtype = numpy.uint16
 
                 if frameinfo.component_count == 1:
-                    shape = (
-                        frameinfo.height,
-                        frameinfo.width
-                    )
-                    strides = (
-                        frameinfo.width * itemsize,
-                        itemsize
-                    )
-                elif interleave_mode == CHARLS_INTERLEAVE_MODE_NONE:
-                    # planar
+                    shape = (frameinfo.height, frameinfo.width)
+                elif planar_:
                     shape = (
                         frameinfo.component_count,
                         frameinfo.height,
                         frameinfo.width
                     )
-                    strides = (
-                        itemsize * frameinfo.width * frameinfo.height,
-                        itemsize * frameinfo.width,
-                        itemsize
-                    )
                 else:
-                    # contig
-                    # CHARLS_INTERLEAVE_MODE_LINE or
-                    # CHARLS_INTERLEAVE_MODE_SAMPLE
                     shape = (
                         frameinfo.height,
                         frameinfo.width,
                         frameinfo.component_count
                     )
-                    strides = (
-                        itemsize * frameinfo.component_count * frameinfo.width,
-                        itemsize * frameinfo.component_count,
-                        itemsize
+
+                if _info:
+                    ret = charls_jpegls_decoder_get_color_transformation(
+                        decoder,
+                        &color_transformation
                     )
-                out = _create_array(out, shape, dtype, strides=strides)
-                dst = out
+                    if ret:
+                        raise JpeglsError(
+                            'charls_jpegls_decoder_get_color_transformation',
+                            ret
+                        )
+
+                    return {
+                        '_codec': 'jpegls',
+                        'shape': shape,
+                        'dtype': numpy.dtype(dtype),
+                        'bitspersample': frameinfo.bits_per_sample,
+                        'interleave': _enum_or_int(
+                            interleave_mode, JPEGLS.INTERLEAVE
+                        ),
+                        'transformation': _enum_or_int(
+                            color_transformation, JPEGLS.COLOR_TRANSFORMATION
+                        ),
+                        'spiff': bool(header_found),
+                    }
+
+                out = _create_array(out, shape, dtype)
+                dstout = out
+                bandsize = (
+                    <ssize_t> frameinfo.height * <ssize_t> frameinfo.width
+                )
+                # use temporary buffer if stream and output layouts differ
+                transpose = frameinfo.component_count > 1 and (
+                    (interleave_mode == CHARLS_INTERLEAVE_MODE_NONE)
+                    != planar_
+                )
+                if not transpose:
+                    dst = out
+                elif planar_:
+                    dst = numpy.empty(
+                        (
+                            frameinfo.height,
+                            frameinfo.width,
+                            frameinfo.component_count
+                        ),
+                        dtype
+                    )
+                else:
+                    dst = numpy.empty(
+                        (
+                            frameinfo.component_count,
+                            frameinfo.height,
+                            frameinfo.width
+                        ),
+                        dtype
+                    )
                 dstsize = dst.nbytes
 
             ret = charls_jpegls_decoder_decode_to_buffer(
@@ -442,6 +524,24 @@ def jpegls_decode(
                 0
             )
 
+            if ret == 0 and transpose:
+                if frameinfo.bits_per_sample <= 8:
+                    _jpegls_transpose(
+                        <const uint8_t*> dst.data,
+                        <uint8_t*> dstout.data,
+                        bandsize,
+                        frameinfo.component_count,
+                        planar_
+                    )
+                else:
+                    _jpegls_transpose(
+                        <const uint16_t*> dst.data,
+                        <uint16_t*> dstout.data,
+                        bandsize,
+                        frameinfo.component_count,
+                        planar_
+                    )
+
         if ret:
             raise JpeglsError('charls_jpegls_decoder_decode_to_buffer', ret)
 
@@ -449,11 +549,44 @@ def jpegls_decode(
         if decoder != NULL:
             charls_jpegls_decoder_destroy(decoder)
 
-    if (
-        frameinfo.component_count > 1
-        and interleave_mode == CHARLS_INTERLEAVE_MODE_NONE
-    ):
-        # TODO: this is a supposedly rare path left unoptimized
-        out = numpy.moveaxis(out, 0, -1).copy()
-
     return out
+
+
+def jpegls_info(data, /, *, planar=None):
+    """Return information about JPEGLS image.
+
+    The returned shape matches the output of `jpegls_decode` called with
+    the same `planar` argument.
+
+    """
+    return jpegls_decode(data, planar=planar, _info=True)
+
+
+ctypedef fused jpegls_sample_t:
+    uint8_t
+    uint16_t
+
+
+cdef void _jpegls_transpose(
+    const jpegls_sample_t* src,
+    jpegls_sample_t* dst,
+    const ssize_t bandsize,
+    const ssize_t samples,
+    const bint to_planar,
+) noexcept nogil:
+    """Copy samples between contiguous and planar layouts."""
+    cdef:
+        ssize_t i, j
+        const jpegls_sample_t* srcband
+        jpegls_sample_t* dstband
+
+    if to_planar:
+        for i in range(samples):
+            dstband = dst + i * bandsize
+            for j in range(bandsize):
+                dstband[j] = src[j * samples + i]
+    else:
+        for i in range(samples):
+            srcband = src + i * bandsize
+            for j in range(bandsize):
+                dst[j * samples + i] = srcband[j]
