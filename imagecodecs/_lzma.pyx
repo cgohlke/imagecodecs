@@ -62,7 +62,7 @@ class LzmaError(RuntimeError):
     """LZMA codec exceptions."""
 
     def __init__(self, func, err):
-        msg = {
+        msg = repr(err) if isinstance(err, str) else {
             LZMA_OK: 'LZMA_OK',
             LZMA_STREAM_END: 'LZMA_STREAM_END',
             LZMA_NO_CHECK: 'LZMA_NO_CHECK',
@@ -88,9 +88,9 @@ def lzma_version():
     )
 
 
-def lzma_check(const uint8_t[::1] data, /):
+def lzma_check(const uint8_t[::1] data not None, /):
     """Return whether data is LZMA encoded or None if unknown."""
-    return None if data.shape[0] > 5 else False
+    return _startswith(data, b'\xfd7zXZ\x00')
 
 
 def lzma_encode(
@@ -119,7 +119,7 @@ def lzma_encode(
         if dstsize < 0:
             dstsize = lzma_stream_buffer_bound(srcsize)
             if dstsize == 0:
-                raise LzmaError('lzma_stream_buffer_bound', 0)
+                raise LzmaError('lzma_stream_buffer_bound', 'input too large')
         out = _create_output(outtype, dstsize)
 
     dst = out
@@ -135,10 +135,12 @@ def lzma_encode(
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> dst._data
             strm.avail_out = <size_t> dstsize
-            ret = lzma_code(&strm, LZMA_RUN)
-            if ret == LZMA_OK or ret == LZMA_STREAM_END:
+            ret = LZMA_OK
+            while ret == LZMA_OK:
                 ret = lzma_code(&strm, LZMA_FINISH)
             dstlen = dstsize - <ssize_t> strm.avail_out
+        if ret == LZMA_BUF_ERROR and strm.avail_out == 0:
+            raise LzmaError('lzma_code', 'output too small')
         if ret != LZMA_STREAM_END:
             raise LzmaError('lzma_code', ret)
     finally:
@@ -161,6 +163,7 @@ def lzma_decode(
         ssize_t srcsize = src.shape[0]
         ssize_t dstsize
         ssize_t dstlen
+        uint64_t memlimit = lzma_physmem()
         lzma_ret ret
         lzma_stream strm
 
@@ -171,25 +174,33 @@ def lzma_decode(
 
     if out is None:
         if dstsize < 0:
-            dstsize = _lzma_uncompressed_size(src, srcsize)
+            dstsize = _lzma_uncompressed_size(src)
         out = _create_output(outtype, dstsize)
 
-    dst = out
+    dst = _inplace_input(out) if outgiven else out
     dstsize = dst.shape[0]
 
     try:
         with nogil:
             memset(<void*> &strm, 0, sizeof(lzma_stream))
-            ret = lzma_stream_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED)
+            if memlimit == 0:
+                memlimit = UINT64_MAX
+            ret = lzma_stream_decoder(&strm, memlimit, LZMA_CONCATENATED)
             if ret != LZMA_OK:
                 raise LzmaError('lzma_stream_decoder', ret)
             strm.next_in = <uint8_t*> src._data
             strm.avail_in = <size_t> srcsize
             strm.next_out = <uint8_t*> dst._data
             strm.avail_out = <size_t> dstsize
-            ret = lzma_code(&strm, LZMA_RUN)
+            ret = LZMA_OK
+            while ret == LZMA_OK:
+                ret = lzma_code(&strm, LZMA_FINISH)
             dstlen = dstsize - <ssize_t> strm.avail_out
-        if ret != LZMA_OK and ret != LZMA_STREAM_END:
+        if ret == LZMA_BUF_ERROR:
+            # truncated output is allowed
+            if strm.avail_out > 0:
+                raise LzmaError('lzma_code', 'truncated data')
+        elif ret != LZMA_STREAM_END:
             raise LzmaError('lzma_code', ret)
     finally:
         lzma_end(&strm)
@@ -198,39 +209,50 @@ def lzma_decode(
     return _return_output(out, dstsize, dstlen, outgiven)
 
 
-cdef _lzma_uncompressed_size(const uint8_t[::1] data, ssize_t size):
+def lzma_info(const uint8_t[::1] data not None, /):
+    """Return information about LZMA encoded data."""
+    return {'_codec': 'lzma', 'size': _lzma_uncompressed_size(data)}
+
+
+cdef ssize_t _lzma_uncompressed_size(const uint8_t[::1] data) except -1:
     """Return size of decompressed LZMA data."""
     cdef:
+        ssize_t size = data.shape[0]
         lzma_ret ret
-        lzma_index* index
-        lzma_stream_flags options
+        lzma_index* index = NULL
+        lzma_stream strm
         lzma_vli usize = 0
-        uint64_t memlimit = UINT64_MAX
-        ssize_t offset
-        size_t pos = 0
 
-    if size < LZMA_STREAM_HEADER_SIZE:
+    if size < 2 * LZMA_STREAM_HEADER_SIZE:
         raise ValueError('invalid LZMA data')
+
     try:
-        index = lzma_index_init(NULL)
-        if index == NULL:
-            raise MemoryError('lzma_index_init returned NULL')
-        offset = size - LZMA_STREAM_HEADER_SIZE
-        ret = lzma_stream_footer_decode(&options, &data[offset])
-        if ret != LZMA_OK:
-            raise LzmaError('lzma_stream_footer_decode', ret)
-        offset -= <ssize_t> options.backward_size
-        ret = lzma_index_buffer_decode(
-            &index,
-            &memlimit,
-            NULL,
-            &data[offset],
-            &pos,
-            <ssize_t> options.backward_size
-        )
-        if ret != LZMA_OK or pos != options.backward_size:
-            raise LzmaError('lzma_index_buffer_decode', ret)
-        usize = lzma_index_uncompressed_size(index)
+        with nogil:
+            memset(<void*> &strm, 0, sizeof(lzma_stream))
+            # parse indices of all concatenated streams and padding
+            ret = lzma_file_info_decoder(
+                &strm, &index, UINT64_MAX, <uint64_t> size
+            )
+            if ret != LZMA_OK:
+                raise LzmaError('lzma_file_info_decoder', ret)
+            strm.next_in = <uint8_t*> &data[0]
+            strm.avail_in = <size_t> size
+            while True:
+                ret = lzma_code(&strm, LZMA_RUN)
+                if ret == LZMA_SEEK_NEEDED:
+                    if strm.seek_pos > <uint64_t> size:
+                        break
+                    strm.next_in = <uint8_t*> &data[0] + strm.seek_pos
+                    strm.avail_in = <size_t> (size - <ssize_t> strm.seek_pos)
+                elif ret != LZMA_OK:
+                    break
+            if ret != LZMA_STREAM_END:
+                raise LzmaError('lzma_file_info_decoder', ret)
+            usize = lzma_index_uncompressed_size(index)
     finally:
+        lzma_end(&strm)
         lzma_index_end(index, NULL)
+
+    if usize > <lzma_vli> (SIZE_MAX >> 1):
+        raise ValueError(f'invalid uncompressed size {usize}')
     return <ssize_t> usize
