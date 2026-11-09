@@ -51,6 +51,7 @@ __all__ = [
     'Ccittfax4',
     'Ccittrle',
     'Checksum',
+    'Chunked',
     'Cms',
     'Dds',
     'Deflate',
@@ -67,6 +68,7 @@ __all__ = [
     'Isal',
     'Jpeg',
     'Jpeg2k',
+    'Jpegli',
     'Jpegls',
     'Jpegxl',
     'Jpegxr',
@@ -130,12 +132,12 @@ import imagecodecs
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from typing import Any, Literal
+    from typing import Any, Literal, Self
 
     from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 
-class Aec(Codec):
+class Aec(Codec):  # type: ignore[misc]
     """AEC codec for numcodecs."""
 
     codec_id = 'imagecodecs_aec'
@@ -159,7 +161,7 @@ class Aec(Codec):
         self.blocksize = None if blocksize is None else int(blocksize)
         self.rsi = None if rsi is None else int(rsi)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.aec_encode(
             buf,
             bitspersample=self.bitspersample,
@@ -168,7 +170,7 @@ class Aec(Codec):
             rsi=self.rsi,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.aec_decode(
             buf,
             bitspersample=self.bitspersample,
@@ -179,7 +181,7 @@ class Aec(Codec):
         )
 
 
-class Apng(Codec):
+class Apng(Codec):  # type: ignore[misc]
     """APNG codec for numcodecs."""
 
     codec_id = 'imagecodecs_apng'
@@ -217,7 +219,7 @@ class Apng(Codec):
         self.matrix = _enum_name(matrix, imagecodecs.APNG.MATRIX_COEFFICIENTS)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.apng_encode(
             buf,
@@ -231,11 +233,11 @@ class Apng(Codec):
             matrix=self.matrix,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.apng_decode(buf, out=out)
 
 
-class Avif(Codec):
+class Avif(Codec):  # type: ignore[misc]
     """AVIF codec for numcodecs."""
 
     codec_id = 'imagecodecs_avif'
@@ -255,6 +257,7 @@ class Avif(Codec):
             imagecodecs.AVIF.TRANSFER_CHARACTERISTICS | int | str | None
         ) = None,
         matrix: imagecodecs.AVIF.MATRIX_COEFFICIENTS | int | str | None = None,
+        iccprofile: bytes | None = None,
         numthreads: int | None = None,
         index: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -285,11 +288,12 @@ class Avif(Codec):
             transfer, imagecodecs.AVIF.TRANSFER_CHARACTERISTICS
         )
         self.matrix = _enum_name(matrix, imagecodecs.AVIF.MATRIX_COEFFICIENTS)
+        self.iccprofile = None if iccprofile is None else bytes(iccprofile)
         self.numthreads = None if numthreads is None else int(numthreads)
         self.index = None if index is None else int(index)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.avif_encode(
             buf,
@@ -302,10 +306,11 @@ class Avif(Codec):
             primaries=self.primaries,
             transfer=self.transfer,
             matrix=self.matrix,
+            iccprofile=self.iccprofile,
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.avif_decode(
             buf,
             index=self.index,
@@ -314,8 +319,24 @@ class Avif(Codec):
             out=out,
         )
 
+    def get_config(self) -> dict[str, Any]:
+        """Return dictionary holding configuration parameters."""
+        config: dict[str, Any] = super().get_config()
+        if self.iccprofile is not None:
+            config['iccprofile'] = base64.b64encode(self.iccprofile).decode()
+        return config
 
-class B2nd(Codec):
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate codec from configuration object."""
+        config = dict(config)
+        iccprofile = config.get('iccprofile')
+        if isinstance(iccprofile, str):
+            config['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**config)
+
+
+class B2nd(Codec):  # type: ignore[misc]
     """B2ND codec for numcodecs."""
 
     codec_id = 'imagecodecs_b2nd'
@@ -324,8 +345,10 @@ class B2nd(Codec):
         self,
         *,
         level: int | None = None,
-        compressor: imagecodecs.B2ND.COMPRESSOR | int | str | None = None,
-        shuffle: imagecodecs.B2ND.FILTER | int | str | None = None,
+        codec: imagecodecs.B2ND.CODEC | int | str | None = None,
+        codec_meta: int | None = None,
+        filters: Sequence[imagecodecs.B2ND.FILTER | int | str] | None = None,
+        filters_meta: Sequence[int] | None = None,
         chunkshape: tuple[int, ...] | None = None,
         blockshape: tuple[int, ...] | None = None,
         numthreads: int | None = None,
@@ -335,8 +358,10 @@ class B2nd(Codec):
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
-        self.compressor = _enum_name(compressor, imagecodecs.B2ND.COMPRESSOR)
-        self.shuffle = _enum_name(shuffle, imagecodecs.B2ND.FILTER)
+        self.codec = _enum_name(codec, imagecodecs.B2ND.CODEC)
+        self.codec_meta = None if codec_meta is None else int(codec_meta)
+        self.filters = _enum_names(filters, imagecodecs.B2ND.FILTER)
+        self.filters_meta = _filters_meta(filters_meta)
         self.chunkshape = (
             None if chunkshape is None else tuple(int(i) for i in chunkshape)
         )
@@ -345,31 +370,34 @@ class B2nd(Codec):
         )
         self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         return imagecodecs.b2nd_encode(
             buf,
             level=self.level,
-            compressor=self.compressor,
-            shuffle=self.shuffle,
+            codec=self.codec,
+            codec_meta=self.codec_meta,
+            filters=self.filters,
+            filters_meta=self.filters_meta,
             chunkshape=self.chunkshape,
             blockshape=self.blockshape,
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.b2nd_decode(
             buf, numthreads=self.numthreads, out=out
         )
 
 
-class Bfloat16(Codec):
+class Bfloat16(Codec):  # type: ignore[misc]
     """Bfloat16 codec for numcodecs."""
 
     codec_id = 'imagecodecs_bfloat16'
 
     def __init__(
         self,
+        *,
         byteorder: Literal['>', '<', '='] | None = None,
         rounding: imagecodecs.BFLOAT16.ROUND | int | str | None = None,
     ) -> None:
@@ -380,19 +408,19 @@ class Bfloat16(Codec):
         self.byteorder = byteorder
         self.rounding = _enum_name(rounding, imagecodecs.BFLOAT16.ROUND)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         return imagecodecs.bfloat16_encode(
             buf, byteorder=self.byteorder, rounding=self.rounding
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.bfloat16_decode(
             buf, byteorder=self.byteorder, out=out
         )
 
 
-class Bitorder(Codec):
+class Bitorder(Codec):  # type: ignore[misc]
     """Bitorder codec for numcodecs."""
 
     codec_id = 'imagecodecs_bitorder'
@@ -402,14 +430,14 @@ class Bitorder(Codec):
             msg = 'imagecodecs.BITORDER not available'
             raise ValueError(msg)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.bitorder_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.bitorder_decode(buf, out=_flat(out))
 
 
-class Bitshuffle(Codec):
+class Bitshuffle(Codec):  # type: ignore[misc]
     """Bitshuffle codec for numcodecs."""
 
     codec_id = 'imagecodecs_bitshuffle'
@@ -427,7 +455,7 @@ class Bitshuffle(Codec):
         self.itemsize = int(itemsize)
         self.blocksize = int(blocksize)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         ret = imagecodecs.bitshuffle_encode(
             buf, itemsize=self.itemsize, blocksize=self.blocksize
         )
@@ -435,7 +463,7 @@ class Bitshuffle(Codec):
             return ret.tobytes()
         return ret
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.bitshuffle_decode(
             buf,
             itemsize=self.itemsize,
@@ -444,7 +472,7 @@ class Bitshuffle(Codec):
         )
 
 
-class Blosc(Codec):
+class Blosc(Codec):  # type: ignore[misc]
     """Blosc codec for numcodecs."""
 
     codec_id = 'imagecodecs_blosc'
@@ -465,12 +493,12 @@ class Blosc(Codec):
 
         self.level = None if level is None else int(level)
         self.compressor = _enum_name(compressor, imagecodecs.BLOSC.COMPRESSOR)
-        self.typesize = typesize
-        self.blocksize = blocksize
+        self.typesize = None if typesize is None else int(typesize)
+        self.blocksize = None if blocksize is None else int(blocksize)
         self.shuffle = _enum_name(shuffle, imagecodecs.BLOSC.SHUFFLE)
-        self.numthreads = numthreads
+        self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         return imagecodecs.blosc_encode(
             buf,
@@ -482,13 +510,13 @@ class Blosc(Codec):
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.blosc_decode(
             buf, numthreads=self.numthreads, out=_flat(out)
         )
 
 
-class Blosc2(Codec):
+class Blosc2(Codec):  # type: ignore[misc]
     """Blosc2 codec for numcodecs."""
 
     codec_id = 'imagecodecs_blosc2'
@@ -497,8 +525,9 @@ class Blosc2(Codec):
         self,
         *,
         level: int | None = None,
-        compressor: imagecodecs.BLOSC2.COMPRESSOR | int | str | None = None,
-        shuffle: imagecodecs.BLOSC2.FILTER | int | str | None = None,
+        codec: imagecodecs.BLOSC2.CODEC | int | str | None = None,
+        filters: Sequence[imagecodecs.BLOSC2.FILTER | int | str] | None = None,
+        filters_meta: Sequence[int] | None = None,
         splitmode: imagecodecs.BLOSC2.SPLIT | int | str | None = None,
         typesize: int | None = None,
         blocksize: int | None = None,
@@ -509,33 +538,35 @@ class Blosc2(Codec):
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
-        self.compressor = _enum_name(compressor, imagecodecs.BLOSC2.COMPRESSOR)
+        self.codec = _enum_name(codec, imagecodecs.BLOSC2.CODEC)
         self.splitmode = _enum_name(splitmode, imagecodecs.BLOSC2.SPLIT)
-        self.typesize = typesize
-        self.blocksize = blocksize
-        self.shuffle = _enum_name(shuffle, imagecodecs.BLOSC2.FILTER)
-        self.numthreads = numthreads
+        self.typesize = None if typesize is None else int(typesize)
+        self.blocksize = None if blocksize is None else int(blocksize)
+        self.filters = _enum_names(filters, imagecodecs.BLOSC2.FILTER)
+        self.filters_meta = _filters_meta(filters_meta)
+        self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         return imagecodecs.blosc2_encode(
             buf,
             level=self.level,
-            compressor=self.compressor,
-            shuffle=self.shuffle,
+            codec=self.codec,
+            filters=self.filters,
+            filters_meta=self.filters_meta,
             splitmode=self.splitmode,
             typesize=self.typesize,
             blocksize=self.blocksize,
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.blosc2_decode(
             buf, numthreads=self.numthreads, out=_flat(out)
         )
 
 
-class Bmp(Codec):
+class Bmp(Codec):  # type: ignore[misc]
     """BMP codec for numcodecs."""
 
     codec_id = 'imagecodecs_bmp'
@@ -551,19 +582,19 @@ class Bmp(Codec):
             msg = 'imagecodecs.BMP not available'
             raise ValueError(msg)
 
-        self.ppm = None if ppm is None else max(1, int(ppm))
+        self.ppm = None if ppm is None else int(ppm)
         self.asrgb = None if asrgb is None else bool(asrgb)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.bmp_encode(buf, ppm=self.ppm)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.bmp_decode(buf, asrgb=self.asrgb, out=out)
 
 
-class Brotli(Codec):
+class Brotli(Codec):  # type: ignore[misc]
     """Brotli codec for numcodecs."""
 
     codec_id = 'imagecodecs_brotli'
@@ -583,16 +614,16 @@ class Brotli(Codec):
         self.mode = _enum_name(mode, imagecodecs.BROTLI.MODE)
         self.lgwin = lgwin
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.brotli_encode(
             buf, level=self.level, mode=self.mode, lgwin=self.lgwin
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.brotli_decode(buf, out=_flat(out))
 
 
-class Byteshuffle(Codec):
+class Byteshuffle(Codec):  # type: ignore[misc]
     """Byteshuffle codec for numcodecs."""
 
     codec_id = 'imagecodecs_byteshuffle'
@@ -618,7 +649,7 @@ class Byteshuffle(Codec):
         self.delta = bool(delta)
         self.reorder = bool(reorder)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         if buf.shape != self.shape:
             msg = f'{buf.shape=} does not match {self.shape=}'
@@ -634,7 +665,7 @@ class Byteshuffle(Codec):
             reorder=self.reorder,
         ).tobytes()
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(self.shape)
         return imagecodecs.byteshuffle_decode(
             buf,
@@ -646,7 +677,7 @@ class Byteshuffle(Codec):
         )
 
 
-class Bz2(Codec):
+class Bz2(Codec):  # type: ignore[misc]
     """Bz2 codec for numcodecs."""
 
     codec_id = 'imagecodecs_bz2'
@@ -662,14 +693,14 @@ class Bz2(Codec):
 
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.bz2_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.bz2_decode(buf, out=_flat(out))
 
 
-class Ccittfax3(Codec):
+class Ccittfax3(Codec):  # type: ignore[misc]
     """CCITT Fax3 codec for numcodecs."""
 
     codec_id = 'imagecodecs_ccittfax3'
@@ -689,10 +720,10 @@ class Ccittfax3(Codec):
         self.width = int(width)
         self.t4options = int(t4options)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.ccittfax3_decode(
             buf,
             height=self.height,
@@ -702,7 +733,7 @@ class Ccittfax3(Codec):
         )
 
 
-class Ccittfax4(Codec):
+class Ccittfax4(Codec):  # type: ignore[misc]
     """CCITT Fax4 codec for numcodecs."""
 
     codec_id = 'imagecodecs_ccittfax4'
@@ -720,10 +751,10 @@ class Ccittfax4(Codec):
         self.height = int(height)
         self.width = int(width)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.ccittfax4_decode(
             buf,
             height=self.height,
@@ -732,7 +763,7 @@ class Ccittfax4(Codec):
         )
 
 
-class Ccittrle(Codec):
+class Ccittrle(Codec):  # type: ignore[misc]
     """CCITT RLE codec for numcodecs."""
 
     codec_id = 'imagecodecs_ccittrle'
@@ -750,10 +781,10 @@ class Ccittrle(Codec):
         self.height = int(height)
         self.width = int(width)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.ccittrle_decode(
             buf,
             height=self.height,
@@ -762,7 +793,7 @@ class Ccittrle(Codec):
         )
 
 
-class Checksum(Codec):
+class Checksum(Codec):  # type: ignore[misc]
     """Checksum codec for numcodecs."""
 
     codec_id = 'imagecodecs_checksum'
@@ -839,7 +870,7 @@ class Checksum(Codec):
             'big': 'big',
         }[byteorder]
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _contiguous(buf)
         if self.prefix is None:
             checksum = self._checksum(buf, self.value)
@@ -854,8 +885,11 @@ class Checksum(Codec):
             out[-4:] = checksum.to_bytes(4, self.byteorder)
         return out
 
-    def decode(self, buf, out=None):
-        out = memoryview(buf)
+    def decode(self, buf: Any, out: Any = None) -> Any:
+        out = _contiguous(buf)
+        if len(out) < 4:
+            msg = f'{self.kind} checksum data too short ({len(out)} bytes)'
+            raise RuntimeError(msg)
         if self.prepend:
             expect = int.from_bytes(out[:4], self.byteorder)
             out = out[4:]
@@ -874,8 +908,24 @@ class Checksum(Codec):
             raise RuntimeError(msg)
         return out
 
+    def get_config(self) -> dict[str, Any]:
+        """Return dictionary holding configuration parameters."""
+        config: dict[str, Any] = super().get_config()
+        if self.prefix is not None:
+            config['prefix'] = base64.b64encode(self.prefix).decode()
+        return config
 
-class Chunked(Codec):
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate codec from configuration object."""
+        config = dict(config)
+        prefix = config.get('prefix')
+        if isinstance(prefix, str):
+            config['prefix'] = base64.b64decode(prefix.encode())
+        return cls(**config)
+
+
+class Chunked(Codec):  # type: ignore[misc]
     """CHUNKED codec for numcodecs."""
 
     codec_id = 'imagecodecs_chunked'
@@ -899,7 +949,7 @@ class Chunked(Codec):
         self.itemsize = int(itemsize)
         self.hilo = bool(hilo)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.chunked_encode(
             buf,
             level=self.level,
@@ -909,13 +959,13 @@ class Chunked(Codec):
             hilo=self.hilo,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.chunked_decode(
             buf, itemsize=self.itemsize, out=_flat(out)
         )
 
 
-class Cms(Codec):
+class Cms(Codec):  # type: ignore[misc]
     """CMS codec for numcodecs."""
 
     codec_id = 'imagecodecs_cms'
@@ -939,9 +989,9 @@ class Cms(Codec):
             raise ValueError(msg)
 
         if isinstance(profile, str):
-            profile = imagecodecs.cms_profile(profile)
+            profile = imagecodecs.cms_profile(profile)  # type: ignore[arg-type]
         if isinstance(outprofile, str):
-            outprofile = imagecodecs.cms_profile(outprofile)
+            outprofile = imagecodecs.cms_profile(outprofile)  # type: ignore[arg-type]
 
         self.profile = profile
         self.outprofile = outprofile
@@ -953,32 +1003,50 @@ class Cms(Codec):
         self.flags = None if flags is None else int(flags)
         self.shape = None if shape is None else tuple(shape)
         self.dtype = None if dtype is None else numpy.dtype(dtype).str
+        self._outshape: tuple[int, ...] | None = None
 
-    def _reshape(self, buf):
+    def _reshape(self, buf: Any) -> NDArray[Any]:
         """Reshape flat buffer to chunk array if shape/dtype are set."""
-        buf = numpy.asarray(buf)
+        arr: NDArray[Any] = numpy.asarray(buf)
         if self.shape is not None and self.dtype is not None:
-            buf = buf.view(numpy.dtype(self.dtype)).reshape(self.shape)
-        return buf
+            arr = arr.view(numpy.dtype(self.dtype)).reshape(self.shape)
+        return arr
 
-    def encode(self, buf):
-        buf = self._reshape(buf)
-        return numpy.ascontiguousarray(
-            imagecodecs.cms_transform(
-                buf,
-                self.profile,
-                self.outprofile,
-                colorspace=self.colorspace,
-                outcolorspace=self.outcolorspace,
-                planar=self.planar,
-                outplanar=self.outplanar,
-                intent=self.intent,
-                flags=self.flags,
-            )
+    def _transform(self, data: Any, /) -> NDArray[Any]:
+        return imagecodecs.cms_transform(
+            data,
+            self.profile,
+            self.outprofile,
+            colorspace=self.colorspace,
+            outcolorspace=self.outcolorspace,
+            planar=self.planar,
+            outplanar=self.outplanar,
+            intent=self.intent,
+            flags=self.flags,
         )
 
-    def decode(self, buf, out=None):
-        buf = self._reshape(buf)
+    def encode(self, buf: Any) -> Any:
+        return numpy.ascontiguousarray(self._transform(self._reshape(buf)))
+
+    def decode(self, buf: Any, out: Any = None) -> Any:
+        planar = self.planar
+        if self.shape is not None and self.dtype is not None:
+            # output array restores the original shape, layout, and dtype
+            dtype = numpy.dtype(self.dtype)
+            if self._outshape is None:
+                self._outshape = self._transform(
+                    numpy.zeros(self.shape, dtype)
+                ).shape
+            buf = numpy.frombuffer(_contiguous(buf), dtype).reshape(
+                self._outshape
+            )
+            out = numpy.empty(self.shape, dtype)
+        else:
+            buf = numpy.asarray(buf)
+            out = None
+            if planar is None and self.outplanar is not None:
+                # cms_transform defaults outplanar to the input layout
+                planar = False
         return numpy.ascontiguousarray(
             imagecodecs.cms_transform(
                 buf,
@@ -987,13 +1055,14 @@ class Cms(Codec):
                 colorspace=self.outcolorspace,
                 outcolorspace=self.colorspace,
                 planar=self.outplanar,
-                outplanar=self.planar,
+                outplanar=planar,
                 intent=self.intent,
                 flags=self.flags,
+                out=out,
             )
         )
 
-    def get_config(self):
+    def get_config(self) -> dict[str, Any]:
         """Return dictionary holding configuration parameters."""
         config = {'id': self.codec_id}
         for key in self.__dict__:
@@ -1005,7 +1074,7 @@ class Cms(Codec):
         return config
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate codec from configuration object."""
         config = dict(config)
         for key in ('profile', 'outprofile'):
@@ -1015,7 +1084,7 @@ class Cms(Codec):
         return cls(**config)
 
 
-class Dds(Codec):
+class Dds(Codec):  # type: ignore[misc]
     """DDS codec for numcodecs."""
 
     codec_id = 'imagecodecs_dds'
@@ -1026,15 +1095,15 @@ class Dds(Codec):
             raise ValueError(msg)
         self.mipmap = int(mipmap)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         # buf = _image(buf, self.squeeze)
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.dds_decode(buf, mipmap=self.mipmap, out=out)
 
 
-class Deflate(Codec):
+class Deflate(Codec):  # type: ignore[misc]
     """Deflate codec for numcodecs."""
 
     codec_id = 'imagecodecs_deflate'
@@ -1052,14 +1121,14 @@ class Deflate(Codec):
         self.level = None if level is None else int(level)
         self.raw = bool(raw)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.deflate_encode(buf, level=self.level, raw=self.raw)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.deflate_decode(buf, out=_flat(out), raw=self.raw)
 
 
-class Delta(Codec):
+class Delta(Codec):  # type: ignore[misc]
     """Delta codec for numcodecs."""
 
     codec_id = 'imagecodecs_delta'
@@ -1081,20 +1150,20 @@ class Delta(Codec):
         self.axis = int(axis)
         self.dist = int(dist)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         if self.shape is not None or self.dtype is not None:
             buf = numpy.asarray(buf)
-            if buf.shape != self.shape:
+            if self.shape is not None and buf.shape != self.shape:
                 msg = f'{buf.shape=} does not match {self.shape=}'
                 raise ValueError(msg)
-            if buf.dtype != self.dtype:
+            if self.dtype is not None and buf.dtype != self.dtype:
                 msg = f'{buf.dtype=} does not match {self.dtype=}'
                 raise ValueError(msg)
         return imagecodecs.delta_encode(
             buf, axis=self.axis, dist=self.dist
         ).tobytes()
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if self.shape is not None or self.dtype is not None:
             buf = numpy.frombuffer(buf, dtype=self.dtype)
             if self.shape is not None:
@@ -1104,7 +1173,7 @@ class Delta(Codec):
         )
 
 
-class Dicomrle(Codec):
+class Dicomrle(Codec):  # type: ignore[misc]
     """DICOMRLE codec for numcodecs."""
 
     codec_id = 'imagecodecs_dicomrle'
@@ -1116,15 +1185,15 @@ class Dicomrle(Codec):
 
         self.dtype = numpy.dtype(dtype).str  # TODO: preserve endianness
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         # buf = _image(buf, self.squeeze)
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.dicomrle_decode(buf, self.dtype, out=out)
 
 
-class Eer(Codec):
+class Eer(Codec):  # type: ignore[misc]
     """Electron Event Representation codec for numcodecs."""
 
     codec_id = 'imagecodecs_eer'
@@ -1148,10 +1217,10 @@ class Eer(Codec):
         self.vertbits = int(vertbits)
         self.superres = int(superres)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.eer_decode(
             buf,
             self.shape,
@@ -1163,7 +1232,7 @@ class Eer(Codec):
         )
 
 
-class Exr(Codec):
+class Exr(Codec):  # type: ignore[misc]
     """OpenEXR codec for numcodecs."""
 
     codec_id = 'imagecodecs_exr'
@@ -1195,8 +1264,8 @@ class Exr(Codec):
         self.index = None if index is None else int(index)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.exr_encode(
             buf,
             level=self.level,
@@ -1206,7 +1275,7 @@ class Exr(Codec):
             frames=self.frames,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.exr_decode(
             buf,
             index=self.index,
@@ -1215,13 +1284,14 @@ class Exr(Codec):
         )
 
 
-class Float24(Codec):
+class Float24(Codec):  # type: ignore[misc]
     """Float24 codec for numcodecs."""
 
     codec_id = 'imagecodecs_float24'
 
     def __init__(
         self,
+        *,
         byteorder: Literal['>', '<', '='] | None = None,
         rounding: imagecodecs.FLOAT24.ROUND | int | str | None = None,
     ) -> None:
@@ -1232,19 +1302,19 @@ class Float24(Codec):
         self.byteorder = byteorder
         self.rounding = _enum_name(rounding, imagecodecs.FLOAT24.ROUND)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         return imagecodecs.float24_encode(
             buf, byteorder=self.byteorder, rounding=self.rounding
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.float24_decode(
             buf, byteorder=self.byteorder, out=out
         )
 
 
-class Floatpred(Codec):
+class Floatpred(Codec):  # type: ignore[misc]
     """Floating Point Predictor codec for numcodecs."""
 
     codec_id = 'imagecodecs_floatpred'
@@ -1266,7 +1336,7 @@ class Floatpred(Codec):
         self.axis = int(axis)
         self.dist = int(dist)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         if buf.shape != self.shape:
             msg = f'{buf.shape=} does not match {self.shape=}'
@@ -1278,14 +1348,14 @@ class Floatpred(Codec):
             buf, axis=self.axis, dist=self.dist
         ).tobytes()
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         buf = numpy.frombuffer(buf, dtype=self.dtype).reshape(self.shape)
         return imagecodecs.floatpred_decode(
             buf, axis=self.axis, dist=self.dist, out=out
         )
 
 
-class Gif(Codec):
+class Gif(Codec):  # type: ignore[misc]
     """GIF codec for numcodecs."""
 
     codec_id = 'imagecodecs_gif'
@@ -1301,15 +1371,15 @@ class Gif(Codec):
 
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.gif_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.gif_decode(buf, asrgb=False, out=out)
 
 
-class Heif(Codec):
+class Heif(Codec):  # type: ignore[misc]
     """HEIF codec for numcodecs."""
 
     codec_id = 'imagecodecs_heif'
@@ -1320,7 +1390,9 @@ class Heif(Codec):
         level: int | None = None,
         bitspersample: int | None = None,
         photometric: imagecodecs.HEIF.COLORSPACE | int | str | None = None,
+        hasalpha: bool | None = None,
         compression: imagecodecs.HEIF.COMPRESSION | int | str | None = None,
+        iccprofile: bytes | None = None,
         numthreads: int | None = None,
         index: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1334,25 +1406,29 @@ class Heif(Codec):
             None if bitspersample is None else int(bitspersample)
         )
         self.photometric = _enum_name(photometric, imagecodecs.HEIF.COLORSPACE)
+        self.hasalpha = None if hasalpha is None else bool(hasalpha)
         self.compression = _enum_name(
             compression, imagecodecs.HEIF.COMPRESSION
         )
+        self.iccprofile = None if iccprofile is None else bytes(iccprofile)
         self.numthreads = None if numthreads is None else int(numthreads)
         self.index = None if index is None else int(index)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.heif_encode(
             buf,
             level=self.level,
             bitspersample=self.bitspersample,
             photometric=self.photometric,
+            hasalpha=self.hasalpha,
             compression=self.compression,
+            iccprofile=self.iccprofile,
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.heif_decode(
             buf,
             index=self.index,
@@ -1361,8 +1437,24 @@ class Heif(Codec):
             out=out,
         )
 
+    def get_config(self) -> dict[str, Any]:
+        """Return dictionary holding configuration parameters."""
+        config: dict[str, Any] = super().get_config()
+        if self.iccprofile is not None:
+            config['iccprofile'] = base64.b64encode(self.iccprofile).decode()
+        return config
 
-class Htj2k(Codec):
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate codec from configuration object."""
+        config = dict(config)
+        iccprofile = config.get('iccprofile')
+        if isinstance(iccprofile, str):
+            config['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**config)
+
+
+class Htj2k(Codec):  # type: ignore[misc]
     """HTJ2K codec for numcodecs."""
 
     codec_id = 'imagecodecs_htj2k'
@@ -1412,8 +1504,8 @@ class Htj2k(Codec):
         self.resilient = bool(resilient)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.htj2k_encode(
             buf,
             level=self.level,
@@ -1430,7 +1522,7 @@ class Htj2k(Codec):
             profile=self.profile,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.htj2k_decode(
             buf,
             planar=self.planar,
@@ -1440,7 +1532,7 @@ class Htj2k(Codec):
         )
 
 
-class Isal(Codec):
+class Isal(Codec):  # type: ignore[misc]
     """ISAL codec for numcodecs."""
 
     codec_id = 'imagecodecs_isal'
@@ -1463,16 +1555,16 @@ class Isal(Codec):
         self.raw = bool(raw)
         self.gzip = bool(gzip)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.isal_encode(
             buf, level=self.level, raw=self.raw, gzip=self.gzip
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.isal_decode(buf, raw=self.raw, out=_flat(out))
 
 
-class Jpeg(Codec):
+class Jpeg(Codec):  # type: ignore[misc]
     """JPEG codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpeg'
@@ -1484,8 +1576,9 @@ class Jpeg(Codec):
         bitspersample: int | None = None,
         tables: bytes | None = None,
         header: bytes | None = None,
-        colorspace_data: imagecodecs.JPEG8.CS | int | str | None = None,
-        colorspace_jpeg: imagecodecs.JPEG8.CS | int | str | None = None,
+        iccprofile: bytes | None = None,
+        colorspace_data: imagecodecs.JPEG.CS | int | str | None = None,
+        colorspace_jpeg: imagecodecs.JPEG.CS | int | str | None = None,
         subsampling: str | tuple[int, int] | None = None,
         optimize: bool | None = None,
         smoothing: bool | None = None,
@@ -1494,22 +1587,19 @@ class Jpeg(Codec):
         fancyupsampling: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
-        if not imagecodecs.JPEG8.available:
-            msg = 'imagecodecs.JPEG8 not available'
+        if not imagecodecs.JPEG.available:
+            msg = 'imagecodecs.JPEG not available'
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
         self.tables = tables
         self.header = header
+        self.iccprofile = iccprofile
         self.bitspersample = (
             None if bitspersample is None else int(bitspersample)
         )  # unused
-        self.colorspace_data = _enum_name(
-            colorspace_data, imagecodecs.JPEG8.CS
-        )
-        self.colorspace_jpeg = _enum_name(
-            colorspace_jpeg, imagecodecs.JPEG8.CS
-        )
+        self.colorspace_data = _enum_name(colorspace_data, imagecodecs.JPEG.CS)
+        self.colorspace_jpeg = _enum_name(colorspace_jpeg, imagecodecs.JPEG.CS)
         self.subsampling = subsampling
         self.optimize = None if optimize is None else bool(optimize)
         self.smoothing = None if smoothing is None else bool(smoothing)
@@ -1520,9 +1610,9 @@ class Jpeg(Codec):
         )
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
-        return imagecodecs.jpeg8_encode(
+        return imagecodecs.jpeg_encode(
             buf,
             level=self.level,
             colorspace=self.colorspace_data,
@@ -1532,12 +1622,13 @@ class Jpeg(Codec):
             smoothing=self.smoothing,
             lossless=self.lossless,
             predictor=self.predictor,
+            iccprofile=self.iccprofile,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if self.header is not None:
             buf = b''.join((self.header, buf, b'\xff\xd9'))
-        return imagecodecs.jpeg8_decode(
+        return imagecodecs.jpeg_decode(
             buf,
             tables=self.tables,
             colorspace=self.colorspace_jpeg,
@@ -1546,29 +1637,33 @@ class Jpeg(Codec):
             out=out,
         )
 
-    def get_config(self):
+    def get_config(self) -> dict[str, Any]:
         """Return dictionary holding configuration parameters."""
         config = {'id': self.codec_id}
         for key in self.__dict__:
             if not key.startswith('_'):
                 value = getattr(self, key)
-                if value is not None and key in {'header', 'tables'}:
+                if value is not None and key in {
+                    'header',
+                    'tables',
+                    'iccprofile',
+                }:
                     value = base64.b64encode(value).decode()
                 config[key] = value
         return config
 
     @classmethod
-    def from_config(cls, config):
+    def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate codec from configuration object."""
         config = dict(config)
-        for key in ('header', 'tables'):
+        for key in ('header', 'tables', 'iccprofile'):
             value = config.get(key)
             if value is not None and isinstance(value, str):
                 config[key] = base64.b64decode(value.encode())
         return cls(**config)
 
 
-class Jpeg2k(Codec):
+class Jpeg2k(Codec):  # type: ignore[misc]
     """JPEG 2000 codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpeg2k'
@@ -1579,6 +1674,7 @@ class Jpeg2k(Codec):
         level: int | None = None,
         codecformat: imagecodecs.JPEG2K.CODEC | int | str | None = None,
         colorspace: imagecodecs.JPEG2K.CLRSPC | int | str | None = None,
+        extrasample: imagecodecs.JPEG2K.EXTRA | int | str | None = None,
         planar: bool | None = None,
         tile: tuple[int, int] | None = None,
         bitspersample: int | None = None,
@@ -1597,6 +1693,7 @@ class Jpeg2k(Codec):
         self.level = None if level is None else int(level)
         self.codecformat = _enum_name(codecformat, imagecodecs.JPEG2K.CODEC)
         self.colorspace = _enum_name(colorspace, imagecodecs.JPEG2K.CLRSPC)
+        self.extrasample = _enum_name(extrasample, imagecodecs.JPEG2K.EXTRA)
         self.planar = None if planar is None else bool(planar)
         self.tile = None if tile is None else (int(tile[0]), int(tile[1]))
         self.reversible = None if reversible is None else bool(reversible)
@@ -1610,13 +1707,14 @@ class Jpeg2k(Codec):
         self.verbose = None if verbose is None else int(verbose)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.jpeg2k_encode(
             buf,
             level=self.level,
             codecformat=self.codecformat,
             colorspace=self.colorspace,
+            extrasample=self.extrasample,
             planar=self.planar,
             tile=self.tile,
             reversible=self.reversible,
@@ -1627,7 +1725,7 @@ class Jpeg2k(Codec):
             verbose=self.verbose,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.jpeg2k_decode(
             buf,
             planar=self.planar,
@@ -1638,7 +1736,125 @@ class Jpeg2k(Codec):
         )
 
 
-class Jpegls(Codec):
+class Jpegli(Codec):  # type: ignore[misc]
+    """Jpegli codec for numcodecs."""
+
+    codec_id = 'imagecodecs_jpegli'
+
+    def __init__(
+        self,
+        *,
+        level: int | None = None,
+        distance: float | None = None,
+        tables: bytes | None = None,
+        header: bytes | None = None,
+        iccprofile: bytes | None = None,
+        colorspace_data: imagecodecs.JPEGLI.CS | int | str | None = None,
+        colorspace_jpeg: imagecodecs.JPEGLI.CS | int | str | None = None,
+        subsampling: str | tuple[int, int] | None = None,
+        optimize: bool | None = None,
+        smoothing: int | None = None,
+        progressive: bool | int | None = None,
+        adaptive: bool | None = None,
+        standardtables: bool | None = None,
+        fancyupsampling: bool | None = None,
+        dtype: DTypeLike | None = None,
+        squeeze: Literal[False] | Sequence[int] | None = None,
+    ) -> None:
+        if not imagecodecs.JPEGLI.available:
+            msg = 'imagecodecs.JPEGLI not available'
+            raise ValueError(msg)
+
+        self.level = None if level is None else int(level)
+        self.distance = None if distance is None else float(distance)
+        self.tables = tables
+        self.header = header
+        self.iccprofile = iccprofile
+        self.colorspace_data = _enum_name(
+            colorspace_data, imagecodecs.JPEGLI.CS
+        )
+        self.colorspace_jpeg = _enum_name(
+            colorspace_jpeg, imagecodecs.JPEGLI.CS
+        )
+        self.subsampling = subsampling
+        self.optimize = None if optimize is None else bool(optimize)
+        self.smoothing = None if smoothing is None else int(smoothing)
+        self.progressive = (
+            None
+            if progressive is None
+            else (
+                progressive
+                if isinstance(progressive, bool)
+                else int(progressive)
+            )
+        )
+        self.adaptive = None if adaptive is None else bool(adaptive)
+        self.standardtables = (
+            None if standardtables is None else bool(standardtables)
+        )
+        self.fancyupsampling = (
+            None if fancyupsampling is None else bool(fancyupsampling)
+        )
+        self.dtype = None if dtype is None else numpy.dtype(dtype).str
+        self.squeeze = squeeze
+
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze)
+        return imagecodecs.jpegli_encode(
+            buf,
+            level=self.level,
+            distance=self.distance,
+            colorspace=self.colorspace_data,
+            outcolorspace=self.colorspace_jpeg,
+            subsampling=self.subsampling,
+            optimize=self.optimize,
+            smoothing=self.smoothing,
+            progressive=self.progressive,
+            adaptive=self.adaptive,
+            standardtables=self.standardtables,
+            iccprofile=self.iccprofile,
+        )
+
+    def decode(self, buf: Any, out: Any = None) -> Any:
+        if self.header is not None:
+            buf = b''.join((self.header, buf, b'\xff\xd9'))
+        return imagecodecs.jpegli_decode(
+            buf,
+            tables=self.tables,
+            colorspace=self.colorspace_jpeg,
+            outcolorspace=self.colorspace_data,
+            fancyupsampling=self.fancyupsampling,
+            dtype=self.dtype,
+            out=out,
+        )
+
+    def get_config(self) -> dict[str, Any]:
+        """Return dictionary holding configuration parameters."""
+        config = {'id': self.codec_id}
+        for key in self.__dict__:
+            if not key.startswith('_'):
+                value = getattr(self, key)
+                if value is not None and key in {
+                    'header',
+                    'tables',
+                    'iccprofile',
+                }:
+                    value = base64.b64encode(value).decode()
+                config[key] = value
+        return config
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate codec from configuration object."""
+        config = dict(config)
+        for key in ('header', 'tables', 'iccprofile'):
+            value = config.get(key)
+            if value is not None and isinstance(value, str):
+                config[key] = base64.b64decode(value.encode())
+        return cls(**config)
+
+
+class Jpegls(Codec):  # type: ignore[misc]
     """JPEG LS codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpegls'
@@ -1648,6 +1864,7 @@ class Jpegls(Codec):
         *,
         level: int | None = None,
         bitspersample: int | None = None,
+        planar: bool | None = None,
         transformation: (
             imagecodecs.JPEGLS.COLOR_TRANSFORMATION | int | str | None
         ) = None,
@@ -1662,25 +1879,29 @@ class Jpegls(Codec):
         self.bitspersample = (
             None if bitspersample is None else int(bitspersample)
         )
-        self.transformation = transformation
+        self.planar = None if planar is None else bool(planar)
+        self.transformation = _enum_name(
+            transformation, imagecodecs.JPEGLS.COLOR_TRANSFORMATION
+        )
         self.spiff = None if spiff is None else bool(spiff)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.jpegls_encode(
             buf,
             level=self.level,
             bitspersample=self.bitspersample,
+            planar=self.planar,
             transformation=self.transformation,
             spiff=self.spiff,
         )
 
-    def decode(self, buf, out=None):
-        return imagecodecs.jpegls_decode(buf, out=out)
+    def decode(self, buf: Any, out: Any = None) -> Any:
+        return imagecodecs.jpegls_decode(buf, planar=self.planar, out=out)
 
 
-class Jpegxl(Codec):
+class Jpegxl(Codec):  # type: ignore[misc]
     """JPEG XL codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpegxl'
@@ -1695,12 +1916,15 @@ class Jpegxl(Codec):
         lossless: bool | None = None,
         decodingspeed: int | None = None,
         photometric: imagecodecs.JPEGXL.COLOR_SPACE | int | str | None = None,
+        hasalpha: bool | None = None,
         bitspersample: int | None = None,
         planar: bool | None = None,
         primaries: imagecodecs.JPEGXL.PRIMARIES | int | str | None = None,
         transfer: (
             imagecodecs.JPEGXL.TRANSFER_FUNCTION | int | str | None
         ) = None,
+        whitepoint: imagecodecs.JPEGXL.WHITE_POINT | int | str | None = None,
+        gamma: float | None = None,
         perceptualheuristics: bool | None = None,
         usecontainer: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
@@ -1717,7 +1941,7 @@ class Jpegxl(Codec):
         self.level = None if level is None else int(level)
         self.effort = None if effort is None else int(effort)
         self.distance = None if distance is None else float(distance)
-        self.lossless = lossless is None or bool(lossless)
+        self.lossless = None if lossless is None else bool(lossless)
         self.decodingspeed = (
             None if decodingspeed is None else int(decodingspeed)
         )
@@ -1727,11 +1951,16 @@ class Jpegxl(Codec):
         self.photometric = _enum_name(
             photometric, imagecodecs.JPEGXL.COLOR_SPACE
         )
+        self.hasalpha = None if hasalpha is None else bool(hasalpha)
         self.planar = None if planar is None else bool(planar)
         self.primaries = _enum_name(primaries, imagecodecs.JPEGXL.PRIMARIES)
         self.transfer = _enum_name(
             transfer, imagecodecs.JPEGXL.TRANSFER_FUNCTION
         )
+        self.whitepoint = _enum_name(
+            whitepoint, imagecodecs.JPEGXL.WHITE_POINT
+        )
+        self.gamma = None if gamma is None else float(gamma)
         self.perceptualheuristics = (
             None
             if perceptualheuristics is None
@@ -1747,8 +1976,8 @@ class Jpegxl(Codec):
         self.numthreads = None if numthreads is None else int(numthreads)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.jpegxl_encode(
             buf,
             level=self.level,
@@ -1758,15 +1987,18 @@ class Jpegxl(Codec):
             decodingspeed=self.decodingspeed,
             bitspersample=self.bitspersample,
             photometric=self.photometric,
+            hasalpha=self.hasalpha,
             planar=self.planar,
             primaries=self.primaries,
             transfer=self.transfer,
+            whitepoint=self.whitepoint,
+            gamma=self.gamma,
             usecontainer=self.usecontainer,
             perceptualheuristics=self.perceptualheuristics,
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.jpegxl_decode(
             buf,
             index=self.index,
@@ -1776,7 +2008,7 @@ class Jpegxl(Codec):
         )
 
 
-class Jpegxr(Codec):
+class Jpegxr(Codec):  # type: ignore[misc]
     """JPEG XR codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpegxr'
@@ -1806,7 +2038,7 @@ class Jpegxr(Codec):
         self.fp2int = bool(fp2int)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.jpegxr_encode(
             buf,
@@ -1816,11 +2048,11 @@ class Jpegxr(Codec):
             resolution=self.resolution,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.jpegxr_decode(buf, fp2int=self.fp2int, out=out)
 
 
-class Jpegxs(Codec):
+class Jpegxs(Codec):  # type: ignore[misc]
     """JPEG XS codec for numcodecs."""
 
     codec_id = 'imagecodecs_jpegxs'
@@ -1844,7 +2076,7 @@ class Jpegxs(Codec):
         self.verbose = None if verbose is None else int(verbose)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.jpegxs_encode(
             buf,
@@ -1853,11 +2085,11 @@ class Jpegxs(Codec):
             verbose=self.verbose,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.jpegxs_decode(buf, out=out)
 
 
-class Lerc(Codec):
+class Lerc(Codec):  # type: ignore[misc]
     """LERC codec for numcodecs."""
 
     codec_id = 'imagecodecs_lerc'
@@ -1886,8 +2118,8 @@ class Lerc(Codec):
         # TODO: support mask?
         # self.mask = None
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(buf, self.squeeze, planar=self.planar)
         return imagecodecs.lerc_encode(
             buf,
             level=self.level,
@@ -1897,11 +2129,11 @@ class Lerc(Codec):
             compressionargs=self.compressionargs,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lerc_decode(buf, masks=False, out=out)
 
 
-class Ljpeg(Codec):
+class Ljpeg(Codec):  # type: ignore[misc]
     """LJPEG codec for numcodecs."""
 
     codec_id = 'imagecodecs_ljpeg'
@@ -1923,15 +2155,15 @@ class Ljpeg(Codec):
         )
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.ljpeg_encode(buf, bitspersample=self.bitspersample)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.ljpeg_decode(buf, out=out)
 
 
-class Lz4(Codec):
+class Lz4(Codec):  # type: ignore[misc]
     """LZ4 codec for numcodecs."""
 
     codec_id = 'imagecodecs_lz4'
@@ -1951,16 +2183,16 @@ class Lz4(Codec):
         self.hc = bool(hc)
         self.header = bool(header)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lz4_encode(
             buf, level=self.level, hc=self.hc, header=self.header
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lz4_decode(buf, header=self.header, out=_flat(out))
 
 
-class Lz4f(Codec):
+class Lz4f(Codec):  # type: ignore[misc]
     """LZ4F codec for numcodecs."""
 
     codec_id = 'imagecodecs_lz4f'
@@ -1988,7 +2220,7 @@ class Lz4f(Codec):
         )
         self.contentsize = None if contentsize is None else bool(contentsize)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lz4f_encode(
             buf,
             level=self.level,
@@ -1998,11 +2230,11 @@ class Lz4f(Codec):
             contentsize=self.contentsize,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lz4f_decode(buf, out=_flat(out))
 
 
-class Lz4h5(Codec):
+class Lz4h5(Codec):  # type: ignore[misc]
     """LZ4H5 codec for numcodecs."""
 
     codec_id = 'imagecodecs_lz4h5'
@@ -2011,6 +2243,7 @@ class Lz4h5(Codec):
         self,
         *,
         level: int | None = None,
+        hc: bool = False,
         blocksize: int | None = None,
     ) -> None:
         if not imagecodecs.LZ4H5.available:
@@ -2018,18 +2251,19 @@ class Lz4h5(Codec):
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
+        self.hc = bool(hc)
         self.blocksize = None if blocksize is None else int(blocksize)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lz4h5_encode(
-            buf, level=self.level, blocksize=self.blocksize
+            buf, level=self.level, hc=self.hc, blocksize=self.blocksize
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lz4h5_decode(buf, out=_flat(out))
 
 
-class Lzf(Codec):
+class Lzf(Codec):  # type: ignore[misc]
     """LZF codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzf'
@@ -2045,14 +2279,14 @@ class Lzf(Codec):
 
         self.header = bool(header)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lzf_encode(buf, header=self.header)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzf_decode(buf, header=self.header, out=_flat(out))
 
 
-class Lzfse(Codec):
+class Lzfse(Codec):  # type: ignore[misc]
     """LZFSE codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzfse'
@@ -2062,14 +2296,14 @@ class Lzfse(Codec):
             msg = 'imagecodecs.LZFSE not available'
             raise ValueError(msg)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lzfse_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzfse_decode(buf, out=_flat(out))
 
 
-class Lzham(Codec):
+class Lzham(Codec):  # type: ignore[misc]
     """LZHAM codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzham'
@@ -2077,22 +2311,22 @@ class Lzham(Codec):
     def __init__(
         self,
         *,
-        level: int | str | None = None,
+        level: int | None = None,
     ) -> None:
         if not imagecodecs.LZHAM.available:
             msg = 'imagecodecs.LZHAM not available'
             raise ValueError(msg)
 
-        self.level = level
+        self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lzham_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzham_decode(buf, out=_flat(out))
 
 
-class Lzma(Codec):
+class Lzma(Codec):  # type: ignore[misc]
     """LZMA codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzma'
@@ -2110,14 +2344,14 @@ class Lzma(Codec):
         self.level = None if level is None else int(level)
         self.check = _enum_name(check, imagecodecs.LZMA.CHECK)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lzma_encode(buf, level=self.level, check=self.check)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzma_decode(buf, out=_flat(out))
 
 
-class Lzo(Codec):
+class Lzo(Codec):  # type: ignore[misc]
     """LZO codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzo'
@@ -2128,15 +2362,15 @@ class Lzo(Codec):
             raise ValueError(msg)
         self.header = bool(header)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         # return imagecodecs.lzo_encode(buf)
         raise NotImplementedError
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzo_decode(buf, header=self.header, out=_flat(out))
 
 
-class Lzw(Codec):
+class Lzw(Codec):  # type: ignore[misc]
     """LZW codec for numcodecs."""
 
     codec_id = 'imagecodecs_lzw'
@@ -2146,14 +2380,14 @@ class Lzw(Codec):
             msg = 'imagecodecs.LZW not available'
             raise ValueError(msg)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.lzw_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.lzw_decode(buf, out=_flat(out))
 
 
-class Meshopt(Codec):
+class Meshopt(Codec):  # type: ignore[misc]
     """MESHOPT codec for numcodecs."""
 
     codec_id = 'imagecodecs_meshopt'
@@ -2175,7 +2409,7 @@ class Meshopt(Codec):
         self.items = None if items is None else int(items)
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         if buf.shape != self.shape:
             msg = f'{buf.shape=} does not match {self.shape=}'
@@ -2187,7 +2421,7 @@ class Meshopt(Codec):
             buf, level=self.level, items=self.items
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.meshopt_decode(
             buf,
             shape=self.shape,
@@ -2197,7 +2431,7 @@ class Meshopt(Codec):
         )
 
 
-class Openzl(Codec):
+class Openzl(Codec):  # type: ignore[misc]
     """Openzl codec for numcodecs."""
 
     codec_id = 'imagecodecs_openzl'
@@ -2213,14 +2447,14 @@ class Openzl(Codec):
 
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.openzl_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.openzl_decode(buf, out=_flat(out))
 
 
-class Packbits(Codec):
+class Packbits(Codec):  # type: ignore[misc]
     """PackBits codec for numcodecs."""
 
     codec_id = 'imagecodecs_packbits'
@@ -2230,16 +2464,16 @@ class Packbits(Codec):
             msg = 'imagecodecs.PACKBITS not available'
             raise ValueError(msg)
 
-    def encode(self, buf):
-        if not isinstance(buf, (bytes, bytearray)):
+    def encode(self, buf: Any) -> Any:
+        if not isinstance(buf, bytes | bytearray):
             buf = numpy.asarray(buf)
         return imagecodecs.packbits_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.packbits_decode(buf, out=_flat(out))
 
 
-class Packints(Codec):
+class Packints(Codec):  # type: ignore[misc]
     """Packed integer codec for numcodecs."""
 
     codec_id = 'imagecodecs_packints'
@@ -2261,7 +2495,7 @@ class Packints(Codec):
         self.bitorder = bitorder
         self.runlen = int(runlen)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         if buf.dtype != self.dtype:
             msg = f'{buf.dtype=} does not match {self.dtype=}'
@@ -2273,7 +2507,7 @@ class Packints(Codec):
             runlen=self.runlen,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.packints_decode(
             buf,
             self.dtype,
@@ -2284,7 +2518,7 @@ class Packints(Codec):
         )
 
 
-class Pcodec(Codec):
+class Pcodec(Codec):  # type: ignore[misc]
     """Pcodec codec for numcodecs."""
 
     codec_id = 'imagecodecs_pcodec'
@@ -2306,18 +2540,18 @@ class Pcodec(Codec):
         self.level = None if level is None else int(level)
         self.pagesize = None if pagesize is None else int(pagesize)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.pcodec_encode(
             buf, level=self.level, pagesize=self.pagesize
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.pcodec_decode(
             buf, shape=self.shape, dtype=self.dtype, out=out
         )
 
 
-class Pcx(Codec):
+class Pcx(Codec):  # type: ignore[misc]
     """PCX codec for numcodecs."""
 
     codec_id = 'imagecodecs_pcx'
@@ -2335,15 +2569,15 @@ class Pcx(Codec):
         self.index = None if index is None else int(index)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.pcx_encode(buf)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.pcx_decode(buf, index=self.index, out=out)
 
 
-class Pglz(Codec):
+class Pglz(Codec):  # type: ignore[misc]
     """PGLZ codec for numcodecs."""
 
     codec_id = 'imagecodecs_pglz'
@@ -2365,12 +2599,12 @@ class Pglz(Codec):
             None if checkcomplete is None else bool(checkcomplete)
         )
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.pglz_encode(
             buf, strategy=self.strategy, header=self.header
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.pglz_decode(
             buf,
             header=self.header,
@@ -2379,7 +2613,7 @@ class Pglz(Codec):
         )
 
 
-class Pixarlog(Codec):
+class Pixarlog(Codec):  # type: ignore[misc]
     """Pixarlog codec for numcodecs."""
 
     codec_id = 'imagecodecs_pixarlog'
@@ -2403,13 +2637,13 @@ class Pixarlog(Codec):
         self.deflate = bool(deflate)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.pixarlog_encode(
             buf, level=self.level, deflate=self.deflate
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         shape = _squeeze_shape(self.shape, self.squeeze)
         return imagecodecs.pixarlog_decode(
             buf,
@@ -2420,7 +2654,7 @@ class Pixarlog(Codec):
         )
 
 
-class Plio(Codec):
+class Plio(Codec):  # type: ignore[misc]
     """PLIO codec for numcodecs."""
 
     codec_id = 'imagecodecs_plio'
@@ -2438,10 +2672,10 @@ class Plio(Codec):
         self.shape = tuple(shape)
         self.dtype = None if dtype is None else numpy.dtype(dtype).str
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.plio_encode(numpy.asarray(buf).ravel())
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         npix = int(numpy.prod(self.shape))
         decoded = imagecodecs.plio_decode(buf, npix=npix)
         decoded = decoded.reshape(self.shape)
@@ -2450,7 +2684,7 @@ class Plio(Codec):
         return decoded
 
 
-class Png(Codec):
+class Png(Codec):  # type: ignore[misc]
     """PNG codec for numcodecs."""
 
     codec_id = 'imagecodecs_png'
@@ -2482,7 +2716,7 @@ class Png(Codec):
         self.matrix = _enum_name(matrix, imagecodecs.PNG.MATRIX_COEFFICIENTS)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.png_encode(
             buf,
@@ -2494,11 +2728,11 @@ class Png(Codec):
             matrix=self.matrix,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.png_decode(buf, out=out)
 
 
-class Qoi(Codec):
+class Qoi(Codec):  # type: ignore[misc]
     """QOI codec for numcodecs."""
 
     codec_id = 'imagecodecs_qoi'
@@ -2516,15 +2750,15 @@ class Qoi(Codec):
         self.colorspace = _enum_name(colorspace, imagecodecs.QOI.COLORSPACE)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.qoi_encode(buf, colorspace=self.colorspace)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.qoi_decode(buf, out=out)
 
 
-class Quantize(Codec):
+class Quantize(Codec):  # type: ignore[misc]
     """Quantize codec for numcodecs."""
 
     codec_id = 'imagecodecs_quantize'
@@ -2542,15 +2776,15 @@ class Quantize(Codec):
         self.nsd = int(nsd)
         self.mode = mode
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.quantize_encode(buf, self.mode, self.nsd)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return buf
         # return imagecodecs.quantize_decode(buf, self.mode, self.nsd, out=out)
 
 
-class Hcomp(Codec):
+class Hcomp(Codec):  # type: ignore[misc]
     """Hcomp codec for numcodecs."""
 
     codec_id = 'imagecodecs_hcomp'
@@ -2559,8 +2793,8 @@ class Hcomp(Codec):
         self,
         *,
         shape: tuple[int, ...],
-        level: int = 0,
-        smooth: int = 0,
+        level: int | None = None,
+        smooth: int | None = None,
         safe32: bool | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
@@ -2568,26 +2802,28 @@ class Hcomp(Codec):
             msg = 'imagecodecs.HCOMP not available'
             raise ValueError(msg)
 
-        self.shape = _squeeze_shape(shape, squeeze)
-        self.level = int(level)
-        self.smooth = int(smooth)
+        self.shape = tuple(shape)
+        self.level = None if level is None else int(level)
+        self.smooth = None if smooth is None else int(smooth)
         self.safe32 = None if safe32 is None else bool(safe32)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
-        return imagecodecs.hcomp_encode(buf, level=self.level)
+        return imagecodecs.hcomp_encode(
+            buf, level=0 if self.level is None else self.level
+        )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.hcomp_decode(
             buf,
-            smooth=self.smooth,
+            smooth=0 if self.smooth is None else self.smooth,
             safe32=self.safe32,
             out=out,
         )
 
 
-class Rcomp(Codec):
+class Rcomp(Codec):  # type: ignore[misc]
     """Rcomp codec for numcodecs."""
 
     codec_id = 'imagecodecs_rcomp'
@@ -2607,10 +2843,10 @@ class Rcomp(Codec):
         self.dtype = numpy.dtype(dtype).str
         self.nblock = None if nblock is None else int(nblock)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.rcomp_encode(buf, nblock=self.nblock)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.rcomp_decode(
             buf,
             shape=self.shape,
@@ -2620,7 +2856,7 @@ class Rcomp(Codec):
         )
 
 
-class Rgbe(Codec):
+class Rgbe(Codec):  # type: ignore[misc]
     """RGBE codec for numcodecs."""
 
     codec_id = 'imagecodecs_rgbe'
@@ -2649,11 +2885,11 @@ class Rgbe(Codec):
         self.shape = None if shape is None else tuple(shape)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.rgbe_encode(buf, header=self.header, rle=self.rle)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if out is None and not self.header:
             out = numpy.empty(self.shape, numpy.float32)
         return imagecodecs.rgbe_decode(
@@ -2661,26 +2897,26 @@ class Rgbe(Codec):
         )
 
 
-class Snappy(Codec):
+class Snappy(Codec):  # type: ignore[misc]
     """Snappy codec for numcodecs."""
 
     codec_id = 'imagecodecs_snappy'
 
-    def __init__(self, level: int | None = None) -> None:
+    def __init__(self, *, level: int | None = None) -> None:
         if not imagecodecs.SNAPPY.available:
             msg = 'imagecodecs.SNAPPY not available'
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.snappy_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.snappy_decode(buf, out=_flat(out))
 
 
-class Sperr(Codec):
+class Sperr(Codec):  # type: ignore[misc]
     """SPERR codec for numcodecs."""
 
     codec_id = 'imagecodecs_sperr'
@@ -2721,7 +2957,7 @@ class Sperr(Codec):
         self.numthreads = None if numthreads is None else int(numthreads)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         if not self.header:
             if buf.shape != self.shape:
@@ -2739,7 +2975,7 @@ class Sperr(Codec):
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if self.header:
             return imagecodecs.sperr_decode(buf, out=out)
         return imagecodecs.sperr_decode(
@@ -2752,7 +2988,7 @@ class Sperr(Codec):
         )
 
 
-class Spng(Codec):
+class Spng(Codec):  # type: ignore[misc]
     """SPNG codec for numcodecs."""
 
     codec_id = 'imagecodecs_spng'
@@ -2770,15 +3006,15 @@ class Spng(Codec):
         self.level = None if level is None else int(level)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.spng_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.spng_decode(buf, out=out)
 
 
-class Sz3(Codec):
+class Sz3(Codec):  # type: ignore[misc]
     """SZ3 codec for numcodecs."""
 
     codec_id = 'imagecodecs_sz3'
@@ -2802,18 +3038,18 @@ class Sz3(Codec):
         self.abs = 0.0 if abs is None else float(abs)
         self.rel = 0.0 if rel is None else float(rel)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.sz3_encode(
             buf, mode=self.mode, abs=self.abs, rel=self.rel
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.sz3_decode(
             buf, shape=self.shape, dtype=self.dtype, out=out
         )
 
 
-class Szip(Codec):
+class Szip(Codec):  # type: ignore[misc]
     """SZIP codec for numcodecs."""
 
     codec_id = 'imagecodecs_szip'
@@ -2837,7 +3073,7 @@ class Szip(Codec):
         self.pixels_per_scanline = int(pixels_per_scanline)
         self.header = bool(header)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.szip_encode(
             buf,
             options_mask=self.options_mask,
@@ -2847,7 +3083,7 @@ class Szip(Codec):
             header=self.header,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.szip_decode(
             buf,
             options_mask=self.options_mask,
@@ -2859,7 +3095,7 @@ class Szip(Codec):
         )
 
 
-class Tga(Codec):
+class Tga(Codec):  # type: ignore[misc]
     """TGA codec for numcodecs."""
 
     codec_id = 'imagecodecs_tga'
@@ -2877,15 +3113,15 @@ class Tga(Codec):
         self.rle = bool(rle)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.tga_encode(buf, rle=self.rle)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.tga_decode(buf, out=out)
 
 
-class Tiff(Codec):
+class Tiff(Codec):  # type: ignore[misc]
     """TIFF codec for numcodecs."""
 
     codec_id = 'imagecodecs_tiff'
@@ -2974,8 +3210,12 @@ class Tiff(Codec):
         self.verbose = None if verbose is None else int(verbose)
         self.squeeze = squeeze
 
-    def encode(self, buf):
-        buf = _image(buf, self.squeeze)
+    def encode(self, buf: Any) -> Any:
+        buf = _image(
+            buf,
+            self.squeeze,
+            planar=str(self.planarconfig).upper() == 'SEPARATE',
+        )
         return imagecodecs.tiff_encode(
             buf,
             level=self.level,
@@ -3001,7 +3241,7 @@ class Tiff(Codec):
             verbose=self.verbose,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.tiff_decode(
             buf,
             index=self.index,
@@ -3010,8 +3250,26 @@ class Tiff(Codec):
             out=out,
         )
 
+    def get_config(self) -> dict[str, Any]:
+        """Return dictionary holding configuration parameters."""
+        config: dict[str, Any] = super().get_config()
+        if self.iccprofile is not None:
+            config['iccprofile'] = base64.b64encode(self.iccprofile).decode()
+        if self.colormap is not None:
+            config['colormap'] = self.colormap.tolist()
+        return config
 
-class Ultrahdr(Codec):
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate codec from configuration object."""
+        config = dict(config)
+        iccprofile = config.get('iccprofile')
+        if isinstance(iccprofile, str):
+            config['iccprofile'] = base64.b64decode(iccprofile.encode())
+        return cls(**config)
+
+
+class Ultrahdr(Codec):  # type: ignore[misc]
     """Ultra HDR codec for numcodecs."""
 
     codec_id = 'imagecodecs_ultrahdr'
@@ -3065,7 +3323,7 @@ class Ultrahdr(Codec):
         self.boost = None if boost is None else float(boost)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         if self.dtype is not None and buf.dtype != self.dtype:
             msg = f'{buf.dtype=} != {self.dtype}'
@@ -3088,7 +3346,7 @@ class Ultrahdr(Codec):
             multichannel=self.multichannel,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.ultrahdr_decode(
             buf,
             dtype=self.dtype,
@@ -3098,7 +3356,7 @@ class Ultrahdr(Codec):
         )
 
 
-class Webp(Codec):
+class Webp(Codec):  # type: ignore[misc]
     """WebP codec for numcodecs."""
 
     codec_id = 'imagecodecs_webp'
@@ -3111,8 +3369,8 @@ class Webp(Codec):
         method: int | None = None,
         index: int | None = None,
         hasalpha: bool | None = None,
-        numthreads: int | None = None,
         delay: int | None = None,
+        numthreads: int | None = None,
         squeeze: Literal[False] | Sequence[int] | None = None,
     ) -> None:
         if not imagecodecs.WEBP.available:
@@ -3128,24 +3386,24 @@ class Webp(Codec):
         self.delay = None if delay is None else int(delay)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.webp_encode(
             buf,
             level=self.level,
             lossless=self.lossless,
             method=self.method,
-            numthreads=self.numthreads,
             delay=self.delay,
+            numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.webp_decode(
             buf, index=self.index, hasalpha=self.hasalpha, out=out
         )
 
 
-class Wavpack(Codec):
+class Wavpack(Codec):  # type: ignore[misc]
     """Wavpack codec for numcodecs."""
 
     codec_id = 'imagecodecs_wavpack'
@@ -3167,7 +3425,7 @@ class Wavpack(Codec):
         self.channels = bool(channels)
         self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         arr = numpy.asarray(buf)
         if arr.ndim > 1:
             arr = (
@@ -3182,13 +3440,13 @@ class Wavpack(Codec):
             numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.wavpack_decode(
             buf, numthreads=self.numthreads, out=out
         )
 
 
-class Wic(Codec):
+class Wic(Codec):  # type: ignore[misc]
     """WIC codec for numcodecs."""
 
     codec_id = 'imagecodecs_wic'
@@ -3210,17 +3468,17 @@ class Wic(Codec):
         self.index = int(index)
         self.squeeze = squeeze
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = _image(buf, self.squeeze)
         return imagecodecs.wic_encode(
             buf, level=self.level, format=self.format
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.wic_decode(buf, index=self.index, out=out)
 
 
-class Xor(Codec):
+class Xor(Codec):  # type: ignore[misc]
     """XOR codec for numcodecs."""
 
     codec_id = 'imagecodecs_xor'
@@ -3240,18 +3498,18 @@ class Xor(Codec):
         self.dtype = None if dtype is None else numpy.dtype(dtype).str
         self.axis = int(axis)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         if self.shape is not None or self.dtype is not None:
             buf = numpy.asarray(buf)
-            if buf.shape != self.shape:
+            if self.shape is not None and buf.shape != self.shape:
                 msg = f'{buf.shape=} does not match {self.shape=}'
                 raise ValueError(msg)
-            if buf.dtype != self.dtype:
+            if self.dtype is not None and buf.dtype != self.dtype:
                 msg = f'{buf.dtype=} does not match {self.dtype=}'
                 raise ValueError(msg)
         return imagecodecs.xor_encode(buf, axis=self.axis).tobytes()
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if self.shape is not None or self.dtype is not None:
             buf = numpy.frombuffer(buf, dtype=self.dtype)
             if self.shape is not None:
@@ -3259,7 +3517,7 @@ class Xor(Codec):
         return imagecodecs.xor_decode(buf, axis=self.axis, out=_flat(out))
 
 
-class Zfp(Codec):
+class Zfp(Codec):  # type: ignore[misc]
     """ZFP codec for numcodecs."""
 
     codec_id = 'imagecodecs_zfp'
@@ -3295,11 +3553,11 @@ class Zfp(Codec):
         self.level = None if level is None else int(level)
         self.mode = _enum_name(mode, imagecodecs.ZFP.MODE)
         self.execution = _enum_name(execution, imagecodecs.ZFP.EXEC)
-        self.numthreads = numthreads
-        self.chunksize = chunksize
+        self.numthreads = None if numthreads is None else int(numthreads)
+        self.chunksize = None if chunksize is None else int(chunksize)
         self.header = bool(header)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         buf = numpy.asarray(buf)
         if not self.header:
             if buf.shape != self.shape:
@@ -3318,7 +3576,7 @@ class Zfp(Codec):
             chunksize=self.chunksize,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         if self.header:
             return imagecodecs.zfp_decode(buf, out=out)
         return imagecodecs.zfp_decode(
@@ -3331,7 +3589,7 @@ class Zfp(Codec):
         )
 
 
-class Zlib(Codec):
+class Zlib(Codec):  # type: ignore[misc]
     """Zlib codec for numcodecs."""
 
     codec_id = 'imagecodecs_zlib'
@@ -3347,14 +3605,14 @@ class Zlib(Codec):
 
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.zlib_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.zlib_decode(buf, out=_flat(out))
 
 
-class Zlibng(Codec):
+class Zlibng(Codec):  # type: ignore[misc]
     """Zlibng codec for numcodecs."""
 
     codec_id = 'imagecodecs_zlibng'
@@ -3370,14 +3628,14 @@ class Zlibng(Codec):
 
         self.level = None if level is None else int(level)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.zlibng_encode(buf, level=self.level)
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.zlibng_decode(buf, out=_flat(out))
 
 
-class Zopfli(Codec):
+class Zopfli(Codec):  # type: ignore[misc]
     """Zopfli codec for numcodecs."""
 
     codec_id = 'imagecodecs_zopfli'
@@ -3403,7 +3661,7 @@ class Zopfli(Codec):
             None if blocksplittingmax is None else int(blocksplittingmax)
         )
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         return imagecodecs.zopfli_encode(
             buf,
             self.level,
@@ -3412,11 +3670,11 @@ class Zopfli(Codec):
             blocksplittingmax=self.blocksplittingmax,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.zopfli_decode(buf, out=_flat(out))
 
 
-class Zstd(Codec):
+class Zstd(Codec):  # type: ignore[misc]
     """ZStandard codec for numcodecs."""
 
     codec_id = 'imagecodecs_zstd'
@@ -3425,21 +3683,25 @@ class Zstd(Codec):
         self,
         *,
         level: int | None = None,
+        numthreads: int | None = None,
     ) -> None:
         if not imagecodecs.ZSTD.available:
             msg = 'imagecodecs.ZSTD not available'
             raise ValueError(msg)
 
         self.level = None if level is None else int(level)
+        self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
-        return imagecodecs.zstd_encode(buf, level=self.level)
+    def encode(self, buf: Any) -> Any:
+        return imagecodecs.zstd_encode(
+            buf, level=self.level, numthreads=self.numthreads
+        )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.zstd_decode(buf, out=_flat(out))
 
 
-class Zstd1(Codec):
+class Zstd1(Codec):  # type: ignore[misc]
     """Zstd1 codec for numcodecs."""
 
     codec_id = 'imagecodecs_zstd1'
@@ -3451,6 +3713,7 @@ class Zstd1(Codec):
         itemsize: int = 1,
         samples: int = 1,
         hilo: bool | None = None,
+        numthreads: int | None = None,
     ) -> None:
         if not imagecodecs.ZSTD1.available:
             msg = 'imagecodecs.ZSTD1 not available'
@@ -3460,17 +3723,19 @@ class Zstd1(Codec):
         self.itemsize = int(itemsize)
         self.samples = int(samples)
         self.hilo = None if hilo is None else bool(hilo)
+        self.numthreads = None if numthreads is None else int(numthreads)
 
-    def encode(self, buf):
+    def encode(self, buf: Any) -> Any:
         hilo = (self.itemsize > 1) if self.hilo is None else self.hilo
         return imagecodecs.zstd1_encode(
             buf,
             level=self.level,
             itemsize=self.itemsize,
             hilo=hilo,
+            numthreads=self.numthreads,
         )
 
-    def decode(self, buf, out=None):
+    def decode(self, buf: Any, out: Any = None) -> Any:
         return imagecodecs.zstd1_decode(
             buf, itemsize=self.itemsize, samples=self.samples, out=_flat(out)
         )
@@ -3498,14 +3763,16 @@ def _image(
     buf: Any,
     squeeze: Literal[False] | Sequence[int] | None = None,
     /,
+    *,
+    planar: bool | None = None,
 ) -> NDArray[Any]:
     """Return buffer as squeezed numpy array with at least 2 dimensions."""
-    if squeeze is None:
-        return numpy.atleast_2d(numpy.squeeze(buf))
-    arr = numpy.asarray(buf)
-    if not squeeze:
+    arr: NDArray[Any] = numpy.asarray(buf)
+    if squeeze is not None and not squeeze:
         return arr
-    shape = tuple(i for i, j in zip(buf.shape, squeeze, strict=True) if not j)
+    shape = _squeeze_shape(arr.shape, squeeze)
+    if planar and squeeze is None and len(shape) == 2:
+        shape = (1, *shape)
     return arr.reshape(shape)
 
 
@@ -3516,12 +3783,41 @@ def _enum_name(
     if value is None:
         return None
     if isinstance(value, str):
-        return value
+        upper = value.upper()
+        return upper if upper in enum_cls.__members__ else value
     if isinstance(value, enum_cls):
         return value.name
     if isinstance(value, enum.Enum):
         return enum_cls(value.value).name
     return enum_cls(value).name
+
+
+def _enum_names(
+    value: Sequence[int | str | enum.Enum] | None,
+    enum_cls: type[enum.Enum],
+    /,
+) -> list[str] | None:
+    """Normalize sequence of enum values to enum name strings."""
+    if value is None:
+        return None
+    if isinstance(value, int | str):
+        msg = 'filters must be a sequence'
+        raise TypeError(msg)
+    names: list[str] = []
+    for v in value:
+        name = _enum_name(v, enum_cls)
+        if name is None:
+            msg = 'filters must not contain None'
+            raise TypeError(msg)
+        names.append(name)
+    return names
+
+
+def _filters_meta(value: Sequence[int] | None, /) -> list[int] | None:
+    """Normalize sequence of filter meta values."""
+    if value is None:
+        return None
+    return [int(v) for v in value]
 
 
 def _squeeze_shape(
@@ -3531,10 +3827,14 @@ def _squeeze_shape(
 ) -> tuple[int, ...]:
     """Return squeezed shape with at least 2 dimensions."""
     if squeeze is None:
-        shape = tuple(s for s in shape if s > 1)
-        if len(shape) < 2:
-            shape = (1,) * (2 - len(shape)) + shape
-        return shape
+        squeezed = tuple(i for i in shape if i != 1)
+        if not squeezed:
+            return (1, 1)
+        if len(squeezed) == 1:
+            # keep orientation of single row or column
+            n = squeezed[0]
+            return (n, 1) if len(shape) > 1 and shape[-1] == 1 else (1, n)
+        return squeezed
     if not squeeze:
         return shape
     return tuple(i for i, j in zip(shape, squeeze, strict=True) if not j)
@@ -3546,7 +3846,13 @@ def register_codecs(
     force: bool = False,
     verbose: bool = True,
 ) -> None:
-    """Register imagecodecs.numcodecs codecs with numcodecs."""
+    """Register imagecodecs.numcodecs codecs with numcodecs.
+
+    Codec names may include or omit the ``imagecodecs_`` prefix.
+    Raise ValueError for unknown names before registering any codecs.
+
+    """
+    classes: dict[str, Any] = {}
     for name, cls in list(globals().items()):
         if not (
             isinstance(cls, type)
@@ -3555,7 +3861,15 @@ def register_codecs(
         ):
             continue
         assert hasattr(cls, 'codec_id')
-        if codecs is not None and cls.codec_id not in codecs:
+        classes[cls.codec_id.removeprefix('imagecodecs_')] = cls
+    if codecs is not None:
+        codecs = {name.removeprefix('imagecodecs_') for name in codecs}
+        unknown = codecs.difference(classes)
+        if unknown:
+            msg = f'unknown codec names: {sorted(unknown)!r}'
+            raise ValueError(msg)
+    for name, cls in classes.items():
+        if codecs is not None and name not in codecs:
             continue
         try:
             with contextlib.suppress(TypeError):
@@ -3576,7 +3890,3 @@ def register_codecs(
                     'replacing registered numcodec %s', cls.codec_id
                 )
         register_codec(cls)
-
-
-# mypy: allow-untyped-defs, allow-untyped-calls
-# mypy: disable-error-code="misc"
