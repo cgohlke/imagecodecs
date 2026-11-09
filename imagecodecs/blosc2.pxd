@@ -1,6 +1,6 @@
 # imagecodecs/blosc2.pxd
 
-# Cython declarations for the `c-blosc2 3.3.5` library.
+# Cython declarations for the `c-blosc2 3.6.0` library.
 # https://github.com/Blosc/c-blosc2
 
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t
@@ -46,6 +46,10 @@ cdef extern from 'blosc2.h' nogil:
     int BLOSC_EXTENDED_HEADER_LENGTH
     int BLOSC2_MAX_OVERHEAD
     int BLOSC2_MAX_BUFFERSIZE
+    int64_t BLOSC2_PREFETCH_MAX_AHEAD_DEFAULT
+    int BLOSC2_PREFETCH_MAX_NTHREADS
+    int BLOSC2_PREFETCH_MIN_PIECE_SIZE
+    int BLOSC2_PREFETCH_PIECE_SIZE_DEFAULT
     int BLOSC_MAX_TYPESIZE
     int BLOSC_MIN_BUFFERSIZE
 
@@ -217,6 +221,12 @@ cdef extern from 'blosc2.h' nogil:
     )
 
     void blosc2_init()
+
+    int blosc2_set_prefetch(
+        int nthreads,
+        int64_t max_ahead,
+        int64_t piece_size
+    )
 
     void blosc2_destroy()
 
@@ -532,6 +542,15 @@ cdef extern from 'blosc2.h' nogil:
         blosc2_dparams* dparams
     )
 
+    int blosc2_ctx_set_blosc1_format(
+        blosc2_context* context,
+        bool enable
+    )
+
+    bool blosc2_ctx_get_blosc1_format(
+        const blosc2_context* context
+    )
+
     int blosc2_set_maskout(
         blosc2_context* ctx,
         bool* maskout,
@@ -602,7 +621,7 @@ cdef extern from 'blosc2.h' nogil:
 
     int blosc2_vlcompress_ctx(
         blosc2_context* context,
-        const void** srcs,
+        const void* const* srcs,
         const int32_t* srcsizes,
         int32_t nblocks,
         void* dest,
@@ -631,6 +650,23 @@ cdef extern from 'blosc2.h' nogil:
         int32_t nblock,
         uint8_t** dest,
         int32_t* destsize
+    )
+
+    int blosc2_vlblock_get_nbytes_ctx(
+        blosc2_context* context,
+        const void* src,
+        int32_t srcsize,
+        int32_t nblock,
+        int32_t* nbytes
+    )
+
+    int blosc2_vldecompress_block_into_ctx(
+        blosc2_context* context,
+        const void* src,
+        int32_t srcsize,
+        int32_t nblock,
+        void* dest,
+        int32_t destsize
     )
 
     int blosc2_getitem_ctx(
@@ -763,6 +799,14 @@ cdef extern from 'blosc2.h' nogil:
         blosc2_schunk *schunk
     )
 
+    int blosc2_schunk_begin_updates(
+        blosc2_schunk* schunk
+    )
+
+    int blosc2_schunk_end_updates(
+        blosc2_schunk* schunk
+    )
+
     int blosc2_schunk_refresh(
         blosc2_schunk *schunk
     )
@@ -791,6 +835,12 @@ cdef extern from 'blosc2.h' nogil:
         blosc2_schunk* schunk,
         uint8_t** cframe,
         bool* needs_free
+    )
+
+    int64_t blosc2_schunk_to_buffer_alloc(
+        blosc2_schunk* schunk,
+        uint8_t* (*alloc)(int64_t len, void* user_data),
+        void* user_data
     )
 
     int64_t blosc2_schunk_to_file(
@@ -834,6 +884,20 @@ cdef extern from 'blosc2.h' nogil:
 
     int64_t blosc2_schunk_append_buffer(
         blosc2_schunk* schunk,
+        const void* src,
+        int32_t nbytes
+    )
+
+    int64_t blosc2_schunk_insert_buffer(
+        blosc2_schunk* schunk,
+        int64_t nchunk,
+        const void* src,
+        int32_t nbytes
+    )
+
+    int64_t blosc2_schunk_update_buffer(
+        blosc2_schunk* schunk,
+        int64_t nchunk,
         const void* src,
         int32_t nbytes
     )
@@ -905,6 +969,13 @@ cdef extern from 'blosc2.h' nogil:
 
     int64_t blosc2_schunk_frame_len(
         blosc2_schunk* schunk
+    )
+
+    int blosc2_schunk_get_chunk_range(
+        blosc2_schunk* schunk,
+        int64_t nchunk,
+        int64_t* offset,
+        int64_t* nbytes
     )
 
     int64_t blosc2_schunk_fill_special(
@@ -1102,7 +1173,7 @@ cdef extern from 'blosc2.h' nogil:
         int64_t* i
     )
 
-    int blosc2_get_slice_nchunks(
+    int64_t blosc2_get_slice_nchunks(
         blosc2_schunk* schunk,
         int64_t* start,
         int64_t* stop,
@@ -1136,6 +1207,36 @@ cdef extern from 'blosc2.h' nogil:
         const void* src,
         void* dest
     )
+
+cdef extern from 'blosc2/filters-registry.h' nogil:
+
+    int BLOSC_FILTER_NDCELL
+    int BLOSC_FILTER_NDMEAN
+    int BLOSC_FILTER_BYTEDELTA_BUGGY
+    int BLOSC_FILTER_BYTEDELTA
+    int BLOSC_FILTER_INT_TRUNC
+
+    void register_filters()
+
+cdef extern from 'blosc2/codecs-registry.h' nogil:
+
+    int BLOSC_CODEC_NDLZ
+    int BLOSC_CODEC_ZFP_FIXED_ACCURACY
+    int BLOSC_CODEC_ZFP_FIXED_PRECISION
+    int BLOSC_CODEC_ZFP_FIXED_RATE
+    int BLOSC_CODEC_OPENHTJ2K
+    int BLOSC_CODEC_GROK
+    int BLOSC_CODEC_OPENZL
+    int BLOSC_CODEC_J2K
+    int BLOSC_CODEC_HTJ2K
+
+    void register_codecs()
+
+cdef extern from 'blosc2/tuners-registry.h' nogil:
+
+    int BLOSC_BTUNE
+
+    void register_tuners()
 
 cdef extern from 'b2nd.h' nogil:
 
@@ -1319,6 +1420,15 @@ cdef extern from 'b2nd.h' nogil:
         int64_t buffersize
     )
 
+    int b2nd_get_slice_cbuffer_into(
+        const b2nd_array_t* array,
+        const int64_t* start,
+        const int64_t* stop,
+        void* buffer,
+        const int64_t* buffershape,
+        int64_t buffersize
+    )
+
     int b2nd_set_slice_cbuffer(
         const void* buffer,
         const int64_t* buffershape,
@@ -1408,6 +1518,17 @@ cdef extern from 'b2nd.h' nogil:
     )
 
     int b2nd_deserialize_meta(
+        const uint8_t* smeta,
+        int32_t smeta_len,
+        int8_t* ndim,
+        int64_t* shape,
+        int32_t* chunkshape,
+        int32_t* blockshape,
+        char** dtype,
+        int8_t* dtype_format
+    )
+
+    int b2nd_deserialize_meta_inline(
         const uint8_t* smeta,
         int32_t smeta_len,
         int8_t* ndim,
