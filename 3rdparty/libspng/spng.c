@@ -2737,7 +2737,7 @@ static int read_non_idat_chunks(spng_ctx *ctx)
                 ret = read_chunk_bytes(ctx, peek_bytes);
                 if(ret) return ret;
 
-                unsigned char *keyword_nul = memchr(ctx->data, '\0', peek_bytes);
+                const unsigned char *keyword_nul = memchr(ctx->data, '\0', peek_bytes);
                 if(keyword_nul == NULL) return SPNG_EICCP_NAME;
 
                 uint32_t keyword_len = keyword_nul - ctx->data;
@@ -3289,7 +3289,8 @@ static int update_row_info(spng_ctx *ctx)
 int spng_decode_scanline(spng_ctx *ctx, void *out, size_t len)
 {
     if(ctx == NULL || out == NULL) return 1;
-
+    if(!ctx->state) return SPNG_EBADSTATE;
+    if(ctx->state < SPNG_STATE_DECODE_INIT) return SPNG_EOPSTATE;
     if(ctx->state >= SPNG_STATE_EOI) return SPNG_EOI;
 
     struct decode_flags f = ctx->decode_flags;
@@ -3620,6 +3621,7 @@ int spng_decode_image(spng_ctx *ctx, void *out, size_t len, int fmt, int flags)
     if(ctx == NULL) return 1;
     if(ctx->encode_only) return SPNG_ECTXTYPE;
     if(ctx->state >= SPNG_STATE_EOI) return SPNG_EOI;
+    if(ctx->state == SPNG_STATE_ENCODE_INIT) return SPNG_EOPSTATE;
 
     const struct spng_ihdr *ihdr = &ctx->ihdr;
 
@@ -3803,7 +3805,7 @@ int spng_decode_image(spng_ctx *ctx, void *out, size_t len, int fmt, int flags)
         unsigned i;
         for(i=0; i < lut_entries; i++)
         {
-            float c = pow((float)i / max, exponent) * max;
+            float c = powf((float)i / max, exponent) * max;
             if(c > max) c = max;
 
             gamma_lut[i] = (uint16_t)c;
@@ -4686,6 +4688,7 @@ int spng_encode_scanline(spng_ctx *ctx, const void *scanline, size_t len)
 {
     if(ctx == NULL || scanline == NULL) return SPNG_EINVAL;
     if(ctx->state >= SPNG_STATE_EOI) return SPNG_EOI;
+    if(ctx->state < SPNG_STATE_ENCODE_INIT) return SPNG_EOPSTATE;
     if(len < (ctx->subimage[ctx->row_info.pass].scanline_width -1) ) return SPNG_EBUFSIZ;
 
     return encode_scanline(ctx, scanline, len);
@@ -4695,6 +4698,7 @@ int spng_encode_row(spng_ctx *ctx, const void *row, size_t len)
 {
     if(ctx == NULL || row == NULL) return SPNG_EINVAL;
     if(ctx->state >= SPNG_STATE_EOI) return SPNG_EOI;
+    if(ctx->state < SPNG_STATE_ENCODE_INIT) return SPNG_EOPSTATE;
     if(len < ctx->image_width) return SPNG_EBUFSIZ;
 
     return encode_row(ctx, row, len);
