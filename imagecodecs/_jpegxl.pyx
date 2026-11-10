@@ -39,6 +39,7 @@
 
 include '_shared.pxi'
 
+from cpython.bytes cimport PyBytes_AsString, PyBytes_FromStringAndSize
 from libjxl cimport *
 
 
@@ -67,6 +68,14 @@ class JPEGXL:
         CFA = JXL_CHANNEL_CFA
         THERMAL = JXL_CHANNEL_THERMAL
         OPTIONAL = JXL_CHANNEL_OPTIONAL
+
+    class WHITE_POINT(enum.IntEnum):
+        """JPEGXL codec white points."""
+
+        D65 = JXL_WHITE_POINT_D65
+        CUSTOM = JXL_WHITE_POINT_CUSTOM
+        E = JXL_WHITE_POINT_E
+        DCI = JXL_WHITE_POINT_DCI
 
     class PRIMARIES(enum.IntEnum):
         """JPEGXL codec color primaries."""
@@ -140,7 +149,7 @@ def jpegxl_version():
     return f'libjxl {ver // 1000000}.{ver % 1000000 // 1000}.{ver % 1000}'
 
 
-def jpegxl_check(const uint8_t[::1] data, /):
+def jpegxl_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEGXL encoded image or None if unknown."""
     cdef:
         JxlSignature sig = JxlSignatureCheck(
@@ -160,11 +169,14 @@ def jpegxl_encode(
     lossless=None,
     decodingspeed=None,
     photometric=None,
+    hasalpha=None,
     bitspersample=None,
     # extrasamples=None,
     planar=None,
     primaries=None,
     transfer=None,
+    whitepoint=None,
+    gamma=None,
     perceptualheuristics=None,
     usecontainer=None,
     numthreads=None,
@@ -177,9 +189,85 @@ def jpegxl_encode(
     Currently, L, LA, RGB, and RGBA images are supported in contig mode.
     Extra channels are only supported for grayscale images in planar mode.
 
+    If the encoded image does not fit into a provided `out` buffer,
+    an exception is raised.
+
+    Parameters:
+        data:
+            Image to encode.
+            Must be uint8, uint16, float16, or float32 array of shape
+            (height, width), (height, width, samples), or with additional
+            leading frames dimension.
+        level:
+            Quality of lossy compression in range -inf to 100.
+            Values > 100 select lossless compression.
+            Mapped to `distance` unless `distance` is specified.
+            Defaults to lossless compression if `distance` is not specified.
+        effort:
+            Encoder effort in range 1 (fastest) to 10 (slowest).
+            Defaults to 5.
+        distance:
+            Butteraugli distance of lossy compression in range 0.0 to 25.0.
+            0.0 is mathematically lossless, 1.0 is visually lossless.
+            Defaults to 1.0.
+        lossless:
+            Encode losslessly when True.
+            Defaults to True unless `level` <= 100 or `distance` is specified.
+        decodingspeed:
+            Decoding speed tier in range 0 (best quality) to 4 (fastest).
+            Defaults to 0.
+        photometric:
+            Color space of `data`: JPEGXL.COLOR_SPACE or its name.
+            Defaults to 'RGB' for 3 or more samples, else 'GRAY'.
+        hasalpha:
+            Last sample is alpha channel. Must match data shape if specified.
+        bitspersample:
+            Number of significant bits per sample of integer data.
+            Defaults to bit depth of data type.
+        planar:
+            Data is in planar configuration (samples, height, width).
+            Only supported for grayscale images with extra channels.
+        primaries:
+            Color primaries: JPEGXL.PRIMARIES or its name.
+            Defaults to sRGB.
+        transfer:
+            Transfer function: JPEGXL.TRANSFER_FUNCTION or its name.
+            Defaults to sRGB for uint8, else linear,
+            or GAMMA if `gamma` is specified.
+        whitepoint:
+            White point: JPEGXL.WHITE_POINT or its name.
+            Defaults to D65.
+        gamma:
+            Exponent of power-law transfer function in range (0, 1].
+            For example, 1/2.2.
+            Required if `transfer` is GAMMA.
+        perceptualheuristics:
+            Enable or disable perceptual optimizations.
+            Defaults to library default.
+        usecontainer:
+            Wrap codestream in ISOBMFF container when True.
+        numthreads:
+            Number of threads to use. 0 uses library default.
+            Defaults to 1.
+        out:
+            Optional output buffer.
+
+    Returns:
+        JPEGXL encoded image as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If data shape, dtype, or parameters are invalid.
+        NotImplementedError:
+            If image layout is not supported.
+        JpegxlError:
+            If encoding fails.
+
     """
     cdef:
-        numpy.ndarray src = _array_input(data, out)
+        numpy.ndarray src = _array_input(
+            data, out, dtype=None, contig=True, empty=False, native=False
+        )
         numpy.dtype dtype = src.dtype
         const uint8_t[::1] dst  # must be const to write to bytes
         ssize_t dstsize
@@ -220,6 +308,10 @@ def jpegxl_encode(
         JxlTransferFunction transfer_ = <JxlTransferFunction> <int> (
             _enum_value(transfer, JPEGXL.TRANSFER_FUNCTION, -1)
         )
+        JxlWhitePoint whitepoint_ = <JxlWhitePoint> <int> _enum_value(
+            whitepoint, JPEGXL.WHITE_POINT, -1
+        )
+        double gamma_ = 0.0 if gamma is None else gamma
         size_t channel_index
         uint32_t bits_per_sample
         bint is_planar
@@ -236,12 +328,23 @@ def jpegxl_encode(
     elif distance is not None and lossless is None:
         option_lossless = JXL_FALSE
 
+    if gamma is not None and <int> transfer_ == -1:
+        transfer_ = JXL_TRANSFER_FUNCTION_GAMMA
+
     if option_distance == 0.0 and option_lossless == JXL_FALSE:
         # distance=0.0 means lossless
         # JxlEncoderSetFrameDistance(0.0) internally calls
         # JxlEncoderSetFrameLossless(JXL_TRUE) which in libjxl 0.12
         # requires uses_original_profile=true be set
         option_lossless = JXL_TRUE
+
+    colorspace = _enum_value(photometric, JPEGXL.COLOR_SPACE, -1)
+    if colorspace == JXL_COLOR_SPACE_GRAY:
+        photometric = 'GRAY'
+    elif colorspace in {JXL_COLOR_SPACE_RGB, JXL_COLOR_SPACE_XYB}:
+        photometric = 'RGB'
+    else:
+        photometric = None
 
     _image_layout(
         IC_UINT
@@ -265,9 +368,12 @@ def jpegxl_encode(
         planar,
         None,  # frames
         None,  # volumetric
-        None,  # extrasample
+        'UNASSALPHA' if hasalpha else None,
         &layout,
     )
+
+    if hasalpha is not None and bool(hasalpha) != (layout.extracount > 0):
+        raise ValueError(f'{hasalpha=} does not match data shape')
 
     if layout.width >= UINT32_MAX or layout.height >= UINT32_MAX:
         raise ValueError(
@@ -308,8 +414,6 @@ def jpegxl_encode(
     JxlEncoderInitBasicInfo(&basic_info)
     memset(<void*> &pixel_format, 0, sizeof(JxlPixelFormat))
     memset(<void*> &color_encoding, 0, sizeof(JxlColorEncoding))
-
-    colorspace = _enum_value(photometric, JPEGXL.COLOR_SPACE, -1)
 
     is_planar = layout.planar
     if is_planar:
@@ -424,9 +528,18 @@ def jpegxl_encode(
             if status != JXL_ENC_SUCCESS:
                 raise JpegxlError('JxlEncoderSetBasicInfo', status)
 
-            if <int> primaries_ != -1 or <int> transfer_ != -1:
+            if (
+                <int> primaries_ != -1
+                or <int> transfer_ != -1
+                or <int> whitepoint_ != -1
+            ):
                 color_encoding.color_space = <JxlColorSpace> colorspace
-                color_encoding.white_point = JXL_WHITE_POINT_D65
+                color_encoding.white_point = (
+                    whitepoint_
+                    if <int> whitepoint_ != -1
+                    else JXL_WHITE_POINT_D65
+                )
+                color_encoding.gamma = gamma_
                 color_encoding.primaries = (
                     primaries_
                     if <int> primaries_ != -1
@@ -645,10 +758,67 @@ def jpegxl_decode(
     index=None,
     *,
     keeporientation=None,
+    primaries=None,
+    transfer=None,
+    whitepoint=None,
+    gamma=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
-    """Return decoded JPEGXL image."""
+    """Return decoded JPEGXL image.
+
+    Parameters:
+        data:
+            JPEGXL encoded image, codestream or container.
+        index:
+            Index of frame to decode.
+            Negative indices are not supported.
+            By default, all frames are decoded.
+        keeporientation:
+            Do not apply image orientation from codestream when True.
+        primaries:
+            Color primaries of output: JPEGXL.PRIMARIES or its name.
+            Defaults to color primaries of image.
+        transfer:
+            Transfer function of output: JPEGXL.TRANSFER_FUNCTION or its name.
+            Defaults to transfer function of image,
+            or GAMMA if `gamma` is specified.
+        whitepoint:
+            White point of output: JPEGXL.WHITE_POINT or its name.
+            Defaults to white point of image.
+        gamma:
+            Exponent of power-law transfer function of output.
+            Required if `transfer` is GAMMA.
+        numthreads:
+            Number of threads to use.
+            0 uses library default.
+            Defaults to 1.
+        out:
+            Optional output array.
+
+    Returns:
+        Decoded image as uint8, uint16, float16, or float32 array.
+        Shape is (height, width) or (height, width, samples).
+        Grayscale images with non-alpha extra channels are returned in
+        planar configuration (samples, height, width).
+        Multiple frames are stacked along a leading dimension.
+        Extra channels other than alpha are ignored for RGB images.
+        Only XYB encoded (lossy) images can be converted to a different
+        color encoding.
+
+    Raises:
+        ValueError:
+            If data is not a JPEGXL codestream or the color encoding of
+            a non-XYB image cannot be changed.
+        IndexError:
+            If frame `index` is out of range.
+        NotImplementedError:
+            If `index` is negative.
+        JpegxlError:
+            If decoding fails.
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
@@ -667,13 +837,30 @@ def jpegxl_decode(
         JxlBasicInfo basic_info
         JxlPixelFormat pixel_format
         JxlBitDepth bit_depth
+        JxlColorEncoding color_encoding
         size_t num_threads = _default_threads(numthreads)
         size_t channel_index
         bint keep_orientation = bool(keeporientation)  # None -> False
         bint is_planar = False
+        bint is_indexed = index is not None
+        bint is_changed = False
+        int events = JXL_DEC_BASIC_INFO
+        int primaries_ = _enum_value(primaries, JPEGXL.PRIMARIES, -1)
+        int transfer_ = _enum_value(transfer, JPEGXL.TRANSFER_FUNCTION, -1)
+        int whitepoint_ = _enum_value(whitepoint, JPEGXL.WHITE_POINT, -1)
+        double gamma_ = 0.0 if gamma is None else gamma
+        bint set_color
 
     if data is out:
         raise ValueError('cannot transform in-place')
+
+    if gamma is not None and transfer_ == -1:
+        transfer_ = JXL_TRANSFER_FUNCTION_GAMMA
+    set_color = primaries_ != -1 or transfer_ != -1 or whitepoint_ != -1
+    if _info or set_color:
+        events |= JXL_DEC_COLOR_ENCODING
+    if not _info:
+        events |= JXL_DEC_FULL_IMAGE
 
     # TODO: decode from ISOBMFF container ("box")
 
@@ -741,10 +928,7 @@ def jpegxl_decode(
                 JxlDecoderSkipFrames(decoder, frameindex)
                 frameindex = 0
 
-            status = JxlDecoderSubscribeEvents(
-                decoder, JXL_DEC_BASIC_INFO | JXL_DEC_FULL_IMAGE
-                # | JXL_DEC_COLOR_ENCODING
-            )
+            status = JxlDecoderSubscribeEvents(decoder, events)
             if status != JXL_DEC_SUCCESS:
                 raise JpegxlError('JxlDecoderSubscribeEvents', status)
 
@@ -852,16 +1036,87 @@ def jpegxl_decode(
                             dtype = numpy.float32
                             pixel_format.data_type = JXL_TYPE_FLOAT
 
-                        out = _create_array(out, shape, dtype)
-                        dst = out
-                        dstsize = dst.nbytes
-                        framesize = dstsize // frames
-                        if is_planar:
-                            framesize //= samples
-                        buffer = dst.data
+                        if not _info:
+                            out = _create_array(out, shape, dtype)
+                            dst = out
+                            dstsize = dst.nbytes
+                            framesize = dstsize // frames
+                            if is_planar:
+                                framesize //= samples
+                            buffer = dst.data
 
-                # elif status == JXL_DEC_COLOR_ENCODING:
-                #     pass
+                elif status == JXL_DEC_COLOR_ENCODING:
+                    if set_color:
+                        status = JxlDecoderGetColorAsEncodedProfile(
+                            decoder,
+                            JXL_COLOR_PROFILE_TARGET_DATA,
+                            &color_encoding
+                        )
+                        if status != JXL_DEC_SUCCESS:
+                            raise ValueError(
+                                'color encoding of image cannot be changed'
+                            )
+                        if (
+                            whitepoint_ != -1
+                            and whitepoint_ != <int> color_encoding.white_point
+                        ):
+                            color_encoding.white_point = (
+                                <JxlWhitePoint> whitepoint_
+                            )
+                            is_changed = True
+                        if (
+                            primaries_ != -1
+                            and primaries_ != <int> color_encoding.primaries
+                            and color_encoding.color_space
+                            != JXL_COLOR_SPACE_GRAY
+                        ):
+                            color_encoding.primaries = (
+                                <JxlPrimaries> primaries_
+                            )
+                            is_changed = True
+                        if transfer_ != -1 and (
+                            transfer_
+                            != <int> color_encoding.transfer_function
+                            or (
+                                transfer_ == JXL_TRANSFER_FUNCTION_GAMMA
+                                and (
+                                    gamma_ - color_encoding.gamma > 1e-6
+                                    or color_encoding.gamma - gamma_ > 1e-6
+                                )
+                            )
+                        ):
+                            color_encoding.transfer_function = (
+                                <JxlTransferFunction> transfer_
+                            )
+                            color_encoding.gamma = gamma_
+                            is_changed = True
+                        if is_changed:
+                            if basic_info.uses_original_profile:
+                                raise ValueError(
+                                    'color encoding of non-XYB image '
+                                    'cannot be changed'
+                                )
+                            status = JxlDecoderSetPreferredColorProfile(
+                                decoder, &color_encoding
+                            )
+                            if status != JXL_DEC_SUCCESS:
+                                raise JpegxlError(
+                                    'JxlDecoderSetPreferredColorProfile',
+                                    status
+                                )
+
+                    if _info:
+                        with gil:
+                            return {
+                                '_codec': 'jpegxl',
+                                'shape': shape,
+                                'dtype': numpy.dtype(dtype),
+                                'frames': int(frames),
+                                'planar': (
+                                    None if samples == 1 else is_planar
+                                ),
+                                **_jpegxl_info(decoder, &basic_info)
+                            }
 
                 elif status == JXL_DEC_NEED_IMAGE_OUT_BUFFER:
 
@@ -945,6 +1200,11 @@ def jpegxl_decode(
                         f'JxlDecoderProcessInput unknown {status=}'
                     )
 
+            if frameindex < frames:
+                if is_indexed:
+                    raise IndexError(f'frame index={frameindex} out of range')
+                raise RuntimeError(f'decoded {frameindex} of {frames} frames')
+
     finally:
         if decoder != NULL:
             JxlDecoderDestroy(decoder)
@@ -952,6 +1212,122 @@ def jpegxl_decode(
             JxlThreadParallelRunnerDestroy(runner)
 
     return out
+
+
+def jpegxl_info(
+    data,
+    /,
+    *,
+    keeporientation=None,
+    primaries=None,
+    transfer=None,
+    whitepoint=None,
+    gamma=None,
+):
+    """Return information about JPEGXL image.
+
+    Parameters are the same as for :py:func:`jpegxl_decode`.
+
+    Returns:
+        Dict of image properties, such as shape, dtype, frames, planar,
+        bitspersample, extrachannels, orientation, animation,
+        usecontainer, xyb, colorspace, primaries, transfer, whitepoint,
+        gamma, and iccprofile.
+        The shape and dtype match the output of `jpegxl_decode` called
+        with the same `keeporientation` argument.
+        The `xyb` value indicates whether the image is internally encoded
+        in the XYB color space.
+        The `colorspace`, `primaries`, `transfer`, `whitepoint`, `gamma`,
+        and `iccprofile` values describe the pixels returned by
+        `jpegxl_decode` called with the same color arguments.
+        They are None if not available.
+
+    """
+    return jpegxl_decode(
+        data,
+        keeporientation=keeporientation,
+        primaries=primaries,
+        transfer=transfer,
+        whitepoint=whitepoint,
+        gamma=gamma,
+        numthreads=1,
+        _info=True,
+    )
+
+
+cdef dict _jpegxl_info(
+    JxlDecoder* decoder,
+    JxlBasicInfo* basic_info,
+):
+    """Return information from JPEGXL basic info and color encoding."""
+    cdef:
+        JxlExtraChannelInfo extra_channel_info
+        JxlColorEncoding color_encoding
+        JxlDecoderStatus status
+        size_t size = 0
+        bytes iccprofile = None
+        size_t i
+
+    extrachannels = []
+    for i in range(basic_info.num_extra_channels):
+        status = JxlDecoderGetExtraChannelInfo(
+            decoder, i, &extra_channel_info
+        )
+        if status != JXL_DEC_SUCCESS:
+            raise JpegxlError('JxlDecoderGetExtraChannelInfo', status)
+        extrachannels.append(
+            _enum_or_int(extra_channel_info.type, JPEGXL.CHANNEL)
+        )
+
+    colorspace = primaries = transfer = whitepoint = gamma = None
+    status = JxlDecoderGetColorAsEncodedProfile(
+        decoder, JXL_COLOR_PROFILE_TARGET_DATA, &color_encoding
+    )
+    if status == JXL_DEC_SUCCESS:
+        colorspace = _enum_or_int(
+            color_encoding.color_space, JPEGXL.COLOR_SPACE
+        )
+        if color_encoding.color_space != JXL_COLOR_SPACE_GRAY:
+            primaries = _enum_or_int(
+                color_encoding.primaries, JPEGXL.PRIMARIES
+            )
+        transfer = _enum_or_int(
+            color_encoding.transfer_function, JPEGXL.TRANSFER_FUNCTION
+        )
+        whitepoint = _enum_or_int(
+            color_encoding.white_point, JPEGXL.WHITE_POINT
+        )
+        if color_encoding.transfer_function == JXL_TRANSFER_FUNCTION_GAMMA:
+            gamma = float(color_encoding.gamma)
+
+    status = JxlDecoderGetICCProfileSize(
+        decoder, JXL_COLOR_PROFILE_TARGET_DATA, &size
+    )
+    if status == JXL_DEC_SUCCESS and size > 0:
+        iccprofile = PyBytes_FromStringAndSize(NULL, <Py_ssize_t> size)
+        status = JxlDecoderGetColorAsICCProfile(
+            decoder,
+            JXL_COLOR_PROFILE_TARGET_DATA,
+            <uint8_t*> PyBytes_AsString(iccprofile),
+            size
+        )
+        if status != JXL_DEC_SUCCESS:
+            raise JpegxlError('JxlDecoderGetColorAsICCProfile', status)
+
+    return {
+        'bitspersample': int(basic_info.bits_per_sample),
+        'extrachannels': tuple(extrachannels),
+        'orientation': int(basic_info.orientation),
+        'animation': bool(basic_info.have_animation),
+        'usecontainer': bool(basic_info.have_container),
+        'xyb': not basic_info.uses_original_profile,
+        'colorspace': colorspace,
+        'primaries': primaries,
+        'transfer': transfer,
+        'whitepoint': whitepoint,
+        'gamma': gamma,
+        'iccprofile': iccprofile,
+    }
 
 
 def jpegxl_encode_jpeg(
@@ -962,7 +1338,30 @@ def jpegxl_encode_jpeg(
     numthreads=None,
     out=None,
 ):
-    """Return JPEGXL encoded image from JPEG stream."""
+    """Return JPEGXL encoded image from JPEG stream.
+
+    The JPEG stream is losslessly transcoded and can be reconstructed
+    with `jpegxl_decode_jpeg`.
+
+    Parameters:
+        data:
+            JPEG encoded image.
+        usecontainer:
+            Wrap codestream in ISOBMFF container when True.
+        numthreads:
+            Number of threads to use. 0 uses library default.
+            Defaults to 1.
+        out:
+            Optional output buffer.
+
+    Returns:
+        JPEGXL encoded image as bytes or in `out`.
+
+    Raises:
+        JpegxlError:
+            If transcoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
@@ -994,15 +1393,16 @@ def jpegxl_encode_jpeg(
         output = output_new(<uint8_t*> dst._data, dstsize)
     else:
         output = output_new(NULL, max(<size_t> 32768, _align_size_t(srcsize)))
-    if output == NULL:
-        raise MemoryError('output_new failed')
-
-    encoder = JxlEncoderCreate(NULL)
-    if encoder == NULL:
-        raise JpegxlError('JxlEncoderCreate', None)
 
     try:
         with nogil:
+            if output == NULL:
+                raise MemoryError('output_new failed')
+
+            encoder = JxlEncoderCreate(NULL)
+            if encoder == NULL:
+                raise JpegxlError('JxlEncoderCreate', None)
+
             frame_settings = JxlEncoderFrameSettingsCreate(encoder, NULL)
             if frame_settings == NULL:
                 raise JpegxlError('JxlEncoderFrameSettingsCreate', None)
@@ -1098,7 +1498,32 @@ def jpegxl_decode_jpeg(
     numthreads=None,
     out=None,
 ):
-    """Return JPEG encoded image from JPEG XL."""
+    """Return JPEG encoded image from JPEG XL.
+
+    Reconstruct original JPEG stream from JPEGXL image created with
+    `jpegxl_encode_jpeg`.
+
+    Parameters:
+        data:
+            JPEGXL encoded image containing JPEG reconstruction data.
+        numthreads:
+            Number of threads to use.
+            0 uses library default.
+            Defaults to 1.
+        out:
+            Optional output buffer.
+
+    Returns:
+        JPEG encoded image as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If data is not a JPEGXL codestream, cannot be transcoded to JPEG,
+            or does not fit into `out`.
+        JpegxlError:
+            If decoding fails.
+
+    """
     cdef:
         const uint8_t[::1] src = data
         const uint8_t[::1] dst  # must be const to write to bytes
