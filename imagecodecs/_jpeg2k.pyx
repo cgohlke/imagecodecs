@@ -66,16 +66,22 @@ class JPEG2K:
         SYCC = OPJ_CLRSPC_SYCC
         EYCC = OPJ_CLRSPC_EYCC
         CMYK = OPJ_CLRSPC_CMYK
-        # legacy
-        # UNKNOWN = OPJ_CLRSPC_UNSPECIFIED
-        # GRAYSCALE = OPJ_CLRSPC_GRAY
-        # MINISWHITE = OPJ_CLRSPC_GRAY
-        # MINISBLACK = OPJ_CLRSPC_GRAY
-        # RGBA = OPJ_CLRSPC_SRGB
+
+    class EXTRA(enum.IntEnum):
+        """JPEG2K extra sample types."""
+
+        UNSPECIFIED = IC_EXTRA_UNSPECIFIED
+        ASSOCALPHA = IC_EXTRA_ASSOCALPHA
+        UNASSALPHA = IC_EXTRA_UNASSALPHA
 
 
 class Jpeg2kError(RuntimeError):
     """JPEG2K codec exceptions."""
+
+    def __init__(self, msg, error=None):
+        if error:
+            msg = f'{msg}: {error.decode(errors="replace").strip()}'
+        super().__init__(msg)
 
 
 def jpeg2k_version():
@@ -83,15 +89,13 @@ def jpeg2k_version():
     return 'openjpeg ' + opj_version().decode()
 
 
-def jpeg2k_check(const uint8_t[::1] data, /):
+def jpeg2k_check(const uint8_t[::1] data not None, /):
     """Return whether data is JPEG2K encoded image or None if unknown."""
-    cdef:
-        bytes sig = bytes(data[:12])
-
     return (
-        sig == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'  # JP2/JPX
-        or sig[:4] == b'\xff\x4f\xff\x51'  # J2K
-        or sig[:4] == b'\x0d\x0a\x87\x0a'  # JP2
+        # JP2/JPX
+        _startswith(data, b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a')
+        or _startswith(data, b'\xff\x4f\xff\x51')  # J2K
+        or _startswith(data, b'\x0d\x0a\x87\x0a')  # JP2
     )
 
 
@@ -101,7 +105,8 @@ def jpeg2k_encode(
     level=None,  # quality, psnr, level < 1 or > 1000 map to quality=0
     *,
     codecformat=None,
-    colorspace=None,
+    colorspace=None,  # input interpretation, like photometric in other codecs
+    extrasample=None,
     planar=None,
     tile=None,  # not implemented
     bitspersample=None,
@@ -116,7 +121,73 @@ def jpeg2k_encode(
 
     WIP: currently only single-tile, single-quality-layer formats are supported
 
-    TODO: (u)int32 must contain <= 26-bits data ?
+    Level values < 1 or > 1000 select lossless compression with the
+    reversible 5/3 wavelet, unless `reversible` is explicitly False, in which
+    case the irreversible 9/7 wavelet is used and the result is not lossless.
+
+    Precision is limited to 26 bits. 32-bit integer data must fit into the
+    26-bit range. This is not checked. Values outside are silently corrupted.
+
+    If `colorspace` is specified, it determines the number of color samples.
+    Remaining samples are extra samples. A single extra sample is assumed to
+    be unassociated alpha unless `extrasample` is specified.
+    OpenJPEG writes associated alpha as unassociated alpha.
+    For example, encode 4-sample uint8 data as gray with 3 unspecified extra
+    samples using ``colorspace='gray', extrasample='unspecified'``, or as RGB
+    with 1 unspecified extra sample using ``extrasample='unspecified'``.
+
+    Parameters:
+        data:
+            Image to encode.
+            Must be 8, 16, or 32-bit integer array of shape (height, width)
+            or (height, width, samples).
+        level:
+            Quality of lossy compression as PSNR in dB in range 1 to 1000.
+            Other values select lossless compression.
+            Defaults to lossless compression.
+        codecformat:
+            File format: JPEG2K.CODEC or its name, 'JP2' or 'J2K'.
+            Defaults to 'JP2'.
+        colorspace:
+            Color space of `data`: JPEG2K.CLRSPC or its name.
+            Defaults to 'SRGB' for 3 or more samples, else 'GRAY'.
+        extrasample:
+            Type of extra samples: JPEG2K.EXTRA or its name.
+        planar:
+            Data is in planar configuration (samples, height, width).
+        tile:
+            Not implemented.
+        bitspersample:
+            Number of significant bits per sample in range 1 to 26.
+            Defaults to bit depth of data type, limited to 26.
+        resolutions:
+            Maximum number of resolution levels.
+            Limited by image size. Defaults to 6.
+        reversible:
+            Use reversible 5/3 wavelet when True, else irreversible 9/7.
+            Defaults to True for lossless and False for lossy compression.
+        mct:
+            Apply multiple component transform RGB to YCC to 3-sample
+            sRGB images. Defaults to True.
+        verbose:
+            Verbosity level: 1 logs errors, 2 also warnings, 3 also info.
+        numthreads:
+            Number of threads to use.
+            0 uses half the number of CPUs.
+            Defaults to 1.
+        out:
+            Optional output buffer.
+
+    Returns:
+        JPEG2K encoded image as bytes or in `out`.
+
+    Raises:
+        ValueError:
+            If data shape, dtype, or parameters are invalid.
+        NotImplementedError:
+            If `tile` is specified.
+        Jpeg2kError:
+            If encoding fails.
 
     """
     cdef:
@@ -127,6 +198,7 @@ def jpeg2k_encode(
         ssize_t itemsize = src.itemsize
         ssize_t byteswritten, size, i
         memopj_t memopj
+        j2k_msg_t msg
         opj_codec_t* codec = NULL
         opj_image_t* image = NULL
         opj_stream_t* stream = NULL
@@ -134,8 +206,9 @@ def jpeg2k_encode(
         opj_cparameters_t parameters
         OPJ_CODEC_FORMAT codec_format
         OPJ_BOOL ret = OPJ_TRUE
-        OPJ_COLOR_SPACE color_space
+        OPJ_COLOR_SPACE color_space = OPJ_CLRSPC_UNSPECIFIED
         OPJ_UINT32 sgnd, prec, width, height, samples
+        OPJ_UINT16 alpha = 0
         int verbosity = int(verbose) if verbose else 0
         # int tile_width = 0
         # int tile_height = 0
@@ -146,12 +219,13 @@ def jpeg2k_encode(
         bint tcp_mct = bool(mct)
         imagelayout_t layout
 
-    # jpeg2k-specific planar auto-detection:
-    # if planar is not explicitly set and the array looks like (S, H, W)
-    # (i.e. shape[2] > 4 and shape[0] <= 4), treat as planar
-    if planar is None and src.ndim == 3:
-        if src.shape[2] > 4 and src.shape[0] <= 4:
-            planar = True
+    if colorspace is None:
+        photometric = None
+    else:
+        color_space = _enum_value(
+            colorspace, JPEG2K.CLRSPC, OPJ_CLRSPC_UNSPECIFIED
+        )
+        photometric = _CLRSPC_PHOTOMETRIC.get(color_space)
 
     _image_layout(
         IC_UINT
@@ -161,6 +235,8 @@ def jpeg2k_encode(
         | IC_SZ4
         | IC_GRAY
         | IC_RGB
+        | IC_CMYK
+        | IC_YCBCR
         | IC_ALPHA
         | IC_EXTRA
         | IC_PLANAR
@@ -168,17 +244,17 @@ def jpeg2k_encode(
         src.ndim,
         src.shape,
         src.dtype,
-        None,  # photometric
+        photometric,
         bitspersample,
         planar,
         None,  # frames
         None,  # volumetric
-        None,  # extrasample
+        _enum_value(extrasample, JPEG2K.EXTRA, None),
         &layout,
     )
 
     if <uint64_t> srcsize > UINT32_MAX:
-        raise ValueError('tile size must not exceed 4 GB')
+        raise ValueError('image size must not exceed 4 GB')
 
     if quality < 1 or quality > 1000:
         # lossless
@@ -196,7 +272,9 @@ def jpeg2k_encode(
     samples = <OPJ_UINT32> layout.samples
 
     if prec > 26:
-        # TODO: OpenJPEG currently only supports up to 31, effectively 26-bit?
+        # OpenJPEG effectively supports only up to 26-bit precision
+        if bitspersample is not None:
+            raise ValueError(f'{bitspersample=} > 26 not supported')
         prec = 26
 
     if tile:
@@ -210,16 +288,18 @@ def jpeg2k_encode(
         raise ValueError(f'invalid number of {samples=}')
 
     if colorspace is None:
-        if samples <= 2:
-            color_space = OPJ_CLRSPC_GRAY
-        elif samples <= 4:
+        if layout.photometric == IC_PHOTO_RGB:
             color_space = OPJ_CLRSPC_SRGB
         else:
-            color_space = OPJ_CLRSPC_UNSPECIFIED
-    else:
-        color_space = _enum_value(
-            colorspace, JPEG2K.CLRSPC, OPJ_CLRSPC_UNSPECIFIED
-        )
+            color_space = OPJ_CLRSPC_GRAY
+
+    if layout.extratype == IC_EXTRA_ASSOCALPHA:
+        alpha = 2
+    elif layout.extratype == IC_EXTRA_UNASSALPHA:
+        alpha = 1
+
+    memset(&msg, 0, sizeof(j2k_msg_t))
+    msg.verbose = verbosity
 
     # create memory stream
     memopj.data = NULL
@@ -285,6 +365,9 @@ def jpeg2k_encode(
             image.y1 = height
             image.color_space = color_space
             image.numcomps = samples
+
+            if alpha > 0 and layout.extraindex < samples:
+                image.comps[layout.extraindex].alpha = alpha
 
             # Set encoding parameters to default values, that means:
             # Lossless
@@ -362,28 +445,21 @@ def jpeg2k_encode(
             if codec == NULL:
                 raise Jpeg2kError('opj_create_compress failed')
 
-            if verbosity > 0:
-                opj_set_error_handler(
-                    codec,
-                    <opj_msg_callback> j2k_error_callback,
-                    NULL
+            opj_set_error_handler(
+                codec, <opj_msg_callback> j2k_error_callback, &msg
+            )
+            if verbosity > 1:
+                opj_set_warning_handler(
+                    codec, <opj_msg_callback> j2k_warning_callback, NULL
                 )
-                if verbosity > 1:
-                    opj_set_warning_handler(
-                        codec,
-                        <opj_msg_callback> j2k_warning_callback,
-                        NULL
+                if verbosity > 2:
+                    opj_set_info_handler(
+                        codec, <opj_msg_callback> j2k_info_callback, NULL
                     )
-                    if verbosity > 2:
-                        opj_set_info_handler(
-                            codec,
-                            <opj_msg_callback> j2k_info_callback,
-                            NULL
-                        )
 
             ret = opj_setup_encoder(codec, &parameters, image)
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_setup_encoder failed')
+                raise Jpeg2kError('opj_setup_encoder failed', msg.error)
 
             if num_threads != 1 and opj_has_thread_support():
                 if num_threads == 0:
@@ -439,16 +515,15 @@ def jpeg2k_encode(
 
             ret = opj_start_compress(codec, image, stream)
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_start_compress failed')
+                raise Jpeg2kError('opj_start_compress failed', msg.error)
 
             ret = opj_encode(codec, stream)
-
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_encode failed')
+                raise Jpeg2kError('opj_encode failed', msg.error)
 
             ret = opj_end_compress(codec, stream)
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_end_compress failed')
+                raise Jpeg2kError('opj_end_compress failed', msg.error)
 
             # superfluous
             if memopj.written > memopj.size:
@@ -471,8 +546,12 @@ def jpeg2k_encode(
             free(cmptparms)
 
     if out is None:
-        out = _create_output(outtype, byteswritten, <const char*> memopj.data)
-        free(memopj.data)
+        try:
+            out = _create_output(
+                outtype, byteswritten, <const char*> memopj.data
+            )
+        finally:
+            free(memopj.data)
         return out
 
     del dst
@@ -488,13 +567,48 @@ def jpeg2k_decode(
     verbose=None,
     numthreads=None,
     out=None,
+    bint _info=False,
 ):
-    """Return decoded JPEG2K image."""
+    """Return decoded JPEG2K image.
+
+    YCC images are converted to RGB. ICC profiles and CIELab are applied.
+
+    Parameters:
+        data:
+            JPEG2K encoded image, J2K codestream or JP2 file.
+        planar:
+            Return image in planar configuration (samples, height, width)
+            when True.
+        skipres:
+            Number of highest resolution levels to discard.
+            Image dimensions are reduced by factor 2**skipres.
+        verbose:
+            Verbosity level: 1 logs errors, 2 also warnings, 3 also info.
+        numthreads:
+            Number of threads to use.
+            0 uses half the number of CPUs.
+            Defaults to 1.
+        out:
+            Optional output array.
+
+    Returns:
+        Decoded image as 8, 16, or 32-bit integer array of shape
+        (height, width), (height, width, samples), or
+        (samples, height, width).
+
+    Raises:
+        NotImplementedError:
+            If components differ in dtype or subsampling.
+        Jpeg2kError:
+            If data is not JPEG2K or decoding fails.
+
+    """
     cdef:
         numpy.ndarray dst
         const uint8_t[::1] src = data
         ssize_t itemsize
         memopj_t memopj
+        j2k_msg_t msg
         opj_codec_t* codec = NULL
         opj_image_t* image = NULL
         opj_stream_t* stream = NULL
@@ -507,17 +621,18 @@ def jpeg2k_decode(
         ssize_t i, bandsize, samples
         int num_threads = _default_threads(numthreads)
         int verbosity = int(verbose) if verbose else 0
-        memoryview sig = memoryview(src)
         bint contig = not planar
 
     if data is out:
         raise ValueError('cannot transform in-place')
 
-    if sig[:4] == b'\xff\x4f\xff\x51':
+    if _startswith(src, b'\xff\x4f\xff\x51'):
         codecformat = OPJ_CODEC_J2K
-    elif sig[:4] == b'\x0d\x0a\x87\x0a':
+    elif _startswith(src, b'\x0d\x0a\x87\x0a'):
         codecformat = OPJ_CODEC_JP2
-    elif sig[:12] == b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a':
+    elif _startswith(
+        src, b'\x00\x00\x00\x0c\x6a\x50\x20\x20\x0d\x0a\x87\x0a'
+    ):
         # OPJ_CODEC_JPX support not implemented in OpenJPEG
         # if b'jpx ' in bytes(sig[12:24]):
         #     codecformat = OPJ_CODEC_JPX
@@ -526,6 +641,9 @@ def jpeg2k_decode(
         codecformat = OPJ_CODEC_JP2
     else:
         raise Jpeg2kError('not a J2K or JP2 data stream')
+
+    memset(&msg, 0, sizeof(j2k_msg_t))
+    msg.verbose = verbosity
 
     try:
         memopj.data = <OPJ_UINT8*> src._data
@@ -543,18 +661,17 @@ def jpeg2k_decode(
             if codec == NULL:
                 raise Jpeg2kError('opj_create_decompress failed')
 
-            if verbosity > 0:
-                opj_set_error_handler(
-                    codec, <opj_msg_callback> j2k_error_callback, NULL
+            opj_set_error_handler(
+                codec, <opj_msg_callback> j2k_error_callback, &msg
+            )
+            if verbosity > 1:
+                opj_set_warning_handler(
+                    codec, <opj_msg_callback> j2k_warning_callback, NULL
                 )
-                if verbosity > 1:
-                    opj_set_warning_handler(
-                        codec, <opj_msg_callback> j2k_warning_callback, NULL
+                if verbosity > 2:
+                    opj_set_info_handler(
+                        codec, <opj_msg_callback> j2k_info_callback, NULL
                     )
-                    if verbosity > 2:
-                        opj_set_info_handler(
-                            codec, <opj_msg_callback> j2k_info_callback, NULL
-                        )
 
             opj_set_default_decoder_parameters(&parameters)
             parameters.cp_reduce = cp_reduce
@@ -565,7 +682,7 @@ def jpeg2k_decode(
 
             if num_threads != 1 and opj_has_thread_support():
                 if num_threads == 0:
-                    num_threads = opj_get_num_cpus() / 2
+                    num_threads = opj_get_num_cpus() // 2
                     num_threads = 1 if num_threads < 1 else num_threads
                 ret = opj_codec_set_threads(codec, num_threads)
                 if ret == OPJ_FALSE:
@@ -573,7 +690,15 @@ def jpeg2k_decode(
 
             ret = opj_read_header(stream, codec, &image)
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_read_header failed')
+                raise Jpeg2kError('opj_read_header failed', msg.error)
+            if image.numcomps == 0 or image.comps == NULL:
+                raise Jpeg2kError('image has no components')
+
+            if _info:
+                with gil:
+                    return _jpeg2k_info(
+                        codec, image, codecformat, cp_reduce, not contig
+                    )
 
             # ret = opj_set_decode_area(
             #     codec,
@@ -590,7 +715,9 @@ def jpeg2k_decode(
             if ret != OPJ_FALSE:
                 ret = opj_end_decompress(codec, stream)
             if ret == OPJ_FALSE:
-                raise Jpeg2kError('opj_decode or opj_end_decompress failed')
+                raise Jpeg2kError(
+                    'opj_decode or opj_end_decompress failed', msg.error
+                )
 
             # handle subsampling and color profiles
             # This heuristic tries to auto-detect SYCC but may be fragile.
@@ -608,17 +735,18 @@ def jpeg2k_decode(
 
             if image.color_space == OPJ_CLRSPC_SYCC:
                 color_sycc_to_rgb(image)
+            # icc_profile_buf is freed by opj_image_destroy
             if image.icc_profile_buf:
-                color_apply_icc_profile(image)
-                free(image.icc_profile_buf)
-                image.icc_profile_buf = NULL
-                image.icc_profile_len = 0
+                if image.icc_profile_len:
+                    color_apply_icc_profile(image)
+                else:
+                    color_cielab_to_rgb(image)
 
             comp = &image.comps[0]
             sgnd = comp.sgnd
             prec = comp.prec
-            height = comp.h * comp.dy
-            width = comp.w * comp.dx
+            height = comp.h
+            width = comp.w
             samples = <ssize_t> image.numcomps
             itemsize = (prec + 7) // 8
 
@@ -695,6 +823,130 @@ def jpeg2k_decode(
             opj_image_destroy(image)
 
     return out
+
+
+def jpeg2k_info(
+    data,
+    /,
+    *,
+    planar=None,
+    skipres=None,
+    verbose=None,
+):
+    """Return information about JPEG2K image.
+
+    Parameters are the same as for :py:func:`jpeg2k_decode`.
+
+    Returns:
+        Dict of image properties.
+        The shape and dtype match the output of `jpeg2k_decode` called
+        with the same `planar` and `skipres` arguments.
+        Other items can be passed to `jpeg2k_encode`.
+
+    """
+    return jpeg2k_decode(
+        data,
+        planar=planar,
+        skipres=skipres,
+        verbose=verbose,
+        _info=True,
+    )
+
+
+cdef dict _jpeg2k_info(
+    opj_codec_t* codec,
+    opj_image_t* image,
+    OPJ_CODEC_FORMAT codecformat,
+    OPJ_UINT32 reduce,
+    bint planar,
+):
+    """Return information from JPEG2K header."""
+    cdef:
+        opj_codestream_info_v2_t* cstr_info = NULL
+        opj_tccp_info_t* tccp = NULL
+        opj_image_comp_t* comp = &image.comps[0]
+        OPJ_UINT32 width, height
+        ssize_t i, itemsize
+        ssize_t samples = <ssize_t> image.numcomps
+
+    itemsize = (comp.prec + 7) // 8
+    if itemsize == 3:
+        itemsize = 4
+    elif itemsize < 1 or itemsize > 4:
+        raise Jpeg2kError(f'unsupported {itemsize=}')
+    dtype = numpy.dtype(f'{"i" if comp.sgnd else "u"}{itemsize}')
+
+    # component size after skipping resolutions, see opj_image_comp_t
+    width = _ceildivpow2(
+        _ceildiv(image.x1, comp.dx) - _ceildiv(image.x0, comp.dx), reduce
+    )
+    height = _ceildivpow2(
+        _ceildiv(image.y1, comp.dy) - _ceildiv(image.y0, comp.dy), reduce
+    )
+    if samples == 1:
+        shape = int(height), int(width)
+    elif planar:
+        shape = int(samples), int(height), int(width)
+    else:
+        shape = int(height), int(width), int(samples)
+
+    subsampling = tuple(
+        (int(image.comps[i].dy), int(image.comps[i].dx))
+        for i in range(samples)
+    )
+    if all(s == (1, 1) for s in subsampling):
+        subsampling = None
+
+    iccprofile = None
+    if image.icc_profile_buf != NULL and image.icc_profile_len > 0:
+        iccprofile = (<char*> image.icc_profile_buf)[:image.icc_profile_len]
+
+    cstr_info = opj_get_cstr_info(codec)
+    try:
+        if (
+            cstr_info == NULL
+            or cstr_info.m_default_tile_info.tccp_info == NULL
+        ):
+            raise Jpeg2kError('opj_get_cstr_info failed')
+        tccp = &cstr_info.m_default_tile_info.tccp_info[0]
+        # no extrasample: OpenJPEG applies the JP2 cdef box only on decode
+        return {
+            '_codec': 'jpeg2k',
+            'shape': shape,
+            'dtype': dtype,
+            'codecformat': JPEG2K.CODEC(codecformat),
+            'colorspace': _enum_or_int(image.color_space, JPEG2K.CLRSPC),
+            'bitspersample': int(comp.prec),
+            'resolutions': int(tccp.numresolutions),
+            'reversible': tccp.qmfbid == 1,
+            'mct': bool(cstr_info.m_default_tile_info.mct),
+            'tile': (
+                (int(cstr_info.tdy), int(cstr_info.tdx))
+                if cstr_info.tw * cstr_info.th > 1
+                else None
+            ),
+            'layers': int(cstr_info.m_default_tile_info.numlayers),
+            'progression': _PROG_ORDER.get(
+                cstr_info.m_default_tile_info.prg, None
+            ),
+            'subsampling': subsampling,
+            'iccprofile': iccprofile,
+        }
+    finally:
+        if cstr_info != NULL:
+            opj_destroy_cstr_info(&cstr_info)
+
+
+cdef inline OPJ_UINT32 _ceildiv(OPJ_UINT32 a, OPJ_UINT32 b) noexcept nogil:
+    """Return a divided by b, rounded up."""
+    return (a + b - 1) // b if b else 0
+
+
+cdef inline OPJ_UINT32 _ceildivpow2(
+    OPJ_UINT32 a, OPJ_UINT32 b
+) noexcept nogil:
+    """Return a divided by 2**b, rounded up."""
+    return (a + (1 << b) - 1) >> b if b < 32 else 0
 
 
 ctypedef fused data_t:
@@ -798,23 +1050,27 @@ cdef memopj_t* memopj_new(uint8_t* data, size_t size) noexcept nogil:
 
 cdef OPJ_BOOL opj_mem_resize(
     memopj_t* memopj,
-    OPJ_SIZE_T newsize,
+    OPJ_UINT64 newsize,
 ) noexcept nogil:
     """Reallocate buffer to at least fit newsize bytes."""
     cdef:
         OPJ_UINT8* tmp
+        size_t alignedsize
 
     if newsize <= memopj.size:
         return OPJ_TRUE
     if not memopj.owner:
         return OPJ_FALSE
     # always over-allocate to avoid repeated reallocations
-    newsize = _align_size_t(newsize + newsize // 4)
-    tmp = <OPJ_UINT8*> realloc(<void*> memopj.data, newsize)
+    newsize += newsize // 4
+    if newsize > SIZE_MAX - 65536:
+        return OPJ_FALSE
+    alignedsize = _align_size_t(<size_t> newsize)
+    tmp = <OPJ_UINT8*> realloc(<void*> memopj.data, alignedsize)
     if tmp == NULL:
         return OPJ_FALSE
     memopj.data = tmp
-    memopj.size = newsize
+    memopj.size = alignedsize
     return OPJ_TRUE
 
 
@@ -937,24 +1193,61 @@ cdef opj_stream_t* opj_memstream_create(
     return stream
 
 
-cdef void j2k_error_callback(char* msg, void* client_data) noexcept with gil:
-    # TODO: this does not raise an exception, only prints the error message
-    # raise Jpeg2kError(msg.decode().strip())
+ctypedef struct j2k_msg_t:
+    int verbose
+    char error[256]
+
+
+cdef void _j2k_log(const char* level, const char* msg) noexcept with gil:
     try:
-        _log_warning('JPEG2K error: %s', msg.decode().strip())
+        _log_warning(
+            'JPEG2K %s: %s',
+            level.decode(),
+            msg.decode(errors='replace').strip(),
+        )
     except Exception:
         pass
 
 
-cdef void j2k_warning_callback(char* msg, void* client_data) noexcept with gil:
-    try:
-        _log_warning('JPEG2K warning: %s', msg.decode().strip())
-    except Exception:
-        pass
+cdef void j2k_error_callback(
+    const char* msg,
+    void* client_data,
+) noexcept nogil:
+    cdef:
+        j2k_msg_t* m = <j2k_msg_t*> client_data
+
+    if m.error[0] == 0:
+        strncpy(m.error, msg, 255)
+    if m.verbose > 0:
+        _j2k_log(b'error', msg)
 
 
-cdef void j2k_info_callback(char* msg, void* client_data) noexcept with gil:
-    try:
-        _log_warning('JPEG2K info: %s', msg.decode().strip())
-    except Exception:
-        pass
+cdef void j2k_warning_callback(
+    const char* msg,
+    void* client_data,
+) noexcept nogil:
+    _j2k_log(b'warning', msg)
+
+
+cdef void j2k_info_callback(
+    const char* msg,
+    void* client_data,
+) noexcept nogil:
+    _j2k_log(b'info', msg)
+
+
+_CLRSPC_PHOTOMETRIC = {
+    OPJ_CLRSPC_GRAY: IC_PHOTO_GRAY,
+    OPJ_CLRSPC_SRGB: IC_PHOTO_RGB,
+    OPJ_CLRSPC_SYCC: IC_PHOTO_YCBCR,
+    OPJ_CLRSPC_EYCC: IC_PHOTO_YCBCR,
+    OPJ_CLRSPC_CMYK: IC_PHOTO_CMYK,
+}
+
+_PROG_ORDER = {
+    OPJ_LRCP: 'LRCP',
+    OPJ_RLCP: 'RLCP',
+    OPJ_RPCL: 'RPCL',
+    OPJ_PCRL: 'PCRL',
+    OPJ_CPRL: 'CPRL',
+}
