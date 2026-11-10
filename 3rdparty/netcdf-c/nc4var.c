@@ -11,6 +11,7 @@
  */
 
 /* Lint, header, remove LOG only keep nc4_convert_type function */
+/* Do not quantize non-finite values. Clamp quantize mask shifts */
 
 #include "nc4var.h"
 #include <math.h>
@@ -173,6 +174,8 @@ nc4_convert_type(
 
             if (dest_type == NC_FLOAT) {
                 bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_FLT - prc_bnr_xpl_rqr;
+                if (bit_xpl_nbr_zro < 0)
+                    bit_xpl_nbr_zro = 0;
 
                 /* Create mask */
                 msk_f32_u32_zro = 0u; /* Zero all bits */
@@ -191,6 +194,8 @@ nc4_convert_type(
 
             } else {
                 bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_DBL - prc_bnr_xpl_rqr;
+                if (bit_xpl_nbr_zro < 0)
+                    bit_xpl_nbr_zro = 0;
                 /* Create mask. */
                 msk_f64_u64_zro = 0ul; /* Zero all bits. */
                 msk_f64_u64_zro = ~msk_f64_u64_zro; /* Turn all bits to ones. */
@@ -326,7 +331,7 @@ nc4_convert_type(
             switch (dest_type) {
                 case NC_UBYTE:
                     for (sp = (short *)src, ubp = dest; count < len; count++) {
-                        if (*sp > X_UCHAR_MAX || *sp < 0)
+                        if (*sp < 0 || *sp > (int)X_UCHAR_MAX)
                             (*range_error)++;
                         *ubp++ = (unsigned char)*sp++;
                     }
@@ -432,7 +437,7 @@ nc4_convert_type(
             switch (dest_type) {
                 case NC_UBYTE:
                     for (ip = (int *)src, ubp = dest; count < len; count++) {
-                        if (*ip > X_UCHAR_MAX || *ip < 0)
+                        if (*ip < 0 || *ip > (int)X_UCHAR_MAX)
                             (*range_error)++;
                         *ubp++ = (unsigned char)*ip++;
                     }
@@ -453,7 +458,7 @@ nc4_convert_type(
                     break;
                 case NC_USHORT:
                     for (ip = (int *)src, usp = dest; count < len; count++) {
-                        if (*ip > X_USHORT_MAX || *ip < 0)
+                        if (*ip < 0 || *ip > (int)X_USHORT_MAX)
                             (*range_error)++;
                         *usp++ = (unsigned short)*ip++;
                     }
@@ -467,7 +472,7 @@ nc4_convert_type(
                     break;
                 case NC_UINT:
                     for (ip = (int *)src, uip = dest; count < len; count++) {
-                        if (*ip > X_UINT_MAX || *ip < 0)
+                        if (*ip < 0)
                             (*range_error)++;
                         *uip++ = (unsigned int)*ip++;
                     }
@@ -842,20 +847,20 @@ nc4_convert_type(
             op1.fp = (float *)dest;
             u32_ptr = op1.ui32p;
             for (idx = 0L; idx < len; idx += 2L)
-                if (op1.fp[idx] != mss_val_cmp_flt)
+                if (op1.fp[idx] != mss_val_cmp_flt && isfinite(op1.fp[idx]))
                     u32_ptr[idx] &= msk_f32_u32_zro;
             for (idx = 1L; idx < len; idx += 2L)
-                if (op1.fp[idx] != mss_val_cmp_flt && u32_ptr[idx] != 0U) /* Never quantize upwards floating point values of zero */
+                if (op1.fp[idx] != mss_val_cmp_flt && isfinite(op1.fp[idx]) && u32_ptr[idx] != 0U) /* Never quantize upwards floating point values of zero */
                     u32_ptr[idx] |= msk_f32_u32_one;
         } else {
             /* BitGroom: alternately shave and set LSBs. */
             op1.dp = (double *)dest;
             u64_ptr = op1.ui64p;
             for (idx = 0L; idx < len; idx += 2L)
-                if (op1.dp[idx] != mss_val_cmp_dbl)
+                if (op1.dp[idx] != mss_val_cmp_dbl && isfinite(op1.dp[idx]))
                     u64_ptr[idx] &= msk_f64_u64_zro;
             for (idx = 1L; idx < len; idx += 2L)
-                if (op1.dp[idx] != mss_val_cmp_dbl && u64_ptr[idx] != 0ULL) /* Never quantize upwards floating point values of zero */
+                if (op1.dp[idx] != mss_val_cmp_dbl && isfinite(op1.dp[idx]) && u64_ptr[idx] != 0ULL) /* Never quantize upwards floating point values of zero */
                     u64_ptr[idx] |= msk_f64_u64_one;
         }
     } /* endif BitGroom */
@@ -866,7 +871,7 @@ nc4_convert_type(
             op1.fp = (float *)dest;
             u32_ptr = op1.ui32p;
             for (idx = 0L; idx < len; idx++) {
-                if (op1.fp[idx] != mss_val_cmp_flt) {
+                if (op1.fp[idx] != mss_val_cmp_flt && isfinite(op1.fp[idx])) {
                     u32_ptr[idx] += msk_f32_u32_hshv; /* Add 1 to the MSB of LSBs, carry 1 to mantissa or even exponent */
                     u32_ptr[idx] &= msk_f32_u32_zro; /* Shave it */
                 }
@@ -876,7 +881,7 @@ nc4_convert_type(
             op1.dp = (double *)dest;
             u64_ptr = op1.ui64p;
             for (idx = 0L; idx < len; idx++) {
-                if (op1.dp[idx] != mss_val_cmp_dbl) {
+                if (op1.dp[idx] != mss_val_cmp_dbl && isfinite(op1.dp[idx])) {
                     u64_ptr[idx] += msk_f64_u64_hshv; /* Add 1 to the MSB of LSBs, carry 1 to mantissa or even exponent */
                     u64_ptr[idx] &= msk_f64_u64_zro; /* Shave it */
                 }
@@ -890,7 +895,7 @@ nc4_convert_type(
             op1.fp = (float *)dest;
             u32_ptr = op1.ui32p;
             for (idx = 0L; idx < len; idx++) {
-                if ((val = op1.fp[idx]) != mss_val_cmp_flt && u32_ptr[idx] != 0U) {
+                if ((val = op1.fp[idx]) != mss_val_cmp_flt && isfinite(val) && u32_ptr[idx] != 0U) {
                     mnt = frexp(val, &xpn_bs2); /* DGG19 p. 4102 (8) */
                     mnt_fabs = fabs(mnt);
                     mnt_log10_fabs = log10(mnt_fabs);
@@ -901,6 +906,10 @@ nc4_convert_type(
                     prc_bnr_xpl_rqr--; /* 20211003 Reduce formula result by 1 bit: Passes all tests, improves CR by ~10% */
 
                     bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_FLT - prc_bnr_xpl_rqr;
+                    if (bit_xpl_nbr_zro <= 0)
+                        continue;
+                    if (bit_xpl_nbr_zro > BIT_XPL_NBR_SGN_FLT)
+                        bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_FLT;
                     msk_f32_u32_zro = 0u; /* Zero all bits */
                     msk_f32_u32_zro = ~msk_f32_u32_zro; /* Turn all bits to ones */
                     /* Bit Shave mask for AND: Left shift zeros into bits to be rounded, leave ones in untouched bits */
@@ -918,7 +927,7 @@ nc4_convert_type(
             op1.dp = (double *)dest;
             u64_ptr = op1.ui64p;
             for (idx = 0L; idx < len; idx++) {
-                if ((val = op1.dp[idx]) != mss_val_cmp_dbl && u64_ptr[idx] != 0ULL) {
+                if ((val = op1.dp[idx]) != mss_val_cmp_dbl && isfinite(val) && u64_ptr[idx] != 0ULL) {
                     mnt = frexp(val, &xpn_bs2); /* DGG19 p. 4102 (8) */
                     mnt_fabs = fabs(mnt);
                     mnt_log10_fabs = log10(mnt_fabs);
@@ -929,6 +938,10 @@ nc4_convert_type(
                     prc_bnr_xpl_rqr--; /* 20211003 Reduce formula result by 1 bit: Passes all tests, improves CR by ~10% */
 
                     bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_DBL - prc_bnr_xpl_rqr;
+                    if (bit_xpl_nbr_zro <= 0)
+                        continue;
+                    if (bit_xpl_nbr_zro > BIT_XPL_NBR_SGN_DBL)
+                        bit_xpl_nbr_zro = BIT_XPL_NBR_SGN_DBL;
                     msk_f64_u64_zro = 0ull; /* Zero all bits */
                     msk_f64_u64_zro = ~msk_f64_u64_zro; /* Turn all bits to ones */
                     /* Bit Shave mask for AND: Left shift zeros into bits to be rounded, leave ones in untouched bits */
