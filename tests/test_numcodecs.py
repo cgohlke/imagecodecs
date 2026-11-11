@@ -51,7 +51,7 @@ numcodecs.register_codecs()
 
 @pytest.mark.parallel_threads(1)
 @pytest.mark.iterations(1)
-def test_numcodecs_register(caplog):
+def test_numcodecs_register(caplog: pytest.LogCaptureFixture) -> None:
     """Test register_codecs function."""
     numcodecs.register_codecs(verbose=False)
     assert 'already registered' not in caplog.text
@@ -67,8 +67,42 @@ def test_numcodecs_register(caplog):
     )
 
 
+@pytest.mark.parametrize(
+    ('names', 'expected'),
+    [
+        (['jpeg2k'], [numcodecs.Jpeg2k]),
+        (['imagecodecs_jpeg2k'], [numcodecs.Jpeg2k]),
+        (['jpeg2k', 'imagecodecs_jpeg2k'], [numcodecs.Jpeg2k]),
+        ([], []),
+    ],
+)
+def test_numcodecs_register_names(
+    names: list[str], expected: list[type], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test registration by short codec name or full codec ID."""
+    registered: list[type] = []
+    monkeypatch.setattr(numcodecs, 'register_codec', registered.append)
+    numcodecs.register_codecs(names, force=True, verbose=False)
+    assert registered == expected
+
+
+@pytest.mark.parametrize(
+    'names',
+    [['unknown'], ['imagecodecs_unknown'], ['jpeg2k', 'unknown']],
+)
+def test_numcodecs_register_unknown(
+    names: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test unknown names fail without partial registration."""
+    registered: list[type] = []
+    monkeypatch.setattr(numcodecs, 'register_codec', registered.append)
+    with pytest.raises(ValueError, match='unknown codec names'):
+        numcodecs.register_codecs(names, force=True, verbose=False)
+    assert registered == []
+
+
 @pytest.mark.skipif(not imagecodecs.LZO.available, reason='LZO missing')
-def test_lzo_numcodecs():
+def test_lzo_numcodecs() -> None:
     """Test LZO decoding with numcodecs."""
     assert (
         imagecodecs.numcodecs.Lzo(header=True).decode(
@@ -82,10 +116,15 @@ def test_lzo_numcodecs():
 @pytest.mark.parametrize(
     'kind', ['crc32', 'adler32', 'fletcher32', 'lookup3', 'h5crc']
 )
-def test_checksum_roundtrip(kind, dtype):
+def test_checksum_roundtrip(kind: str, dtype: str) -> None:
     """Test numcodecs.Checksum roundtrips."""
-    if kind in {'crc32', 'adler32'} and not imagecodecs.ZLIB.available:
-        pytest.skip('ZLIB missing')
+    if kind in {'crc32', 'adler32'}:
+        if not (
+            imagecodecs.ZLIBNG.available
+            or imagecodecs.DEFLATE.available
+            or imagecodecs.ZLIB.available
+        ):
+            pytest.skip('ZLIB missing')
     elif not imagecodecs.H5CHECKSUM.available:
         pytest.skip('H5CHECKSUM missing')
 
@@ -96,7 +135,7 @@ def test_checksum_roundtrip(kind, dtype):
     assert array_equal(data, decoded.reshape((13, 13)))
 
     encoded = bytearray(encoded)
-    encoded[10] += 1
+    encoded[10] ^= 1
     with pytest.raises(RuntimeError):
         codec.decode(encoded)
 
@@ -106,7 +145,7 @@ def test_checksum_roundtrip(kind, dtype):
 )
 @pytest.mark.parametrize('nsd', [1, 4])
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
-def test_quantize_bitround(dtype, nsd):
+def test_quantize_bitround(dtype: str, nsd: int) -> None:
     """Test BitRound quantize against numcodecs."""
     from numcodecs import BitRound
 
@@ -126,7 +165,7 @@ def test_quantize_bitround(dtype, nsd):
 )
 @pytest.mark.parametrize('nsd', [1, 4])
 @pytest.mark.parametrize('dtype', ['f4', 'f8'])
-def test_quantize_scale(dtype, nsd):
+def test_quantize_scale(dtype: str, nsd: int) -> None:
     """Test Scale quantize against numcodecs."""
     from numcodecs import Quantize
 
@@ -142,7 +181,7 @@ def test_quantize_scale(dtype, nsd):
 @pytest.mark.skipif(
     not imagecodecs.H5CHECKSUM.available, reason='H5CHECKSUM missing'
 )
-def test_checksum_fletcher32():
+def test_checksum_fletcher32() -> None:
     """Test numcodecs Checksum fletcher32 roundtrip."""
     data = numpy.arange(40, dtype='<i8')
     codec = imagecodecs.numcodecs.Checksum(kind='fletcher32')
@@ -154,7 +193,7 @@ def test_checksum_fletcher32():
 @pytest.mark.skipif(
     not imagecodecs.H5CHECKSUM.available, reason='H5CHECKSUM missing'
 )
-def test_checksum_lookup3():
+def test_checksum_lookup3() -> None:
     """Test numcodecs Checksum lookup3 roundtrip."""
     data = b'Four score and seven years ago'
     codec = imagecodecs.numcodecs.Checksum(kind='lookup3')
@@ -172,7 +211,7 @@ def test_checksum_lookup3():
 @pytest.mark.skipif(
     not imagecodecs.DICOMRLE.available, reason='DICOMRLE missing'
 )
-def test_dicomrle_numcodecs():
+def test_dicomrle_numcodecs() -> None:
     """Test DICOMRLE decoding with numcodecs."""
     encoded = (
         b'\x0c\x00\x00\x00@\x00\x00\x00G\x00\x00\x00N\x00\x00\x00U\x00'
@@ -201,7 +240,7 @@ def test_dicomrle_numcodecs():
 
 
 @pytest.mark.skipif(not imagecodecs.DDS.available, reason='DDS missing')
-def test_dds_numcodecs():
+def test_dds_numcodecs() -> None:
     """Test DDS decoding with numcodecs."""
     try:
         with open(datafiles('bcn/bc1.dds'), 'rb') as fh:
@@ -214,7 +253,7 @@ def test_dds_numcodecs():
 
 
 @pytest.mark.skipif(not imagecodecs.ZSTD1.available, reason='zstd1 missing')
-def test_zstd1_numcodecs():
+def test_zstd1_numcodecs() -> None:
     """Test Zstd1 numcodecs codec."""
     data = numpy.arange(256, dtype=numpy.uint16)
     raw = data.tobytes()
@@ -227,12 +266,12 @@ def test_zstd1_numcodecs():
     codec = numcodecs.Zstd1(itemsize=2)
     encoded_hilo = codec.encode(raw)
     assert codec.decode(encoded_hilo) == raw
-    codec_nohilo = numcodecs.Zstd1(itemsize=2, hilo=False)
-    assert encoded_hilo != codec_nohilo.encode(raw)
 
     # explicit hilo=False override
     codec = numcodecs.Zstd1(itemsize=2, hilo=False)
-    assert codec.decode(codec.encode(raw)) == raw
+    encoded = codec.encode(raw)
+    assert encoded != encoded_hilo
+    assert codec.decode(encoded) == raw
 
     # explicit level
     codec = numcodecs.Zstd1(level=3)
@@ -240,7 +279,7 @@ def test_zstd1_numcodecs():
 
 
 @pytest.mark.skipif(not imagecodecs.EER.available, reason='EER missing')
-def test_eer_numcodecs():
+def test_eer_numcodecs() -> None:
     """Test EER decoding with numcodecs."""
     encoded = b'\x03\x1b\xfc\xb1\x35\xfb'  # from EER specification
     codec = imagecodecs.numcodecs.Eer(
@@ -258,7 +297,7 @@ def test_eer_numcodecs():
     reason='CCITT or TIFF missing',
 )
 @pytest.mark.parametrize('compression', ['ccittrle', 'ccittfax3', 'ccittfax4'])
-def test_ccitt_numcodecs(compression):
+def test_ccitt_numcodecs(compression: str) -> None:
     """Test CCITT decoding with numcodecs."""
     tifffile = pytest.importorskip('tifffile')
     shape = (8, 16)
@@ -337,6 +376,7 @@ def test_ccitt_numcodecs(compression):
         'jpeg',
         'jpeg12',
         'jpeg2k',
+        'jpegli',
         'jpegls',
         'jpegxl',
         'jpegxr',
@@ -385,18 +425,19 @@ def test_ccitt_numcodecs(compression):
         'zstd1',
     ],
 )
-def test_numcodecs(codec, photometric):
-    """Test numcodecs though roundtrips."""
+def test_numcodecs(codec: str, photometric: str) -> None:
+    """Test numcodecs through roundtrips."""
     if not getattr(
         imagecodecs,
         {'checksum': 'ZLIB', 'jpeg12': 'JPEG'}.get(codec, codec.upper()),
     ).available:
         pytest.skip(f'{codec} not found')
     if codec == 'jpeg12' and imagecodecs.JPEG.legacy:
-        pytest.skip(f'{codec} not found')
+        pytest.skip('jpeg12 not supported by legacy JPEG')
 
     data = numpy.load(datafiles('rgb.u1.npy'))
     data = numpy.stack([data, data])
+    chunks: tuple[int, ...]
 
     if photometric == 'rgb':
         shape = data.shape
@@ -416,6 +457,7 @@ def test_numcodecs(codec, photometric):
         axis = -1
 
     lossless = True
+    atol: float = 0
 
     match codec:
         case 'aec':
@@ -438,7 +480,12 @@ def test_numcodecs(codec, photometric):
         case 'b2nd':
             data = data.astype('float32')
             compressor = numcodecs.B2nd(
-                level=6, compressor='zstd', chunkshape=chunks, numthreads=2
+                level=6,
+                codec='zstd',
+                filters=['shuffle', 'bytedelta'],
+                filters_meta=[0, 4],
+                chunkshape=chunks,
+                numthreads=2,
             )
         case 'bfloat16':
             data = data.astype('float32')
@@ -453,7 +500,7 @@ def test_numcodecs(codec, photometric):
             compressor = numcodecs.Blosc(
                 level=9,
                 compressor='blosclz',
-                typesize=data.dtype.itemsize * 8,
+                typesize=data.dtype.itemsize,
                 blocksize=None,
                 shuffle=None,
                 numthreads=2,
@@ -461,10 +508,10 @@ def test_numcodecs(codec, photometric):
         case 'blosc2':
             compressor = numcodecs.Blosc2(
                 level=9,
-                compressor='blosclz',
-                typesize=data.dtype.itemsize * 8,
+                codec='blosclz',
+                typesize=data.dtype.itemsize,
                 blocksize=None,
-                shuffle=None,
+                filters=['shuffle', 'bytedelta'],
                 numthreads=2,
             )
         case 'bmp':
@@ -491,7 +538,7 @@ def test_numcodecs(codec, photometric):
                     dtype=data.dtype,
                 )
                 lossless = False
-                atol = 20
+                atol = 20.0
             else:
                 data = data.astype('float32') / 255.0
                 compressor = numcodecs.Cms(
@@ -537,14 +584,20 @@ def test_numcodecs(codec, photometric):
         case 'jpeg':
             lossless = False
             atol = 4
-            compressor = numcodecs.Jpeg(level=99)
+            compressor = numcodecs.Jpeg(level=99, subsampling='444')
         case 'jpeg12':
             lossless = False
             atol = 4 << 4
             data = data.astype('uint16') << 4
-            compressor = numcodecs.Jpeg(level=99, bitspersample=12)
+            compressor = numcodecs.Jpeg(
+                level=99, bitspersample=12, subsampling='444'
+            )
         case 'jpeg2k':
             compressor = numcodecs.Jpeg2k(level=0)  # lossless
+        case 'jpegli':
+            lossless = False
+            atol = 6
+            compressor = numcodecs.Jpegli(level=99, subsampling='444')
         case 'jpegls':
             compressor = numcodecs.Jpegls(level=0)  # lossless
         case 'jpegxl':
@@ -621,8 +674,6 @@ def test_numcodecs(codec, photometric):
                 shape=chunks[1:],
                 dtype=data.dtype,
             )
-            lossless = False
-            atol = 1e-2
         case 'pglz':
             compressor = numcodecs.Pglz(strategy=None)
         case 'pixarlog':
@@ -632,7 +683,7 @@ def test_numcodecs(codec, photometric):
                 shape=chunks, dtype=data.dtype, level=6
             )
             lossless = False
-            atol = 1e-3
+            atol = 2e-3
         case 'plio':
             data = data.astype('int32')
             compressor = numcodecs.Plio(shape=chunks, dtype=data.dtype)
@@ -697,14 +748,17 @@ def test_numcodecs(codec, photometric):
                 pytest.skip(
                     f'xfail - ULTRAHDR does not support {photometric=}'
                 )
-            else:
-                pytest.skip('xfail - ultrahdr_encode not working')
+            # ultrahdr_encode requires RGBA float16
             data = data.astype('float32')
             data /= data.max()
-            data = data.astype('float16')
+            data = numpy.concatenate(
+                [data, numpy.ones_like(data[..., :1])], axis=-1
+            ).astype('float16')
+            shape = data.shape
+            chunks = (*chunks[:-1], 4)
             compressor = numcodecs.Ultrahdr()
             lossless = False
-            atol = 1e-2
+            atol = 0.2
         case 'wavpack':
             data = data.astype('int16')
             compressor = numcodecs.Wavpack(
@@ -738,18 +792,13 @@ def test_numcodecs(codec, photometric):
         case _:
             raise RuntimeError
 
-    if 0:
-        # use ZIP file on disk
-        filename = f'test_{codec}.{photometric}.{data.dtype.str[1:]}.zarr.zip'
-        store = zarr.ZipStore(filename, mode='w')
-    else:
-        try:
-            store = zarr.MemoryStore()
-            store_args = {}
-        except AttributeError:
-            # zarr 3
-            store = zarr.storage.MemoryStore()
-            store_args = {'zarr_format': 2}
+    try:
+        store = zarr.MemoryStore()
+        store_args = {}
+    except AttributeError:
+        # zarr 3
+        store = zarr.storage.MemoryStore()
+        store_args = {'zarr_format': 2}
     z = zarr.create(
         store=store,
         overwrite=True,
@@ -763,17 +812,9 @@ def test_numcodecs(codec, photometric):
     del z
 
     z = zarr.open(store, mode='r')
-    if codec == 'jetraw':
-        pass  # it does not make sense to test Jetraw on tiled, synthetic data
-    elif lossless:
-        assert array_equal(z[:, :150, :150], data[:, :150, :150])
+    if lossless:
+        assert array_equal(z[:], data)
     else:
-        assert_allclose(
-            z[:, :150, :150], data[:, :150, :150], atol=atol, rtol=0.001
-        )
+        assert_allclose(z[:], data, atol=atol, rtol=0)
     with contextlib.suppress(Exception):
         store.close()
-
-
-# mypy: allow-untyped-defs
-# mypy: check-untyped-defs=False
