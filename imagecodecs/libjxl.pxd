@@ -1,6 +1,6 @@
 # imagecodecs/libjxl.pxd
 
-# Cython declarations for the `libjxl 0.12.0` library.
+# Cython declarations for the `libjxl 0.13.0` library.
 # https://github.com/libjxl/libjxl
 
 from libc.stdint cimport (
@@ -272,6 +272,35 @@ cdef extern from 'jxl/thread_parallel_runner.h' nogil:
 
     size_t JxlThreadParallelRunnerDefaultNumWorkerThreads()
 
+cdef extern from 'jxl/resizable_parallel_runner.h' nogil:
+
+    JxlParallelRetCode JxlResizableParallelRunner(
+        void* runner_opaque,
+        void* jpegxl_opaque,
+        JxlParallelRunInit init,
+        JxlParallelRunFunction func,
+        uint32_t start_range,
+        uint32_t end_range
+    )
+
+    void* JxlResizableParallelRunnerCreate(
+        const JxlMemoryManager* memory_manager
+    )
+
+    void JxlResizableParallelRunnerSetThreads(
+        void* runner_opaque,
+        size_t num_threads
+    )
+
+    uint32_t JxlResizableParallelRunnerSuggestThreads(
+        uint64_t xsize,
+        uint64_t ysize
+    )
+
+    void JxlResizableParallelRunnerDestroy(
+        void* runner_opaque
+    )
+
 cdef extern from 'jxl/cms_interface.h' nogil:
 
     ctypedef JXL_BOOL (*jpegxl_cms_set_fields_from_icc_func)(
@@ -325,6 +354,10 @@ cdef extern from 'jxl/cms_interface.h' nogil:
         jpegxl_cms_get_buffer_func get_dst_buf
         jpegxl_cms_run_func run
         jpegxl_cms_destroy_func destroy
+
+cdef extern from 'jxl/cms.h' nogil:
+
+    const JxlCmsInterface* JxlGetDefaultCms()
 
 cdef extern from 'jxl/stats.h' nogil:
 
@@ -709,6 +742,10 @@ cdef extern from 'jxl/decode.h' nogil:
         JxlProgressiveDetail detail
     )
 
+    size_t JxlDecoderGetIntendedDownsamplingRatio(
+        JxlDecoder* dec
+    )
+
     JxlDecoderStatus JxlDecoderFlushImage(
         JxlDecoder* dec
     )
@@ -784,6 +821,8 @@ cdef extern from 'jxl/encode.h' nogil:
         JXL_ENC_FRAME_SETTING_USE_FULL_IMAGE_HEURISTICS
         JXL_ENC_FRAME_SETTING_DISABLE_PERCEPTUAL_HEURISTICS
         JXL_ENC_FRAME_SETTING_OUTPUT_MODE
+        JXL_ENC_FRAME_SETTING_STRIP_ALPHA
+        JXL_ENC_FRAME_SETTING_JPEG_RECON_LFS
         JXL_ENC_FRAME_SETTING_FILL_ENUM
 
     JxlEncoder* JxlEncoderCreate(
