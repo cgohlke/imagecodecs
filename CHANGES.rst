@@ -1,5 +1,143 @@
+..
+  This file is updated by setup.py. Do not edit.
+
 Revisions
 =========
+
+2026.11.11
+
+- Rename JPEG8 codec to JPEG and deprecate JPEG8 alias (breaking).
+- Rename codec parameter of imread and imwrite to imagecodec (breaking).
+- Rename ultrahdr_encode_jpeg parameters and metadata keys (breaking).
+- Move Brunsli JPEG transcoding to brunsli_encode_jpeg/decode_jpeg (breaking).
+- Remove LJPEG fallback from jpeg_decode and jpeg_encode (breaking).
+- Remove Python bz2 module fallback from bz2_encode and bz2_decode.
+- Remove RGB565 color spaces from JPEG and MOZJPEG codecs (breaking).
+- Remove planar auto-detection in jpeg2k_encode and htj2k_encode (breaking).
+- Reject read-only output arrays in decoders (breaking).
+- Return 1D uint8 view or byte memoryview of user-provided out (breaking).
+- Reject bitspersample > 26 in jpeg2k_encode (breaking).
+- Reject invalid colorspace and subsampling in JPEG encoders (breaking).
+- Reject non-identity cICP matrix coefficients in PNG/APNG encoders (breaking).
+- Reject non-contiguous output arrays in cms_transform (breaking).
+- Reject unused whitepoint and primaries arguments in cms_profile (breaking).
+- Reject unknown codec names in register_codecs.
+- Reject object and zero itemsize dtypes in array codecs.
+- Change imread return_codec parameter to info (breaking).
+- Change integer out parameter to exact output size in all encoders (breaking).
+- Change mozjpeg_decode to alias of jpeg_decode (breaking).
+- Change jpegxl_encode/decode_jpeg options to keyword-only (breaking).
+- Change BLOSC2/B2ND parameters and enums to match python-blosc2 (breaking).
+- Change packints to pack 16, 32, and 64-bit integers big-endian (breaking).
+- Change webp_encode default to lossy if level is specified (breaking).
+- Change htj2k_encode resolutions to number of resolution levels (breaking).
+- Change ISAL.COMPRESSION.SPEED to level 0 (breaking).
+- Change numcodecs Jpegxl lossless default to None (breaking).
+- Change meshopt_encode default level to 2 and use vertex codec v1.
+- Change ultrahdr_encode default gainmap scale to library default.
+- Change b2nd_decode to disable threading.
+- Change BMP, PCX, and TGA codecs to thread-safe C libraries.
+- Change imread to try APNG for PNG and WIC for camera raw files.
+- Change AVIF creation times and cms_profile creation date to constant.
+- Derive jpeg2k_encode default colorspace from image layout (breaking).
+- Derive jpeg2k_encode color samples from colorspace parameter.
+- Derive JPEG default color space from CMYK and extended RGB input.
+- Convert CIELab to RGB in jpeg2k_decode (breaking).
+- Add JPEGLI codec based on jpegli library (Windows only).
+- Add iminfo function and info functions to many codecs.
+- Add imagecodecs.typing module with type aliases.
+- Add JpegCodec implementing the zarr-extensions jpeg spec.
+- Add more filters and codecs to BLOSC2/B2ND (#163).
+- Add jpeg_transcode and jpeg_merge functions (#160).
+- Add scale parameter to jpeg_decode (#159).
+- Add iccprofile parameter to JPEG, MOZJPEG, AVIF, and HEIF encoders.
+- Add hasalpha parameter to HEIF and JPEGXL encoders.
+- Add whitepoint and gamma parameters to jpegxl_encode.
+- Add primaries, transfer, whitepoint, and gamma parameters to jpegxl_decode.
+- Add planar parameter to jpegls_encode and jpegls_decode functions.
+- Add pixelformat parameter to jpegxr_decode.
+- Add extrasample parameter to jpeg2k_encode and write JP2 alpha channels.
+- Add option to create wavpack correction data.
+- Add hc parameter to lz4h5_encode.
+- Add byteorder parameter to PixarLog codecs.
+- Add displayp3, rec2020, sgray profiles and named curves to cms_profile.
+- Add new encoder parameters to numcodecs and zarr codecs.
+- Support typed contiguous output buffers in byte decompressors.
+- Support negative index in AVIF, HEIF, APNG, and EXR decoders (breaking).
+- Support non-native byte order input in most array codecs.
+- Support non-native byte order output in PCODEC, SPERR, and SZ3 decoders.
+- Support bytes-like ICC profiles in CMS functions.
+- Support short and prefixed codec names in register_codecs.
+- Support LERC blobs that use noData values (via lerc_decode_4D).
+- Support interrupting zopfli_encode.
+- Support zero delay and combined filters in APNG/PNG.
+- Support more DDS DX10 formats.
+- Support multi-member and padded GZIP streams and raw DEFLATE without size.
+- Support uniformly subsampled components in jpeg2k_decode.
+- Support 16-bit gray, 16-bit RGB, and gray-alpha images in spng_decode.
+- Support 15/16-bit colormaps and right-to-left images in tga_decode.
+- Support negative minexp, non-native byte order, and dtype strings in ZFP.
+- Improve parameter validation, error messages, and check functions.
+- Improve documentation.
+- Improve type hints.
+- Fix image layout of samples misinterpreted as frames.
+- Fix zarr/numcodecs codecs shape handling, serialization, and Cms metadata.
+- Fix photometric enum handling in HEIF, JPEGXL, APNG, and TIFF encoders.
+- Fix RGBE, ULTRAHDR, QUANTIZE, and TIFF colormap with non-native byte order.
+- Fix silent truncation and wrong checksums with data larger than 4 GB.
+- Fix silent data truncation in LZMA, LZ4F, LZ4H5, BZ2, SZIP, and AEC codecs.
+- Fix JPEGXR, JPEGXS, LJPEG encoders silently truncating output to small out.
+- Fix decoding concatenated streams in LZMA and BZ2 codecs.
+- Fix decoding highly compressible data in LZ4, Brotli, and AEC codecs.
+- Fix crashes, out-of-bounds access, and writes to read-only buffers in IMCD.
+- Fix aec_encode signedness of int8 and byte-order prefixed buffers.
+- Fix apng_decode alpha compositing and apng_encode delays > 65535 ms.
+- Fix (a)png_decode accepting truncated input or missing IEND chunk.
+- Fix interlace handling in png_decode and apng_decode.
+- Fix bitshuffle codecs ignoring itemsize of numpy arrays (breaking).
+- Fix bmp_decode of bitfields not 8 bits and segfaults with zero channel mask.
+- Fix CCITT decoders with 1D, ND, or buffer output.
+- Fix ccittfax4_decode infinite loop on crafted input (#158).
+- Fix cms_transform of gray volumes and big-endian floats, cms_info of v4.
+- Fix thread-safety of error logging in cms_transform and cms_profile_validate.
+- Fix decoding DDS cubemaps, texture arrays, and odd-sized textures.
+- Fix eer_decode dropping last code and with invalid parameters (#162).
+- Fix exr_encode default DWA and LJ2K compression levels.
+- Fix float24_encode rounding overflow and directed rounding of large values.
+- Fix gif_encode color resolution and gif_decode disposal and frame index.
+- Fix h5checksum functions ignoring value and racing CRC table (breaking).
+- Fix heif_decode of monochrome images.
+- Fix isal_decode ignoring checksum errors and isal_crc32c non-standard values.
+- Fix jpegsof3_decode OOB reads, uint8 wraparound, zero dimensions (#157).
+- Fix ljpeg_decode and jpegsof3_decode ignoring point transform.
+- Fix ljpeg_decode returning wrong samples with restart intervals.
+- Fix jpegxl_decode returning uninitialized frames with invalid index.
+- Fix jpegxs_decode hanging on truncated codestreams.
+- Fix jpegxs_encode silently corrupting data deeper than 14 bits (breaking).
+- Fix lzham_encode, lzfse_decode, and lzf_decode failing on specific data.
+- Fix lzw_decode output truncation beyond 4 GB.
+- Fix meshopt_decode ignoring shape and dtype if out is specified.
+- Fix quanttable and progressive parameters of mozjpeg_encode.
+- Fix packbits_encode quadratic runtime and silently truncated output.
+- Fix pcodec_encode failing with small pagesize.
+- Fix pglz_decode truncating output and reading past input (breaking).
+- Fix pixarlog_decode returning uninitialized rows and failing on long strips.
+- Fix plio_encode silently truncating floats.
+- Fix quantize_encode corrupting non-finite values and with too large nsd.
+- Fix rcomp_encode crash with nblock <= 0 and too small output estimate.
+- Fix rgbe_encode/decode output size and dtype, read-only out, invalid values.
+- Fix snappy_encode requiring level argument.
+- Fix sperr_decode of single-slice 3D data, short headers, and ignored dtype.
+- Fix sz3_decode heap overflow and uninitialized output with mismatched shape.
+- Fix tiff_encode writing non-deterministic gap bytes.
+- Fix tiff_decode silently accepting incomplete strip data.
+- Fix wavpack_encode of unsigned and non-native byte order data (breaking).
+- Fix webp_encode out-of-bounds reads with leading frame dimensions.
+- Fix WIC pixel formats, frame shapes, and conversion crashes (breaking).
+- Fix zfp_decode of data with full header when shape and dtype are specified.
+- Fix ZSTD1 and CHUNKED codecs with empty, truncated, or plain Zstd data.
+- Fix memory safety issues (buffer overflow, memory leaks, etc).
+- Fix many other issues.
 
 2026.10.10
 
